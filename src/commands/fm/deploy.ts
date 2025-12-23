@@ -114,6 +114,12 @@ export default class Deploy extends SfCommand<DeployResult> {
       description: messages.getMessage('flags.destructive.description'),
       options: ['pre', 'post', 'both'] as const,
     }),
+    pre: Flags.string({
+      summary: messages.getMessage('flags.pre.summary'),
+      description: messages.getMessage('flags.pre.description'),
+      multiple: true,
+      delimiter: ',',
+    }),
     'validation-id': Flags.string({
       char: 'i',
       summary: messages.getMessage('flags.validationId.summary'),
@@ -175,23 +181,29 @@ export default class Deploy extends SfCommand<DeployResult> {
       throw messages.createError('error.testsRequired');
     }
 
-    // Validate destructive mode has required files
+    // Validate destructive mode
     if (flags.destructive) {
       const manifestDir = flags.manifest as string;
-      const destructivePrePath = join(manifestDir, 'destructiveChangesPre.xml');
-      const destructivePostPath = join(manifestDir, 'destructiveChanges.xml');
+      const destructivePath = join(manifestDir, 'Destructive', 'destructiveChanges.xml');
 
-      if (flags.destructive === 'pre' && !existsSync(destructivePrePath)) {
-        throw messages.createError('error.destructivePreFileNotFound');
+      // Check if destructiveChanges.xml exists
+      if (!existsSync(destructivePath)) {
+        throw messages.createError('error.destructiveFileNotFound');
       }
 
-      if (flags.destructive === 'post' && !existsSync(destructivePostPath)) {
-        throw messages.createError('error.destructivePostFileNotFound');
+      // Validate --pre flag usage
+      if (flags.destructive === 'both' && (!flags.pre || (flags.pre as string[]).length === 0)) {
+        throw messages.createError('error.preFilesRequiredForBoth');
       }
 
-      if (flags.destructive === 'both' && (!existsSync(destructivePrePath) || !existsSync(destructivePostPath))) {
-        throw messages.createError('error.destructiveBothFilesNotFound');
+      if (flags.destructive !== 'both' && flags.pre && (flags.pre as string[]).length > 0) {
+        throw messages.createError('error.preFilesOnlyForBoth');
       }
+    }
+
+    // Validate --pre flag requires --destructive both
+    if (flags.pre && (flags.pre as string[]).length > 0 && flags.destructive !== 'both') {
+      throw messages.createError('error.preRequiresDestructiveBoth');
     }
   }
 
@@ -223,6 +235,37 @@ export default class Deploy extends SfCommand<DeployResult> {
       testClasses = await this.detectIntelligentTests(flags.manifest);
     }
 
+    // Process destructive changes if needed
+    let destructivePaths: { preDestructivePath?: string; postDestructivePath?: string } = {};
+    if (flags.destructive) {
+      const { processDestructiveChanges } = await import('../../utils/deploymentUtils.js');
+      const { findSfdxProjectJson } = await import('../../utils/fileUtils.js');
+      const { readFileSync } = await import('node:fs');
+
+      // Get API version from sfdx-project.json
+      const currentWorkingDir = process.cwd();
+      const sfdxProjectPath = findSfdxProjectJson(currentWorkingDir);
+      let sourceApiVersion = '59.0'; // default
+
+      if (sfdxProjectPath) {
+        try {
+          const projectContent = readFileSync(sfdxProjectPath, 'utf-8');
+          const projectJson = JSON.parse(projectContent) as Record<string, unknown>;
+          sourceApiVersion = (projectJson.sourceApiVersion as string) || '59.0';
+        } catch {
+          // Use default version
+        }
+      }
+
+      destructivePaths = await processDestructiveChanges(
+        flags.manifest,
+        flags.destructive as DestructiveMode,
+        (flags.pre as string[]) || [],
+        sourceApiVersion,
+        this
+      );
+    }
+
     // Build deployment options
     const deployOptions = {
       manifestDir: flags.manifest,
@@ -231,6 +274,8 @@ export default class Deploy extends SfCommand<DeployResult> {
       testLevel: flags['test-level'] as TestLevel,
       testClasses,
       destructiveMode: flags.destructive as DestructiveMode | undefined,
+      preDestructivePath: destructivePaths.preDestructivePath,
+      postDestructivePath: destructivePaths.postDestructivePath,
       validationId: flags['validation-id'],
       ignoreWarnings: flags['ignore-warnings'],
       waitMinutes: flags.async ? 0 : flags.wait,

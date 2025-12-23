@@ -89,6 +89,14 @@ When to run destructive changes: pre, post, or both.
 - post: Run destructiveChangesPost.xml after deployment (default if destructiveChanges.xml exists)
 - both: Run pre-destructive, then deploy, then post-destructive
 
+# flags.pre.summary
+
+Comma-separated file paths for pre-destructive changes (used with --destructive both).
+
+# flags.pre.description
+
+When using --destructive both, specify which deleted files should be deployed as pre-destructive changes. The remaining deleted files will be deployed as post-destructive changes. Example: --pre "force-app/main/default/classes/OldClass.cls,force-app/main/default/triggers/OldTrigger.trigger"
+
 # flags.validationId.summary
 
 Validation ID for quick deployment.
@@ -241,17 +249,21 @@ Deployment failed. Check the details above.
 
 Target org is required. Use --target-org flag.
 
-# error.destructivePreFileNotFound
+# error.destructiveFileNotFound
 
-Destructive mode 'pre' requires destructiveChangesPre.xml file in the manifest directory.
+Destructive mode requires destructiveChanges.xml file in the Destructive directory. Run 'sf fm build' first to generate deployment artifacts.
 
-# error.destructivePostFileNotFound
+# error.preFilesRequiredForBoth
 
-Destructive mode 'post' requires destructiveChanges.xml file in the manifest directory.
+When using --destructive both, you must specify which files go to pre-destructive changes using the --pre flag.
 
-# error.destructiveBothFilesNotFound
+# error.preFilesOnlyForBoth
 
-Destructive mode 'both' requires both destructiveChangesPre.xml and destructiveChanges.xml files in the manifest directory.
+The --pre flag can only be used with --destructive both.
+
+# error.preRequiresDestructiveBoth
+
+The --pre flag requires --destructive both to be set.
 
 # warn.noTestsFound
 

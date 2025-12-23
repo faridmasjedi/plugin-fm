@@ -10,6 +10,8 @@ export type DeploymentOptions = {
   testLevel: TestLevel;
   testClasses?: string[];
   destructiveMode?: DestructiveMode;
+  preDestructivePath?: string;
+  postDestructivePath?: string;
   validationId?: string;
   ignoreWarnings: boolean;
   waitMinutes: number;
@@ -73,7 +75,7 @@ export class DeploymentService {
     }
 
     // Add destructive changes
-    command = this.addDestructiveChangesFlags(command, options.manifestDir, options.destructiveMode);
+    command = this.addDestructiveChangesFlags(command, options.preDestructivePath, options.postDestructivePath);
 
     // Add wait time (0 for async)
     if (options.waitMinutes === 0) {
@@ -234,27 +236,17 @@ export class DeploymentService {
    */
   private static addDestructiveChangesFlags(
     command: string,
-    manifestDir: string,
-    destructiveMode?: DestructiveMode
+    preDestructivePath?: string,
+    postDestructivePath?: string
   ): string {
-    if (!destructiveMode) {
-      return command;
-    }
-
     let updatedCommand = command;
-    const preDestructivePath = resolve(manifestDir, 'Destructive', 'destructiveChangesPre.xml');
-    const postDestructivePath = resolve(manifestDir, 'Destructive', 'destructiveChanges.xml');
 
-    if (destructiveMode === 'pre' || destructiveMode === 'both') {
-      if (existsSync(preDestructivePath)) {
-        updatedCommand += ` --pre-destructive-changes "${preDestructivePath}"`;
-      }
+    if (preDestructivePath && existsSync(preDestructivePath)) {
+      updatedCommand += ` --pre-destructive-changes "${preDestructivePath}"`;
     }
 
-    if (destructiveMode === 'post' || destructiveMode === 'both') {
-      if (existsSync(postDestructivePath)) {
-        updatedCommand += ` --post-destructive-changes "${postDestructivePath}"`;
-      }
+    if (postDestructivePath && existsSync(postDestructivePath)) {
+      updatedCommand += ` --post-destructive-changes "${postDestructivePath}"`;
     }
 
     return updatedCommand;
