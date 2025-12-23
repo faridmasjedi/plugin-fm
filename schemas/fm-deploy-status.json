@@ -1,0 +1,107 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/DeploymentStatus",
+  "definitions": {
+    "DeploymentStatus": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Queued", "InProgress", "Succeeded", "Failed", "Canceled", "Pending"]
+        },
+        "progress": {
+          "type": "number"
+        },
+        "componentsDeployed": {
+          "type": "number"
+        },
+        "componentsTotal": {
+          "type": "number"
+        },
+        "testsCompleted": {
+          "type": "number"
+        },
+        "testsTotal": {
+          "type": "number"
+        },
+        "testsPassed": {
+          "type": "number"
+        },
+        "testsFailed": {
+          "type": "number"
+        },
+        "codeCoverage": {
+          "type": "number"
+        },
+        "startTime": {
+          "type": "string"
+        },
+        "completedTime": {
+          "type": "string"
+        },
+        "duration": {
+          "type": "string"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "file": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["type", "file", "message"],
+            "additionalProperties": false
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "file": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["type", "file", "message"],
+            "additionalProperties": false
+          }
+        },
+        "validationId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "progress",
+        "componentsDeployed",
+        "componentsTotal",
+        "testsCompleted",
+        "testsTotal",
+        "testsPassed",
+        "testsFailed",
+        "startTime",
+        "errors",
+        "warnings"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

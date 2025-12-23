@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/QualityResult",
+  "definitions": {
+    "QualityResult": {
+      "type": "object",
+      "properties": {
+        "baseSha": {
+          "type": "string",
+          "description": "Base commit SHA or reference"
+        },
+        "headSha": {
+          "type": "string",
+          "description": "Head commit SHA or reference"
+        },
+        "filesChanged": {
+          "type": "number",
+          "description": "Number of files changed between commits"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/QualityCheckResult"
+          },
+          "description": "List of quality checks performed"
+        },
+        "totalErrors": {
+          "type": "number",
+          "description": "Total number of errors across all checks"
+        },
+        "totalWarnings": {
+          "type": "number",
+          "description": "Total number of warnings across all checks"
+        },
+        "passed": {
+          "type": "boolean",
+          "description": "Whether all quality checks passed"
+        }
+      },
+      "required": ["baseSha", "headSha", "filesChanged", "checks", "totalErrors", "totalWarnings", "passed"],
+      "additionalProperties": false
+    },
+    "QualityCheckResult": {
+      "type": "object",
+      "properties": {
+        "check": {
+          "type": "string",
+          "description": "Name of the check (ESLint, XML Lint, PMD, Tests)"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pass", "fail", "warning", "skipped"],
+          "description": "Status of the check"
+        },
+        "errors": {
+          "type": "number",
+          "description": "Number of errors found"
+        },
+        "warnings": {
+          "type": "number",
+          "description": "Number of warnings found"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Detailed error/warning messages"
+        }
+      },
+      "required": ["check", "status", "errors", "warnings"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/QualityResult",
+  "definitions": {
+    "QualityResult": {
+      "type": "object",
+      "properties": {
+        "baseSha": {
+          "type": "string"
+        },
+        "headSha": {
+          "type": "string"
+        },
+        "filesChanged": {
+          "type": "number"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/QualityCheckResult"
+          }
+        },
+        "totalErrors": {
+          "type": "number"
+        },
+        "totalWarnings": {
+          "type": "number"
+        },
+        "passed": {
+          "type": "boolean"
+        }
+      },
+      "required": ["baseSha", "headSha", "filesChanged", "checks", "totalErrors", "totalWarnings", "passed"],
+      "additionalProperties": false
+    },
+    "QualityCheckResult": {
+      "type": "object",
+      "properties": {
+        "check": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pass", "fail", "warning", "skipped"]
+        },
+        "errors": {
+          "type": "number"
+        },
+        "warnings": {
+          "type": "number"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["check", "status", "errors", "warnings"],
+      "additionalProperties": false
+    }
+  }
+}

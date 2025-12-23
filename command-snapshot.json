@@ -1,0 +1,10 @@
+[
+  {
+    "alias": [],
+    "command": "fm:build",
+    "flagAliases": [],
+    "flagChars": ["R", "d", "i", "r", "s"],
+    "flags": ["create-docker-image", "flags-dir", "forceignore", "json", "output-dir", "ref-a", "ref-b", "summary"],
+    "plugin": "@salesforce/plugin-fm"
+  }
+]

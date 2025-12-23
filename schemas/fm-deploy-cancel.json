@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/CancelResult",
+  "definitions": {
+    "CancelResult": {
+      "type": "object",
+      "properties": {
+        "jobId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["canceled", "already-completed", "not-found", "skipped"]
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": ["jobId", "status", "message"],
+      "additionalProperties": false
+    }
+  }
+}

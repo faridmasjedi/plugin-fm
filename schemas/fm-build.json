@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/DiffResult",
+  "definitions": {
+    "DiffResult": {
+      "type": "object",
+      "properties": {
+        "outputDir": {
+          "type": "string"
+        },
+        "manifests": {
+          "type": "object",
+          "properties": {
+            "packageXml": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
+            "destructiveChangesXml": {
+              "type": "string"
+            },
+            "emptyDestructivePackageXml": {
+              "type": "string"
+            }
+          },
+          "required": ["packageXml", "destructiveChangesXml", "emptyDestructivePackageXml"],
+          "additionalProperties": false
+        },
+        "changedFilesCopied": {
+          "type": "number"
+        },
+        "sfdxProjectJsonCopied": {
+          "type": "boolean"
+        },
+        "statistics": {
+          "type": "object",
+          "properties": {
+            "totalChanged": {
+              "type": "number"
+            },
+            "totalDeleted": {
+              "type": "number"
+            },
+            "totalIgnored": {
+              "type": "number"
+            },
+            "chunksGenerated": {
+              "type": "number"
+            }
+          },
+          "required": ["totalChanged", "totalDeleted", "totalIgnored", "chunksGenerated"],
+          "additionalProperties": false
+        },
+        "reports": {
+          "type": "object",
+          "properties": {
+            "detailedReport": {
+              "type": "string"
+            },
+            "githubSummary": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["outputDir", "manifests", "changedFilesCopied", "sfdxProjectJsonCopied", "statistics", "reports"],
+      "additionalProperties": false
+    }
+  }
+}

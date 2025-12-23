@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/DeployResult",
+  "definitions": {
+    "DeployResult": {
+      "type": "object",
+      "properties": {
+        "jobId": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/DeployStatus"
+        },
+        "validationId": {
+          "type": "string"
+        },
+        "deployedComponents": {
+          "type": "number"
+        },
+        "failedComponents": {
+          "type": "number"
+        },
+        "testsRun": {
+          "type": "number"
+        },
+        "testsPassed": {
+          "type": "number"
+        },
+        "testsFailed": {
+          "type": "number"
+        },
+        "codeCoverage": {
+          "type": "number"
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "async": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "jobId",
+        "status",
+        "deployedComponents",
+        "failedComponents",
+        "testsRun",
+        "testsPassed",
+        "testsFailed",
+        "messages",
+        "async"
+      ],
+      "additionalProperties": false
+    },
+    "DeployStatus": {
+      "type": "string",
+      "enum": ["Queued", "InProgress", "Succeeded", "Failed", "Canceled", "Pending"]
+    }
+  }
+}
