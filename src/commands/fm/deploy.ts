@@ -75,7 +75,7 @@ export default class Deploy extends SfCommand<DeployResult> {
       char: 'm',
       summary: messages.getMessage('flags.manifest.summary'),
       description: messages.getMessage('flags.manifest.description'),
-      required: true,
+      required: false,
       exists: true,
     }),
     'target-org': Flags.requiredOrg({
@@ -176,6 +176,11 @@ export default class Deploy extends SfCommand<DeployResult> {
       throw messages.createError('error.validationIdRequired');
     }
 
+    // Validate non-quick deployment requires manifest
+    if (flags.mode !== 'quick' && !flags.manifest) {
+      throw new Error('--manifest is required for deployment, validation, and deploy modes');
+    }
+
     // Validate RunSpecifiedTests requires test classes
     if (flags['test-level'] === 'RunSpecifiedTests' && (!flags.tests || (flags.tests as string[]).length === 0)) {
       throw messages.createError('error.testsRequired');
@@ -207,6 +212,7 @@ export default class Deploy extends SfCommand<DeployResult> {
     }
   }
 
+  // eslint-disable-next-line complexity
   public async run(): Promise<DeployResult> {
     const { flags } = await this.parse(Deploy);
 
@@ -218,21 +224,30 @@ export default class Deploy extends SfCommand<DeployResult> {
     const targetOrg = flags['target-org'].getConnection(undefined);
     const targetOrgUsername = flags['target-org'].getUsername() ?? 'unknown';
 
-    this.log(messages.getMessage('info.startingDeployment', [mode, targetOrgUsername]));
+    const modeLabel = mode === 'validation' ? 'validation' : 'deployment';
+    this.log(messages.getMessage('info.startingDeployment', [modeLabel, targetOrgUsername]));
+
+    // Handle quick deploy separately (doesn't need manifest)
+    if (mode === 'quick') {
+      return this.handleQuickDeploy(flags, targetOrg);
+    }
+
+    // After this point, manifest is guaranteed to exist (validated by validateFlags)
+    const manifestDir = flags.manifest!;
 
     // Execute pre-deployment hooks
     if (flags['pre-steps']) {
       await this.executePreSteps(flags['pre-steps'], {
         targetOrg: targetOrgUsername,
         mode,
-        manifestDir: flags.manifest,
+        manifestDir,
       });
     }
 
     // Handle intelligent test detection
     let testClasses = flags.tests ?? [];
     if (flags['intelligent-tests']) {
-      testClasses = await this.detectIntelligentTests(flags.manifest);
+      testClasses = await this.detectIntelligentTests(manifestDir);
     }
 
     // Process destructive changes if needed
@@ -258,7 +273,7 @@ export default class Deploy extends SfCommand<DeployResult> {
       }
 
       destructivePaths = await processDestructiveChanges(
-        flags.manifest,
+        manifestDir,
         flags.destructive as DestructiveMode,
         (flags.pre as string[]) || [],
         sourceApiVersion,
@@ -266,28 +281,83 @@ export default class Deploy extends SfCommand<DeployResult> {
       );
     }
 
+    // Check if ChangedFiles directory has any files
+    const { readdirSync, statSync } = await import('node:fs');
+    const changedFilesDir = resolve(manifestDir, 'ChangedFiles');
+    let hasChanges = false;
+
+    try {
+      const entries = readdirSync(changedFilesDir, { recursive: true });
+      hasChanges = entries.some((entry) => {
+        const fullPath = resolve(changedFilesDir, entry.toString());
+        return statSync(fullPath).isFile();
+      });
+    } catch {
+      hasChanges = false;
+    }
+
+    // If no changes and no destructive flag, skip deployment
+    if (!hasChanges && !flags.destructive) {
+      this.log('\n✓ No changes to deploy. Skipping deployment.');
+      return {
+        jobId: 'N/A',
+        status: 'Succeeded',
+        deployedComponents: 0,
+        failedComponents: 0,
+        testsRun: 0,
+        testsPassed: 0,
+        testsFailed: 0,
+        messages: ['No changes detected'],
+        async: false,
+      };
+    }
+
     // Build deployment options
+    // When progress is requested, we need to use async mode to get job ID and then poll
+    const useAsyncForProgress = flags.progress && !flags.async;
+
+    // Determine test level - use RunSpecifiedTests when test classes are provided
+    let testLevel = flags['test-level'] as TestLevel;
+    if (testClasses.length > 0 && testLevel === 'RunLocalTests') {
+      testLevel = 'RunSpecifiedTests';
+    }
+
     const deployOptions = {
-      manifestDir: flags.manifest,
+      manifestDir,
       targetOrg,
       mode,
-      testLevel: flags['test-level'] as TestLevel,
+      testLevel,
       testClasses,
       destructiveMode: flags.destructive as DestructiveMode | undefined,
       preDestructivePath: destructivePaths.preDestructivePath,
       postDestructivePath: destructivePaths.postDestructivePath,
       validationId: flags['validation-id'],
       ignoreWarnings: flags['ignore-warnings'],
-      waitMinutes: flags.async ? 0 : flags.wait,
+      waitMinutes: flags.async || useAsyncForProgress ? 0 : flags.wait,
+      hasChanges,
     };
 
     // Start deployment
     const { DeploymentService } = await import('../../utils/deploymentService.js');
     let result = await DeploymentService.startDeployment(deployOptions);
 
-    // Show progress if requested and not async
-    if (flags.progress && !flags.async) {
-      result = await this.monitorDeploymentWithProgress(result.jobId, targetOrg, flags.wait);
+    // Show progress if requested (now that we have job ID from async deployment)
+    if (useAsyncForProgress) {
+      this.log(`\nMonitoring deployment: ${result.jobId}\n`);
+      result = await this.monitorDeploymentWithProgress(result.jobId, targetOrg, flags.wait, mode);
+
+      // Execute post-deployment hooks if deployment succeeded
+      if (result.status === 'Succeeded' && flags['post-steps']) {
+        await this.executePostSteps(flags['post-steps'], {
+          jobId: result.jobId,
+          targetOrg: targetOrgUsername,
+          mode,
+          manifestDir,
+        });
+      }
+
+      // displayFinalSummary already showed everything, so we're done
+      return result;
     }
 
     // Execute post-deployment hooks if deployment succeeded
@@ -296,13 +366,44 @@ export default class Deploy extends SfCommand<DeployResult> {
         jobId: result.jobId,
         targetOrg: targetOrgUsername,
         mode,
-        manifestDir: flags.manifest,
+        manifestDir,
       });
     }
 
     // Display final results
     this.displayResults(result, mode);
 
+    return result;
+  }
+
+  /**
+   * Handles quick deploy from a validation ID.
+   */
+  private async handleQuickDeploy(flags: Record<string, unknown>, targetOrg: Connection): Promise<DeployResult> {
+    const validationId = flags['validation-id'] as string;
+    const { DeploymentService } = await import('../../utils/deploymentService.js');
+
+    // When progress is requested, we need to use async mode to get job ID and then poll
+    const useAsyncForProgress = flags.progress && !flags.async;
+
+    let result = await DeploymentService.startDeployment({
+      manifestDir: '', // Not needed for quick deploy
+      targetOrg,
+      mode: 'quick',
+      testLevel: 'NoTestRun',
+      validationId,
+      ignoreWarnings: flags['ignore-warnings'] as boolean,
+      waitMinutes: useAsyncForProgress ? 0 : (flags.wait as number),
+    });
+
+    // If progress monitoring is requested, monitor the deployment
+    if (useAsyncForProgress) {
+      this.log(`\nMonitoring deployment: ${result.jobId}\n`);
+      result = await this.monitorDeploymentWithProgress(result.jobId, targetOrg, flags.wait as number, 'quick');
+      return result;
+    }
+
+    this.displayResults(result, 'quick');
     return result;
   }
 
@@ -379,7 +480,8 @@ export default class Deploy extends SfCommand<DeployResult> {
   private async monitorDeploymentWithProgress(
     jobId: string,
     connection: Connection,
-    waitMinutes: number
+    waitMinutes: number,
+    mode: DeploymentMode
   ): Promise<DeployResult> {
     const { ProgressReporter } = await import('../../utils/progressReporter.js');
     const { DeploymentService } = await import('../../utils/deploymentService.js');
@@ -395,11 +497,17 @@ export default class Deploy extends SfCommand<DeployResult> {
       const progress = await DeploymentService.checkDeploymentStatus(jobId, connection);
 
       // Display progress
-      reporter.displayProgress(progress, this);
+      reporter.displayProgress(progress, this, mode);
 
       // Check if complete
       if (progress.status === 'Succeeded' || progress.status === 'Failed' || progress.status === 'Canceled') {
-        reporter.displayFinalSummary(progress, this);
+        reporter.displayFinalSummary(progress, this, mode);
+
+        // Combine component errors and test failures into error messages
+        const errorMessages: string[] = [
+          ...progress.errors.map((e) => `${e.file}: ${e.message}`),
+          ...progress.testFailures.map((t) => `Test: ${t.className}.${t.methodName} - ${t.message}`),
+        ];
 
         return {
           jobId: progress.id,
@@ -411,7 +519,7 @@ export default class Deploy extends SfCommand<DeployResult> {
           testsPassed: progress.testsPassed,
           testsFailed: progress.testsFailed,
           codeCoverage: progress.codeCoverage,
-          messages: progress.errors.map((e) => `${e.file}: ${e.message}`),
+          messages: errorMessages,
           async: false,
         };
       }
@@ -445,8 +553,39 @@ export default class Deploy extends SfCommand<DeployResult> {
       } else {
         this.log(messages.getMessage('info.deploymentSucceeded'));
       }
+
+      // Show deployment statistics
+      this.log('\n=== Deployment Summary ===');
+      this.log(`Components Deployed: ${result.deployedComponents}`);
+      this.log(`Tests Run: ${result.testsRun}`);
+      this.log(`Tests Passed: ${result.testsPassed}`);
+      if (result.codeCoverage !== undefined) {
+        this.log(`Code Coverage: ${result.codeCoverage}%`);
+      }
     } else if (result.status === 'Failed') {
-      this.error(messages.getMessage('error.deploymentFailed'));
+      // Display detailed failure information
+      this.log('\n=== Deployment Failed ===');
+      this.log(`Job ID: ${result.jobId}`);
+      this.log(
+        `Components Deployed: ${result.deployedComponents}/${result.deployedComponents + result.failedComponents}`
+      );
+      this.log(`Failed Components: ${result.failedComponents}`);
+      this.log(`Tests Run: ${result.testsRun}`);
+      this.log(`Tests Failed: ${result.testsFailed}`);
+
+      if (result.codeCoverage !== undefined) {
+        this.log(`Code Coverage: ${result.codeCoverage}%`);
+      }
+
+      // Display all error messages
+      if (result.messages.length > 0) {
+        this.log('\n=== Errors ===');
+        result.messages.forEach((msg, index) => {
+          this.log(`${index + 1}. ${msg}`);
+        });
+      }
+
+      this.error('\n' + messages.getMessage('error.deploymentFailed'));
     }
   }
 }

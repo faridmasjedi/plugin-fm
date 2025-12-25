@@ -72,7 +72,7 @@ function formatIgnoredFilesSection(ignoredChanged: string[], ignoredDeleted: str
   const totalIgnored = ignoredChanged.length + ignoredDeleted.length;
 
   if (totalIgnored > 0) {
-    lines.push(`⊘  IGNORED FILES: ${totalIgnored}`);
+    lines.push(`🚫 IGNORED FILES: ${totalIgnored}`);
 
     if (ignoredChanged.length > 0) {
       lines.push(`   Changed (ignored): ${ignoredChanged.length}`);
@@ -551,6 +551,7 @@ function prepareFileStats(filtered: {
  */
 async function prepareManifestStats(
   deletedMetadataComponents: { [key: string]: Set<string> },
+  changedMetadataComponents: { [key: string]: string[] },
   changedFiles: string[],
   refA: string,
   refB: string
@@ -558,7 +559,7 @@ async function prepareManifestStats(
   const granularChanges = await analyzeGranularMetadataChanges(changedFiles, refA, refB);
 
   return {
-    changedMetadata: {},
+    changedMetadata: changedMetadataComponents,
     deletedMetadata: Object.fromEntries(
       Object.entries(deletedMetadataComponents).map(([type, members]) => [type, Array.from(members)])
     ),
@@ -717,6 +718,7 @@ export async function generateSummaryOutput(
     sourceApiVersion: string;
     changedFilesCopiedCount: number;
     sfdxProjectJsonCopied: boolean;
+    changedMetadataComponents: { [key: string]: string[] };
   },
   logger: {
     log: (message: string) => void;
@@ -726,7 +728,13 @@ export async function generateSummaryOutput(
 ): Promise<DiffResult> {
   // Prepare data
   const fileStats = prepareFileStats(filtered);
-  const manifestStats = await prepareManifestStats(deletedMetadataComponents, filtered.changedFiles, refA, refB);
+  const manifestStats = await prepareManifestStats(
+    deletedMetadataComponents,
+    artifacts.changedMetadataComponents,
+    filtered.changedFiles,
+    refA,
+    refB
+  );
   const result = buildDiffResult(baseOutputDir, manifests, artifacts, filtered);
 
   // Output based on summary type

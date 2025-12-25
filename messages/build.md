@@ -60,14 +60,6 @@ Ignore patterns (comma-separated)
 
 Comma-separated list of ignore patterns (e.g., "**/\*.profile,**/\*.permissionset"). These patterns are combined with patterns from .forceignore file. Uses glob pattern matching.
 
-# flags.ignoreFile.summary
-
-Additional ignore file path
-
-# flags.ignoreFile.description
-
-Path to an additional ignore file (alternative to or in addition to .forceignore). Patterns from this file will be combined with .forceignore and --ignore patterns.
-
 # flags.fromLastSuccessfulDeployment.summary
 
 Generate diff from the last successful Salesforce deployment tag on the base branch.
@@ -112,6 +104,10 @@ No successful deployment tag found for branch '%s'.
 
 The '--ref-a' flag is required unless '--from-last-successful-deployment' is used.
 
+# info.generatingManifest
+
+Generating manifest for changes between '%s' and '%s'.
+
 # info.usingDeploymentTag
 
 Using latest deployment tag commit '%s' from branch '%s' as ref-a.
@@ -139,10 +135,6 @@ After applying ignore patterns, %s files remain.
 # info.usingAdditionalIgnorePatterns
 
 Using %s additional ignore patterns from --ignore flag.
-
-# info.usingAdditionalIgnoreFile
-
-Using additional ignore file: %s
 
 # info.createdOutputDirs
 

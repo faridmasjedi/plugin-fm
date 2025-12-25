@@ -33,12 +33,12 @@ import { resolve } from 'node:path';
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages } from '@salesforce/core';
 import { getAllChangedAndDeletedFiles, filterFilesWithIgnored } from '../../utils/gitUtils.js';
-import { processDeletedFiles } from '../../utils/metadataUtils.js';
 import {
   processArtifacts,
   generateManifests,
   createDockerImage,
   prepareOutputDirectories,
+  processDeletedFiles,
 } from '../../utils/deploymentUtils.js';
 import { type DiffResult, generateSummaryOutput } from '../../utils/reportUtils.js';
 
@@ -84,11 +84,6 @@ export default class Build extends SfCommand<DiffResult> {
       multiple: true,
       delimiter: ',',
     }),
-    'ignore-file': Flags.file({
-      summary: messages.getMessage('flags.ignoreFile.summary'),
-      description: messages.getMessage('flags.ignoreFile.description'),
-      exists: true,
-    }),
     'create-docker-image': Flags.boolean({
       summary: messages.getMessage('flags.createDockerImage.summary'),
       description: messages.getMessage('flags.createDockerImage.description'),
@@ -109,46 +104,77 @@ export default class Build extends SfCommand<DiffResult> {
     const refA = flags['ref-a'];
     const refB = flags['ref-b'];
 
-    this.log(messages.getMessage('info.generatingManifest', [refA, refB]));
+    // Create a logger that suppresses output when JSON mode is requested
+    const isJsonOutput = flags.summary === 'json';
+    const logger = {
+      log: (message: string): void => {
+        if (!isJsonOutput) this.log(message);
+      },
+      warn: (message: string): void => {
+        if (!isJsonOutput) this.warn(message);
+      },
+      error: (message: string): never => this.error(message),
+    };
+
+    logger.log(messages.getMessage('info.generatingManifest', [refA, refB]));
 
     // Get all changed and deleted files (including submodules)
-    const changedAndDeleted = getAllChangedAndDeletedFiles(refA, refB, currentWorkingDir, this);
+    const changedAndDeleted = getAllChangedAndDeletedFiles(refA, refB, currentWorkingDir, logger);
 
     // Log additional ignore patterns if provided
     if (flags.ignore && flags.ignore.length > 0) {
-      this.log(messages.getMessage('info.usingAdditionalIgnorePatterns', [flags.ignore.length.toString()]));
-    }
-    if (flags['ignore-file']) {
-      this.log(messages.getMessage('info.usingAdditionalIgnoreFile', [flags['ignore-file']]));
+      logger.log(messages.getMessage('info.usingAdditionalIgnorePatterns', [flags.ignore.length.toString()]));
     }
 
-    // Filter ignored files (including additional patterns and ignore files)
-    const filtered = filterFilesWithIgnored(changedAndDeleted, flags.forceignore, flags.ignore, flags['ignore-file']);
-
-    // Process deleted files and detect bundles
-    const deletedMetadataComponents = processDeletedFiles(filtered.deletedFiles, currentWorkingDir);
+    // Filter ignored files (including additional patterns)
+    const filtered = filterFilesWithIgnored(
+      changedAndDeleted,
+      flags.forceignore,
+      flags.ignore,
+      changedAndDeleted.renamed
+    );
 
     // Prepare output directories
     const baseOutputDir = resolve(currentWorkingDir, flags['output-dir']);
-    const { packageDir, destructiveDir, changedFilesDir } = prepareOutputDirectories(baseOutputDir, this);
+    const { packageDir, destructiveDir, changedFilesDir, removedFilesDir } = prepareOutputDirectories(
+      baseOutputDir,
+      logger
+    );
 
-    // Process artifacts (always copy files)
-    const artifacts = processArtifacts(filtered.changedFiles, currentWorkingDir, changedFilesDir, baseOutputDir, this);
+    // Note: We no longer copy .forceignore or sfdx-project.json to the artifact
+    // The artifact is meant to be used from the repository directory where these files already exist
 
-    // Generate all manifests with chunking
-    const manifests = generateManifests(
-      packageDir,
-      destructiveDir,
+    // Process artifacts (always copy files) - now includes ComponentSet creation
+    const artifacts = processArtifacts(
+      filtered.changedFiles,
+      currentWorkingDir,
       changedFilesDir,
       baseOutputDir,
+      logger
+    );
+
+    // Process deleted files: copy to RemovedFiles and detect metadata types using ComponentSet
+    const { deletedMetadataComponents } = processDeletedFiles(
+      filtered.deletedFiles,
+      refA,
+      currentWorkingDir,
+      removedFilesDir,
+      logger
+    );
+
+    // Generate all manifests with chunking using ComponentSet
+    const manifests = await generateManifests(
+      packageDir,
+      destructiveDir,
+      artifacts.componentSet,
       deletedMetadataComponents,
       artifacts.sourceApiVersion,
-      this
+      logger
     );
 
     // Create Docker image if requested
     if (flags['create-docker-image']) {
-      createDockerImage(baseOutputDir, this);
+      createDockerImage(baseOutputDir, logger);
     }
 
     // Generate and output summary
@@ -159,10 +185,15 @@ export default class Build extends SfCommand<DiffResult> {
       deletedMetadataComponents,
       manifests,
       artifacts,
-      this,
+      logger,
       refA,
       refB
     );
+
+    // When JSON mode is requested, output the result directly (bypassing the logger suppression)
+    if (isJsonOutput) {
+      this.log(JSON.stringify(result, null, 2));
+    }
 
     return result;
   }

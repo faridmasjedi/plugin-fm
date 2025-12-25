@@ -15,6 +15,7 @@ export type DeploymentOptions = {
   validationId?: string;
   ignoreWarnings: boolean;
   waitMinutes: number;
+  hasChanges?: boolean;
 };
 
 export type DeploymentProgress = {
@@ -30,7 +31,11 @@ export type DeploymentProgress = {
   codeCoverage?: number;
   errors: Array<{ type: string; file: string; message: string; line?: number }>;
   warnings: Array<{ type: string; file: string; message: string; line?: number }>;
+  testFailures: Array<{ className: string; methodName: string; message: string; stackTrace?: string }>;
   validationId?: string;
+  lastCompletedComponent?: string;
+  lastCompletedTest?: string;
+  currentTest?: string;
 };
 
 /**
@@ -49,10 +54,16 @@ export class DeploymentService {
 
     // Build SF CLI command
     const targetOrgUsername = options.targetOrg.getUsername();
-    const sourceDir = resolve(options.manifestDir, 'ChangedFiles');
+    const manifestPath = resolve(options.manifestDir, 'Package', 'package.xml');
 
-    // Use deploy start for both deployment and validation
-    let command = `sf project deploy start --source-dir "${sourceDir}" --target-org ${targetOrgUsername ?? 'default'}`;
+    // Start with base command
+    let command = 'sf project deploy start';
+
+    // Always add manifest (required even for destructive-only deployments with empty package.xml)
+    command += ` --manifest "${manifestPath}"`;
+
+    // Add target org
+    command += ` --target-org ${targetOrgUsername ?? 'default'}`;
 
     // Add dry-run flag for validation mode
     if (options.mode === 'validation') {
@@ -64,9 +75,11 @@ export class DeploymentService {
       command += ` --test-level ${options.testLevel}`;
     }
 
-    // Add specific tests
+    // Add specific tests (each test needs its own --tests flag with quotes)
     if (options.testClasses && options.testClasses.length > 0) {
-      command += ` --tests ${options.testClasses.join(' ')}`;
+      options.testClasses.forEach((testClass) => {
+        command += ` --tests "${testClass}"`;
+      });
     }
 
     // Add ignore warnings
@@ -87,6 +100,13 @@ export class DeploymentService {
     // Add JSON output for parsing
     command += ' --json';
 
+    // Log the command being executed
+    /* eslint-disable no-console */
+    console.log('\nExecuting SF CLI command:');
+    console.log(command);
+    console.log('');
+    /* eslint-enable no-console */
+
     try {
       const output = execSync(command, {
         encoding: 'utf8',
@@ -97,7 +117,7 @@ export class DeploymentService {
 
       return this.parseDeploymentResult(result, options.waitMinutes === 0);
     } catch (error) {
-      const err = error as { stdout?: string; stderr?: string };
+      const err = error as { stdout?: string; stderr?: string; message?: string };
 
       // Try to parse error output
       if (err.stdout) {
@@ -105,11 +125,23 @@ export class DeploymentService {
           const result = JSON.parse(err.stdout) as Record<string, unknown>;
           return this.parseDeploymentResult(result, options.waitMinutes === 0);
         } catch {
-          // If parsing fails, throw original error
+          // If parsing fails, show the error
         }
       }
 
-      throw new Error(`Deployment failed: ${err.stderr ?? (error as Error).message}`);
+      // Build detailed error message
+      let errorMessage = 'Deployment failed';
+      if (err.stderr) {
+        errorMessage += `:\n${err.stderr}`;
+      } else if (err.message) {
+        errorMessage += `: ${err.message}`;
+      }
+
+      if (err.stdout && !err.stdout.includes('{')) {
+        errorMessage += `\nOutput: ${err.stdout}`;
+      }
+
+      throw new Error(errorMessage);
     }
   }
 
@@ -182,6 +214,7 @@ export class DeploymentService {
   /**
    * Builds a DeploymentProgress object from SF CLI result.
    */
+  // eslint-disable-next-line complexity
   private static buildDeploymentProgress(jobId: string, result: Record<string, unknown>): DeploymentProgress {
     const progress: DeploymentProgress = {
       id: jobId,
@@ -195,10 +228,17 @@ export class DeploymentService {
       testsFailed: (result.numberTestErrors as number) || 0,
       errors: [],
       warnings: [],
+      testFailures: [],
     };
 
     // Parse errors and warnings
     const details = result.details as Record<string, unknown> | undefined;
+
+    // Extract current test from stateDetail
+    const stateDetail = result.stateDetail as string | undefined;
+    if (stateDetail && stateDetail.startsWith('Running Test: ')) {
+      progress.currentTest = stateDetail.replace('Running Test: ', '');
+    }
     if (details?.componentFailures) {
       const failures = Array.isArray(details.componentFailures)
         ? details.componentFailures
@@ -212,7 +252,7 @@ export class DeploymentService {
       }));
     }
 
-    // Calculate code coverage
+    // Extract test failures and calculate code coverage
     if (details?.runTestResult) {
       const runTestResult = details.runTestResult as Record<string, unknown>;
       const numLocations = runTestResult.numLocations as number;
@@ -220,6 +260,69 @@ export class DeploymentService {
 
       if (numLocations > 0) {
         progress.codeCoverage = Math.round(((numLocations - numLocationsNotCovered) / numLocations) * 100);
+      }
+
+      // Extract test failures
+      if (runTestResult.failures) {
+        const testFailures = Array.isArray(runTestResult.failures) ? runTestResult.failures : [runTestResult.failures];
+
+        progress.testFailures = testFailures.map((f: Record<string, unknown>) => ({
+          className: (f.name as string) || 'Unknown',
+          methodName: (f.methodName as string) || 'Unknown',
+          message: (f.message as string) || 'Unknown error',
+          stackTrace: f.stackTrace as string | undefined,
+        }));
+      }
+
+      // Extract code coverage warnings
+      if (runTestResult.codeCoverageWarnings) {
+        const coverageWarnings = Array.isArray(runTestResult.codeCoverageWarnings)
+          ? runTestResult.codeCoverageWarnings
+          : [runTestResult.codeCoverageWarnings];
+
+        progress.warnings = coverageWarnings.map((w: Record<string, unknown>) => ({
+          type: 'CodeCoverage',
+          file: (w.name as string) || 'Unknown',
+          message: (w.message as string) || 'Code coverage warning',
+          line: undefined,
+        }));
+      }
+
+      // Get last completed test
+      if (runTestResult.successes) {
+        const testSuccesses = Array.isArray(runTestResult.successes)
+          ? runTestResult.successes
+          : [runTestResult.successes];
+
+        if (testSuccesses.length > 0) {
+          const lastTest = testSuccesses[testSuccesses.length - 1] as Record<string, unknown>;
+          progress.lastCompletedTest = `${lastTest.name as string}.${lastTest.methodName as string}`;
+        }
+      }
+    }
+
+    // Get last completed component (skip package.xml and metadata files)
+    if (details?.componentSuccesses) {
+      const successes = Array.isArray(details.componentSuccesses)
+        ? details.componentSuccesses
+        : [details.componentSuccesses];
+
+      // Find the last meaningful component (not package.xml or meta files)
+      for (let i = successes.length - 1; i >= 0; i--) {
+        const component = successes[i] as Record<string, unknown>;
+        const fullName = (component.fullName as string) || '';
+        const fileName = (component.fileName as string) || '';
+
+        // Skip package.xml and .xml-meta.xml files
+        if (
+          fullName !== 'package.xml' &&
+          !fileName.includes('package.xml') &&
+          !fileName.endsWith('-meta.xml') &&
+          fullName.trim() !== ''
+        ) {
+          progress.lastCompletedComponent = fullName;
+          break;
+        }
       }
     }
 
@@ -263,9 +366,25 @@ export class DeploymentService {
     const { execSync } = await import('node:child_process');
     const targetOrgUsername = options.targetOrg.getUsername();
 
-    const command = `sf project deploy quick --job-id ${options.validationId} --target-org ${
+    // Build command with async flag if wait time is 0
+    let command = `sf project deploy quick --job-id ${options.validationId} --target-org ${
       targetOrgUsername ?? 'default'
-    } --wait ${options.waitMinutes} --json`;
+    }`;
+
+    if (options.waitMinutes === 0) {
+      command += ' --async';
+    } else {
+      command += ` --wait ${options.waitMinutes}`;
+    }
+
+    command += ' --json';
+
+    // Log the command being executed
+    /* eslint-disable no-console */
+    console.log('\nExecuting SF CLI command:');
+    console.log(command);
+    console.log('');
+    /* eslint-enable no-console */
 
     try {
       const output = execSync(command, {
@@ -276,7 +395,7 @@ export class DeploymentService {
       const result = JSON.parse(output) as Record<string, unknown>;
       return this.parseDeploymentResult(result, options.waitMinutes === 0);
     } catch (error) {
-      const err = error as { stdout?: string; stderr?: string };
+      const err = error as { stdout?: string; stderr?: string; message?: string };
 
       if (err.stdout) {
         try {
@@ -287,7 +406,15 @@ export class DeploymentService {
         }
       }
 
-      throw new Error(`Quick deployment failed: ${err.stderr ?? (error as Error).message}`);
+      // Build detailed error message
+      let errorMessage = 'Quick deployment failed';
+      if (err.stderr) {
+        errorMessage += `:\n${err.stderr}`;
+      } else if (err.message) {
+        errorMessage += `: ${err.message}`;
+      }
+
+      throw new Error(errorMessage);
     }
   }
 

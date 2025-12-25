@@ -25,27 +25,30 @@ function withDirectory<T>(dir: string, fn: () => T): T {
 /**
  * Processes a single git diff line and returns changed/deleted files.
  */
-function processGitDiffLine(line: string, basePath: string = ''): { changed: string[]; deleted: string[] } {
+function processGitDiffLine(
+  line: string,
+  basePath: string = ''
+): { changed: string[]; deleted: string[]; renamed: Map<string, string> } {
   const parts = line.split('\t');
   const status = parts[0];
   const changed: string[] = [];
   const deleted: string[] = [];
+  const renamed = new Map<string, string>();
 
   if (status.startsWith('R')) {
-    // Renamed file: has old path and new path
+    // Renamed file: treat as delete (old path) + add (new path)
+    // Track the old filename and path for rename detection
     const oldPath = parts[1];
     const newPath = parts[2];
-    const oldFileName = oldPath.split('/').pop();
-    const newFileName = newPath.split('/').pop();
+    const oldFilename = oldPath.split('/').pop() ?? oldPath;
+    const fullOldPath = basePath ? resolve(basePath, oldPath) : oldPath;
+    const fullNewPath = basePath ? resolve(basePath, newPath) : newPath;
 
-    if (oldFileName === newFileName) {
-      // Same filename, just moved - treat as changed
-      changed.push(basePath ? resolve(basePath, newPath) : newPath);
-    } else {
-      // Different filename - treat as delete old + add new
-      deleted.push(basePath ? resolve(basePath, oldPath) : oldPath);
-      changed.push(basePath ? resolve(basePath, newPath) : newPath);
-    }
+    deleted.push(fullOldPath);
+    changed.push(fullNewPath);
+
+    // Store renamed: filename -> old path
+    renamed.set(oldFilename, fullOldPath);
   } else if (status.startsWith('D')) {
     // Deleted file
     deleted.push(basePath ? resolve(basePath, parts[1]) : parts[1]);
@@ -54,38 +57,45 @@ function processGitDiffLine(line: string, basePath: string = ''): { changed: str
     changed.push(basePath ? resolve(basePath, parts[1]) : parts[1]);
   }
 
-  return { changed, deleted };
+  return { changed, deleted, renamed };
 }
 
 /**
  * Gets a list of changed and deleted files between two Git references.
- * Handles renamed files (R status) by checking if the filename changed.
+ * Treats renamed files as delete + add operations.
  *
  * @param refA The starting Git reference.
  * @param refB The ending Git reference.
  * @param currentDir The directory to run git commands in.
- * @returns An object containing arrays of changed files and deleted files.
+ * @returns An object containing arrays of changed files, deleted files, and renamed file map.
  */
 export function getChangedAndDeletedFiles(
   refA: string,
   refB: string,
   currentDir: string
-): { changed: string[]; deleted: string[] } {
+): { changed: string[]; deleted: string[]; renamed: Map<string, string> } {
   return withDirectory(currentDir, () => {
     const changedFiles: string[] = [];
     const deletedFiles: string[] = [];
+    const renamedMap = new Map<string, string>();
 
     const gitDiffCommand = `git diff --name-status ${refA} ${refB}`;
     const stdout = execSync(gitDiffCommand, { encoding: 'utf8' }).trim();
     const lines = stdout.split('\n').filter((f: string) => f.length > 0);
 
+    // Process all git diff lines
     for (const line of lines) {
       const result = processGitDiffLine(line);
       changedFiles.push(...result.changed);
       deletedFiles.push(...result.deleted);
+
+      // Merge renamed map
+      for (const [filename, oldPath] of result.renamed.entries()) {
+        renamedMap.set(filename, oldPath);
+      }
     }
 
-    return { changed: changedFiles, deleted: deletedFiles };
+    return { changed: changedFiles, deleted: deletedFiles, renamed: renamedMap };
   });
 }
 
@@ -95,15 +105,9 @@ export function getChangedAndDeletedFiles(
  * @param files The list of files to filter.
  * @param forceignorePath The path to the .forceignore file.
  * @param additionalPatterns Optional array of additional ignore patterns (e.g., from --ignore flag).
- * @param additionalIgnoreFile Optional path to an additional ignore file (e.g., from --ignore-file flag).
  * @returns The list of files after filtering.
  */
-export function filterIgnoredFiles(
-  files: string[],
-  forceignorePath: string,
-  additionalPatterns?: string[],
-  additionalIgnoreFile?: string
-): string[] {
+export function filterIgnoredFiles(files: string[], forceignorePath: string, additionalPatterns?: string[]): string[] {
   const ignoreInstance = ignore();
 
   // Add patterns from .forceignore
@@ -115,12 +119,6 @@ export function filterIgnoredFiles(
   // Add additional patterns from --ignore flag
   if (additionalPatterns && additionalPatterns.length > 0) {
     ignoreInstance.add(additionalPatterns);
-  }
-
-  // Add patterns from additional ignore file (--ignore-file flag)
-  if (additionalIgnoreFile && existsSync(additionalIgnoreFile)) {
-    const additionalIgnoreContent = readFileSync(additionalIgnoreFile, 'utf8');
-    ignoreInstance.add(additionalIgnoreContent);
   }
 
   return files.filter((file) => !ignoreInstance.ignores(file));
@@ -173,18 +171,20 @@ function getSubmoduleCommit(ref: string, submodulePath: string): string {
 
 /**
  * Gets changes in a single submodule between two commits.
+ * Treats renamed files as delete + add operations.
  */
 function getSubmoduleChanges(
   submodulePath: string,
   oldCommit: string,
   newCommit: string,
   mainRepoDir: string
-): { changed: string[]; deleted: string[] } {
+): { changed: string[]; deleted: string[]; renamed: Map<string, string> } {
   const submoduleDir = resolve(mainRepoDir, submodulePath);
 
   return withDirectory(submoduleDir, () => {
     const changedFiles: string[] = [];
     const deletedFiles: string[] = [];
+    const renamedMap = new Map<string, string>();
 
     const gitDiffCommand = `git diff --name-status ${oldCommit} ${newCommit}`;
     const stdout = execSync(gitDiffCommand, { encoding: 'utf8' }).trim();
@@ -194,9 +194,14 @@ function getSubmoduleChanges(
       const result = processGitDiffLine(line, submodulePath);
       changedFiles.push(...result.changed);
       deletedFiles.push(...result.deleted);
+
+      // Merge renamed map
+      for (const [filename, oldPath] of result.renamed.entries()) {
+        renamedMap.set(filename, oldPath);
+      }
     }
 
-    return { changed: changedFiles, deleted: deletedFiles };
+    return { changed: changedFiles, deleted: deletedFiles, renamed: renamedMap };
   });
 }
 
@@ -207,24 +212,25 @@ function getSubmoduleChanges(
  * @param refB The ending Git reference.
  * @param currentDir The directory to run git commands in.
  * @param command The command logger for warnings.
- * @returns An object containing arrays of changed files and deleted files from submodules.
+ * @returns An object containing arrays of changed files, deleted files, and renamed map from submodules.
  */
 export function getChangedSubmoduleFiles(
   refA: string,
   refB: string,
   currentDir: string,
   command: CommandLogger
-): { changed: string[]; deleted: string[] } {
+): { changed: string[]; deleted: string[]; renamed: Map<string, string> } {
   return withDirectory(currentDir, () => {
     try {
       // Check if there are any submodules
       const submoduleStatus = execSync('git submodule status', { encoding: 'utf8' }).trim();
       if (submoduleStatus === '') {
-        return { changed: [], deleted: [] }; // No submodules found
+        return { changed: [], deleted: [], renamed: new Map() }; // No submodules found
       }
 
       const changedFiles: string[] = [];
       const deletedFiles: string[] = [];
+      const renamedMap = new Map<string, string>();
       const submodules = submoduleStatus.split('\n').map((line) => line.trim().split(' ')[1]);
 
       for (const submodulePath of submodules) {
@@ -235,13 +241,18 @@ export function getChangedSubmoduleFiles(
           const changes = getSubmoduleChanges(submodulePath, oldCommit, newCommit, currentDir);
           changedFiles.push(...changes.changed);
           deletedFiles.push(...changes.deleted);
+
+          // Merge renamed map
+          for (const [filename, oldPath] of changes.renamed.entries()) {
+            renamedMap.set(filename, oldPath);
+          }
         }
       }
 
-      return { changed: changedFiles, deleted: deletedFiles };
+      return { changed: changedFiles, deleted: deletedFiles, renamed: renamedMap };
     } catch (error) {
       command.warn(`Error processing submodules: ${(error as Error).message}`);
-      return { changed: [], deleted: [] };
+      return { changed: [], deleted: [], renamed: new Map() };
     }
   });
 }
@@ -268,14 +279,14 @@ export function getGitFileContent(ref: string, filePath: string): string {
  * @param refB The ending Git reference.
  * @param currentDir The directory to run git commands in.
  * @param command The command logger for warnings and info.
- * @returns An object containing arrays of changed files and deleted files.
+ * @returns An object containing arrays of changed files, deleted files, and renamed map.
  */
 export function getAllChangedAndDeletedFiles(
   refA: string,
   refB: string,
   currentDir: string,
   command: CommandLogger & { log: (message: string) => void }
-): { changed: string[]; deleted: string[] } {
+): { changed: string[]; deleted: string[]; renamed: Map<string, string> } {
   // Get changed and deleted files from main repository
   const result = getChangedAndDeletedFiles(refA, refB, currentDir);
 
@@ -284,33 +295,72 @@ export function getAllChangedAndDeletedFiles(
   result.changed.push(...submoduleChanges.changed);
   result.deleted.push(...submoduleChanges.deleted);
 
+  // Merge renamed maps from submodules
+  for (const [filename, oldPath] of submoduleChanges.renamed.entries()) {
+    result.renamed.set(filename, oldPath);
+  }
+
   return result;
 }
 
 /**
  * Filters files using forceignore and returns filtered and ignored files.
+ * Optionally checks for renamed files and warns if they are not ignored.
  *
  * @param files Object containing changed and deleted files.
  * @param forceignorePath The path to the .forceignore file.
  * @param additionalPatterns Optional array of additional ignore patterns (e.g., from --ignore flag).
- * @param additionalIgnoreFile Optional path to an additional ignore file (e.g., from --ignore-file flag).
+ * @param renamed Optional map of renamed files (filename -> old path) to check after filtering.
  * @returns Object containing filtered and ignored files.
  */
 export function filterFilesWithIgnored(
   files: { changed: string[]; deleted: string[] },
   forceignorePath: string,
   additionalPatterns?: string[],
-  additionalIgnoreFile?: string
+  renamed?: Map<string, string>
 ): {
   changedFiles: string[];
   deletedFiles: string[];
   ignoredChanged: string[];
   ignoredDeleted: string[];
 } {
-  const changedFiles = filterIgnoredFiles(files.changed, forceignorePath, additionalPatterns, additionalIgnoreFile);
-  const deletedFiles = filterIgnoredFiles(files.deleted, forceignorePath, additionalPatterns, additionalIgnoreFile);
+  const changedFiles = filterIgnoredFiles(files.changed, forceignorePath, additionalPatterns);
+  const deletedFiles = filterIgnoredFiles(files.deleted, forceignorePath, additionalPatterns);
   const ignoredChanged = files.changed.filter((f) => !changedFiles.includes(f));
   const ignoredDeleted = files.deleted.filter((f) => !deletedFiles.includes(f));
+
+  // Check for renamed files that are NOT ignored
+  if (renamed && renamed.size > 0) {
+    const confirmedRenames: Array<{ filename: string; oldPath: string; newPath: string }> = [];
+
+    for (const [filename, oldPath] of renamed.entries()) {
+      // Only warn if the old path is NOT ignored
+      if (!ignoredDeleted.includes(oldPath)) {
+        // Check if this filename appears in any changed file path
+        const matchingPath = changedFiles.find((path) => path.includes(filename));
+
+        if (matchingPath) {
+          confirmedRenames.push({ filename, oldPath, newPath: matchingPath });
+        }
+      }
+    }
+
+    // Warn user about potential renamed/moved files
+    if (confirmedRenames.length > 0) {
+      /* eslint-disable no-console */
+      console.log('\n⚠️  Warning: Detected files with same name in both changed and deleted lists:');
+      console.log('These might be renamed or moved files. If they are, consider adding the old paths');
+      console.log('to your forceignore file to exclude them from destructive changes.\n');
+
+      for (const { filename, oldPath, newPath } of confirmedRenames) {
+        console.log(`  ${filename}:`);
+        console.log(`    Deleted: ${oldPath}`);
+        console.log(`    Changed: ${newPath}`);
+      }
+      console.log('');
+      /* eslint-enable no-console */
+    }
+  }
 
   return { changedFiles, deletedFiles, ignoredChanged, ignoredDeleted };
 }

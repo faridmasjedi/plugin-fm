@@ -45,23 +45,24 @@ chmod +x my-deploy.sh
 
 ## 📋 What's Included
 
-### Build Examples (20 examples)
+### Build Examples (12 examples)
 
 - Basic PR builds
-- Chunking large deployments
-- Destructive changes
-- JSON output for CI/CD
+- Docker image creation
+- Ignore patterns and files
+- Summary outputs (console, JSON, GitHub Actions)
 - Multi-environment builds
 - Complete workflows
 
 ### Deploy Examples (20 examples)
 
-- Validation modes
-- Intelligent testing
+- Validation and deployment modes
+- Intelligent and relevant testing
 - Quick deploys
-- Async deployments
+- Async deployments with progress
+- Destructive changes (pre, post, both)
+- Pre/post deployment hooks
 - GitHub Actions integration
-- Multi-chunk deployments
 - Production workflows
 
 ### Deploy Status Examples (17 examples)
@@ -195,7 +196,7 @@ Key snippets:
 
 ```yaml
 - name: Build
-  run: sf fm build --ref-a origin/${{ github.base_ref }} --ref-b HEAD --output-dir ./manifest
+  run: sf fm build --ref-a origin/${{ github.base_ref }} --ref-b HEAD --output-dir ./manifest --summary github
 
 - name: Quality
   run: sf fm quality --base-sha origin/${{ github.base_ref }} --head-sha ${{ github.sha }}
@@ -341,16 +342,19 @@ sf fm build \
 
 ### By Use Case
 
-| Use Case             | Example File              | Example Number |
-| -------------------- | ------------------------- | -------------- |
-| PR Validation        | deploy-examples.sh        | #11            |
-| Hotfix Deployment    | deploy-examples.sh        | #14            |
-| Quality Gate         | quality-examples.sh       | #17            |
-| Cancel on New Commit | deploy-cancel-examples.sh | #4             |
-| Multi-Chunk Deploy   | deploy-examples.sh        | #13            |
-| Real-time Monitoring | deploy-status-examples.sh | #2             |
-| Slack Notifications  | deploy-cancel-examples.sh | #14            |
-| Metrics Tracking     | quality-examples.sh       | #19            |
+| Use Case               | Example File              | Example Number |
+| ---------------------- | ------------------------- | -------------- |
+| PR Validation          | deploy-examples.sh        | #11            |
+| Check-Only Deployment  | deploy-examples.sh        | #14            |
+| Destructive Changes    | deploy-examples.sh        | #8, #13        |
+| Deployment Hooks       | deploy-examples.sh        | #15            |
+| Quality Gate           | quality-examples.sh       | #17            |
+| Cancel on New Commit   | deploy-cancel-examples.sh | #4             |
+| Real-time Monitoring   | deploy-status-examples.sh | #2             |
+| Progress Display       | deploy-examples.sh        | #5             |
+| Slack Notifications    | deploy-cancel-examples.sh | #14            |
+| Metrics Tracking       | quality-examples.sh       | #19            |
+| GitHub Actions Summary | build-examples.sh         | #5             |
 
 ### By CI/CD Platform
 
@@ -458,10 +462,10 @@ tail -f output.log
 
 ## 📊 Example Statistics
 
-- **Total Examples:** 97+
-- **Lines of Code:** 3000+
-- **Use Cases Covered:** 20+
-- **CI/CD Platforms:** 5+
+- **Total Examples:** 90+
+- **Lines of Code:** 2800+
+- **Use Cases Covered:** 25+
+- **CI/CD Platforms:** 4+
 - **Command Coverage:** 100%
 
 **All commands, all scenarios, all platforms covered!** 🚀

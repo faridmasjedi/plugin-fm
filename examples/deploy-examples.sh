@@ -59,15 +59,16 @@ sf fm deploy \
 # Use this to check status later
 
 # ------------------------------------------------------------
-# Example 5: Standard Deployment
+# Example 5: Deployment with Progress
 # ------------------------------------------------------------
-# Deploy to sandbox with tests
+# Deploy with real-time progress display
 
 sf fm deploy \
   --manifest ./deploy \
   --target-org dev-sandbox \
-  --mode standard \
-  --test-level RunLocalTests
+  --mode deployment \
+  --test-level RunLocalTests \
+  --progress
 
 # ------------------------------------------------------------
 # Example 6: Production Deployment
@@ -77,7 +78,7 @@ sf fm deploy \
 sf fm deploy \
   --manifest ./deploy \
   --target-org production \
-  --mode standard \
+  --mode deployment \
   --test-level RunAllTestsInOrg
 
 # ------------------------------------------------------------
@@ -110,21 +111,22 @@ sf fm deploy \
 # Quick deploy is MUCH faster (no tests re-run)!
 
 # ------------------------------------------------------------
-# Example 8: Deployment with Destructive Changes
+# Example 8: Deployment with Destructive Changes (Both)
 # ------------------------------------------------------------
 # Deploy with both pre and post destructive changes
 
 sf fm deploy \
   --manifest ./deploy \
   --target-org my-sandbox \
-  --mode standard \
+  --mode deployment \
   --test-level RunLocalTests \
-  --destructive-mode both
+  --destructive both \
+  --pre "CustomObject:OldObject,ApexClass:DeprecatedClass"
 
 # Execution order:
-# 1. destructiveChangesPre.xml (delete before deploy)
+# 1. destructiveChangesPre.xml (delete specified files before deploy)
 # 2. package.xml (deploy new/changed)
-# 3. destructiveChanges.xml (delete after deploy)
+# 3. destructiveChanges.xml (delete remaining files after deploy)
 
 # ------------------------------------------------------------
 # Example 9: Deployment with Ignore Warnings
@@ -203,108 +205,68 @@ echo "Deployment job: $JOB_ID"
 #     - merge_requests
 
 # ------------------------------------------------------------
-# Example 13: Multi-Chunk Deployment
+# Example 13: Deployment with Pre-Destructive Only
 # ------------------------------------------------------------
-# Deploy multiple chunks sequentially
+# Delete metadata before deploying new changes
 
-#!/bin/bash
-set -e
-
-CHUNKS_DIR="./deploy"
-CHUNKS=$(ls -d $CHUNKS_DIR/chunk-* 2>/dev/null | wc -l)
-
-if [ "$CHUNKS" -eq 0 ]; then
-  echo "No chunks found, deploying single package..."
-  sf fm deploy \
-    --manifest $CHUNKS_DIR \
-    --target-org production \
-    --mode standard \
-    --test-level RunLocalTests
-else
-  echo "Deploying $CHUNKS chunks..."
-
-  for i in $(seq 1 $CHUNKS); do
-    echo "Deploying chunk $i/$CHUNKS..."
-
-    sf fm deploy \
-      --manifest $CHUNKS_DIR/chunk-$i \
-      --target-org production \
-      --mode standard \
-      --test-level RunLocalTests
-
-    echo "Chunk $i deployed successfully!"
-  done
-fi
-
-# ------------------------------------------------------------
-# Example 14: Hotfix Deployment
-# ------------------------------------------------------------
-# Rapid hotfix deployment to production
-
-# Step 1: Validate in production
 sf fm deploy \
-  --manifest ./hotfix \
-  --target-org production \
-  --mode validation \
-  --test-level RunSpecifiedTests \
-  --tests "CriticalTest1,CriticalTest2" \
-  --async
-
-# Get validation ID from output
-VALIDATION_ID="0Af..."
-
-# Step 2: Monitor
-sf fm deploy status \
-  --job-id $VALIDATION_ID \
-  --target-org production \
-  --watch
-
-# Step 3: Quick deploy if validated successfully
-sf fm deploy \
-  --mode quick \
-  --validation-id $VALIDATION_ID \
-  --target-org production
-
-# ------------------------------------------------------------
-# Example 15: Deployment with Pre-Deployment Steps
-# ------------------------------------------------------------
-
-#!/bin/bash
-set -e
-
-# Pre-deployment checks
-echo "Running pre-deployment checks..."
-
-# 1. Validate syntax
-sf fm quality \
-  --base-sha origin/main \
-  --head-sha HEAD
-
-# 2. Start validation
-echo "Starting validation..."
-OUTPUT=$(sf fm deploy \
   --manifest ./deploy \
   --target-org production \
-  --mode validation \
-  --intelligent-tests \
-  --async)
+  --mode deployment \
+  --test-level RunLocalTests \
+  --destructive pre \
+  --pre "CustomObject:OldObject"
 
-JOB_ID=$(echo "$OUTPUT" | grep "^Job ID:" | cut -d: -f2 | tr -d ' ')
+# Use case: Remove old object before deploying new schema
 
-# 3. Monitor validation
-echo "Monitoring validation job: $JOB_ID"
-sf fm deploy status \
-  --job-id $JOB_ID \
-  --target-org production \
-  --watch \
-  --timeout 120
+# ------------------------------------------------------------
+# Example 14: Check-Only Deployment
+# ------------------------------------------------------------
+# Alternative to --mode validation using --check-only flag
 
-# 4. Quick deploy
-echo "Validation successful! Deploying..."
 sf fm deploy \
-  --mode quick \
-  --validation-id $JOB_ID \
-  --target-org production
+  --manifest ./deploy \
+  --target-org production \
+  --check-only \
+  --intelligent-tests
+
+# --check-only is equivalent to --mode validation
+# Use whichever you prefer for readability
+
+# ------------------------------------------------------------
+# Example 15: Deployment with Hooks
+# ------------------------------------------------------------
+# Use pre and post deployment hooks
+
+#!/bin/bash
+set -e
+
+# Create pre-deployment hook script
+cat > pre-deploy.sh << 'EOF'
+#!/bin/bash
+echo "Running pre-deployment checks..."
+# Add your pre-deployment logic here
+exit 0
+EOF
+
+# Create post-deployment hook script
+cat > post-deploy.sh << 'EOF'
+#!/bin/bash
+echo "Running post-deployment tasks..."
+# Add your post-deployment logic here
+exit 0
+EOF
+
+chmod +x pre-deploy.sh post-deploy.sh
+
+# Deploy with hooks
+sf fm deploy \
+  --manifest ./deploy \
+  --target-org production \
+  --mode deployment \
+  --intelligent-tests \
+  --pre-steps ./pre-deploy.sh \
+  --post-steps ./post-deploy.sh
 
 echo "Deployment complete!"
 
@@ -323,9 +285,10 @@ sf fm build \
 sf fm deploy \
   --manifest ./rollback \
   --target-org production \
-  --mode standard \
+  --mode deployment \
   --test-level RunLocalTests \
-  --destructive-mode both
+  --destructive both \
+  --pre "CustomObject:NewObject"
 
 # ------------------------------------------------------------
 # Example 17: Scheduled Deployment
@@ -347,7 +310,7 @@ echo "Starting scheduled deployment to $TARGET_ORG..."
 if sf fm deploy \
   --manifest $MANIFEST_DIR \
   --target-org $TARGET_ORG \
-  --mode standard \
+  --mode deployment \
   --test-level RunLocalTests; then
 
   echo "✅ Deployment successful!"
@@ -375,29 +338,36 @@ fi
 sf fm deploy \
   --manifest ./deploy \
   --target-org dev-sandbox \
-  --mode standard \
+  --mode deployment \
   --test-level NoTestRun
 
 # Run local tests only
 sf fm deploy \
   --manifest ./deploy \
   --target-org uat-sandbox \
-  --mode standard \
+  --mode deployment \
   --test-level RunLocalTests
 
 # Run all tests (production)
 sf fm deploy \
   --manifest ./deploy \
   --target-org production \
-  --mode standard \
+  --mode deployment \
   --test-level RunAllTestsInOrg
 
 # Run intelligent tests (recommended)
 sf fm deploy \
   --manifest ./deploy \
   --target-org my-sandbox \
-  --mode standard \
+  --mode deployment \
   --intelligent-tests
+
+# Run relevant tests (new option)
+sf fm deploy \
+  --manifest ./deploy \
+  --target-org my-sandbox \
+  --mode deployment \
+  --test-level RunRelevantTests
 
 # ------------------------------------------------------------
 # Example 19: Capture Job ID for Later Use

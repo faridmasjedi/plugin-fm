@@ -1,12 +1,5 @@
 import type { DeploymentProgress } from './deploymentService.js';
 
-export type ProgressBar = {
-  total: number;
-  current: number;
-  width: number;
-  label: string;
-};
-
 /**
  * Service for reporting deployment progress with formatted output.
  */
@@ -14,6 +7,8 @@ export class ProgressReporter {
   private startTime: number;
   private lastUpdate: number = 0;
   private readonly updateInterval: number = 2000; // 2 seconds
+  private headerShown: boolean = false;
+  private lastLineCount: number = 0;
 
   public constructor() {
     this.startTime = Date.now();
@@ -24,20 +19,6 @@ export class ProgressReporter {
    */
   public static displayCompactProgress(progress: DeploymentProgress): string {
     return `[${progress.status}] ${progress.progress}% | Components: ${progress.componentsDeployed}/${progress.componentsTotal} | Tests: ${progress.testsPassed}/${progress.testsCompleted} passed`;
-  }
-
-  /**
-   * Creates a visual progress bar.
-   */
-  private static createProgressBar(bar: ProgressBar): string {
-    const percentage = bar.total > 0 ? (bar.current / bar.total) * 100 : 0;
-    const filled = Math.floor((bar.width * percentage) / 100);
-    const empty = bar.width - filled;
-
-    const filledBar = '█'.repeat(filled);
-    const emptyBar = '░'.repeat(empty);
-
-    return `  [${filledBar}${emptyBar}] ${bar.label || `${bar.current}/${bar.total}`}`;
   }
 
   /**
@@ -89,7 +70,11 @@ export class ProgressReporter {
   /**
    * Displays deployment progress with formatted output.
    */
-  public displayProgress(progress: DeploymentProgress, logger: { log: (message: string) => void }): void {
+  public displayProgress(
+    progress: DeploymentProgress,
+    logger: { log: (message: string) => void },
+    mode: 'validation' | 'deployment' | 'quick' = 'deployment'
+  ): void {
     const now = Date.now();
 
     // Throttle updates to avoid spamming
@@ -99,23 +84,38 @@ export class ProgressReporter {
 
     this.lastUpdate = now;
 
-    // Clear previous lines and redraw
-    ProgressReporter.clearLines(10);
+    // Show header only once
+    if (!this.headerShown) {
+      const modeLabel = mode === 'validation' ? 'Validation' : 'Deployment';
+      logger.log('');
+      logger.log(`🔄 ${modeLabel} Progress`);
+      this.headerShown = true;
+    } else {
+      // Clear previous status lines
+      ProgressReporter.clearLines(this.lastLineCount);
+    }
 
     const output = this.formatProgress(progress);
+    // Count lines in output (for next update's clear)
+    this.lastLineCount = output.split('\n').length;
     logger.log(output);
   }
 
   /**
    * Displays final summary after deployment completes.
    */
-  public displayFinalSummary(progress: DeploymentProgress, logger: { log: (message: string) => void }): void {
+  public displayFinalSummary(
+    progress: DeploymentProgress,
+    logger: { log: (message: string) => void },
+    mode: 'validation' | 'deployment' | 'quick' = 'deployment'
+  ): void {
     const lines: string[] = [];
+    const modeLabel = mode === 'validation' ? 'VALIDATION' : 'DEPLOYMENT';
 
     lines.push('');
     lines.push('═══════════════════════════════════════════════════════════');
     lines.push(
-      `           ${ProgressReporter.getStatusEmoji(progress.status)} DEPLOYMENT ${progress.status.toUpperCase()}`
+      `           ${ProgressReporter.getStatusEmoji(progress.status)} ${modeLabel} ${progress.status.toUpperCase()}`
     );
     lines.push('═══════════════════════════════════════════════════════════');
     lines.push('');
@@ -142,9 +142,24 @@ export class ProgressReporter {
     const duration = ProgressReporter.formatDuration(Date.now() - this.startTime);
     lines.push(`   Total Duration: ${duration}`);
 
+    if (progress.testFailures.length > 0) {
+      lines.push('');
+      lines.push('❌ TEST FAILURES:');
+      progress.testFailures.forEach((failure, index) => {
+        lines.push(`   ${index + 1}. ${failure.className}.${failure.methodName}`);
+        lines.push(`      ${failure.message}`);
+        if (failure.stackTrace) {
+          const stackLines = failure.stackTrace.split('\n').slice(0, 3); // Show first 3 lines of stack
+          stackLines.forEach((line) => {
+            lines.push(`      ${line}`);
+          });
+        }
+      });
+    }
+
     if (progress.errors.length > 0) {
       lines.push('');
-      lines.push('❌ ERRORS:');
+      lines.push('❌ COMPONENT ERRORS:');
       progress.errors.forEach((error) => {
         lines.push(`   ${error.type}: ${error.file}`);
         if (error.line) {
@@ -174,113 +189,50 @@ export class ProgressReporter {
    * Formats progress information into a readable display.
    */
   private formatProgress(progress: DeploymentProgress): string {
-    const lines: string[] = [];
+    const statusParts: string[] = [];
 
-    lines.push('');
-    lines.push('═══════════════════════════════════════════════════════════');
-    lines.push(`           ${ProgressReporter.getStatusEmoji(progress.status)} ${progress.status.toUpperCase()}`);
-    lines.push('═══════════════════════════════════════════════════════════');
-    lines.push('');
+    // Status
+    statusParts.push(`Status: ${progress.status === 'InProgress' ? '⚙️  In Progress' : progress.status}`);
 
-    // Overall progress bar
-    lines.push('Overall Progress:');
-    lines.push(
-      ProgressReporter.createProgressBar({
-        total: 100,
-        current: progress.progress,
-        width: 50,
-        label: `${progress.progress}%`,
-      })
-    );
-    lines.push('');
+    // Components
+    statusParts.push(`📦 Components: ${progress.componentsDeployed}/${progress.componentsTotal}`);
 
-    // Component progress
-    lines.push(`📦 Components: ${progress.componentsDeployed}/${progress.componentsTotal}`);
-    if (progress.componentsTotal > 0) {
-      lines.push(
-        ProgressReporter.createProgressBar({
-          total: progress.componentsTotal,
-          current: progress.componentsDeployed,
-          width: 40,
-          label: '',
-        })
-      );
-    }
-    lines.push('');
+    // Tests (if started)
+    if (progress.testsTotal > 0 && progress.testsCompleted > 0) {
+      let testString = `🧪 Tests: ${progress.testsCompleted}/${progress.testsTotal}`;
 
-    // Test progress
-    if (progress.testsTotal > 0) {
-      lines.push(
-        `🧪 Tests: ${progress.testsPassed}/${progress.testsCompleted} passed (${progress.testsFailed} failed)`
-      );
-      lines.push(
-        ProgressReporter.createProgressBar({
-          total: progress.testsTotal,
-          current: progress.testsCompleted,
-          width: 40,
-          label: '',
-        })
-      );
+      if (progress.testsFailed > 0) {
+        testString += ` ( ❌ ${progress.testsFailed} Failed )`;
+      }
+
+      statusParts.push(testString);
 
       if (progress.codeCoverage !== undefined) {
-        lines.push(`   Code Coverage: ${progress.codeCoverage}%`);
+        const coverageIcon = progress.codeCoverage >= 75 ? '✅' : '⚠️';
+        statusParts.push(`${coverageIcon} Coverage: ${progress.codeCoverage}%`);
       }
-      lines.push('');
     }
 
-    // Time elapsed
+    // Add current activity indicator (on same line)
+    if (progress.status === 'InProgress') {
+      // Show current test if available (tests are running)
+      if (progress.currentTest) {
+        statusParts.push(`▶️  ${progress.currentTest}`);
+      } else if (progress.testsCompleted > 0 && progress.testsCompleted < progress.testsTotal) {
+        // Tests running but no specific test info
+        statusParts.push('▶️  Running tests...');
+      } else if (progress.lastCompletedComponent && progress.componentsDeployed < progress.componentsTotal) {
+        // Components still deploying
+        statusParts.push(`▶️  ${progress.lastCompletedComponent}`);
+      }
+    }
+
+    const statusLine = statusParts.join(' | ');
+
+    // Time on next line
     const elapsed = ProgressReporter.formatDuration(Date.now() - this.startTime);
-    lines.push(`⏱️  Time Elapsed: ${elapsed}`);
+    const timeLine = `⏱️  ${elapsed}`;
 
-    // ETA (if in progress)
-    if (progress.status === 'InProgress' && progress.progress > 5) {
-      const eta = this.calculateETA(progress.progress);
-      lines.push(`   Estimated Completion: ${eta}`);
-    }
-
-    lines.push('');
-
-    // Show recent errors/warnings
-    if (progress.errors.length > 0) {
-      lines.push(`❌ Errors: ${progress.errors.length}`);
-      progress.errors.slice(0, 3).forEach((error) => {
-        lines.push(`   • ${error.file}${error.line ? `:${error.line}` : ''}`);
-        lines.push(`     ${error.message}`);
-      });
-      if (progress.errors.length > 3) {
-        lines.push(`   ... and ${progress.errors.length - 3} more errors`);
-      }
-      lines.push('');
-    }
-
-    if (progress.warnings.length > 0) {
-      lines.push(`⚠️  Warnings: ${progress.warnings.length}`);
-      progress.warnings.slice(0, 2).forEach((warning) => {
-        lines.push(`   • ${warning.file}${warning.line ? `:${warning.line}` : ''}`);
-      });
-      if (progress.warnings.length > 2) {
-        lines.push(`   ... and ${progress.warnings.length - 2} more warnings`);
-      }
-      lines.push('');
-    }
-
-    lines.push('═══════════════════════════════════════════════════════════');
-
-    return lines.join('\n');
-  }
-
-  /**
-   * Calculates estimated time to completion.
-   */
-  private calculateETA(progress: number): string {
-    const elapsed = Date.now() - this.startTime;
-    const total = (elapsed / progress) * 100;
-    const remaining = total - elapsed;
-
-    if (remaining <= 0) {
-      return 'Soon';
-    }
-
-    return ProgressReporter.formatDuration(remaining);
+    return statusLine + '\n' + timeLine;
   }
 }

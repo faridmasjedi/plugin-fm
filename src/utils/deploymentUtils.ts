@@ -1,7 +1,8 @@
-import { resolve } from 'node:path';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { resolve, relative } from 'node:path';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
-import { ensureDirExists, copyChangedFiles, findSfdxProjectJson } from './fileUtils.js';
+import { ComponentSet } from '@salesforce/source-deploy-retrieve';
+import { ensureDirExists, copyFile, findSfdxProjectJson } from './fileUtils.js';
 import { generateChunkedManifests, DEFAULT_CHUNK_CONFIG } from './chunkUtils.js';
 import { generateDestructiveChangesXml, generateEmptyPackageXml } from './manifestUtils.js';
 import { DEFAULT_API_VERSION } from './constants.js';
@@ -36,54 +37,104 @@ function readAndParseSfdxProject(
 }
 
 /**
- * Modifies sfdx-project.json for deployment.
+ * Extracts sourceApiVersion from sfdx-project.json (without copying to artifact).
+ * The artifact is meant to be used from the repository where sfdx-project.json already exists.
  */
-function modifySfdxProjectJson(projectJson: Record<string, unknown>): void {
-  // eslint-disable-next-line no-param-reassign
-  projectJson.packageDirectories = [{ path: 'ChangedFiles', default: true }];
-  // eslint-disable-next-line no-param-reassign
-  delete projectJson.namespace;
-  // eslint-disable-next-line no-param-reassign
-  delete projectJson.sfdcLoginUrl;
-  // eslint-disable-next-line no-param-reassign
-  delete projectJson.signupEmail;
-}
-
-/**
- * Writes the modified sfdx-project.json to the output directory.
- */
-function writeSfdxProjectJson(projectJson: Record<string, unknown>, baseOutputDir: string): void {
-  const modifiedProjectJsonString = JSON.stringify(projectJson, null, 2);
-  const destinationPath = resolve(baseOutputDir, 'sfdx-project.json');
-  writeFileSync(destinationPath, modifiedProjectJsonString);
-}
-
-/**
- * Processes sfdx-project.json and returns version and copy status.
- */
-function processSfdxProjectJson(
+function getSourceApiVersion(
   currentWorkingDir: string,
-  baseOutputDir: string,
   logger: { log: (message: string) => void; warn: (message: string) => void }
-): { sourceApiVersion: string; sfdxProjectJsonCopied: boolean } {
+): string {
   const sfdxProjectJsonPath = findSfdxProjectJson(currentWorkingDir);
 
   if (!sfdxProjectJsonPath) {
     logger.warn('sfdx-project.json not found in project');
-    return { sourceApiVersion: DEFAULT_API_VERSION, sfdxProjectJsonCopied: false };
+    return DEFAULT_API_VERSION;
   }
 
   const parsed = readAndParseSfdxProject(sfdxProjectJsonPath);
   if (!parsed) {
     logger.warn('Could not read or parse sfdx-project.json');
-    return { sourceApiVersion: DEFAULT_API_VERSION, sfdxProjectJsonCopied: false };
+    return DEFAULT_API_VERSION;
   }
 
-  modifySfdxProjectJson(parsed.projectJson);
-  writeSfdxProjectJson(parsed.projectJson, baseOutputDir);
-  logger.log(`Copied and updated sfdx-project.json to ${resolve(baseOutputDir, 'sfdx-project.json')}`);
+  return parsed.sourceApiVersion;
+}
 
-  return { sourceApiVersion: parsed.sourceApiVersion, sfdxProjectJsonCopied: true };
+/**
+ * Creates a ComponentSet from changed files and copies all resolved metadata files.
+ * This includes both source files and their metadata files (e.g., .cls and .cls-meta.xml).
+ */
+function createComponentSetAndCopyFiles(
+  filteredChangedFiles: string[],
+  currentWorkingDir: string,
+  changedFilesDir: string,
+  logger: { log: (message: string) => void; warn: (message: string) => void }
+): { componentSet: ComponentSet; copiedFileCount: number } {
+  // Convert relative file paths to absolute paths
+  const absoluteFilePaths = filteredChangedFiles.map((file) => resolve(currentWorkingDir, file));
+
+  // Create ComponentSet from the changed files using the correct API
+  // This resolves the files to metadata components and includes all related files
+  const componentSet = ComponentSet.fromSource({
+    fsPaths: absoluteFilePaths,
+  });
+
+  // Get all source components from the ComponentSet
+  const allSourceComponents = componentSet.getSourceComponents().toArray();
+  const copiedFiles = new Set<string>();
+
+  // Copy all files for each component (both source and metadata files)
+  for (const component of allSourceComponents) {
+    // Copy the source file (e.g., .cls, .trigger, etc.)
+    if (component.content) {
+      const absolutePath = component.content;
+      const relativePath = relative(currentWorkingDir, absolutePath);
+
+      if (!copiedFiles.has(relativePath)) {
+        const destinationPath = resolve(changedFilesDir, relativePath);
+        copyFile(absolutePath, destinationPath);
+        copiedFiles.add(relativePath);
+      }
+    }
+
+    // Copy the metadata file (e.g., .cls-meta.xml, .trigger-meta.xml, etc.)
+    if (component.xml) {
+      const absolutePath = component.xml;
+      const relativePath = relative(currentWorkingDir, absolutePath);
+
+      if (!copiedFiles.has(relativePath)) {
+        const destinationPath = resolve(changedFilesDir, relativePath);
+        copyFile(absolutePath, destinationPath);
+        copiedFiles.add(relativePath);
+      }
+    }
+  }
+
+  logger.log(`Copied ${copiedFiles.size} files (including metadata files) to ${changedFilesDir}`);
+
+  return { componentSet, copiedFileCount: copiedFiles.size };
+}
+
+/**
+ * Extracts metadata components from ComponentSet organized by type.
+ */
+function extractMetadataComponents(componentSet: ComponentSet): { [key: string]: string[] } {
+  const metadata: { [key: string]: string[] } = {};
+
+  const components = componentSet.getSourceComponents().toArray();
+
+  for (const component of components) {
+    const typeName = component.type.name;
+    const memberName = component.fullName;
+
+    if (!metadata[typeName]) {
+      metadata[typeName] = [];
+    }
+
+    metadata[typeName].push(memberName);
+  }
+
+  return metadata;
 }
 
 /**
@@ -95,36 +146,118 @@ export function processArtifacts(
   changedFilesDir: string,
   baseOutputDir: string,
   logger: { log: (message: string) => void; warn: (message: string) => void }
-): ProcessedArtifacts {
-  copyChangedFiles(filteredChangedFiles, currentWorkingDir, changedFilesDir);
-  logger.log(`Copied ${filteredChangedFiles.length} changed files to ${changedFilesDir}`);
+): ProcessedArtifacts & { componentSet: ComponentSet; changedMetadataComponents: { [key: string]: string[] } } {
+  const { componentSet, copiedFileCount } = createComponentSetAndCopyFiles(
+    filteredChangedFiles,
+    currentWorkingDir,
+    changedFilesDir,
+    logger
+  );
 
-  const { sourceApiVersion, sfdxProjectJsonCopied } = processSfdxProjectJson(currentWorkingDir, baseOutputDir, logger);
+  const sourceApiVersion = getSourceApiVersion(currentWorkingDir, logger);
+
+  const changedMetadataComponents = extractMetadataComponents(componentSet);
 
   return {
     sourceApiVersion,
-    changedFilesCopiedCount: filteredChangedFiles.length,
-    sfdxProjectJsonCopied,
+    changedFilesCopiedCount: copiedFileCount,
+    sfdxProjectJsonCopied: false, // No longer copying sfdx-project.json to artifact
+    componentSet,
+    changedMetadataComponents,
   };
 }
 
 /**
- * Generates package.xml for changed files using sf CLI.
+ * Processes deleted files: copies them from git history and creates ComponentSet for manifest generation.
+ * This allows SF CLI to properly detect metadata types from deleted files.
  */
-function generatePackageManifestFile(
+export function processDeletedFiles(
+  deletedFiles: string[],
+  refA: string,
+  currentWorkingDir: string,
+  removedFilesDir: string,
+  logger: { log: (message: string) => void; warn: (message: string) => void }
+): { deletedMetadataComponents: { [key: string]: Set<string> }; copiedCount: number } {
+  let copiedCount = 0;
+  const copiedFilePaths: string[] = [];
+
+  // First, copy deleted files from git history to RemovedFiles directory
+  for (const file of deletedFiles) {
+    try {
+      // Extract file content from git history (refA)
+      const fileContent = execSync(`git show ${refA}:${file}`, {
+        cwd: currentWorkingDir,
+        encoding: 'utf8',
+        maxBuffer: 50 * 1024 * 1024, // 50MB buffer for large files
+      });
+
+      // Write to RemovedFiles directory
+      const destinationPath = resolve(removedFilesDir, file);
+      const destinationDir = resolve(destinationPath, '..');
+      ensureDirExists(destinationDir);
+      writeFileSync(destinationPath, fileContent);
+      copiedFilePaths.push(destinationPath);
+      copiedCount++;
+    } catch (error) {
+      // Skip files that can't be extracted (binary files, etc.)
+      logger.warn(`Could not copy deleted file ${file}: ${(error as Error).message}`);
+    }
+  }
+
+  if (copiedCount > 0) {
+    logger.log(`Copied ${copiedCount} deleted files to ${removedFilesDir}`);
+  }
+
+  // Now create ComponentSet from the copied files to detect metadata types
+  const deletedMetadataComponents: { [key: string]: Set<string> } = {};
+
+  if (copiedFilePaths.length > 0) {
+    try {
+      const componentSet = ComponentSet.fromSource({
+        fsPaths: copiedFilePaths,
+      });
+
+      const components = componentSet.getSourceComponents().toArray();
+      for (const component of components) {
+        const typeName = component.type.name;
+        const memberName = component.fullName;
+
+        if (!deletedMetadataComponents[typeName]) {
+          deletedMetadataComponents[typeName] = new Set();
+        }
+
+        deletedMetadataComponents[typeName].add(memberName);
+      }
+
+      logger.log(`Detected ${components.length} metadata components from deleted files`);
+    } catch (error) {
+      logger.warn(`Could not create ComponentSet from deleted files: ${(error as Error).message}`);
+      // Log full error for debugging
+      // eslint-disable-next-line no-console
+      console.error('Full error:', error);
+    }
+  }
+
+  return { deletedMetadataComponents, copiedCount };
+}
+
+/**
+ * Generates package.xml for changed files using ComponentSet.
+ * This resolves the changed files from their original location and generates
+ * the manifest before copying, ensuring all metadata files are included.
+ */
+async function generatePackageManifestFile(
   packageDir: string,
-  changedFilesDir: string,
-  baseOutputDir: string,
+  componentSet: ComponentSet,
   logger: { log: (message: string) => void; error: (message: string) => never }
-): string {
+): Promise<string> {
   const packageXmlPath = resolve(packageDir, 'package.xml');
   try {
-    execSync(`sf project generate manifest --source-dir ${changedFilesDir} --output-file ${packageXmlPath}`, {
-      cwd: baseOutputDir,
-    });
+    const manifest = await componentSet.getPackageXml();
+    writeFileSync(packageXmlPath, manifest);
     logger.log(`Generated package manifest: ${packageXmlPath}`);
   } catch (error) {
-    logger.error(`Failed to generate manifest using 'sf project generate manifest': ${(error as Error).message}`);
+    logger.error(`Failed to generate manifest using ComponentSet: ${(error as Error).message}`);
   }
   return packageXmlPath;
 }
@@ -141,7 +274,13 @@ function generateDestructiveManifestsFiles(
   const totalComponents = Object.values(deletedMetadataComponents).reduce((sum, set) => sum + set.size, 0);
   let chunksGenerated = 0;
 
-  if (totalComponents > 0) {
+  // Generate destructiveChanges.xml with the deleted components
+  const destructiveChangesXmlContent = generateDestructiveChangesXml(deletedMetadataComponents, sourceApiVersion);
+  const destructiveChangesXmlPath = resolve(destructiveDir, 'destructiveChanges.xml');
+  writeFileSync(destructiveChangesXmlPath, destructiveChangesXmlContent);
+
+  // If we have a large number of components, also generate chunked manifests for reference
+  if (totalComponents > DEFAULT_CHUNK_CONFIG.maxComponentsPerChunk) {
     const destructiveManifests = generateChunkedManifests(
       deletedMetadataComponents,
       destructiveDir,
@@ -151,15 +290,10 @@ function generateDestructiveManifestsFiles(
 
     if (destructiveManifests.length > 1) {
       chunksGenerated = destructiveManifests.length - 1;
-      logger.log(`Generated ${chunksGenerated} chunked destructive manifests`);
+      logger.log(`Generated ${chunksGenerated} chunked destructive manifests for large changeset`);
     }
-  } else {
-    const destructiveChangesXmlContent = generateDestructiveChangesXml({}, sourceApiVersion);
-    const destructiveChangesXmlPath = resolve(destructiveDir, 'destructiveChanges.xml');
-    writeFileSync(destructiveChangesXmlPath, destructiveChangesXmlContent);
   }
 
-  const destructiveChangesXmlPath = resolve(destructiveDir, 'destructiveChanges.xml');
   logger.log(`Generated destructive changes: ${destructiveChangesXmlPath}`);
 
   return { destructiveChangesXmlPath, chunksGenerated };
@@ -183,16 +317,15 @@ function generateEmptyPackageManifest(
 /**
  * Generates all manifest files (package.xml, destructiveChanges.xml, etc.).
  */
-export function generateManifests(
+export async function generateManifests(
   packageDir: string,
   destructiveDir: string,
-  changedFilesDir: string,
-  baseOutputDir: string,
+  componentSet: ComponentSet,
   deletedMetadataComponents: { [key: string]: Set<string> },
   sourceApiVersion: string,
   logger: { log: (message: string) => void; error: (message: string) => never }
-): GeneratedManifests {
-  const packageXmlPath = generatePackageManifestFile(packageDir, changedFilesDir, baseOutputDir, logger);
+): Promise<GeneratedManifests> {
+  const packageXmlPath = await generatePackageManifestFile(packageDir, componentSet, logger);
   const { destructiveChangesXmlPath, chunksGenerated } = generateDestructiveManifestsFiles(
     destructiveDir,
     deletedMetadataComponents,
@@ -211,23 +344,44 @@ export function generateManifests(
 
 /**
  * Creates a Docker image with the deployment artifacts.
+ * Note: Ignore files should already be copied to the artifact directory by the build command.
  */
 export function createDockerImage(
   baseOutputDir: string,
   logger: { log: (message: string) => void; warn: (message: string) => void }
 ): void {
   logger.log('Creating Docker image...');
+
+  // Check which ignore files exist in the artifact directory
+  const ignoreFiles: string[] = [];
+  const possibleIgnoreFiles = ['.forceignore', 'custom.ignorefile'];
+
+  for (const ignoreFile of possibleIgnoreFiles) {
+    const ignoreFilePath = resolve(baseOutputDir, ignoreFile);
+    if (existsSync(ignoreFilePath)) {
+      ignoreFiles.push(ignoreFile);
+    }
+  }
+
+  // Build Dockerfile content with optional ignore files
+  const ignoreFileCopies = ignoreFiles.map((file) => `COPY ${file} ./`).join('\n');
+
   const dockerfilePath = resolve(baseOutputDir, 'Dockerfile');
-  const dockerfileContent = `# Salesforce CLI Docker Image
+  const dockerfileContent = `# Salesforce Deployment Docker Image
 FROM node:lts-alpine
+
+# Install coreutils for GNU env (needed for SF CLI shebang with -S option)
+RUN apk add --no-cache coreutils
 
 # Set working directory
 WORKDIR /app
 
-# Copy sfdx-project.json and changed files
+# Copy all deployment artifacts
 COPY sfdx-project.json ./
 COPY ChangedFiles ./ChangedFiles
-
+COPY Package ./Package
+COPY Destructive ./Destructive
+${ignoreFileCopies ? ignoreFileCopies + '\n' : ''}
 # Install Salesforce CLI
 RUN npm install -g @salesforce/cli
 
@@ -252,19 +406,21 @@ CMD ["sf", "--help"]
 export function prepareOutputDirectories(
   baseOutputDir: string,
   logger: { log: (message: string) => void }
-): { packageDir: string; destructiveDir: string; changedFilesDir: string } {
+): { packageDir: string; destructiveDir: string; changedFilesDir: string; removedFilesDir: string } {
   const packageDir = resolve(baseOutputDir, 'Package');
   const destructiveDir = resolve(baseOutputDir, 'Destructive');
   const changedFilesDir = resolve(baseOutputDir, 'ChangedFiles');
+  const removedFilesDir = resolve(baseOutputDir, 'RemovedFiles');
 
   ensureDirExists(baseOutputDir);
   ensureDirExists(packageDir);
   ensureDirExists(destructiveDir);
   ensureDirExists(changedFilesDir);
+  ensureDirExists(removedFilesDir);
 
   logger.log(`Created output directories in: ${baseOutputDir}`);
 
-  return { packageDir, destructiveDir, changedFilesDir };
+  return { packageDir, destructiveDir, changedFilesDir, removedFilesDir };
 }
 
 /**

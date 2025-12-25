@@ -15,93 +15,57 @@ sf fm build \
   --ref-b HEAD \
   --output-dir ./deploy
 
-# Output:
-# - ./deploy/package.xml (changed components)
-# - ./deploy/destructiveChanges.xml (deleted components)
-# - ./deploy/metadata/ (copied files)
+# Output structure:
+# ./deploy/
+# ├── Package/
+# │   └── package.xml (changed components manifest)
+# ├── Destructive/
+# │   ├── destructiveChanges.xml (deleted components)
+# │   └── package.xml (empty package for destructive changes)
+# ├── ChangedFiles/
+# │   └── force-app/... (copied metadata files)
+# ├── sfdx-project.json (updated project config)
+# └── .forceignore (copied from project root)
 
 # ------------------------------------------------------------
-# Example 2: Build with Chunking
+# Example 2: Build with Docker Image
 # ------------------------------------------------------------
-# Large deployments need to be split into chunks (max 10,000 files)
+# Build and create Docker image for containerized deployments
 
 sf fm build \
   --ref-a origin/main \
   --ref-b HEAD \
   --output-dir ./deploy \
-  --chunk-size 5000
+  --create-docker-image
 
 # Output:
-# - ./deploy/chunk-1/package.xml
-# - ./deploy/chunk-2/package.xml
-# - ./deploy/chunk-3/package.xml
+# - All files from Example 1
+# - ./deploy/Dockerfile
+# - Docker image: sf-diff-artifact:<timestamp>
+
+# Use the image:
+# docker run -it sf-diff-artifact:<timestamp> sf --version
 
 # ------------------------------------------------------------
 # Example 3: Specific Commit Range
 # ------------------------------------------------------------
-# Build for specific commits
+# Build for specific commits or tags
 
 sf fm build \
   --ref-a abc123def \
   --ref-b 456789ghi \
   --output-dir ./hotfix-deploy
 
-# ------------------------------------------------------------
-# Example 4: Build with Destructive Changes
-# ------------------------------------------------------------
-# Include both pre and post destructive changes
-
+# Or using tags:
 sf fm build \
-  --ref-a origin/main \
-  --ref-b HEAD \
-  --output-dir ./deploy \
-  --destructive-mode both
-
-# Output:
-# - ./deploy/Destructive/destructiveChangesPre.xml
-# - ./deploy/package.xml
-# - ./deploy/Destructive/destructiveChanges.xml
-
-# ------------------------------------------------------------
-# Example 5: JSON Output for CI/CD
-# ------------------------------------------------------------
-# Get JSON output for parsing in scripts
-
-sf fm build \
-  --ref-a origin/main \
-  --ref-b HEAD \
-  --output-dir ./deploy \
-  --json > build-result.json
-
-# Parse in script:
-# FILES_CHANGED=$(cat build-result.json | jq -r '.result.statistics.totalChanged')
-# echo "Changed files: $FILES_CHANGED"
-
-# ------------------------------------------------------------
-# Example 6: Build from Tag to Branch
-# ------------------------------------------------------------
-# Compare release tag to current development
-
-sf fm build \
-  --ref-a v1.2.0 \
-  --ref-b develop \
+  --ref-a v1.0.0 \
+  --ref-b v1.1.0 \
   --output-dir ./release-deploy
 
 # ------------------------------------------------------------
-# Example 7: Build with Force Include
+# Example 4: Build with Ignore Patterns
 # ------------------------------------------------------------
-# Force include specific metadata even if not changed
-
-sf fm build \
-  --ref-a origin/main \
-  --ref-b HEAD \
-  --output-dir ./deploy \
-  --force-include "CustomObject:Account,ApexClass:AccountTriggerHandler"
-
-# ------------------------------------------------------------
-# Example 8: Build with Ignore Patterns
-# ------------------------------------------------------------
-# Ignore certain files from deployment
+# Ignore certain files from deployment using --ignore flag
 
 sf fm build \
   --ref-a origin/main \
@@ -109,129 +73,384 @@ sf fm build \
   --output-dir ./deploy \
   --ignore "**/*.profile,**/*.permissionset"
 
-# ------------------------------------------------------------
-# Example 9: GitHub Actions Integration
-# ------------------------------------------------------------
-# Build in GitHub Actions workflow
+# Multiple patterns (comma-separated):
+sf fm build \
+  --ref-a origin/main \
+  --ref-b HEAD \
+  --output-dir ./deploy \
+  --ignore "**/*.profile,**/*.permissionset,**/test/**"
 
+# ------------------------------------------------------------
+# Example 5: Custom .forceignore File
+# ------------------------------------------------------------
+# Use a custom .forceignore file location
+
+sf fm build \
+  --ref-a origin/main \
+  --ref-b HEAD \
+  --output-dir ./deploy \
+  --forceignore ./config/.forceignore-prod
+
+# Combine with additional patterns:
+sf fm build \
+  --ref-a origin/main \
+  --ref-b HEAD \
+  --output-dir ./deploy \
+  --forceignore ./config/.forceignore-prod \
+  --ignore "**/*.snapshot"
+
+# ------------------------------------------------------------
+# Example 6: Console Summary (Default)
+# ------------------------------------------------------------
+# Formatted console output with visual indicators
+
+sf fm build \
+  --ref-a origin/main \
+  --ref-b HEAD \
+  --output-dir ./deploy \
+  --summary console
+
+# Output shows:
+# - FILE CHANGE SUMMARY (changed, deleted, ignored files)
+# - METADATA CHANGE SUMMARY (components by type)
+# - DEPLOYMENT SUMMARY (paths and statistics)
+
+# ------------------------------------------------------------
+# Example 7: JSON Summary Output
+# ------------------------------------------------------------
+# Get machine-readable JSON output for CI/CD pipelines
+
+sf fm build \
+  --ref-a origin/main \
+  --ref-b HEAD \
+  --output-dir ./deploy \
+  --summary json > build-result.json
+
+# Clean JSON output (no log messages)
+# Parse in scripts:
+TOTAL_CHANGED=$(jq -r '.statistics.totalChanged' build-result.json)
+TOTAL_DELETED=$(jq -r '.statistics.totalDeleted' build-result.json)
+PACKAGE_XML=$(jq -r '.manifests.packageXml' build-result.json)
+
+echo "Changed: $TOTAL_CHANGED"
+echo "Deleted: $TOTAL_DELETED"
+echo "Manifest: $PACKAGE_XML"
+
+# ------------------------------------------------------------
+# Example 8: GitHub Actions Summary
+# ------------------------------------------------------------
+# Generate GitHub Actions-compatible markdown summary
+
+sf fm build \
+  --ref-a origin/main \
+  --ref-b HEAD \
+  --output-dir ./deploy \
+  --summary github
+
+# In GitHub Actions workflow:
+# - Writes to $GITHUB_STEP_SUMMARY
+# - Creates formatted job summary
+# - Shows overview table, metadata changes, artifacts
+
+# Example GitHub Actions workflow:
 # - name: Build Deployment Package
 #   run: |
 #     sf fm build \
 #       --ref-a origin/${{ github.base_ref }} \
 #       --ref-b ${{ github.sha }} \
 #       --output-dir ./manifest \
-#       --json | tee build-output.json
-#
-#     # Save output for later steps
-#     echo "files_changed=$(jq -r '.result.statistics.totalChanged' build-output.json)" >> $GITHUB_OUTPUT
+#       --summary github
 
 # ------------------------------------------------------------
-# Example 10: Multi-Environment Build
+# Example 9: Compare Between Branches
+# ------------------------------------------------------------
+# Build for changes from develop to main
+
+sf fm build \
+  --ref-a develop \
+  --ref-b main \
+  --output-dir ./promote-to-main
+
+# Compare staging to production:
+sf fm build \
+  --ref-a origin/production \
+  --ref-b origin/staging \
+  --output-dir ./prod-deploy
+
+# ------------------------------------------------------------
+# Example 10: Multi-Environment Builds
 # ------------------------------------------------------------
 # Build different packages for different environments
 
-# Development
+# Development (exclude production configs)
 sf fm build \
   --ref-a origin/main \
   --ref-b HEAD \
   --output-dir ./deploy/dev \
-  --ignore "**/*.profile-prod"
+  --ignore "**/*Production*"
 
-# Production
+# Production (exclude dev/sandbox configs)
 sf fm build \
   --ref-a origin/staging \
   --ref-b origin/main \
   --output-dir ./deploy/prod \
-  --ignore "**/*.profile-dev"
+  --ignore "**/*Development*,**/*Sandbox*"
 
 # ------------------------------------------------------------
-# Example 11: Hotfix Build
+# Example 11: Hotfix Workflow
 # ------------------------------------------------------------
-# Build for hotfix from production to hotfix branch
+# Build for urgent hotfix deployment
 
+# Step 1: Create hotfix branch from production
+# git checkout -b hotfix/TICKET-123 origin/production
+
+# Step 2: Make fixes and commit
+# git add .
+# git commit -m "fix: critical bug"
+
+# Step 3: Build deployment package
 sf fm build \
   --ref-a origin/production \
-  --ref-b hotfix/TICKET-123 \
-  --output-dir ./hotfix \
-  --destructive-mode none
+  --ref-b HEAD \
+  --output-dir ./hotfix-deploy
+
+# Step 4: Deploy to production (see deploy-examples.sh)
 
 # ------------------------------------------------------------
-# Example 12: Release Build
+# Example 12: Release Package Build
 # ------------------------------------------------------------
-# Build complete release package
+# Build complete release package with documentation
 
 sf fm build \
   --ref-a v2.0.0 \
   --ref-b v2.1.0 \
   --output-dir ./release-2.1.0 \
-  --chunk-size 10000 \
-  --json > release-manifest.json
+  --summary json > release-manifest.json
 
-# Generate release notes from output
-# jq -r '.result.statistics' release-manifest.json > release-notes.txt
+# Generate release notes from output:
+echo "Release 2.1.0 Changes:" > RELEASE_NOTES.md
+echo "" >> RELEASE_NOTES.md
+echo "Total Changed: $(jq -r '.statistics.totalChanged' release-manifest.json)" >> RELEASE_NOTES.md
+echo "Total Deleted: $(jq -r '.statistics.totalDeleted' release-manifest.json)" >> RELEASE_NOTES.md
 
 # ------------------------------------------------------------
-# Real-World Workflow
+# Example 13: CI/CD Pipeline Integration
 # ------------------------------------------------------------
 
-# Step 1: Build deployment package
+#!/bin/bash
+set -e
+
+echo "🔨 Building deployment package..."
+
+# Build with JSON output
+sf fm build \
+  --ref-a origin/main \
+  --ref-b HEAD \
+  --output-dir ./manifest \
+  --summary json > build-result.json
+
+# Parse results
+TOTAL_CHANGED=$(jq -r '.statistics.totalChanged' build-result.json)
+TOTAL_DELETED=$(jq -r '.statistics.totalDeleted' build-result.json)
+CHUNKS=$(jq -r '.statistics.chunksGenerated' build-result.json)
+
+# Check if there are changes
+if [ "$TOTAL_CHANGED" -eq 0 ] && [ "$TOTAL_DELETED" -eq 0 ]; then
+  echo "✅ No changes detected. Skipping deployment."
+  exit 0
+fi
+
+echo "📊 Changes detected:"
+echo "   Changed: $TOTAL_CHANGED"
+echo "   Deleted: $TOTAL_DELETED"
+echo "   Chunks: $CHUNKS"
+
+# Validate package.xml exists
+if [ ! -f "./manifest/Package/package.xml" ]; then
+  echo "❌ Error: package.xml not found"
+  exit 1
+fi
+
+echo "✅ Build complete!"
+
+# Continue with deployment steps...
+
+# ------------------------------------------------------------
+# Example 14: Advanced Filtering
+# ------------------------------------------------------------
+# Combine .forceignore with additional ignore patterns
+
+# Create custom .forceignore
+cat > .forceignore.custom <<EOF
+# Standard Salesforce ignores
+**/.sfdx
+**/.vscode
+**/.git
+
+# Additional ignores for this build
+**/*.profile-meta.xml
+**/profiles/**
+EOF
+
+# Build with custom ignore file and additional patterns
+sf fm build \
+  --ref-a origin/main \
+  --ref-b HEAD \
+  --output-dir ./deploy \
+  --forceignore ./.forceignore.custom \
+  --ignore "**/test/**,**/*.snapshot"
+
+# ------------------------------------------------------------
+# Example 15: Review Before Deploy Workflow
+# ------------------------------------------------------------
+
+# Step 1: Build package
 sf fm build \
   --ref-a origin/main \
   --ref-b HEAD \
   --output-dir ./deploy
 
 # Step 2: Review what will be deployed
-echo "=== Files to Deploy ==="
-cat ./deploy/package.xml
+echo ""
+echo "=== 📦 PACKAGE MANIFEST ==="
+cat ./deploy/Package/package.xml
 
-echo "=== Files to Delete ==="
-cat ./deploy/destructiveChanges.xml
+echo ""
+echo "=== 🗑️  DESTRUCTIVE CHANGES ==="
+cat ./deploy/Destructive/destructiveChanges.xml
 
-# Step 3: Deploy to sandbox (see deploy-examples.sh)
-# Step 4: Run tests
-# Step 5: Deploy to production
+echo ""
+echo "=== 📁 CHANGED FILES ==="
+find ./deploy/ChangedFiles -type f
+
+# Step 3: Confirm before proceeding
+read -p "Continue with deployment? (y/n) " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+  echo "Proceeding with deployment..."
+  # Deploy (see deploy-examples.sh)
+else
+  echo "Deployment cancelled"
+  exit 1
+fi
 
 # ------------------------------------------------------------
-# CI/CD Pipeline Example
+# Example 16: Docker Deployment Workflow
+# ------------------------------------------------------------
+
+# Build with Docker image
+sf fm build \
+  --ref-a origin/main \
+  --ref-b HEAD \
+  --output-dir ./deploy \
+  --create-docker-image
+
+# Get image name
+IMAGE_NAME=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep sf-diff-artifact | head -1)
+
+echo "Docker image created: $IMAGE_NAME"
+
+# Deploy using Docker container
+docker run -it $IMAGE_NAME \
+  sf project deploy start \
+  --manifest Package/package.xml \
+  --target-org myorg \
+  --dry-run
+
+# ------------------------------------------------------------
+# Real-World Complete Workflow
 # ------------------------------------------------------------
 
 #!/bin/bash
-set -e
+set -euo pipefail
 
-echo "Building deployment package..."
+echo "🚀 Starting deployment workflow..."
 
-# Build
+# 1. Build deployment package
+echo "📦 Building package..."
 sf fm build \
   --ref-a origin/main \
   --ref-b HEAD \
   --output-dir ./manifest \
-  --json > build-result.json
+  --summary json > build-result.json
 
-# Check if there are changes
-TOTAL_CHANGED=$(jq -r '.result.statistics.totalChanged' build-result.json)
-TOTAL_DELETED=$(jq -r '.result.statistics.totalDeleted' build-result.json)
-
-if [ "$TOTAL_CHANGED" -eq 0 ] && [ "$TOTAL_DELETED" -eq 0 ]; then
-  echo "No changes detected. Skipping deployment."
+# 2. Check for changes
+CHANGED=$(jq -r '.statistics.totalChanged' build-result.json)
+if [ "$CHANGED" -eq 0 ]; then
+  echo "✅ No changes to deploy"
   exit 0
 fi
 
-echo "Changes detected: $TOTAL_CHANGED changed, $TOTAL_DELETED deleted"
+# 3. Display summary
+echo "📊 Deployment summary:"
+jq '.statistics' build-result.json
 
-# Check if chunking was needed
-CHUNKS=$(jq -r '.result.statistics.chunksGenerated' build-result.json)
+# 4. Deploy to sandbox
+echo "🔨 Deploying to sandbox..."
+# (see deploy-examples.sh for deployment commands)
 
-if [ "$CHUNKS" -gt 1 ]; then
-  echo "Package split into $CHUNKS chunks"
+# 5. Run tests
+echo "🧪 Running tests..."
+# sf project deploy validate --manifest ./manifest/Package/package.xml
 
-  # Deploy each chunk
-  for i in $(seq 1 $CHUNKS); do
-    echo "Deploying chunk $i/$CHUNKS..."
-    # Deploy chunk (see deploy examples)
-  done
-else
-  echo "Deploying single package..."
-  # Deploy single package
-fi
+# 6. Deploy to production
+echo "🎯 Deploying to production..."
+# sf project deploy start --manifest ./manifest/Package/package.xml
 
-echo "Build complete!"
+echo "✅ Deployment complete!"
+
+# ------------------------------------------------------------
+# Troubleshooting Examples
+# ------------------------------------------------------------
+
+# Debug: See what files are being detected
+sf fm build \
+  --ref-a origin/main \
+  --ref-b HEAD \
+  --output-dir ./debug \
+  --summary console | tee build-debug.log
+
+# Check specific file types
+sf fm build \
+  --ref-a origin/main \
+  --ref-b HEAD \
+  --output-dir ./apex-only \
+  --ignore "**/*.object,**/*.permissionset,**/*.profile"
+
+# Verify .forceignore is working
+sf fm build \
+  --ref-a origin/main \
+  --ref-b HEAD \
+  --output-dir ./test-ignore \
+  --forceignore ./.forceignore.test
+
+# ------------------------------------------------------------
+# Tips & Best Practices
+# ------------------------------------------------------------
+
+# ✅ Use tags for release builds
+# sf fm build --ref-a v1.0.0 --ref-b v2.0.0
+
+# ✅ Always use origin/ prefix for remote branches
+# sf fm build --ref-a origin/main --ref-b origin/develop
+
+# ✅ Use JSON output in CI/CD for parsing
+# sf fm build --summary json > results.json
+
+# ✅ Use GitHub summary in GitHub Actions
+# sf fm build --summary github
+
+# ✅ Review destructive changes before deploying
+# cat ./deploy/Destructive/destructiveChanges.xml
+
+# ✅ Keep .forceignore up to date
+# Add patterns for files you don't want to deploy
+
+# ✅ Use Docker images for consistent deployments
+# sf fm build --create-docker-image
+
+# ❌ Don't use HEAD without context in CI/CD
+# Use specific refs: ${{ github.sha }}
+
+# ❌ Don't ignore the .forceignore file
+# It's copied to the artifact directory for deployment
