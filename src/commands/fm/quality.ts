@@ -189,6 +189,82 @@ export default class Quality extends SfCommand<QualityResult> {
     }
   }
 
+  /**
+   * Creates a QualityCheckResult object.
+   */
+  private static createCheckResult(
+    check: string,
+    status: 'pass' | 'fail' | 'warning' | 'skipped',
+    errors: number,
+    warnings: number,
+    details?: string[]
+  ): QualityCheckResult {
+    return { check, status, errors, warnings, details };
+  }
+
+  /**
+   * Parses output lines and counts issues containing specific keywords.
+   */
+  private static parseOutputForIssues(
+    output: string,
+    errorKeyword: string,
+    warningKeyword?: string
+  ): { errors: number; warnings: number; details: string[] } {
+    const lines = output.split('\n');
+    let errors = 0;
+    let warnings = 0;
+    const details: string[] = [];
+
+    for (const line of lines) {
+      if (line.includes(errorKeyword)) {
+        errors++;
+        details.push(line);
+      } else if (warningKeyword && line.includes(warningKeyword)) {
+        warnings++;
+        details.push(line);
+      }
+    }
+
+    return { errors, warnings, details };
+  }
+
+  /**
+   * Parses PMD output and extracts violations.
+   */
+  private static parsePmdOutput(output: string): { count: number; details: string[] } {
+    const lines = output.split('\n');
+    const details: string[] = [];
+
+    for (const line of lines) {
+      if (line.trim() && !line.startsWith('PMD ') && !line.startsWith('Running ')) {
+        details.push(line);
+      }
+    }
+
+    return { count: details.length, details };
+  }
+
+  /**
+   * Parses test output and extracts failures.
+   */
+  private static parseTestOutput(output: string): { count: number; details: string[] } {
+    const lines = output.split('\n');
+    let failures = 0;
+    const details: string[] = [];
+
+    for (const line of lines) {
+      if (line.includes('failing') || line.includes('failed')) {
+        const match = line.match(/(\d+)\s+(failing|failed)/);
+        if (match) {
+          failures = parseInt(match[1], 10);
+        }
+        details.push(line);
+      }
+    }
+
+    return { count: failures, details };
+  }
+
   public async run(): Promise<QualityResult> {
     const { flags } = await this.parse(Quality);
 
@@ -287,44 +363,19 @@ export default class Quality extends SfCommand<QualityResult> {
     this.log(messages.getMessage('info.runningEslint', [files.length.toString()]));
 
     try {
-      // Run ESLint
-      execSync(`npx eslint ${files.join(' ')}`, {
-        encoding: 'utf8',
-        stdio: 'pipe',
-      });
-
-      return {
-        check: 'ESLint',
-        status: 'pass',
-        errors: 0,
-        warnings: 0,
-      };
+      execSync(`npx eslint ${files.join(' ')}`, { encoding: 'utf8', stdio: 'pipe' });
+      return Quality.createCheckResult('ESLint', 'pass', 0, 0);
     } catch (error) {
       const output = (error as { stdout?: string }).stdout ?? '';
-      const lines = output.split('\n');
+      const { errors, warnings, details } = Quality.parseOutputForIssues(output, 'error', 'warning');
 
-      // Parse ESLint output for errors and warnings
-      let errors = 0;
-      let warnings = 0;
-      const details: string[] = [];
-
-      for (const line of lines) {
-        if (line.includes('error')) {
-          errors++;
-          details.push(line);
-        } else if (line.includes('warning')) {
-          warnings++;
-          details.push(line);
-        }
-      }
-
-      return {
-        check: 'ESLint',
-        status: errors > 0 ? 'fail' : 'warning',
+      return Quality.createCheckResult(
+        'ESLint',
+        errors > 0 ? 'fail' : 'warning',
         errors,
         warnings,
-        details: details.slice(0, 20), // Limit to first 20 issues
-      };
+        details.slice(0, 20)
+      );
     }
   }
 
@@ -334,83 +385,47 @@ export default class Quality extends SfCommand<QualityResult> {
     const errors: string[] = [];
 
     for (const file of files) {
-      if (!existsSync(file)) {
-        continue;
-      }
+      if (!existsSync(file)) continue;
 
       try {
-        execSync(`xmllint --noout "${file}"`, {
-          encoding: 'utf8',
-          stdio: 'pipe',
-        });
+        execSync(`xmllint --noout "${file}"`, { encoding: 'utf8', stdio: 'pipe' });
       } catch (error) {
         errors.push(`${file}: ${(error as Error).message}`);
       }
     }
 
-    return {
-      check: 'XML Lint',
-      status: errors.length > 0 ? 'fail' : 'pass',
-      errors: errors.length,
-      warnings: 0,
-      details: errors.slice(0, 20),
-    };
+    return Quality.createCheckResult(
+      'XML Lint',
+      errors.length > 0 ? 'fail' : 'pass',
+      errors.length,
+      0,
+      errors.slice(0, 20)
+    );
   }
 
   private runPmd(files: string[], ruleset: string): QualityCheckResult {
     this.log(messages.getMessage('info.runningPmd'));
 
+    // Check if PMD is available
     try {
-      // Check if PMD is available
       execSync('pmd --version', { stdio: 'pipe' });
     } catch {
-      // PMD not installed, skip
-      return {
-        check: 'PMD',
-        status: 'skipped',
-        errors: 0,
-        warnings: 0,
-        details: ['PMD not installed, skipping checks'],
-      };
+      return Quality.createCheckResult('PMD', 'skipped', 0, 0, ['PMD not installed, skipping checks']);
     }
 
     try {
-      // Run PMD on changed files
       const fileList = files.join(',');
-
       execSync(`pmd check --dir "${fileList}" --rulesets "${ruleset}" --format text --fail-on-violation true`, {
         encoding: 'utf8',
         stdio: 'pipe',
       });
 
-      return {
-        check: 'PMD',
-        status: 'pass',
-        errors: 0,
-        warnings: 0,
-      };
+      return Quality.createCheckResult('PMD', 'pass', 0, 0);
     } catch (error) {
       const output = (error as { stdout?: string }).stdout ?? '';
-      const lines = output.split('\n');
+      const violations = Quality.parsePmdOutput(output);
 
-      // Parse PMD output
-      let violations = 0;
-      const details: string[] = [];
-
-      for (const line of lines) {
-        if (line.trim() && !line.startsWith('PMD ') && !line.startsWith('Running ')) {
-          violations++;
-          details.push(line);
-        }
-      }
-
-      return {
-        check: 'PMD',
-        status: 'fail',
-        errors: violations,
-        warnings: 0,
-        details: details.slice(0, 20),
-      };
+      return Quality.createCheckResult('PMD', 'fail', violations.count, 0, violations.details.slice(0, 20));
     }
   }
 
@@ -418,43 +433,13 @@ export default class Quality extends SfCommand<QualityResult> {
     this.log(messages.getMessage('info.runningTests'));
 
     try {
-      // Run tests using npm test
-      execSync('npm run test:only', {
-        encoding: 'utf8',
-        stdio: 'pipe',
-      });
-
-      return {
-        check: 'Tests',
-        status: 'pass',
-        errors: 0,
-        warnings: 0,
-      };
+      execSync('npm run test:only', { encoding: 'utf8', stdio: 'pipe' });
+      return Quality.createCheckResult('Tests', 'pass', 0, 0);
     } catch (error) {
       const output = (error as { stdout?: string }).stdout ?? '';
-      const lines = output.split('\n');
+      const testFailures = Quality.parseTestOutput(output);
 
-      // Parse test output
-      let failures = 0;
-      const details: string[] = [];
-
-      for (const line of lines) {
-        if (line.includes('failing') || line.includes('failed')) {
-          const match = line.match(/(\d+)\s+(failing|failed)/);
-          if (match) {
-            failures = parseInt(match[1], 10);
-          }
-          details.push(line);
-        }
-      }
-
-      return {
-        check: 'Tests',
-        status: 'fail',
-        errors: failures,
-        warnings: 0,
-        details: details.slice(0, 20),
-      };
+      return Quality.createCheckResult('Tests', 'fail', testFailures.count, 0, testFailures.details.slice(0, 20));
     }
   }
 

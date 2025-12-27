@@ -1,149 +1,357 @@
-**NOTE: This template for sf plugins is not yet official. Please consult with the Platform CLI team before using this template.**
+# @salesforce/plugin-fm
 
-# plugin-fm
+[![NPM](https://img.shields.io/npm/v/@salesforce/plugin-fm.svg?label=@salesforce/plugin-fm)](https://www.npmjs.com/package/@salesforce/plugin-fm)
+[![Downloads/week](https://img.shields.io/npm/dw/@salesforce/plugin-fm.svg)](https://npmjs.org/package/@salesforce/plugin-fm)
+[![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://opensource.org/license/apache-2-0)
 
-[![NPM](https://img.shields.io/npm/v/@salesforce/plugin-fm.svg?label=@salesforce/plugin-fm)](https://www.npmjs.com/package/@salesforce/plugin-fm) [![Downloads/week](https://img.shields.io/npm/dw/@salesforce/plugin-fm.svg)](https://npmjs.org/package/@salesforce/plugin-fm) [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://opensource.org/license/apache-2-0)
+A Salesforce CLI plugin for fast, intelligent metadata deployments with built-in CI/CD support.
 
-## Using the template
+## Features
 
-This repository provides a template for creating a plugin for the Salesforce CLI. To convert this template to a working plugin:
+- 🚀 **Intelligent Builds** - Automatically analyze Git changes and generate deployment artifacts
+- 🧪 **Smart Test Detection** - Auto-detect which Apex tests to run based on code changes
+- 📦 **Bundle Handling** - Properly handle LWC, Aura, and Experience Bundle changes
+- 🎯 **Granular Metadata** - Optimize CustomLabels and SharingRules deployments
+- 🔄 **Progress Monitoring** - Real-time deployment progress with beautiful visualizations
+- ⚡ **Quick Deploys** - Deploy validated changesets instantly
+- 🎣 **Pre/Post Hooks** - Execute custom scripts before and after deployments
+- 🤖 **CI/CD Ready** - Built for GitHub Actions, GitLab CI, and other automation tools
+- ✅ **Quality Checks** - Run ESLint, PMD, XML validation, and tests on changed files
+- 🗑️ **Destructive Changes** - Handle pre and post destructive deployments safely
 
-1. Please get in touch with the Platform CLI team. We want to help you develop your plugin.
-2. Generate your plugin:
-
-   ```
-   sf plugins install dev
-   sf dev generate plugin
-
-   git init -b main
-   git add . && git commit -m "chore: initial commit"
-   ```
-
-3. Create your plugin's repo in the salesforcecli github org
-4. When you're ready, replace the contents of this README with the information you want.
-
-## Learn about `sf` plugins
-
-Salesforce CLI plugins are based on the [oclif plugin framework](https://oclif.io/docs/introduction). Read the [plugin developer guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_cli_plugins.meta/sfdx_cli_plugins/cli_plugins_architecture_sf_cli.htm) to learn about Salesforce CLI plugin development.
-
-This repository contains a lot of additional scripts and tools to help with general Salesforce node development and enforce coding standards. You should familiarize yourself with some of the [node developer packages](#tooling) used by Salesforce. There is also a default circleci config using the [release management orb](https://github.com/forcedotcom/npm-release-management-orb) standards.
-
-Additionally, there are some additional tests that the Salesforce CLI will enforce if this plugin is ever bundled with the CLI. These test are included by default under the `posttest` script and it is required to keep these tests active in your plugin if you plan to have it bundled.
-
-### Tooling
-
-- [@salesforce/core](https://github.com/forcedotcom/sfdx-core)
-- [@salesforce/kit](https://github.com/forcedotcom/kit)
-- [@salesforce/sf-plugins-core](https://github.com/salesforcecli/sf-plugins-core)
-- [@salesforce/ts-types](https://github.com/forcedotcom/ts-types)
-- [@salesforce/ts-sinon](https://github.com/forcedotcom/ts-sinon)
-- [@salesforce/dev-config](https://github.com/forcedotcom/dev-config)
-- [@salesforce/dev-scripts](https://github.com/forcedotcom/dev-scripts)
-
-# Everything past here is only a suggestion as to what should be in your specific plugin's description
-
-This plugin is bundled with the [Salesforce CLI](https://developer.salesforce.com/tools/sfdxcli). For more information on the CLI, read the [getting started guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_intro.htm).
-
-We always recommend using the latest version of these commands bundled with the CLI, however, you can install a specific version or tag if needed.
-
-## Install
+## Installation
 
 ```bash
-sf plugins install @salesforce/plugin-fm@x.y.z
+sf plugins install @salesforce/plugin-fm
 ```
 
-## Issues
+## Quick Start
 
-Please report any issues at https://github.com/forcedotcom/cli/issues
+### 1. Build Deployment Artifacts
 
-## Contributing
+Generate manifests and prepare files for deployment based on Git changes:
 
-1. Please read our [Code of Conduct](CODE_OF_CONDUCT.md)
-2. Create a new issue before starting your project so that we can keep track of
-   what you are trying to add/fix. That way, we can also offer suggestions or
-   let you know if there is already an effort in progress.
-3. Fork this repository.
-4. [Build the plugin locally](#build)
-5. Create a _topic_ branch in your fork. Note, this step is recommended but technically not required if contributing using a fork.
-6. Edit the code in your fork.
-7. Write appropriate tests for your changes. Try to achieve at least 95% code coverage on any new code. No pull request will be accepted without unit tests.
-8. Sign CLA (see [CLA](#cla) below).
-9. Send us a pull request when you are done. We'll review your code, suggest any needed changes, and merge it in.
+```bash
+# Compare main branch with current changes
+sf fm build --ref-a main --ref-b HEAD
 
-### CLA
+# Use the last successful deployment as baseline
+sf fm build --from-last-successful-deployment --base-branch main
+```
 
-External contributors will be required to sign a Contributor's License
-Agreement. You can do so by going to https://cla.salesforce.com/sign-cla.
+### 2. Deploy to Salesforce
+
+Deploy with intelligent test detection and progress monitoring:
+
+```bash
+# Validation with auto-detected tests
+sf fm deploy --manifest ./manifest --target-org myorg --intelligent-tests --progress
+
+# Full deployment with specific tests
+sf fm deploy --manifest ./manifest --target-org myorg \
+  --mode deployment --tests AccountTest,ContactTest --progress
+```
+
+### 3. Monitor Deployment Status
+
+```bash
+# Watch deployment progress in real-time
+sf fm deploy status --job-id 0Af... --target-org myorg --watch --interval 15
+```
+
+### 4. Quality Checks
+
+Run quality checks on changed files:
+
+```bash
+# Run all quality checks on PR changes
+sf fm quality --base-sha origin/main --head-sha HEAD
+
+# Skip specific checks
+sf fm quality --base-sha origin/main --head-sha HEAD --skip-tests
+```
+
+## Commands
+
+### `sf fm build`
+
+Build deployment artifacts from Git changes including manifests and changed files.
+
+**Key Features:**
+
+- Analyzes Git diff between any two references (commits, branches, tags)
+- Generates `package.xml` for changed/new metadata
+- Generates `destructiveChanges.xml` for deleted metadata
+- Copies changed files to deployment directory
+- Handles Salesforce bundles (LWC, Aura, Experience Bundle)
+- Optimizes CustomLabels and SharingRules (only changed labels/rules)
+- Respects `.forceignore` patterns
+
+**Examples:**
+
+```bash
+# Changes between commits
+sf fm build --ref-a HEAD~1 --ref-b HEAD
+
+# Changes from main branch
+sf fm build --ref-a main --ref-b HEAD
+
+# From last successful deployment
+sf fm build --from-last-successful-deployment --base-branch main
+
+# Custom output directory
+sf fm build --ref-a main --output-dir my-deployment
+```
+
+[Full Documentation →](./messages/build.md)
+
+### `sf fm deploy`
+
+Deploy or validate Salesforce metadata with intelligent features.
+
+**Key Features:**
+
+- Three modes: validation, deployment, quick
+- Intelligent test detection based on changed Apex code
+- Real-time progress monitoring
+- Pre/post deployment hooks
+- Destructive changes support (pre, post, both)
+- Async mode for CI/CD pipelines
+
+**Examples:**
+
+```bash
+# Validation with intelligent tests
+sf fm deploy --manifest ./manifest --target-org myorg \
+  --mode validation --intelligent-tests --progress
+
+# Full deployment with specific tests
+sf fm deploy --manifest ./manifest --target-org myorg \
+  --mode deployment --test-level RunSpecifiedTests \
+  --tests AccountTest,ContactTest --progress
+
+# Quick deploy from validation
+sf fm deploy --mode quick --validation-id 0Af... --target-org myorg
+
+# Async deployment for CI/CD
+sf fm deploy --manifest ./manifest --target-org myorg --async
+```
+
+[Full Documentation →](./messages/deploy.md)
+
+### `sf fm deploy status`
+
+Monitor deployment progress with real-time updates.
+
+**Key Features:**
+
+- One-time status check or continuous watching
+- Beautiful progress visualization
+- Component and test progress tracking
+- Error and warning details
+- Code coverage reporting
+- JSON output for automation
+
+**Examples:**
+
+```bash
+# Check status once
+sf fm deploy status --job-id 0Af... --target-org myorg
+
+# Watch continuously
+sf fm deploy status --job-id 0Af... --target-org myorg \
+  --watch --interval 15 --timeout 60
+
+# JSON output for CI/CD
+sf fm deploy status --job-id 0Af... --target-org myorg --json
+```
+
+[Full Documentation →](./messages/deploy.status.md)
+
+### `sf fm deploy cancel`
+
+Cancel a running deployment.
+
+**Examples:**
+
+```bash
+# Cancel by job ID
+sf fm deploy cancel --job-id 0Af... --target-org myorg
+
+# Cancel using cached job ID
+sf fm deploy cancel --target-org myorg
+```
+
+[Full Documentation →](./messages/deploy.cancel.md)
+
+### `sf fm quality`
+
+Run quality checks on changed files between Git references.
+
+**Key Features:**
+
+- ESLint for JavaScript/TypeScript files
+- XML validation with xmllint
+- PMD for Apex code quality
+- Automated test execution
+- Configurable checks
+
+**Examples:**
+
+```bash
+# Run all checks on PR changes
+sf fm quality --base-sha origin/main --head-sha HEAD
+
+# Skip specific checks
+sf fm quality --base-sha origin/main --head-sha HEAD \
+  --skip-tests --skip-pmd
+
+# Fail on warnings
+sf fm quality --base-sha origin/main --head-sha HEAD --fail-on-warnings
+```
+
+[Full Documentation →](./messages/quality.md)
+
+## CI/CD Integration
+
+Perfect for GitHub Actions, GitLab CI, and other automation tools.
+
+### GitHub Actions Example
+
+```yaml
+name: Salesforce Deployment
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Install SF CLI
+        run: npm install -g @salesforce/cli
+
+      - name: Install Plugin
+        run: sf plugins install @salesforce/plugin-fm
+
+      - name: Authenticate
+        run: |
+          echo "${{ secrets.SF_AUTH_URL }}" > authfile
+          sf org login sfdx-url --sfdx-url-file authfile --alias target-org
+
+      - name: Build Deployment Artifacts
+        run: |
+          sf fm build \
+            --ref-a origin/${{ github.base_ref }} \
+            --ref-b HEAD \
+            --output-dir ./manifest
+
+      - name: Run Quality Checks
+        run: |
+          sf fm quality \
+            --base-sha origin/${{ github.base_ref }} \
+            --head-sha HEAD
+
+      - name: Deploy with Validation
+        run: |
+          JOB_ID=$(sf fm deploy \
+            --manifest ./manifest \
+            --target-org target-org \
+            --mode validation \
+            --intelligent-tests \
+            --async \
+            --json | jq -r '.result.jobId')
+
+          sf fm deploy status \
+            --job-id $JOB_ID \
+            --target-org target-org \
+            --watch \
+            --interval 15 \
+            --json
+```
+
+[Full CI/CD Guide →](./CI_CD_USAGE.md)
+
+## Pre/Post Deployment Hooks
+
+Execute custom scripts before and after deployments:
+
+```bash
+# Deploy with hooks
+sf fm deploy --manifest ./manifest --target-org myorg \
+  --pre-steps ./scripts/backup.sh \
+  --post-steps ./scripts/cleanup.sh
+```
+
+**Hook Environment Variables:**
+
+- `FM_HOOK_TYPE` - pre or post
+- `FM_DEPLOY_MODE` - validation, deployment, or quick
+- `FM_TARGET_ORG` - Target org username
+- `FM_MANIFEST_DIR` - Manifest directory path
+- `FM_JOB_ID` - Deployment job ID (post hooks only)
+
+## Development
 
 ### Build
-
-To build the plugin locally, make sure to have yarn installed and run the following commands:
 
 ```bash
 # Clone the repository
 git clone git@github.com:salesforcecli/plugin-fm
 
-# Install the dependencies and compile
+# Install dependencies and build
 yarn && yarn build
 ```
 
-To use your plugin, run using the local `./bin/dev` or `./bin/dev.cmd` file.
+### Test
 
 ```bash
-# Run using local run file.
-./bin/dev hello world
+# Run tests
+yarn test
+
+# Run tests with coverage
+yarn test:coverage
+
+# Run specific test
+yarn test path/to/test.ts
 ```
 
-There should be no differences when running via the Salesforce CLI or using the local run file. However, it can be useful to link the plugin to do some additional testing or run your commands from anywhere on your machine.
+### Local Development
 
 ```bash
-# Link your plugin to the sf cli
+# Link plugin to SF CLI
 sf plugins link .
-# To verify
-sf plugins
+
+# Run commands locally
+./bin/dev fm build --ref-a main --ref-b HEAD
 ```
 
-## Commands
+## Contributing
 
-<!-- commands -->
+1. Read our [Code of Conduct](CODE_OF_CONDUCT.md)
+2. Create a new issue before starting your project
+3. Fork this repository
+4. Build the plugin locally
+5. Create a topic branch in your fork
+6. Write tests (aim for 95%+ coverage)
+7. Sign the [CLA](https://cla.salesforce.com/sign-cla)
+8. Submit a pull request
 
-- [`sf hello world`](#sf-hello-world)
+## Issues
 
-## `sf hello world`
+Report issues at: https://github.com/forcedotcom/cli/issues
 
-Say hello.
+## License
 
-```
-USAGE
-  $ sf hello world [--json] [--flags-dir <value>] [-n <value>]
+Apache-2.0 © Salesforce
 
-FLAGS
-  -n, --name=<value>  [default: World] The name of the person you'd like to say hello to.
+## Resources
 
-GLOBAL FLAGS
-  --flags-dir=<value>  Import flag values from a directory.
-  --json               Format output as json.
-
-DESCRIPTION
-  Say hello.
-
-  Say hello either to the world or someone you know.
-
-EXAMPLES
-  Say hello to the world:
-
-    $ sf hello world
-
-  Say hello to someone you know:
-
-    $ sf hello world --name Astro
-
-FLAG DESCRIPTIONS
-  -n, --name=<value>  The name of the person you'd like to say hello to.
-
-    This person can be anyone in the world!
-```
-
-_See code: [src/commands/hello/world.ts](https://github.com/salesforcecli/plugin-fm/blob/1.1.73/src/commands/hello/world.ts)_
-
-<!-- commandsstop -->
+- [Salesforce CLI](https://developer.salesforce.com/tools/sfdxcli)
+- [Plugin Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_cli_plugins.meta/sfdx_cli_plugins/cli_plugins_architecture_sf_cli.htm)
+- [OCLIF Documentation](https://oclif.io/docs/introduction)

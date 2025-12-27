@@ -1,6 +1,7 @@
 import { resolve, basename, dirname } from 'node:path';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { copyFile, ensureDirExists } from './fileUtils.js';
+import type { Logger, LoggerWithError } from './types.js';
 
 /**
  * Bundle types and their metadata file patterns.
@@ -266,7 +267,7 @@ export function processBundles(
   changedFiles: string[],
   deletedFiles: string[],
   currentWorkingDir: string,
-  logger: { log: (message: string) => void; warn: (message: string) => void }
+  logger: LoggerWithError
 ): {
   bundleStatuses: BundleStatus[];
   nonBundleChangedFiles: string[];
@@ -302,4 +303,26 @@ export function processBundles(
   }
 
   return { bundleStatuses, nonBundleChangedFiles, nonBundleDeletedFiles, bundleDeletedFiles };
+}
+
+/**
+ * Copies multiple bundles and returns copy statistics.
+ */
+export function copyBundles(
+  bundles: BundleStatus[],
+  currentWorkingDir: string,
+  destinationDir: string,
+  logger: Logger
+): { bundleFilesCopied: number; bundlePaths: string[] } {
+  let bundleFilesCopied = 0;
+  const bundlePaths: string[] = [];
+
+  for (const bundle of bundles) {
+    const { copiedCount } = copyEntireBundle(bundle.bundleRoot, currentWorkingDir, destinationDir);
+    bundleFilesCopied += copiedCount;
+    bundlePaths.push(bundle.bundleRoot);
+    logger.log(`Copied entire bundle: ${bundle.bundleName} (${copiedCount} files)`);
+  }
+
+  return { bundleFilesCopied, bundlePaths };
 }

@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, cpSync } from 'node:fs'; // Only keep what's used in this file
-import { dirname, resolve } from 'node:path';
+import { existsSync, mkdirSync, cpSync } from 'node:fs';
+import { dirname, resolve, relative } from 'node:path';
+import type { ComponentSet } from '@salesforce/source-deploy-retrieve';
 
 /**
  * Ensures a directory exists, creating it if necessary.
@@ -56,4 +57,43 @@ export function findSfdxProjectJson(startDir: string): string | undefined {
     currentDir = resolve(currentDir, '..');
   }
   return undefined;
+}
+
+/**
+ * Copies component files from a ComponentSet, including both source and metadata files.
+ *
+ * @param componentSet The ComponentSet containing components to copy
+ * @param sourceRoot The root directory of the source files
+ * @param destinationRoot The root directory where files should be copied
+ * @returns Set of relative file paths that were copied
+ */
+export function copyComponentSetFiles(
+  componentSet: ComponentSet,
+  sourceRoot: string,
+  destinationRoot: string
+): Set<string> {
+  const copiedFiles = new Set<string>();
+  const components = componentSet.getSourceComponents().toArray();
+
+  for (const component of components) {
+    // Copy source file (e.g., .cls, .trigger)
+    if (component.content) {
+      const relativePath = relative(sourceRoot, component.content);
+      if (!copiedFiles.has(relativePath)) {
+        copyFile(component.content, resolve(destinationRoot, relativePath));
+        copiedFiles.add(relativePath);
+      }
+    }
+
+    // Copy metadata file (e.g., .cls-meta.xml, .trigger-meta.xml)
+    if (component.xml) {
+      const relativePath = relative(sourceRoot, component.xml);
+      if (!copiedFiles.has(relativePath)) {
+        copyFile(component.xml, resolve(destinationRoot, relativePath));
+        copiedFiles.add(relativePath);
+      }
+    }
+  }
+
+  return copiedFiles;
 }

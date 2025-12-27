@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { MetadataResolver } from '@salesforce/source-deploy-retrieve';
-import { parseStringPromise } from 'xml2js';
+import { parseXml } from './xmlUtils.js';
 import { getGitFileContent } from './gitUtils.js';
 import { BUNDLE_PATH_REGEX } from './constants.js';
 
@@ -17,10 +17,10 @@ async function parseGitContent(
 
   if (contentA === null && contentB === null) return null;
 
-  const parsedA = contentA !== null ? await parseStringPromise(contentA) : {};
-  const parsedB = contentB !== null ? await parseStringPromise(contentB) : {};
+  const parsedA = contentA !== null ? await parseXml(contentA) : {};
+  const parsedB = contentB !== null ? await parseXml(contentB) : {};
 
-  return { parsedA: parsedA as Record<string, unknown>, parsedB: parsedB as Record<string, unknown> };
+  return { parsedA, parsedB };
 }
 
 /**

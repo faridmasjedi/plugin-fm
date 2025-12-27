@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import type { LoggerWithError } from './types.js';
 
 export type HookResult = {
   success: boolean;
@@ -24,11 +25,7 @@ export class HooksExecutor {
   /**
    * Executes a pre-deployment hook.
    */
-  public static executePreHook(
-    scriptPath: string,
-    context: HookContext,
-    logger: { log: (message: string) => void; warn: (message: string) => void }
-  ): HookResult {
+  public static executePreHook(scriptPath: string, context: HookContext, logger: LoggerWithError): HookResult {
     logger.log(`Executing pre-deployment hook: ${scriptPath}`);
 
     if (!existsSync(scriptPath)) {
@@ -41,11 +38,7 @@ export class HooksExecutor {
   /**
    * Executes a post-deployment hook.
    */
-  public static executePostHook(
-    scriptPath: string,
-    context: HookContext,
-    logger: { log: (message: string) => void; warn: (message: string) => void }
-  ): HookResult {
+  public static executePostHook(scriptPath: string, context: HookContext, logger: LoggerWithError): HookResult {
     logger.log(`Executing post-deployment hook: ${scriptPath}`);
 
     if (!existsSync(scriptPath)) {
@@ -62,7 +55,7 @@ export class HooksExecutor {
     projectRoot: string,
     type: 'pre' | 'post',
     context: HookContext,
-    logger: { log: (message: string) => void; warn: (message: string) => void }
+    logger: LoggerWithError
   ): Promise<HookResult[]> {
     const hooksDir = resolve(projectRoot, '.fm-hooks', type);
 

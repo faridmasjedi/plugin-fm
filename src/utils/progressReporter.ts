@@ -1,4 +1,5 @@
 import type { DeploymentProgress } from './deploymentService.js';
+import type { Logger } from './types.js';
 
 /**
  * Service for reporting deployment progress with formatted output.
@@ -72,7 +73,7 @@ export class ProgressReporter {
    */
   public displayProgress(
     progress: DeploymentProgress,
-    logger: { log: (message: string) => void },
+    logger: Logger,
     mode: 'validation' | 'deployment' | 'quick' = 'deployment'
   ): void {
     const now = Date.now();

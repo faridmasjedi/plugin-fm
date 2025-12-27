@@ -1,8 +1,9 @@
 import { writeFileSync } from 'node:fs';
 import { resolve, dirname, basename } from 'node:path';
-import { parseStringPromise, Builder } from 'xml2js';
+import { buildSalesforceXml, parseXmlSafe } from './xmlUtils.js';
 import { ensureDirExists } from './fileUtils.js';
 import { getGitFileContent } from './gitUtils.js';
+import type { Logger } from './types.js';
 
 export type CustomLabelElement = {
   fullName: string[];
@@ -29,13 +30,10 @@ export type SharingRuleElement = {
  * Parses CustomLabels XML content.
  */
 export async function parseCustomLabels(xmlContent: string): Promise<CustomLabelElement[]> {
-  try {
-    const parsed = await parseStringPromise(xmlContent);
-    if (parsed.CustomLabels && Array.isArray(parsed.CustomLabels.labels)) {
-      return parsed.CustomLabels.labels as CustomLabelElement[];
-    }
-  } catch (error) {
-    // Return empty array if parsing fails
+  const parsed = await parseXmlSafe(xmlContent);
+  const customLabels = parsed.CustomLabels as Record<string, unknown> | undefined;
+  if (customLabels && Array.isArray(customLabels.labels)) {
+    return customLabels.labels as CustomLabelElement[];
   }
   return [];
 }
@@ -46,51 +44,38 @@ export async function parseCustomLabels(xmlContent: string): Promise<CustomLabel
 export async function parseSharingRules(
   xmlContent: string
 ): Promise<{ criteriaRules: SharingRuleElement[]; ownerRules: SharingRuleElement[] }> {
-  try {
-    const parsed = await parseStringPromise(xmlContent);
-    const criteriaRules =
-      parsed.SharingRules && Array.isArray(parsed.SharingRules.sharingCriteriaRules)
-        ? (parsed.SharingRules.sharingCriteriaRules as SharingRuleElement[])
-        : [];
-    const ownerRules =
-      parsed.SharingRules && Array.isArray(parsed.SharingRules.sharingOwnerRules)
-        ? (parsed.SharingRules.sharingOwnerRules as SharingRuleElement[])
-        : [];
-    return { criteriaRules, ownerRules };
-  } catch (error) {
-    // Return empty arrays if parsing fails
-  }
-  return { criteriaRules: [], ownerRules: [] };
+  const parsed = await parseXmlSafe(xmlContent);
+  const sharingRules = parsed.SharingRules as Record<string, unknown> | undefined;
+
+  const criteriaRules =
+    sharingRules && Array.isArray(sharingRules.sharingCriteriaRules)
+      ? (sharingRules.sharingCriteriaRules as SharingRuleElement[])
+      : [];
+  const ownerRules =
+    sharingRules && Array.isArray(sharingRules.sharingOwnerRules)
+      ? (sharingRules.sharingOwnerRules as SharingRuleElement[])
+      : [];
+
+  return { criteriaRules, ownerRules };
 }
 
 /**
  * Generates CustomLabels XML from label elements.
  */
 export function generateCustomLabelsXml(labels: CustomLabelElement[]): string {
-  const builder = new Builder({
-    xmldec: { version: '1.0', encoding: 'UTF-8' },
-    renderOpts: { pretty: true, indent: '    ' },
-  });
-
   const obj = {
     CustomLabels: {
       $: { xmlns: 'http://soap.sforce.com/2006/04/metadata' },
       labels,
     },
   };
-
-  return builder.buildObject(obj);
+  return buildSalesforceXml(obj);
 }
 
 /**
  * Generates SharingRules XML from rule elements.
  */
 export function generateSharingRulesXml(criteriaRules: SharingRuleElement[], ownerRules: SharingRuleElement[]): string {
-  const builder = new Builder({
-    xmldec: { version: '1.0', encoding: 'UTF-8' },
-    renderOpts: { pretty: true, indent: '    ' },
-  });
-
   const obj: {
     SharingRules: {
       $: { xmlns: string };
@@ -111,7 +96,7 @@ export function generateSharingRulesXml(criteriaRules: SharingRuleElement[], own
     obj.SharingRules.sharingOwnerRules = ownerRules;
   }
 
-  return builder.buildObject(obj);
+  return buildSalesforceXml(obj);
 }
 
 /**
@@ -233,7 +218,7 @@ export async function processCustomLabelsFile(
   refB: string,
   changedFilesDir: string,
   removedFilesDir: string,
-  logger: { log: (message: string) => void; warn: (message: string) => void }
+  logger: Logger
 ): Promise<{
   hasChanges: boolean;
   changedCount: number;
@@ -302,7 +287,7 @@ export async function processSharingRulesFile(
   refA: string,
   refB: string,
   changedFilesDir: string,
-  logger: { log: (message: string) => void; warn: (message: string) => void }
+  logger: Logger
 ): Promise<{
   hasChanges: boolean;
   changedCount: number;
@@ -415,4 +400,54 @@ export function isCustomLabelsFile(filePath: string): boolean {
  */
 export function isSharingRulesFile(filePath: string): boolean {
   return filePath.includes('sharingRules/') && filePath.endsWith('.sharingRules-meta.xml');
+}
+
+/**
+ * Processes multiple granular metadata files in batch.
+ */
+export async function processGranularMetadataFiles(
+  files: string[],
+  refA: string,
+  refB: string,
+  changedFilesDir: string,
+  removedFilesDir: string,
+  logger: Logger
+): Promise<{
+  stats: { [key: string]: { changed: number; deleted: number; changedNames?: string[]; deletedNames?: string[] } };
+  changedFiles: string[];
+  deletedFiles: string[];
+  sharingRulesToAdd: string[];
+}> {
+  const stats: {
+    [key: string]: { changed: number; deleted: number; changedNames?: string[]; deletedNames?: string[] };
+  } = {};
+  const changedFiles: string[] = [];
+  const deletedFiles: string[] = [];
+  const sharingRulesToAdd: string[] = [];
+
+  await Promise.all(
+    files.map(async (file) => {
+      if (isCustomLabelsFile(file)) {
+        const result = await processCustomLabelsFile(file, refA, refB, changedFilesDir, removedFilesDir, logger);
+        if (result.hasChanges) {
+          stats[file] = { changed: result.changedCount, deleted: result.deletedCount };
+          if (result.changedFilePath) changedFiles.push(result.changedFilePath);
+          if (result.deletedFilePath) deletedFiles.push(result.deletedFilePath);
+        }
+      } else if (isSharingRulesFile(file)) {
+        const result = await processSharingRulesFile(file, refA, refB, changedFilesDir, logger);
+        if (result.hasChanges) {
+          stats[file] = {
+            changed: result.changedCount,
+            deleted: result.deletedCount,
+            changedNames: result.changedRuleNames,
+            deletedNames: result.deletedRuleNames,
+          };
+          if (result.entireFilePath) sharingRulesToAdd.push(file);
+        }
+      }
+    })
+  );
+
+  return { stats, changedFiles, deletedFiles, sharingRulesToAdd };
 }

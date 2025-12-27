@@ -220,7 +220,6 @@ export class DeploymentService {
   /**
    * Builds a DeploymentProgress object from SF CLI result.
    */
-  // eslint-disable-next-line complexity
   private static buildDeploymentProgress(jobId: string, result: Record<string, unknown>): DeploymentProgress {
     const progress: DeploymentProgress = {
       id: jobId,
@@ -237,100 +236,23 @@ export class DeploymentService {
       testFailures: [],
     };
 
-    // Parse errors and warnings
     const details = result.details as Record<string, unknown> | undefined;
 
-    // Extract current test from stateDetail
-    const stateDetail = result.stateDetail as string | undefined;
-    if (stateDetail && stateDetail.startsWith('Running Test: ')) {
-      progress.currentTest = stateDetail.replace('Running Test: ', '');
-    }
-    if (details?.componentFailures) {
-      const failures = Array.isArray(details.componentFailures)
-        ? details.componentFailures
-        : [details.componentFailures];
+    // Extract current test
+    progress.currentTest = this.extractCurrentTest(result.stateDetail as string | undefined);
 
-      progress.errors = failures.map((f: Record<string, unknown>) => ({
-        type: (f.componentType as string) || 'Unknown',
-        file: (f.fileName as string) || 'Unknown',
-        message: (f.problem as string) || 'Unknown error',
-        line: f.lineNumber as number | undefined,
-      }));
-    }
+    // Parse component failures
+    progress.errors = this.parseComponentFailures(details);
 
-    // Extract test failures and calculate code coverage
-    if (details?.runTestResult) {
-      const runTestResult = details.runTestResult as Record<string, unknown>;
-      const numLocations = runTestResult.numLocations as number;
-      const numLocationsNotCovered = runTestResult.numLocationsNotCovered as number;
+    // Parse test results (failures, coverage, warnings, last completed test)
+    const testResults = this.parseTestResults(details);
+    progress.testFailures = testResults.failures;
+    progress.codeCoverage = testResults.coverage;
+    progress.warnings = testResults.warnings;
+    progress.lastCompletedTest = testResults.lastCompletedTest;
 
-      if (numLocations > 0) {
-        progress.codeCoverage = Math.round(((numLocations - numLocationsNotCovered) / numLocations) * 100);
-      }
-
-      // Extract test failures
-      if (runTestResult.failures) {
-        const testFailures = Array.isArray(runTestResult.failures) ? runTestResult.failures : [runTestResult.failures];
-
-        progress.testFailures = testFailures.map((f: Record<string, unknown>) => ({
-          className: (f.name as string) || 'Unknown',
-          methodName: (f.methodName as string) || 'Unknown',
-          message: (f.message as string) || 'Unknown error',
-          stackTrace: f.stackTrace as string | undefined,
-        }));
-      }
-
-      // Extract code coverage warnings
-      if (runTestResult.codeCoverageWarnings) {
-        const coverageWarnings = Array.isArray(runTestResult.codeCoverageWarnings)
-          ? runTestResult.codeCoverageWarnings
-          : [runTestResult.codeCoverageWarnings];
-
-        progress.warnings = coverageWarnings.map((w: Record<string, unknown>) => ({
-          type: 'CodeCoverage',
-          file: (w.name as string) || 'Unknown',
-          message: (w.message as string) || 'Code coverage warning',
-          line: undefined,
-        }));
-      }
-
-      // Get last completed test
-      if (runTestResult.successes) {
-        const testSuccesses = Array.isArray(runTestResult.successes)
-          ? runTestResult.successes
-          : [runTestResult.successes];
-
-        if (testSuccesses.length > 0) {
-          const lastTest = testSuccesses[testSuccesses.length - 1] as Record<string, unknown>;
-          progress.lastCompletedTest = `${lastTest.name as string}.${lastTest.methodName as string}`;
-        }
-      }
-    }
-
-    // Get last completed component (skip package.xml and metadata files)
-    if (details?.componentSuccesses) {
-      const successes = Array.isArray(details.componentSuccesses)
-        ? details.componentSuccesses
-        : [details.componentSuccesses];
-
-      // Find the last meaningful component (not package.xml or meta files)
-      for (let i = successes.length - 1; i >= 0; i--) {
-        const component = successes[i] as Record<string, unknown>;
-        const fullName = (component.fullName as string) || '';
-        const fileName = (component.fileName as string) || '';
-
-        // Skip package.xml and .xml-meta.xml files
-        if (
-          fullName !== 'package.xml' &&
-          !fileName.includes('package.xml') &&
-          !fileName.endsWith('-meta.xml') &&
-          fullName.trim() !== ''
-        ) {
-          progress.lastCompletedComponent = fullName;
-          break;
-        }
-      }
-    }
+    // Find last completed component
+    progress.lastCompletedComponent = this.findLastCompletedComponent(details);
 
     // Add validation ID if this was a validation
     if (result.checkOnly && result.status === 'Succeeded') {
@@ -338,6 +260,132 @@ export class DeploymentService {
     }
 
     return progress;
+  }
+
+  /**
+   * Extracts current test from stateDetail.
+   */
+  private static extractCurrentTest(stateDetail: string | undefined): string | undefined {
+    if (stateDetail && stateDetail.startsWith('Running Test: ')) {
+      return stateDetail.replace('Running Test: ', '');
+    }
+    return undefined;
+  }
+
+  /**
+   * Parses component failures into error objects.
+   */
+  private static parseComponentFailures(
+    details: Record<string, unknown> | undefined
+  ): Array<{ type: string; file: string; message: string; line?: number }> {
+    if (!details?.componentFailures) return [];
+
+    const failures = Array.isArray(details.componentFailures) ? details.componentFailures : [details.componentFailures];
+
+    return failures.map((f: Record<string, unknown>) => ({
+      type: (f.componentType as string) || 'Unknown',
+      file: (f.fileName as string) || 'Unknown',
+      message: (f.problem as string) || 'Unknown error',
+      line: f.lineNumber as number | undefined,
+    }));
+  }
+
+  /**
+   * Parses test results including failures, coverage, warnings, and last completed test.
+   */
+  private static parseTestResults(details: Record<string, unknown> | undefined): {
+    failures: Array<{ className: string; methodName: string; message: string; stackTrace?: string }>;
+    coverage?: number;
+    warnings: Array<{ type: string; file: string; message: string; line?: number }>;
+    lastCompletedTest?: string;
+  } {
+    if (!details?.runTestResult) {
+      return { failures: [], warnings: [] };
+    }
+
+    const runTestResult = details.runTestResult as Record<string, unknown>;
+    const result: {
+      failures: Array<{ className: string; methodName: string; message: string; stackTrace?: string }>;
+      coverage?: number;
+      warnings: Array<{ type: string; file: string; message: string; line?: number }>;
+      lastCompletedTest?: string;
+    } = { failures: [], warnings: [] };
+
+    // Calculate code coverage
+    const numLocations = runTestResult.numLocations as number;
+    const numLocationsNotCovered = runTestResult.numLocationsNotCovered as number;
+    if (numLocations > 0) {
+      result.coverage = Math.round(((numLocations - numLocationsNotCovered) / numLocations) * 100);
+    }
+
+    // Parse test failures
+    if (runTestResult.failures) {
+      const testFailures = Array.isArray(runTestResult.failures) ? runTestResult.failures : [runTestResult.failures];
+      result.failures = testFailures.map((f: Record<string, unknown>) => ({
+        className: (f.name as string) || 'Unknown',
+        methodName: (f.methodName as string) || 'Unknown',
+        message: (f.message as string) || 'Unknown error',
+        stackTrace: f.stackTrace as string | undefined,
+      }));
+    }
+
+    // Parse code coverage warnings
+    if (runTestResult.codeCoverageWarnings) {
+      const coverageWarnings = Array.isArray(runTestResult.codeCoverageWarnings)
+        ? runTestResult.codeCoverageWarnings
+        : [runTestResult.codeCoverageWarnings];
+
+      result.warnings = coverageWarnings.map((w: Record<string, unknown>) => ({
+        type: 'CodeCoverage',
+        file: (w.name as string) || 'Unknown',
+        message: (w.message as string) || 'Code coverage warning',
+        line: undefined,
+      }));
+    }
+
+    // Get last completed test
+    if (runTestResult.successes) {
+      const testSuccesses = Array.isArray(runTestResult.successes)
+        ? runTestResult.successes
+        : [runTestResult.successes];
+
+      if (testSuccesses.length > 0) {
+        const lastTest = testSuccesses[testSuccesses.length - 1] as Record<string, unknown>;
+        result.lastCompletedTest = `${lastTest.name as string}.${lastTest.methodName as string}`;
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Finds the last completed component (skipping package.xml and metadata files).
+   */
+  private static findLastCompletedComponent(details: Record<string, unknown> | undefined): string | undefined {
+    if (!details?.componentSuccesses) return undefined;
+
+    const successes = Array.isArray(details.componentSuccesses)
+      ? details.componentSuccesses
+      : [details.componentSuccesses];
+
+    // Find the last meaningful component (not package.xml or meta files)
+    for (let i = successes.length - 1; i >= 0; i--) {
+      const component = successes[i] as Record<string, unknown>;
+      const fullName = (component.fullName as string) || '';
+      const fileName = (component.fileName as string) || '';
+
+      // Skip package.xml and .xml-meta.xml files
+      if (
+        fullName !== 'package.xml' &&
+        !fileName.includes('package.xml') &&
+        !fileName.endsWith('-meta.xml') &&
+        fullName.trim() !== ''
+      ) {
+        return fullName;
+      }
+    }
+
+    return undefined;
   }
 
   /**

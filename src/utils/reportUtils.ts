@@ -2,6 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { BUNDLE_PATH_REGEX } from './constants.js';
 import { analyzeGranularMetadataChanges } from './metadataUtils.js';
+import type { Logger } from './types.js';
 
 export type FileChangeStats = {
   changed: string[];
@@ -612,11 +613,7 @@ function buildDiffResult(
 /**
  * Outputs summary in JSON format.
  */
-function outputJsonSummary(
-  result: DiffResult,
-  baseOutputDir: string,
-  logger: { log: (message: string) => void }
-): void {
+function outputJsonSummary(result: DiffResult, baseOutputDir: string, logger: Logger): void {
   const jsonOutput = JSON.stringify(result, null, 2);
 
   if (jsonOutput.length > 50_000) {
@@ -638,7 +635,7 @@ function outputGitHubSummary(
   manifestStats: ManifestStats,
   baseOutputDir: string,
   result: DiffResult,
-  logger: { log: (message: string) => void }
+  logger: Logger
 ): void {
   const summary = generateGitHubActionsSummary(fileStats, manifestStats, baseOutputDir);
   writeGitHubActionsSummary(summary);
@@ -665,7 +662,7 @@ function outputConsoleSummary(
     ignoredDeleted: string[];
   },
   baseOutputDir: string,
-  logger: { log: (message: string) => void },
+  logger: Logger,
   bundleStats?: {
     modifiedBundles: number;
     modifiedBundleFiles: number;
@@ -730,9 +727,7 @@ export async function generateSummaryOutput(
     sfdxProjectJsonCopied: boolean;
     changedMetadataComponents: { [key: string]: string[] };
   },
-  logger: {
-    log: (message: string) => void;
-  },
+  logger: Logger,
   refA: string,
   refB: string,
   modifiedBundles: Array<{

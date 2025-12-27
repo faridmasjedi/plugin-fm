@@ -34,6 +34,7 @@ import { existsSync } from 'node:fs';
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages, Connection } from '@salesforce/core';
 import { updateDeployCacheWaitTime } from '../../utils/deployCacheUtils.js';
+import type { DeploymentOptions } from '../../utils/deploymentService.js';
 
 // Initialize messages
 Messages.importMessagesDirectoryFromMetaUrl(new URL('../../../messages', import.meta.url).toString());
@@ -218,160 +219,121 @@ export default class Deploy extends SfCommand<DeployResult> {
     }
   }
 
-  // eslint-disable-next-line complexity
-  public async run(): Promise<DeployResult> {
-    const { flags } = await this.parse(Deploy);
-
-    // Validate flags
-    Deploy.validateFlags(flags);
-
-    // Determine deployment mode
-    const mode = flags['check-only'] ? 'validation' : (flags.mode as DeploymentMode);
-    const targetOrg = flags['target-org'].getConnection(undefined);
-    const targetOrgUsername = flags['target-org'].getUsername() ?? 'unknown';
-
-    const modeLabel = mode === 'validation' ? 'validation' : 'deployment';
-    this.log(messages.getMessage('info.startingDeployment', [modeLabel, targetOrgUsername]));
-
-    // Handle quick deploy separately (doesn't need manifest)
-    if (mode === 'quick') {
-      return this.handleQuickDeploy(flags, targetOrg);
-    }
-
-    // After this point, manifest is guaranteed to exist (validated by validateFlags)
-    const manifestDir = flags.manifest!;
-
-    // Execute pre-deployment hooks
-    if (flags['pre-steps']) {
-      await this.executePreSteps(flags['pre-steps'], {
-        targetOrg: targetOrgUsername,
-        mode,
-        manifestDir,
-      });
-    }
-
-    // Handle intelligent test detection
-    let testClasses = flags.tests ?? [];
-    if (flags['intelligent-tests']) {
-      testClasses = await this.detectIntelligentTests(manifestDir);
-    }
-
-    // Process destructive changes if needed
-    let destructivePaths: { preDestructivePath?: string; postDestructivePath?: string } = {};
-    if (flags.destructive) {
-      const { processDestructiveChanges } = await import('../../utils/deploymentUtils.js');
-      const { findSfdxProjectJson } = await import('../../utils/fileUtils.js');
-      const { readFileSync } = await import('node:fs');
-
-      // Get API version from sfdx-project.json
-      const currentWorkingDir = process.cwd();
-      const sfdxProjectPath = findSfdxProjectJson(currentWorkingDir);
-      let sourceApiVersion = '59.0'; // default
-
-      if (sfdxProjectPath) {
-        try {
-          const projectContent = readFileSync(sfdxProjectPath, 'utf-8');
-          const projectJson = JSON.parse(projectContent) as Record<string, unknown>;
-          sourceApiVersion = (projectJson.sourceApiVersion as string) || '59.0';
-        } catch {
-          // Use default version
-        }
-      }
-
-      destructivePaths = await processDestructiveChanges(
-        manifestDir,
-        flags.destructive as DestructiveMode,
-        (flags.pre as string[]) || [],
-        sourceApiVersion,
-        this
-      );
-    }
-
-    // Check if ChangedFiles directory has any files
+  /**
+   * Checks if there are changes to deploy in the ChangedFiles directory.
+   */
+  private static async hasChangesToDeploy(manifestDir: string): Promise<boolean> {
     const { readdirSync, statSync } = await import('node:fs');
     const changedFilesDir = resolve(manifestDir, 'ChangedFiles');
-    let hasChanges = false;
 
     try {
       const entries = readdirSync(changedFilesDir, { recursive: true });
-      hasChanges = entries.some((entry) => {
+      return entries.some((entry) => {
         const fullPath = resolve(changedFilesDir, entry.toString());
         return statSync(fullPath).isFile();
       });
     } catch {
-      hasChanges = false;
+      return false;
     }
+  }
 
-    // If no changes and no destructive flag, skip deployment
-    if (!hasChanges && !flags.destructive) {
-      this.log('\n✓ No changes to deploy. Skipping deployment.');
-      return {
-        jobId: 'N/A',
-        status: 'Succeeded',
-        deployedComponents: 0,
-        failedComponents: 0,
-        testsRun: 0,
-        testsPassed: 0,
-        testsFailed: 0,
-        messages: ['No changes detected'],
-        async: false,
-      };
+  /**
+   * Builds deployment options from flags and context.
+   */
+  private static buildDeploymentOptions(
+    flags: Record<string, unknown>,
+    context: {
+      manifestDir: string;
+      targetOrg: Connection;
+      mode: DeploymentMode;
+      testClasses: string[];
+      destructivePaths: { preDestructivePath?: string; postDestructivePath?: string };
+      hasChanges: boolean;
     }
-
-    // Build deployment options
-    // When progress is requested, we need to use async mode to get job ID and then poll
+  ): DeploymentOptions {
     const useAsyncForProgress = flags.progress && !flags.async;
-
-    // Determine test level - use RunSpecifiedTests when test classes are provided
     let testLevel = flags['test-level'] as TestLevel;
-    if (testClasses.length > 0 && testLevel === 'RunLocalTests') {
+
+    if (context.testClasses.length > 0 && testLevel === 'RunLocalTests') {
       testLevel = 'RunSpecifiedTests';
     }
 
-    const deployOptions = {
+    return {
+      manifestDir: context.manifestDir,
+      targetOrg: context.targetOrg,
+      mode: context.mode,
+      testLevel,
+      testClasses: context.testClasses,
+      destructiveMode: flags.destructive as DestructiveMode | undefined,
+      preDestructivePath: context.destructivePaths.preDestructivePath,
+      postDestructivePath: context.destructivePaths.postDestructivePath,
+      validationId: flags['validation-id'] as string | undefined,
+      ignoreWarnings: flags['ignore-warnings'] as boolean,
+      ignoreConflicts: flags['ignore-conflicts'] as boolean,
+      waitMinutes: flags.async || useAsyncForProgress ? 0 : (flags.wait as number),
+      hasChanges: context.hasChanges,
+    };
+  }
+
+  // eslint-disable-next-line complexity
+  public async run(): Promise<DeployResult> {
+    const { flags } = await this.parse(Deploy);
+    Deploy.validateFlags(flags);
+
+    const mode = flags['check-only'] ? 'validation' : (flags.mode as DeploymentMode);
+    const targetOrg = flags['target-org'].getConnection(undefined);
+    const targetOrgUsername = flags['target-org'].getUsername() ?? 'unknown';
+
+    this.log(
+      messages.getMessage('info.startingDeployment', [
+        mode === 'validation' ? 'validation' : 'deployment',
+        targetOrgUsername,
+      ])
+    );
+
+    // Early return for quick deploy
+    if (mode === 'quick') return this.handleQuickDeploy(flags, targetOrg);
+
+    const manifestDir = flags.manifest!;
+
+    // Execute pre-deployment hooks
+    if (flags['pre-steps']) {
+      await this.executePreSteps(flags['pre-steps'], { targetOrg: targetOrgUsername, mode, manifestDir });
+    }
+
+    // Detect tests
+    const testClasses = flags['intelligent-tests'] ? await this.detectIntelligentTests(manifestDir) : flags.tests ?? [];
+
+    // Process destructive changes
+    const destructivePaths = await this.processDestructiveChangesIfNeeded(flags, manifestDir);
+
+    // Check for changes
+    const hasChanges = await Deploy.hasChangesToDeploy(manifestDir);
+    if (!hasChanges && !flags.destructive) {
+      return this.createNoChangesResult();
+    }
+
+    // Build and execute deployment
+    const deployOptions = Deploy.buildDeploymentOptions(flags, {
       manifestDir,
       targetOrg,
       mode,
-      testLevel,
       testClasses,
-      destructiveMode: flags.destructive as DestructiveMode | undefined,
-      preDestructivePath: destructivePaths.preDestructivePath,
-      postDestructivePath: destructivePaths.postDestructivePath,
-      validationId: flags['validation-id'],
-      ignoreWarnings: flags['ignore-warnings'],
-      ignoreConflicts: flags['ignore-conflicts'],
-      waitMinutes: flags.async || useAsyncForProgress ? 0 : flags.wait,
+      destructivePaths,
       hasChanges,
-    };
+    });
 
-    // Start deployment
     const { DeploymentService } = await import('../../utils/deploymentService.js');
     let result = await DeploymentService.startDeployment(deployOptions);
 
-    // Show progress if requested (now that we have job ID from async deployment)
+    // Monitor progress if requested
+    const useAsyncForProgress = flags.progress && !flags.async;
     if (useAsyncForProgress) {
-      this.log(`\nMonitoring deployment: ${result.jobId}\n`);
-
-      // Update deploy-cache.json with correct wait time (SF CLI defaults to 33 with --async)
-      updateDeployCacheWaitTime(result.jobId, flags.wait);
-
-      result = await this.monitorDeploymentWithProgress(result.jobId, targetOrg, flags.wait, mode);
-
-      // Execute post-deployment hooks if deployment succeeded
-      if (result.status === 'Succeeded' && flags['post-steps']) {
-        await this.executePostSteps(flags['post-steps'], {
-          jobId: result.jobId,
-          targetOrg: targetOrgUsername,
-          mode,
-          manifestDir,
-        });
-      }
-
-      // displayFinalSummary already showed everything, so we're done
+      result = await this.monitorAndExecutePostHooks(result, flags, targetOrg, targetOrgUsername, mode, manifestDir);
       return result;
     }
 
-    // Execute post-deployment hooks if deployment succeeded
+    // Execute post-hooks and display results
     if (result.status === 'Succeeded' && flags['post-steps']) {
       await this.executePostSteps(flags['post-steps'], {
         jobId: result.jobId,
@@ -381,10 +343,94 @@ export default class Deploy extends SfCommand<DeployResult> {
       });
     }
 
-    // Display final results
     this.displayResults(result, mode);
-
     return result;
+  }
+
+  /**
+   * Processes destructive changes if the destructive flag is set.
+   */
+  private async processDestructiveChangesIfNeeded(
+    flags: Record<string, unknown>,
+    manifestDir: string
+  ): Promise<{ preDestructivePath?: string; postDestructivePath?: string }> {
+    if (!flags.destructive) return {};
+
+    const { processDestructiveChanges } = await import('../../utils/deploymentUtils.js');
+    const { findSfdxProjectJson } = await import('../../utils/fileUtils.js');
+    const { readFileSync } = await import('node:fs');
+
+    const sfdxProjectPath = findSfdxProjectJson(process.cwd());
+    let sourceApiVersion = '59.0';
+
+    if (sfdxProjectPath) {
+      try {
+        const projectJson = JSON.parse(readFileSync(sfdxProjectPath, 'utf-8')) as Record<string, unknown>;
+        sourceApiVersion = (projectJson.sourceApiVersion as string) || '59.0';
+      } catch {
+        // Use default
+      }
+    }
+
+    return processDestructiveChanges(
+      manifestDir,
+      flags.destructive as DestructiveMode,
+      (flags.pre as string[]) || [],
+      sourceApiVersion,
+      this
+    );
+  }
+
+  /**
+   * Creates a result object for when there are no changes to deploy.
+   */
+  private createNoChangesResult(): DeployResult {
+    this.log('\n✓ No changes to deploy. Skipping deployment.');
+    return {
+      jobId: 'N/A',
+      status: 'Succeeded',
+      deployedComponents: 0,
+      failedComponents: 0,
+      testsRun: 0,
+      testsPassed: 0,
+      testsFailed: 0,
+      messages: ['No changes detected'],
+      async: false,
+    };
+  }
+
+  /**
+   * Monitors deployment progress and executes post-deployment hooks.
+   */
+  private async monitorAndExecutePostHooks(
+    result: DeployResult,
+    flags: Record<string, unknown>,
+    targetOrg: Connection,
+    targetOrgUsername: string,
+    mode: DeploymentMode,
+    manifestDir: string
+  ): Promise<DeployResult> {
+    this.log(`\nMonitoring deployment: ${result.jobId}\n`);
+
+    updateDeployCacheWaitTime(result.jobId, flags.wait as number);
+
+    const monitoredResult = await this.monitorDeploymentWithProgress(
+      result.jobId,
+      targetOrg,
+      flags.wait as number,
+      mode
+    );
+
+    if (monitoredResult.status === 'Succeeded' && flags['post-steps']) {
+      await this.executePostSteps(flags['post-steps'] as string, {
+        jobId: monitoredResult.jobId,
+        targetOrg: targetOrgUsername,
+        mode,
+        manifestDir,
+      });
+    }
+
+    return monitoredResult;
   }
 
   /**
