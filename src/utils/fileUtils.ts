@@ -13,14 +13,14 @@ export function ensureDirExists(dirPath: string): void {
 }
 
 /**
- * Copies a file from source to destination, ensuring the destination directory exists.
+ * Copies a file or directory from source to destination, ensuring the destination directory exists.
  *
- * @param sourcePath The path to the source file.
- * @param destinationPath The path to the destination file.
+ * @param sourcePath The path to the source file or directory.
+ * @param destinationPath The path to the destination file or directory.
  */
 export function copyFile(sourcePath: string, destinationPath: string): void {
   ensureDirExists(dirname(destinationPath));
-  cpSync(sourcePath, destinationPath, { force: true });
+  cpSync(sourcePath, destinationPath, { force: true, recursive: true });
 }
 
 /**

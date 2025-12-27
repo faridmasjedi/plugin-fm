@@ -161,6 +161,14 @@ Ignore deployment warnings and proceed.
 
 When enabled, deployment warnings will not cause the deployment to fail.
 
+# flags.ignoreConflicts.summary
+
+Ignore conflicts and deploy anyway.
+
+# flags.ignoreConflicts.description
+
+When enabled, conflicts between local metadata and org metadata will be ignored. Use with caution as this can overwrite changes made directly in the org.
+
 # info.startingDeployment
 
 Starting %s to %s...

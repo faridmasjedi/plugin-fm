@@ -6,6 +6,13 @@ import { ensureDirExists, copyFile, findSfdxProjectJson } from './fileUtils.js';
 import { generateChunkedManifests, DEFAULT_CHUNK_CONFIG } from './chunkUtils.js';
 import { generateDestructiveChangesXml, generateEmptyPackageXml } from './manifestUtils.js';
 import { DEFAULT_API_VERSION } from './constants.js';
+import {
+  isCustomLabelsFile,
+  isSharingRulesFile,
+  processCustomLabelsFile,
+  processSharingRulesFile,
+} from './granularMetadataUtils.js';
+import { copyEntireBundle, getBundleMemberName, getBundleMetadataType, type BundleStatus } from './bundleUtils.js';
 
 export type ProcessedArtifacts = {
   sourceApiVersion: string;
@@ -63,23 +70,111 @@ function getSourceApiVersion(
 /**
  * Creates a ComponentSet from changed files and copies all resolved metadata files.
  * This includes both source files and their metadata files (e.g., .cls and .cls-meta.xml).
+ * Handles CustomLabels specially by creating partial files.
+ * SharingRules files are copied entirely (Salesforce doesn't support individual rule deployment).
+ * Handles bundles (LWC, Aura, etc.) by copying entire bundle directories (passed from build command).
  */
-function createComponentSetAndCopyFiles(
+async function createComponentSetAndCopyFiles(
   filteredChangedFiles: string[],
   currentWorkingDir: string,
   changedFilesDir: string,
-  logger: { log: (message: string) => void; warn: (message: string) => void }
-): { componentSet: ComponentSet; copiedFileCount: number } {
-  // Convert relative file paths to absolute paths
-  const absoluteFilePaths = filteredChangedFiles.map((file) => resolve(currentWorkingDir, file));
+  removedFilesDir: string,
+  refA: string,
+  refB: string,
+  logger: { log: (message: string) => void; warn: (message: string) => void },
+  modifiedBundles: BundleStatus[] = []
+): Promise<{
+  componentSet: ComponentSet;
+  copiedFileCount: number;
+  granularStats: {
+    [key: string]: { changed: number; deleted: number; changedNames?: string[]; deletedNames?: string[] };
+  };
+  granularDeletedFiles: string[];
+  granularChangedFiles: string[];
+}> {
+  const granularStats: {
+    [key: string]: { changed: number; deleted: number; changedNames?: string[]; deletedNames?: string[] };
+  } = {};
+  const granularChangedFiles: string[] = [];
+  const granularDeletedFiles: string[] = [];
 
-  // Create ComponentSet from the changed files using the correct API
-  // This resolves the files to metadata components and includes all related files
-  const componentSet = ComponentSet.fromSource({
-    fsPaths: absoluteFilePaths,
-  });
+  // Copy entire bundles for modified bundles (pre-processed at build command level)
+  const bundlesToCopy: string[] = [];
+  let bundleFilesCopied = 0;
 
-  // Get all source components from the ComponentSet
+  for (const bundle of modifiedBundles) {
+    const { copiedCount } = copyEntireBundle(bundle.bundleRoot, currentWorkingDir, changedFilesDir);
+    bundleFilesCopied += copiedCount;
+    bundlesToCopy.push(bundle.bundleRoot);
+    logger.log(`Copied entire bundle: ${bundle.bundleName} (${copiedCount} files)`);
+  }
+
+  // Separate granular metadata files from regular files
+  // (filteredChangedFiles now only contains non-bundle files, pre-filtered at build command level)
+  const granularMetadataFiles: string[] = [];
+  const regularFiles: string[] = [];
+  const sharingRulesFilesToAdd: string[] = []; // Track entire SharingRules files to add to ComponentSet
+
+  for (const file of filteredChangedFiles) {
+    if (isCustomLabelsFile(file) || isSharingRulesFile(file)) {
+      granularMetadataFiles.push(file);
+    } else {
+      regularFiles.push(file);
+    }
+  }
+
+  // Process granular metadata files (CustomLabels and SharingRules) in parallel
+  await Promise.all(
+    granularMetadataFiles.map(async (file) => {
+      if (isCustomLabelsFile(file)) {
+        const stats = await processCustomLabelsFile(file, refA, refB, changedFilesDir, removedFilesDir, logger);
+        if (stats.hasChanges) {
+          granularStats[file] = {
+            changed: stats.changedCount,
+            deleted: stats.deletedCount,
+          };
+          if (stats.changedFilePath) {
+            granularChangedFiles.push(stats.changedFilePath);
+          }
+          if (stats.deletedFilePath) {
+            granularDeletedFiles.push(stats.deletedFilePath);
+          }
+        }
+      } else if (isSharingRulesFile(file)) {
+        const stats = await processSharingRulesFile(file, refA, refB, changedFilesDir, logger);
+        if (stats.hasChanges) {
+          granularStats[file] = {
+            changed: stats.changedCount,
+            deleted: stats.deletedCount,
+            changedNames: stats.changedRuleNames,
+            deletedNames: stats.deletedRuleNames,
+          };
+          if (stats.entireFilePath) {
+            // Add entire SharingRules file to regular processing (not granular)
+            // Use the original file path, not the artifact path, to avoid duplicate copying
+            sharingRulesFilesToAdd.push(file);
+          }
+        }
+      }
+    })
+  );
+
+  // Create ComponentSet from the regular changed files + entire SharingRules files + bundle roots
+  let componentSet: ComponentSet;
+
+  const allFilesToProcess = [...regularFiles, ...sharingRulesFilesToAdd, ...bundlesToCopy];
+
+  if (allFilesToProcess.length > 0) {
+    const absoluteFilePaths = allFilesToProcess.map((file) => resolve(currentWorkingDir, file));
+    componentSet = ComponentSet.fromSource({
+      fsPaths: absoluteFilePaths,
+    });
+  } else {
+    // Create an empty ComponentSet if there are no regular files
+    componentSet = new ComponentSet();
+  }
+
+  // Get all source components from the ComponentSet (only regular files at this point)
   const allSourceComponents = componentSet.getSourceComponents().toArray();
   const copiedFiles = new Set<string>();
 
@@ -110,9 +205,26 @@ function createComponentSetAndCopyFiles(
     }
   }
 
-  logger.log(`Copied ${copiedFiles.size} files (including metadata files) to ${changedFilesDir}`);
+  // Note: We don't add granular metadata files to ComponentSet here
+  // They will be handled separately in manifest generation
+  // ComponentSet treats CustomLabels.labels-meta.xml as a container, not individual labels
+  // We'll manually extract and add individual labels/rules to the manifest later
+  if (granularChangedFiles.length > 0) {
+    logger.log(
+      `Processed ${granularChangedFiles.length} granular metadata files (will be added to manifest separately)`
+    );
+  }
 
-  return { componentSet, copiedFileCount: copiedFiles.size };
+  const totalCopiedFiles = copiedFiles.size + bundleFilesCopied;
+  logger.log(`Copied ${totalCopiedFiles} files (including metadata files and bundles) to ${changedFilesDir}`);
+
+  return {
+    componentSet,
+    copiedFileCount: totalCopiedFiles,
+    granularStats,
+    granularDeletedFiles,
+    granularChangedFiles,
+  };
 }
 
 /**
@@ -139,20 +251,41 @@ function extractMetadataComponents(componentSet: ComponentSet): { [key: string]:
 
 /**
  * Processes and copies artifacts (changed files and sfdx-project.json).
+ * Now accepts pre-processed modified bundles from the build command.
  */
-export function processArtifacts(
+export async function processArtifacts(
   filteredChangedFiles: string[],
   currentWorkingDir: string,
   changedFilesDir: string,
+  removedFilesDir: string,
   baseOutputDir: string,
-  logger: { log: (message: string) => void; warn: (message: string) => void }
-): ProcessedArtifacts & { componentSet: ComponentSet; changedMetadataComponents: { [key: string]: string[] } } {
-  const { componentSet, copiedFileCount } = createComponentSetAndCopyFiles(
-    filteredChangedFiles,
-    currentWorkingDir,
-    changedFilesDir,
-    logger
-  );
+  refA: string,
+  refB: string,
+  logger: { log: (message: string) => void; warn: (message: string) => void },
+  modifiedBundles: BundleStatus[] = []
+): Promise<
+  ProcessedArtifacts & {
+    componentSet: ComponentSet;
+    changedMetadataComponents: { [key: string]: string[] };
+    granularStats: {
+      [key: string]: { changed: number; deleted: number; changedNames?: string[]; deletedNames?: string[] };
+    };
+    granularDeletedFiles: string[];
+    granularChangedFiles: string[];
+    modifiedBundles: BundleStatus[];
+  }
+> {
+  const { componentSet, copiedFileCount, granularStats, granularDeletedFiles, granularChangedFiles } =
+    await createComponentSetAndCopyFiles(
+      filteredChangedFiles,
+      currentWorkingDir,
+      changedFilesDir,
+      removedFilesDir,
+      refA,
+      refB,
+      logger,
+      modifiedBundles
+    );
 
   const sourceApiVersion = getSourceApiVersion(currentWorkingDir, logger);
 
@@ -164,24 +297,50 @@ export function processArtifacts(
     sfdxProjectJsonCopied: false, // No longer copying sfdx-project.json to artifact
     componentSet,
     changedMetadataComponents,
+    granularStats,
+    granularDeletedFiles,
+    granularChangedFiles,
+    modifiedBundles,
   };
 }
 
 /**
  * Processes deleted files: copies them from git history and creates ComponentSet for manifest generation.
  * This allows SF CLI to properly detect metadata types from deleted files.
+ * Handles bundles specially (passed from build command as pre-processed deleted bundles).
+ * Files deleted within modified bundles are copied for visibility but NOT added to destructive changes.
  */
 export function processDeletedFiles(
   deletedFiles: string[],
   refA: string,
   currentWorkingDir: string,
   removedFilesDir: string,
-  logger: { log: (message: string) => void; warn: (message: string) => void }
+  logger: { log: (message: string) => void; warn: (message: string) => void },
+  deletedBundles: BundleStatus[] = [],
+  bundleDeletedFiles: string[] = [] // Files deleted within modified bundles (for visibility only)
 ): { deletedMetadataComponents: { [key: string]: Set<string> }; copiedCount: number } {
   let copiedCount = 0;
   const copiedFilePaths: string[] = [];
 
-  // First, copy deleted files from git history to RemovedFiles directory
+  // Add deleted bundles to metadata components (pre-processed at build command level)
+  const deletedMetadataComponents: { [key: string]: Set<string> } = {};
+
+  for (const bundle of deletedBundles) {
+    const metadataType = getBundleMetadataType(bundle.type);
+    const memberName = getBundleMemberName(bundle.bundleRoot);
+
+    if (!deletedMetadataComponents[metadataType]) {
+      deletedMetadataComponents[metadataType] = new Set();
+    }
+
+    deletedMetadataComponents[metadataType].add(memberName);
+    logger.log(`Detected deleted bundle: ${memberName} (${metadataType})`);
+  }
+
+  // Create a Set of bundleDeletedFiles for quick lookup
+  const bundleDeletedFilesSet = new Set(bundleDeletedFiles);
+
+  // Process deleted files
   for (const file of deletedFiles) {
     try {
       // Extract file content from git history (refA)
@@ -209,27 +368,49 @@ export function processDeletedFiles(
   }
 
   // Now create ComponentSet from the copied files to detect metadata types
-  const deletedMetadataComponents: { [key: string]: Set<string> } = {};
+  // (deletedMetadataComponents already initialized above for bundle processing)
+  // Filter out bundleDeletedFiles - they're copied for visibility but not added to destructive changes
 
   if (copiedFilePaths.length > 0) {
     try {
-      const componentSet = ComponentSet.fromSource({
-        fsPaths: copiedFilePaths,
+      // Filter out ALL bundle files from ComponentSet processing
+      // Bundle files are copied to RemovedFiles for visibility but should NOT be in destructiveChanges.xml
+      // (bundles are added to destructiveChanges as complete units, not individual files)
+      const pathsForDestructiveChanges = copiedFilePaths.filter((path) => {
+        const relativePath = relative(removedFilesDir, path);
+        // Exclude files from modified bundles (bundleDeletedFiles)
+        // Note: Files from deleted bundles are NOT in bundleDeletedFiles, but they're handled
+        // by adding the bundle itself to destructiveChanges, so we don't need to filter them here
+        // since they won't match any component in the ComponentSet anyway (they're bundle members)
+        return !bundleDeletedFilesSet.has(relativePath);
       });
 
-      const components = componentSet.getSourceComponents().toArray();
-      for (const component of components) {
-        const typeName = component.type.name;
-        const memberName = component.fullName;
+      if (pathsForDestructiveChanges.length > 0) {
+        const componentSet = ComponentSet.fromSource({
+          fsPaths: pathsForDestructiveChanges,
+        });
 
-        if (!deletedMetadataComponents[typeName]) {
-          deletedMetadataComponents[typeName] = new Set();
+        const components = componentSet.getSourceComponents().toArray();
+        for (const component of components) {
+          const typeName = component.type.name;
+          const memberName = component.fullName;
+
+          if (!deletedMetadataComponents[typeName]) {
+            deletedMetadataComponents[typeName] = new Set();
+          }
+
+          deletedMetadataComponents[typeName].add(memberName);
         }
 
-        deletedMetadataComponents[typeName].add(memberName);
+        logger.log(`Detected ${components.length} metadata components from deleted files`);
       }
 
-      logger.log(`Detected ${components.length} metadata components from deleted files`);
+      // Log bundleDeletedFiles separately for visibility
+      if (bundleDeletedFiles.length > 0) {
+        logger.log(
+          `Copied ${bundleDeletedFiles.length} deleted file(s) from modified bundles to RemovedFiles (for visibility only)`
+        );
+      }
     } catch (error) {
       logger.warn(`Could not create ComponentSet from deleted files: ${(error as Error).message}`);
       // Log full error for debugging
@@ -239,27 +420,6 @@ export function processDeletedFiles(
   }
 
   return { deletedMetadataComponents, copiedCount };
-}
-
-/**
- * Generates package.xml for changed files using ComponentSet.
- * This resolves the changed files from their original location and generates
- * the manifest before copying, ensuring all metadata files are included.
- */
-async function generatePackageManifestFile(
-  packageDir: string,
-  componentSet: ComponentSet,
-  logger: { log: (message: string) => void; error: (message: string) => never }
-): Promise<string> {
-  const packageXmlPath = resolve(packageDir, 'package.xml');
-  try {
-    const manifest = await componentSet.getPackageXml();
-    writeFileSync(packageXmlPath, manifest);
-    logger.log(`Generated package manifest: ${packageXmlPath}`);
-  } catch (error) {
-    logger.error(`Failed to generate manifest using ComponentSet: ${(error as Error).message}`);
-  }
-  return packageXmlPath;
 }
 
 /**
@@ -315,6 +475,97 @@ function generateEmptyPackageManifest(
 }
 
 /**
+ * Adds granular deleted metadata (CustomLabels only) to the deleted metadata components map.
+ * Reads the partial XML files from RemovedFiles and extracts individual component names.
+ * Note: Deleted SharingRules are logged as warnings during processing but not added to destructiveChanges.xml
+ * (they must be removed manually from the org or via full file deployment).
+ */
+export async function addGranularDeletedMetadataToMap(
+  granularDeletedFiles: string[],
+  deletedMetadataComponents: { [key: string]: Set<string> },
+  logger: { log: (message: string) => void }
+): Promise<void> {
+  const { extractCustomLabelNames } = await import('./granularMetadataUtils.js');
+
+  // Process all files in parallel
+  const results = await Promise.all(
+    granularDeletedFiles.map(async (filePath) => {
+      if (filePath.includes('/labels/')) {
+        // CustomLabels file
+        const labelNames = await extractCustomLabelNames(filePath);
+        return { type: 'labels', labelNames, filePath };
+      }
+      return null;
+    })
+  );
+
+  // Add results to deleted metadata map
+  // eslint-disable-next-line no-param-reassign
+  for (const result of results) {
+    if (!result) continue;
+
+    if (result.type === 'labels') {
+      const { labelNames } = result as { type: 'labels'; labelNames: string[]; filePath: string };
+      if (labelNames.length > 0) {
+        if (!deletedMetadataComponents.CustomLabel) {
+          // eslint-disable-next-line no-param-reassign
+          deletedMetadataComponents.CustomLabel = new Set();
+        }
+        for (const name of labelNames) {
+          deletedMetadataComponents.CustomLabel.add(name);
+        }
+        logger.log(`Added ${labelNames.length} deleted CustomLabel entries to destructiveChanges.xml`);
+      }
+    }
+  }
+}
+
+/**
+ * Adds granular metadata (CustomLabels only) to the manifest metadata map.
+ * Reads the partial XML files and extracts individual component names.
+ * Note: SharingRules are processed through ComponentSet as entire files, not granularly.
+ */
+async function addGranularMetadataToMap(
+  granularChangedFiles: string[],
+  metadataMap: { [key: string]: Set<string> },
+  logger: { log: (message: string) => void }
+): Promise<void> {
+  const { extractCustomLabelNames } = await import('./granularMetadataUtils.js');
+
+  // Process all files in parallel
+  const results = await Promise.all(
+    granularChangedFiles.map(async (filePath) => {
+      if (filePath.includes('/labels/')) {
+        // CustomLabels file
+        const labelNames = await extractCustomLabelNames(filePath);
+        return { type: 'labels', labelNames, filePath };
+      }
+      return null;
+    })
+  );
+
+  // Add results to metadata map
+  // eslint-disable-next-line no-param-reassign
+  for (const result of results) {
+    if (!result) continue;
+
+    if (result.type === 'labels') {
+      const { labelNames } = result as { type: 'labels'; labelNames: string[]; filePath: string };
+      if (labelNames.length > 0) {
+        if (!metadataMap.CustomLabel) {
+          // eslint-disable-next-line no-param-reassign
+          metadataMap.CustomLabel = new Set();
+        }
+        for (const name of labelNames) {
+          metadataMap.CustomLabel.add(name);
+        }
+        logger.log(`Added ${labelNames.length} CustomLabel entries to package.xml`);
+      }
+    }
+  }
+}
+
+/**
  * Generates all manifest files (package.xml, destructiveChanges.xml, etc.).
  */
 export async function generateManifests(
@@ -323,9 +574,27 @@ export async function generateManifests(
   componentSet: ComponentSet,
   deletedMetadataComponents: { [key: string]: Set<string> },
   sourceApiVersion: string,
-  logger: { log: (message: string) => void; error: (message: string) => never }
+  logger: { log: (message: string) => void; error: (message: string) => never },
+  granularChangedFiles: string[] = []
 ): Promise<GeneratedManifests> {
-  const packageXmlPath = await generatePackageManifestFile(packageDir, componentSet, logger);
+  // First, get metadata from ComponentSet (returns arrays)
+  const metadataArrays = extractMetadataComponents(componentSet);
+
+  // Convert arrays to Sets for consistent handling
+  const metadataMap: { [key: string]: Set<string> } = Object.fromEntries(
+    Object.entries(metadataArrays).map(([type, members]) => [type, new Set(members)])
+  );
+
+  // Add granular metadata (CustomLabels and SharingRules) to the metadata map
+  await addGranularMetadataToMap(granularChangedFiles, metadataMap, logger);
+
+  // Generate package.xml with combined metadata
+  const { generatePackageXml } = await import('./manifestUtils.js');
+  const packageXmlContent = generatePackageXml(metadataMap, sourceApiVersion);
+  const packageXmlPath = resolve(packageDir, 'package.xml');
+  writeFileSync(packageXmlPath, packageXmlContent);
+  logger.log(`Generated package manifest: ${packageXmlPath}`);
+
   const { destructiveChangesXmlPath, chunksGenerated } = generateDestructiveManifestsFiles(
     destructiveDir,
     deletedMetadataComponents,

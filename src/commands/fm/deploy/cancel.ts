@@ -266,22 +266,23 @@ export default class DeployCancel extends SfCommand<CancelResult> {
         const emptyPackagePath = join(configDir, 'empty-package.xml');
         const emptyDestructivePath = join(configDir, 'empty-destructive.xml');
 
+        // Create entry matching SF CLI deploy-cache.json format exactly
         cache[jobId] = {
-          jobId,
-          username: targetOrgUsername,
-          // Set expiration to 1 hour from now
-          expirationDate: Date.now() + 3_600_000,
-          // Include manifest and destructive changes paths
+          json: true,
+          async: true,
+          'target-org': targetOrgUsername,
           manifest: emptyPackagePath,
-          postDestructiveChanges: emptyDestructivePath,
-          // Add timestamp
-          createdDate: Date.now(),
+          'post-destructive-changes': emptyDestructivePath,
+          api: 'SOAP',
+          wait: 120,
+          isMdapi: false,
+          timestamp: new Date().toISOString(),
         };
 
         // Write cache back
         writeFileSync(cacheFile, JSON.stringify(cache, null, 2), 'utf-8');
 
-        this.debug(`Created cache entry for job ${jobId} with manifest and destructive changes`);
+        this.debug(`Created SF CLI-compatible cache entry for job ${jobId}`);
       } else {
         this.debug(`Job ${jobId} already exists in cache`);
       }

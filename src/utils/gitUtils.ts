@@ -262,18 +262,54 @@ export function getChangedSubmoduleFiles(
  *
  * @param ref The git reference (commit, branch, tag).
  * @param filePath The path to the file.
- * @returns The file content as a string, or empty string if file doesn't exist at that ref.
+ * @returns The file content as a string, or null if file doesn't exist at that ref.
  */
-export function getGitFileContent(ref: string, filePath: string): string {
+export function getGitFileContent(ref: string, filePath: string): string | null {
   try {
-    return execSync(`git show ${ref}:${filePath}`, { encoding: 'utf8' });
+    return execSync(`git show ${ref}:${filePath}`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
   } catch (e) {
-    return ''; // Return empty string if file does not exist at that ref
+    return null; // Return null if file does not exist at that ref
   }
 }
 
 /**
+ * Gets package directories from sfdx-project.json
+ */
+function getPackageDirectories(projectDir: string): string[] {
+  try {
+    const sfdxProjectPath = resolve(projectDir, 'sfdx-project.json');
+    if (!existsSync(sfdxProjectPath)) {
+      return [];
+    }
+    const content = readFileSync(sfdxProjectPath, 'utf8');
+    const project = JSON.parse(content) as { packageDirectories?: Array<{ path: string }> };
+    return project.packageDirectories?.map((d) => d.path) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Filters files to only include those within package directories
+ */
+function filterByPackageDirectories(files: string[], packageDirs: string[]): string[] {
+  if (packageDirs.length === 0) {
+    return files; // No filtering if no package directories defined
+  }
+
+  return files.filter((file) => {
+    // Normalize path separators
+    const normalizedFile = file.replace(/\\/g, '/');
+    return packageDirs.some((dir) => {
+      const normalizedDir = dir.replace(/\\/g, '/');
+      return normalizedFile.startsWith(normalizedDir + '/') || normalizedFile === normalizedDir;
+    });
+  });
+}
+
+/**
  * Gets all changed and deleted files including submodules.
+ * Filters files to only include those within package directories from sfdx-project.json.
  *
  * @param refA The starting Git reference.
  * @param refB The ending Git reference.
@@ -298,6 +334,23 @@ export function getAllChangedAndDeletedFiles(
   // Merge renamed maps from submodules
   for (const [filename, oldPath] of submoduleChanges.renamed.entries()) {
     result.renamed.set(filename, oldPath);
+  }
+
+  // Filter by package directories
+  const packageDirs = getPackageDirectories(currentDir);
+  if (packageDirs.length > 0) {
+    result.changed = filterByPackageDirectories(result.changed, packageDirs);
+    result.deleted = filterByPackageDirectories(result.deleted, packageDirs);
+
+    // Filter renamed map
+    const filteredRenamed = new Map<string, string>();
+    for (const [filename, oldPath] of result.renamed.entries()) {
+      // Check if the new path (in changed) is still present after filtering
+      if (result.changed.some((f) => f.endsWith(filename))) {
+        filteredRenamed.set(filename, oldPath);
+      }
+    }
+    result.renamed = filteredRenamed;
   }
 
   return result;

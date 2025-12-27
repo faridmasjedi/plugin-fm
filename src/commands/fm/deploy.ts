@@ -33,6 +33,7 @@ import { resolve, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages, Connection } from '@salesforce/core';
+import { updateDeployCacheWaitTime } from '../../utils/deployCacheUtils.js';
 
 // Initialize messages
 Messages.importMessagesDirectoryFromMetaUrl(new URL('../../../messages', import.meta.url).toString());
@@ -139,7 +140,7 @@ export default class Deploy extends SfCommand<DeployResult> {
       char: 'w',
       summary: messages.getMessage('flags.wait.summary'),
       description: messages.getMessage('flags.wait.description'),
-      default: 33,
+      default: 120,
       min: 0,
     }),
     async: Flags.boolean({
@@ -162,6 +163,11 @@ export default class Deploy extends SfCommand<DeployResult> {
     'ignore-warnings': Flags.boolean({
       summary: messages.getMessage('flags.ignoreWarnings.summary'),
       description: messages.getMessage('flags.ignoreWarnings.description'),
+      default: false,
+    }),
+    'ignore-conflicts': Flags.boolean({
+      summary: messages.getMessage('flags.ignoreConflicts.summary'),
+      description: messages.getMessage('flags.ignoreConflicts.description'),
       default: false,
     }),
   };
@@ -333,6 +339,7 @@ export default class Deploy extends SfCommand<DeployResult> {
       postDestructivePath: destructivePaths.postDestructivePath,
       validationId: flags['validation-id'],
       ignoreWarnings: flags['ignore-warnings'],
+      ignoreConflicts: flags['ignore-conflicts'],
       waitMinutes: flags.async || useAsyncForProgress ? 0 : flags.wait,
       hasChanges,
     };
@@ -344,6 +351,10 @@ export default class Deploy extends SfCommand<DeployResult> {
     // Show progress if requested (now that we have job ID from async deployment)
     if (useAsyncForProgress) {
       this.log(`\nMonitoring deployment: ${result.jobId}\n`);
+
+      // Update deploy-cache.json with correct wait time (SF CLI defaults to 33 with --async)
+      updateDeployCacheWaitTime(result.jobId, flags.wait);
+
       result = await this.monitorDeploymentWithProgress(result.jobId, targetOrg, flags.wait, mode);
 
       // Execute post-deployment hooks if deployment succeeded
@@ -393,6 +404,7 @@ export default class Deploy extends SfCommand<DeployResult> {
       testLevel: 'NoTestRun',
       validationId,
       ignoreWarnings: flags['ignore-warnings'] as boolean,
+      ignoreConflicts: flags['ignore-conflicts'] as boolean,
       waitMinutes: useAsyncForProgress ? 0 : (flags.wait as number),
     });
 

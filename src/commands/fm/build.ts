@@ -39,6 +39,7 @@ import {
   createDockerImage,
   prepareOutputDirectories,
   processDeletedFiles,
+  addGranularDeletedMetadataToMap,
 } from '../../utils/deploymentUtils.js';
 import { type DiffResult, generateSummaryOutput } from '../../utils/reportUtils.js';
 
@@ -144,23 +145,61 @@ export default class Build extends SfCommand<DiffResult> {
     // Note: We no longer copy .forceignore or sfdx-project.json to the artifact
     // The artifact is meant to be used from the repository directory where these files already exist
 
-    // Process artifacts (always copy files) - now includes ComponentSet creation
-    const artifacts = processArtifacts(
+    // Process bundles FIRST to determine bundle-level changes before processing individual files
+    // This is critical because a bundle's status depends on ALL files (changed + deleted)
+    const { processBundles } = await import('../../utils/bundleUtils.js');
+    const { bundleStatuses, nonBundleChangedFiles, nonBundleDeletedFiles, bundleDeletedFiles } = processBundles(
       filtered.changedFiles,
+      filtered.deletedFiles,
       currentWorkingDir,
-      changedFilesDir,
-      baseOutputDir,
       logger
     );
 
+    // Separate modified, deleted, and invalid bundles
+    const modifiedBundles = bundleStatuses.filter((b) => b.status === 'modified');
+    const deletedBundles = bundleStatuses.filter((b) => b.status === 'deleted');
+    const invalidBundles = bundleStatuses.filter((b) => b.status === 'invalid');
+
+    // Invalid bundles (metadata deleted but other files remain) are treated as BOTH:
+    // 1. Deleted (added to destructiveChanges.xml) - because metadata is gone
+    // 2. Modified (copied to ChangedFiles) - so deployment fails, forcing cleanup
+    const bundlesForDestructive = [...deletedBundles, ...invalidBundles];
+    const bundlesForChangedFiles = [...modifiedBundles, ...invalidBundles];
+
+    // Process artifacts (always copy files) - now includes ComponentSet creation
+    const artifacts = await processArtifacts(
+      nonBundleChangedFiles, // Only non-bundle files
+      currentWorkingDir,
+      changedFilesDir,
+      removedFilesDir,
+      baseOutputDir,
+      refA,
+      refB,
+      logger,
+      bundlesForChangedFiles // Pass modified + invalid bundles to be copied
+    );
+
     // Process deleted files: copy to RemovedFiles and detect metadata types using ComponentSet
+    // Include bundleDeletedFiles (from modified bundles) AND files from deleted + invalid bundles for visibility
+    const deletedBundleFiles = [...deletedBundles, ...invalidBundles].flatMap((b) => [
+      ...b.changedFiles,
+      ...b.deletedFiles,
+    ]);
+    const allDeletedFilesToCopy = [...nonBundleDeletedFiles, ...bundleDeletedFiles, ...deletedBundleFiles];
     const { deletedMetadataComponents } = processDeletedFiles(
-      filtered.deletedFiles,
+      allDeletedFilesToCopy, // All deleted files for visibility in RemovedFiles
       refA,
       currentWorkingDir,
       removedFilesDir,
-      logger
+      logger,
+      bundlesForDestructive, // Pass deleted + invalid bundles to be added to destructive changes
+      bundleDeletedFiles // Pass bundle deleted files (from modified bundles) to exclude from destructive changes
     );
+
+    // Add granular deleted files (CustomLabels/SharingRules deletions) to deletedMetadataComponents
+    if (artifacts.granularDeletedFiles.length > 0) {
+      await addGranularDeletedMetadataToMap(artifacts.granularDeletedFiles, deletedMetadataComponents, logger);
+    }
 
     // Generate all manifests with chunking using ComponentSet
     const manifests = await generateManifests(
@@ -169,7 +208,8 @@ export default class Build extends SfCommand<DiffResult> {
       artifacts.componentSet,
       deletedMetadataComponents,
       artifacts.sourceApiVersion,
-      logger
+      logger,
+      artifacts.granularChangedFiles
     );
 
     // Create Docker image if requested
@@ -177,7 +217,7 @@ export default class Build extends SfCommand<DiffResult> {
       createDockerImage(baseOutputDir, logger);
     }
 
-    // Generate and output summary
+    // Generate and output summary with bundle information
     const result = await generateSummaryOutput(
       flags.summary,
       baseOutputDir,
@@ -187,7 +227,10 @@ export default class Build extends SfCommand<DiffResult> {
       artifacts,
       logger,
       refA,
-      refB
+      refB,
+      modifiedBundles,
+      deletedBundles,
+      invalidBundles
     );
 
     // When JSON mode is requested, output the result directly (bypassing the logger suppression)

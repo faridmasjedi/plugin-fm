@@ -14,6 +14,7 @@ export type DeploymentOptions = {
   postDestructivePath?: string;
   validationId?: string;
   ignoreWarnings: boolean;
+  ignoreConflicts: boolean;
   waitMinutes: number;
   hasChanges?: boolean;
 };
@@ -95,6 +96,11 @@ export class DeploymentService {
       command += ' --async';
     } else {
       command += ` --wait ${options.waitMinutes}`;
+    }
+
+    // Add ignore conflicts
+    if (options.ignoreConflicts) {
+      command += ' --ignore-conflicts';
     }
 
     // Add JSON output for parsing

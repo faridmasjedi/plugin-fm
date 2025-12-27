@@ -15,10 +15,10 @@ async function parseGitContent(
   const contentA = getGitFileContent(refA, filePath);
   const contentB = getGitFileContent(refB, filePath);
 
-  if (!contentA && !contentB) return null;
+  if (contentA === null && contentB === null) return null;
 
-  const parsedA = contentA ? await parseStringPromise(contentA) : {};
-  const parsedB = contentB ? await parseStringPromise(contentB) : {};
+  const parsedA = contentA !== null ? await parseStringPromise(contentA) : {};
+  const parsedB = contentB !== null ? await parseStringPromise(contentB) : {};
 
   return { parsedA: parsedA as Record<string, unknown>, parsedB: parsedB as Record<string, unknown> };
 }
