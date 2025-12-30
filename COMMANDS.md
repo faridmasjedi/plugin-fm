@@ -353,6 +353,16 @@ sf fm deploy --manifest ./manifest --target-org myorg \
   --progress
 ```
 
+**Hook Specifications:**
+
+- Timeout: 15 minutes per hook
+- Max output: 10MB
+- Pre-hooks must succeed or deployment stops
+- Post-hooks only run after successful deployment
+- All output (stdout/stderr) is displayed in real-time
+
+For orchestrating multiple scripts, see the [Complete Hooks Guide](../messages/hooks-guide.md).
+
 #### Async Deployment for CI/CD
 
 ```bash

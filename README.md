@@ -325,6 +325,29 @@ sf fm deploy --manifest ./manifest --target-org myorg \
 - `FM_MANIFEST_DIR` - Manifest directory path
 - `FM_JOB_ID` - Deployment job ID (post hooks only)
 
+**Hook Specifications:**
+
+- Timeout: 15 minutes per hook
+- Max output: 10MB
+- Pre-hooks: Must succeed or deployment stops
+- Post-hooks: Only run after successful deployment
+- All hook output (stdout/stderr) is displayed in real-time
+
+**Multiple Files in One Hook:**
+
+Since each flag accepts only one file, use a master script to orchestrate multiple steps:
+
+```bash
+# master-pre-deploy.sh
+#!/bin/bash
+set -e
+./steps/01-backup.sh
+./steps/02-validate.sh
+./steps/03-prepare.sh
+```
+
+[Complete Hooks Guide →](./messages/hooks-guide.md)
+
 ## Development
 
 ### Build

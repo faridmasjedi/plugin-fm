@@ -166,7 +166,7 @@ export class HooksExecutor {
         env,
         encoding: 'utf8',
         maxBuffer: 10 * 1024 * 1024, // 10MB
-        timeout: 5 * 60 * 1000, // 5 minutes
+        timeout: 15 * 60 * 1000, // 15 minutes
       });
 
       const duration = Date.now() - startTime;

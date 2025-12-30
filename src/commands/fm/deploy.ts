@@ -519,7 +519,21 @@ export default class Deploy extends SfCommand<DeployResult> {
     const { HooksExecutor } = await import('../../utils/hooksExecutor.js');
     const result = HooksExecutor.executePreHook(scriptPath, context, this);
 
+    // Display hook output
+    if (result.stdout) {
+      this.log(`\n${result.stdout}`);
+    }
+
+    if (result.stderr) {
+      this.warn(`\nWarning output from hook:\n${result.stderr}`);
+    }
+
+    this.log(`\nPre-deployment hook completed in ${result.duration}ms`);
+
     if (!result.success) {
+      if (result.stderr) {
+        this.error(`\nHook error output:\n${result.stderr}`);
+      }
       throw messages.createError('error.preStepsFailed', [result.exitCode.toString()]);
     }
   }
@@ -530,7 +544,21 @@ export default class Deploy extends SfCommand<DeployResult> {
     const { HooksExecutor } = await import('../../utils/hooksExecutor.js');
     const result = HooksExecutor.executePostHook(scriptPath, context, this);
 
+    // Display hook output
+    if (result.stdout) {
+      this.log(`\n${result.stdout}`);
+    }
+
+    if (result.stderr) {
+      this.warn(`\nWarning output from hook:\n${result.stderr}`);
+    }
+
+    this.log(`\nPost-deployment hook completed in ${result.duration}ms`);
+
     if (!result.success) {
+      if (result.stderr) {
+        this.error(`\nHook error output:\n${result.stderr}`);
+      }
       this.warn(messages.getMessage('error.postStepsFailed', [result.exitCode.toString()]));
     }
   }
