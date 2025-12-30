@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build artifacts
+lib/
+*.tsbuildinfo
+.wireit/
+
+# Test files
+test/
+coverage/
+.nyc_output/
+**/*.test.ts
+**/*.nut.ts
+
+# Development
+.git/
+.github/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# CI/CD
+.circleci/
+.travis.yml
+azure-pipelines.yml
+
+# Documentation (not needed in container)
+docs/
+*.md
+!README.md
+
+# Temp files
+tmp/
+temp/
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Caches
+.eslintcache
+.cache/

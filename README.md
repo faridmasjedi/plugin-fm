@@ -15,8 +15,8 @@ A Salesforce CLI plugin for fast, intelligent metadata deployments with built-in
 - 🔄 **Progress Monitoring** - Real-time deployment progress with beautiful visualizations
 - ⚡ **Quick Deploys** - Deploy validated changesets instantly
 - 🎣 **Pre/Post Hooks** - Execute custom scripts before and after deployments
+- 🐳 **Docker Support** - Generate ready-to-use Docker configurations for CI/CD
 - 🤖 **CI/CD Ready** - Built for GitHub Actions, GitLab CI, and other automation tools
-- ✅ **Quality Checks** - Run ESLint, PMD, XML validation, and tests on changed files
 - 🗑️ **Destructive Changes** - Handle pre and post destructive deployments safely
 
 ## Installation
@@ -57,18 +57,6 @@ sf fm deploy --manifest ./manifest --target-org myorg \
 ```bash
 # Watch deployment progress in real-time
 sf fm deploy status --job-id 0Af... --target-org myorg --watch --interval 15
-```
-
-### 4. Quality Checks
-
-Run quality checks on changed files:
-
-```bash
-# Run all quality checks on PR changes
-sf fm quality --base-sha origin/main --head-sha HEAD
-
-# Skip specific checks
-sf fm quality --base-sha origin/main --head-sha HEAD --skip-tests
 ```
 
 ## Commands
@@ -184,39 +172,65 @@ sf fm deploy cancel --target-org myorg
 
 [Full Documentation →](./messages/deploy.cancel.md)
 
-### `sf fm quality`
+### `sf fm docker init`
 
-Run quality checks on changed files between Git references.
+Generate Docker configuration files for containerized CI/CD pipelines.
 
 **Key Features:**
 
-- ESLint for JavaScript/TypeScript files
-- XML validation with xmllint
-- PMD for Apex code quality
-- Automated test execution
-- Configurable checks
+- Generates complete Docker setup (Dockerfile, .dockerignore, GitHub Actions workflow)
+- Customizable base image (Alpine, Ubuntu, etc.)
+- Multiple plugin installation methods (npm, local, git)
+- Includes all necessary dependencies for SF CLI and plugin-fm
+- Optional GitHub Actions workflow for automated image builds
+- Comprehensive documentation and examples
 
 **Examples:**
 
 ```bash
-# Run all checks on PR changes
-sf fm quality --base-sha origin/main --head-sha HEAD
+# Generate with defaults
+sf fm docker init
 
-# Skip specific checks
-sf fm quality --base-sha origin/main --head-sha HEAD \
-  --skip-tests --skip-pmd
+# Custom base image
+sf fm docker init --base-image node:20-alpine
 
-# Fail on warnings
-sf fm quality --base-sha origin/main --head-sha HEAD --fail-on-warnings
+# Custom maintainer and output directory
+sf fm docker init --maintainer "DevOps Team" --output-dir ./docker
+
+# Skip GitHub workflow
+sf fm docker init --no-github-workflow
+
+# Full customization
+sf fm docker init \
+  --base-image node:20-alpine \
+  --maintainer "DevOps Team" \
+  --sf-cli-version latest \
+  --plugin-install-method npm \
+  --output-dir ./ci
 ```
 
-[Full Documentation →](./messages/quality.md)
+**Generated Files:**
+
+- `Dockerfile` - Container image with SF CLI and plugin-fm
+- `.dockerignore` - Optimize Docker build context
+- `.github/workflows/docker-publish.yml` - Automated image builds
+- `DOCKER_README.md` - Usage documentation
+
+[Full Documentation →](./messages/docker.init.md)
 
 ## CI/CD Integration
 
 Perfect for GitHub Actions, GitLab CI, and other automation tools.
 
-### GitHub Actions Example
+### Using Docker (Recommended)
+
+Use `sf fm docker init` to generate a complete Docker setup:
+
+```bash
+sf fm docker init
+```
+
+This creates a Dockerfile with SF CLI and plugin-fm, plus a GitHub Actions workflow. Then use it in your pipelines:
 
 ```yaml
 name: Salesforce Deployment
@@ -228,16 +242,15 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/your-org/your-repo/sf-fm-cicd:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Install SF CLI
-        run: npm install -g @salesforce/cli
-
-      - name: Install Plugin
-        run: sf plugins install @salesforce/plugin-fm
 
       - name: Authenticate
         run: |
@@ -250,12 +263,6 @@ jobs:
             --ref-a origin/${{ github.base_ref }} \
             --ref-b HEAD \
             --output-dir ./manifest
-
-      - name: Run Quality Checks
-        run: |
-          sf fm quality \
-            --base-sha origin/${{ github.base_ref }} \
-            --head-sha HEAD
 
       - name: Deploy with Validation
         run: |
@@ -273,6 +280,28 @@ jobs:
             --watch \
             --interval 15 \
             --json
+```
+
+### Without Docker
+
+You can also install SF CLI and plugin-fm directly:
+
+```yaml
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install SF CLI
+        run: npm install -g @salesforce/cli
+
+      - name: Install Plugin
+        run: sf plugins install @salesforce/plugin-fm
+
+      # ... rest of steps same as Docker example
 ```
 
 [Full CI/CD Guide →](./CI_CD_USAGE.md)

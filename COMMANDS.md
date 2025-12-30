@@ -8,7 +8,7 @@ Comprehensive guide for all `@salesforce/plugin-fm` commands with examples and s
 - [sf fm deploy](#sf-fm-deploy)
 - [sf fm deploy status](#sf-fm-deploy-status)
 - [sf fm deploy cancel](#sf-fm-deploy-cancel)
-- [sf fm quality](#sf-fm-quality)
+- [sf fm docker init](#sf-fm-docker-init)
 
 ---
 
@@ -585,105 +585,232 @@ sf fm deploy cancel --job-id 0Af... --target-org myorg --json
 
 ---
 
-## sf fm quality
+## sf fm docker init
 
-Run quality checks on changed files between Git references.
+Generate Docker configuration files for using plugin-fm in CI/CD environments.
 
 ### Synopsis
 
 ```bash
-sf fm quality --base-sha <sha> --head-sha <sha> [options]
+sf fm docker init [options]
 ```
 
 ### Description
 
-Runs quality checks on changed files:
+This command generates a complete Docker setup for running plugin-fm in containerized CI/CD pipelines.
 
-- ESLint for JavaScript/TypeScript
-- xmllint for XML validation
-- PMD for Apex code
-- Automated tests
+Generated files include:
+
+- `Dockerfile` - Container image with SF CLI and plugin-fm
+- `.dockerignore` - Optimize Docker build context
+- `.github/workflows/docker-publish.yml` - GitHub Actions workflow to build and publish the image
+- `DOCKER_README.md` - Comprehensive usage documentation
+
+The generated Dockerfile includes:
+
+- Salesforce CLI (sf)
+- plugin-fm plugin
+- Git for version control operations
+- All necessary system dependencies (including GNU coreutils for Alpine Linux compatibility)
+
+### Key Features
+
+- **Customizable Base Image** - Choose any Node.js Docker image (Alpine, Ubuntu, etc.)
+- **Multiple Install Methods** - Install plugin-fm from npm, local source, git, or skip
+- **GitHub Actions Integration** - Optional workflow for building and publishing to GHCR
+- **Complete Documentation** - Generated README with usage examples and best practices
+- **Alpine Linux Support** - Includes coreutils for SF CLI compatibility
 
 ### Options
 
-| Flag                 | Type    | Description             |
-| -------------------- | ------- | ----------------------- |
-| `--base-sha`         | string  | Base Git SHA (required) |
-| `--head-sha`         | string  | Head Git SHA (required) |
-| `--pmd-ruleset`      | file    | PMD ruleset file        |
-| `--skip-eslint`      | boolean | Skip ESLint checks      |
-| `--skip-xml-lint`    | boolean | Skip XML validation     |
-| `--skip-pmd`         | boolean | Skip PMD checks         |
-| `--skip-tests`       | boolean | Skip automated tests    |
-| `--fail-on-warnings` | boolean | Fail if warnings found  |
-| `--json`             | boolean | Output in JSON format   |
+| Flag                      | Type    | Description                                                                |
+| ------------------------- | ------- | -------------------------------------------------------------------------- |
+| `--output-dir`, `-d`      | string  | Directory where Docker files will be generated (default: .)                |
+| `--base-image`, `-b`      | string  | Docker base image to use (default: node:18-alpine)                         |
+| `--maintainer`, `-m`      | string  | Maintainer information for the Docker image (default: Salesforce DevOps)   |
+| `--sf-cli-version`        | string  | Version of Salesforce CLI to install (default: latest)                     |
+| `--plugin-install-method` | string  | Method to install plugin-fm: npm, local, git, or skip (default: npm)       |
+| `--plugin-version`        | string  | Version of plugin-fm to install when using npm method (default: latest)    |
+| `--github-workflow`       | boolean | Generate GitHub Actions workflow (default: true, use --no-github-workflow) |
+| `--json`                  | boolean | Output in JSON format                                                      |
 
 ### Examples
 
 #### Basic Usage
 
 ```bash
-# Run all checks
-sf fm quality --base-sha origin/main --head-sha HEAD
+# Generate Docker files in current directory with defaults
+sf fm docker init
 
-# PR validation
-sf fm quality \
-  --base-sha origin/${{ github.base_ref }} \
-  --head-sha HEAD
+# Generate in specific directory
+sf fm docker init --output-dir ./docker
 ```
 
-#### Skip Specific Checks
+#### Custom Base Image
 
 ```bash
-# Skip tests
-sf fm quality --base-sha origin/main --head-sha HEAD --skip-tests
+# Use Node.js 20 with Alpine Linux
+sf fm docker init --base-image node:20-alpine
 
-# Skip multiple checks
-sf fm quality --base-sha origin/main --head-sha HEAD \
-  --skip-tests --skip-pmd
+# Use Ubuntu instead of Alpine
+sf fm docker init --base-image node:18
 
-# Only ESLint
-sf fm quality --base-sha origin/main --head-sha HEAD \
-  --skip-xml-lint --skip-pmd --skip-tests
+# Use specific Node.js version
+sf fm docker init --base-image node:18.19.0-alpine
 ```
 
-#### Custom PMD Ruleset
+#### Custom Maintainer
 
 ```bash
-# Use custom ruleset
-sf fm quality --base-sha origin/main --head-sha HEAD \
-  --pmd-ruleset ./config/pmd-rules.xml
+# Set maintainer information
+sf fm docker init --maintainer "DevOps Team"
+
+# With email
+sf fm docker init --maintainer "DevOps Team <devops@company.com>"
 ```
 
-#### Fail on Warnings
+#### Plugin Installation Methods
 
 ```bash
-# Strict mode
-sf fm quality --base-sha origin/main --head-sha HEAD \
-  --fail-on-warnings
+# Install from npm (default)
+sf fm docker init --plugin-install-method npm --plugin-version latest
+
+# Install from local source (for development)
+sf fm docker init --plugin-install-method local
+
+# Install from git repository
+sf fm docker init --plugin-install-method git
+
+# Skip plugin installation (install manually later)
+sf fm docker init --plugin-install-method skip
 ```
 
-### Scenarios
+#### Without GitHub Workflow
 
-#### Scenario 1: PR Quality Gate
+```bash
+# Generate only Dockerfile and documentation
+sf fm docker init --no-github-workflow
+```
+
+#### Full Customization
+
+```bash
+# All options
+sf fm docker init \
+  --output-dir ./ci \
+  --base-image node:20-alpine \
+  --maintainer "DevOps Team" \
+  --sf-cli-version latest \
+  --plugin-install-method npm \
+  --plugin-version latest \
+  --github-workflow
+```
+
+### Using Generated Files
+
+#### Build Docker Image Locally
+
+```bash
+# After generating files
+cd <output-dir>
+
+# Build the image
+docker build -t myorg/sf-fm-cicd:latest .
+
+# Test it
+docker run --rm myorg/sf-fm-cicd:latest sf --version
+docker run --rm myorg/sf-fm-cicd:latest sf fm --help
+```
+
+#### Publish to GitHub Container Registry
+
+The generated GitHub Actions workflow (`.github/workflows/docker-publish.yml`) automatically:
+
+- Builds the image when Dockerfile changes
+- Publishes to `ghcr.io/your-org/your-repo/sf-fm-cicd:latest`
+- Tags with branch name and commit SHA
+- Uses Docker layer caching for fast builds
+
+Push the workflow file to your repository to enable automated builds.
+
+#### Use in CI/CD Pipelines
+
+**GitHub Actions:**
 
 ```yaml
-# GitHub Actions
-- name: Quality Checks
-  run: |
-    sf fm quality \
-      --base-sha origin/${{ github.base_ref }} \
-      --head-sha HEAD \
-      --fail-on-warnings
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/your-org/your-repo/sf-fm-cicd:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build and Deploy
+        run: |
+          sf fm build --ref-a origin/main --ref-b HEAD --output-dir ./manifest
+          sf fm deploy --manifest ./manifest --target-org prod
 ```
 
-#### Scenario 2: Pre-commit Hook
+**GitLab CI:**
 
-```bash
-# .git/hooks/pre-commit
-#!/bin/bash
-sf fm quality --base-sha HEAD~1 --head-sha HEAD --skip-tests
+```yaml
+deploy:
+  image: registry.company.com/sf-fm-cicd:latest
+  script:
+    - sf fm build --ref-a origin/main --ref-b HEAD --output-dir ./manifest
+    - sf fm deploy --manifest ./manifest --target-org prod
 ```
+
+### Customizing the Dockerfile
+
+The generated Dockerfile can be customized for your needs:
+
+**Add Quality Tools:**
+
+```dockerfile
+# Install ESLint
+RUN npm install -g eslint
+
+# Install PMD (requires Java)
+RUN apk add --no-cache openjdk11-jre
+RUN wget -q https://github.com/pmd/pmd/releases/download/pmd_releases%2F7.0.0/pmd-dist-7.0.0-bin.zip \
+    && unzip -q pmd-dist-7.0.0-bin.zip -d /opt \
+    && ln -s /opt/pmd-bin-7.0.0/bin/pmd /usr/local/bin/pmd
+```
+
+**Install Additional SF Plugins:**
+
+```dockerfile
+RUN sf plugins install @salesforce/plugin-data
+RUN sf plugins install @salesforce/plugin-org
+```
+
+### Output
+
+The command creates these files in the specified output directory:
+
+```
+<output-dir>/
+├── Dockerfile                              # Container image definition
+├── .dockerignore                          # Docker build context optimization
+├── .github/
+│   └── workflows/
+│       └── docker-publish.yml             # GitHub Actions workflow (optional)
+└── DOCKER_README.md                       # Usage documentation
+```
+
+### Best Practices
+
+1. **Version Your Images** - Use tags like `v1.0.0` instead of just `latest`
+2. **Cache Layers** - Order Dockerfile steps from least to most frequently changing
+3. **Security Scanning** - Use tools like Trivy to scan images
+4. **Keep Updated** - Rebuild regularly to get security updates
+5. **Test Locally** - Test the Docker image locally before using in CI/CD
 
 ---
 
@@ -695,17 +822,14 @@ sf fm quality --base-sha HEAD~1 --head-sha HEAD --skip-tests
 # 1. Build
 sf fm build --ref-a origin/main --ref-b HEAD --output-dir ./manifest
 
-# 2. Quality
-sf fm quality --base-sha origin/main --head-sha HEAD
-
-# 3. Deploy
+# 2. Deploy
 JOB_ID=$(sf fm deploy --manifest ./manifest --target-org prod \
   --intelligent-tests --async --json | jq -r '.result.jobId')
 
-# 4. Monitor
+# 3. Monitor
 sf fm deploy status --job-id $JOB_ID --target-org prod --watch
 
-# 5. Quick deploy if validated
+# 4. Quick deploy if validated
 sf fm deploy --mode quick --validation-id $VALIDATION_ID --target-org prod
 ```
 
@@ -761,9 +885,9 @@ sf fm deploy --mode quick --validation-id $VALIDATION_ID --target-org prod
 - Set appropriate `--timeout` based on deployment size
 - Use `--json` for programmatic parsing
 
-### Quality Command
+### Docker Init Command
 
-- Run quality checks before deployment
-- Use `--fail-on-warnings` for strict quality gates
-- Skip irrelevant checks to save time
-- Integrate with pre-commit hooks
+- Use `--base-image` to match your organization's standards
+- Generate once and customize the Dockerfile for your needs
+- Version your Docker images with tags
+- Rebuild images regularly for security updates
