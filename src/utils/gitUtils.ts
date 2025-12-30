@@ -1,11 +1,12 @@
 import { execSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import ignore from 'ignore';
 import { EMPTY_TREE_SHA } from './constants.js';
 
 // Custom type for logging (to avoid `any` type in utility functions)
-type CommandLogger = {
+export type CommandLogger = {
+  log?: (message: string) => void;
   warn: (message: string) => void;
 };
 
@@ -491,4 +492,89 @@ export function filterFilesWithIgnored(
   }
 
   return { changedFiles, deletedFiles, ignoredChanged, ignoredDeleted, submodules: files.submodules };
+}
+
+/**
+ * Recursively gets all files from a directory
+ */
+function getAllFilesRecursive(dirPath: string, relativePath: string): string[] {
+  const files: string[] = [];
+
+  try {
+    const entries = readdirSync(dirPath);
+
+    for (const entry of entries) {
+      const fullPath = join(dirPath, entry);
+      const relPath = join(relativePath, entry);
+      const stat = statSync(fullPath);
+
+      if (stat.isDirectory()) {
+        files.push(...getAllFilesRecursive(fullPath, relPath));
+      } else if (stat.isFile()) {
+        files.push(relPath);
+      }
+    }
+  } catch {
+    // Skip directories we can't read
+  }
+
+  return files;
+}
+
+/**
+ * Gets all files from working tree (filesystem-based, not git)
+ * Returns files from parent and all submodules
+ */
+export function getAllFilesFromWorkingTree(
+  currentDir: string,
+  command: CommandLogger
+): { parent: string[]; submodules: Map<string, string[]> } {
+  return withDirectory(currentDir, () => {
+    const parentFiles: string[] = [];
+    const submoduleFiles = new Map<string, string[]>();
+
+    // Get package directories from sfdx-project.json
+    const packageDirs = getPackageDirectories(currentDir);
+
+    // Get all files from parent package directories
+    for (const packageDir of packageDirs) {
+      const packagePath = resolve(currentDir, packageDir);
+      if (existsSync(packagePath)) {
+        const files = getAllFilesRecursive(packagePath, packageDir);
+        parentFiles.push(...files);
+      }
+    }
+
+    // Get submodule information
+    try {
+      const submoduleStatus = execSync('git submodule status', { encoding: 'utf8' }).trim();
+      if (submoduleStatus !== '') {
+        const submodules = submoduleStatus.split('\n').map((line) => line.trim().split(' ')[1]);
+
+        for (const submodulePath of submodules) {
+          const submoduleDir = resolve(currentDir, submodulePath);
+
+          // Get package directories from submodule's sfdx-project.json
+          const submodulePackageDirs = getPackageDirectories(submoduleDir);
+          const subFiles: string[] = [];
+
+          for (const packageDir of submodulePackageDirs) {
+            const packagePath = resolve(submoduleDir, packageDir);
+            if (existsSync(packagePath)) {
+              const files = getAllFilesRecursive(packagePath, join(submodulePath, packageDir));
+              subFiles.push(...files);
+            }
+          }
+
+          if (subFiles.length > 0) {
+            submoduleFiles.set(submodulePath, subFiles);
+          }
+        }
+      }
+    } catch (error) {
+      command.warn(`Error reading submodules: ${(error as Error).message}`);
+    }
+
+    return { parent: parentFiles, submodules: submoduleFiles };
+  });
 }
