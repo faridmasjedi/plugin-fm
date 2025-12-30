@@ -117,6 +117,96 @@ sf fm build --ref-a main --json | jq '.result'
 sf fm build --ref-a main --json > build-result.json
 ```
 
+### Working with Git Submodules
+
+The `fm build` command automatically detects and processes changes in Git submodules, making it easy to manage shared metadata across multiple Salesforce projects.
+
+#### How Submodules Are Processed
+
+1. **Automatic Detection**: Changed files in submodules are detected alongside parent repo changes
+2. **Package Directory Filtering**: Uses the **parent repo's** `sfdx-project.json` to filter all files (including submodule files)
+3. **Granular Metadata Merging**: CustomLabels and SharingRules from parent and submodule are automatically merged
+
+#### Package Directory Filtering
+
+All files (parent + submodule) are filtered based on package directories defined in the **parent repo's** `sfdx-project.json`:
+
+**Example:**
+
+```json
+// Parent repo's sfdx-project.json
+{
+  "packageDirectories": [{ "path": "force-app" }]
+}
+```
+
+**Files Included:**
+
+- ✅ `force-app/main/default/classes/MyClass.cls` (parent repo)
+- ✅ `force-app/main/shared/classes/SharedClass.cls` (submodule at `force-app/main/shared`)
+- ✅ `force-app/main/shared/force-app/main/default/classes/SubClass.cls` (nested structure)
+- ❌ `scripts/deploy.sh` (not under `force-app`)
+
+#### Granular Metadata Merging
+
+When both parent and submodule have CustomLabels or SharingRules changes, they are automatically merged:
+
+**Example Scenario:**
+
+- Parent: `force-app/main/default/labels/CustomLabels.labels-meta.xml` (1 label changed)
+- Submodule: `force-app/main/shared/labels/CustomLabels.labels-meta.xml` (3 labels changed)
+
+**Result:**
+
+- Single merged file: `ChangedFiles/labels/CustomLabels.labels-meta.xml` (4 labels total)
+- Package.xml: 4 individual `CustomLabel` entries
+- Logs: Shows all 4 labels in metadata summary
+
+**Note:** SharingRules files are deployed as complete files (Salesforce doesn't support individual rule deployment), but the logs show which specific rules changed.
+
+#### Submodule Setup Example
+
+```bash
+# Add a submodule for shared metadata
+git submodule add https://github.com/myorg/shared-metadata.git force-app/main/shared
+
+# Initialize and update submodules
+git submodule update --init --recursive
+
+# Build with submodule changes
+sf fm build --ref-a main --ref-b HEAD
+```
+
+#### Build Output with Submodules
+
+When submodules have changes, the logs include submodule information:
+
+```
+🔗 Submodules: 1 submodule with changes (25 files)
+   - force-app/main/shared (abc1234 → def5678)
+
+📝 CHANGED FILES: 30
+   ✓ force-app/main/default/classes/MyClass.cls
+   ✓ force-app/main/shared/classes/SharedClass.cls
+   ...
+
+METADATA CHANGE SUMMARY
+
+📝 CHANGED/ADDED METADATA: 15 components across 5 types
+   CustomLabels: 4 components
+      ✓ My_Label (parent)
+      ✓ Shared_Label_1 (submodule)
+      ✓ Shared_Label_2 (submodule)
+      ✓ Shared_Label_3 (submodule)
+```
+
+#### Best Practices
+
+1. **Package Directories**: Ensure your parent repo's `sfdx-project.json` includes paths that cover both parent and submodule files
+2. **Submodule Structure**: Keep submodule structure consistent with Salesforce metadata format
+3. **Commit References**: When submodules update, the parent repo records the specific commit SHA, ensuring reproducible builds
+4. **Testing**: Test metadata merging behavior with CustomLabels/SharingRules when using in both parent and submodule
+
 ### Output Structure
 
 ```
