@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, cpSync } from 'node:fs';
 import { dirname, resolve, relative } from 'node:path';
 import type { ComponentSet } from '@salesforce/source-deploy-retrieve';
+import { isCustomLabelsFile } from './granularMetadataUtils.js';
 
 /**
  * Ensures a directory exists, creating it if necessary.
@@ -79,7 +80,9 @@ export function copyComponentSetFiles(
     // Copy source file (e.g., .cls, .trigger)
     if (component.content) {
       const relativePath = relative(sourceRoot, component.content);
-      if (!copiedFiles.has(relativePath)) {
+      // Skip CustomLabels files - they're handled separately as partial files
+      // Note: SharingRules are NOT skipped - they're deployed as entire files
+      if (!copiedFiles.has(relativePath) && !isCustomLabelsFile(relativePath)) {
         copyFile(component.content, resolve(destinationRoot, relativePath));
         copiedFiles.add(relativePath);
       }
@@ -88,7 +91,9 @@ export function copyComponentSetFiles(
     // Copy metadata file (e.g., .cls-meta.xml, .trigger-meta.xml)
     if (component.xml) {
       const relativePath = relative(sourceRoot, component.xml);
-      if (!copiedFiles.has(relativePath)) {
+      // Skip CustomLabels files - they're handled separately as partial files
+      // Note: SharingRules are NOT skipped - they're deployed as entire files
+      if (!copiedFiles.has(relativePath) && !isCustomLabelsFile(relativePath)) {
         copyFile(component.xml, resolve(destinationRoot, relativePath));
         copiedFiles.add(relativePath);
       }

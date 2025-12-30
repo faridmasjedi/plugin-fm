@@ -1,12 +1,23 @@
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, join } from 'node:path';
 import ignore from 'ignore';
 import { EMPTY_TREE_SHA } from './constants.js';
 
 // Custom type for logging (to avoid `any` type in utility functions)
 type CommandLogger = {
   warn: (message: string) => void;
+};
+
+/**
+ * Information about changes in a submodule.
+ */
+export type SubmoduleChangeInfo = {
+  path: string; // Submodule path (e.g., "force-app/main/farid")
+  oldCommit: string; // Previous commit SHA
+  newCommit: string; // New commit SHA
+  changedFiles: string[]; // Changed files in this submodule
+  deletedFiles: string[]; // Deleted files in this submodule
 };
 
 /**
@@ -41,8 +52,8 @@ function processGitDiffLine(
     const oldPath = parts[1];
     const newPath = parts[2];
     const oldFilename = oldPath.split('/').pop() ?? oldPath;
-    const fullOldPath = basePath ? resolve(basePath, oldPath) : oldPath;
-    const fullNewPath = basePath ? resolve(basePath, newPath) : newPath;
+    const fullOldPath = basePath ? join(basePath, oldPath) : oldPath;
+    const fullNewPath = basePath ? join(basePath, newPath) : newPath;
 
     deleted.push(fullOldPath);
     changed.push(fullNewPath);
@@ -51,10 +62,10 @@ function processGitDiffLine(
     renamed.set(oldFilename, fullOldPath);
   } else if (status.startsWith('D')) {
     // Deleted file
-    deleted.push(basePath ? resolve(basePath, parts[1]) : parts[1]);
+    deleted.push(basePath ? join(basePath, parts[1]) : parts[1]);
   } else {
     // Added (A) or Modified (M)
-    changed.push(basePath ? resolve(basePath, parts[1]) : parts[1]);
+    changed.push(basePath ? join(basePath, parts[1]) : parts[1]);
   }
 
   return { changed, deleted, renamed };
@@ -212,25 +223,26 @@ function getSubmoduleChanges(
  * @param refB The ending Git reference.
  * @param currentDir The directory to run git commands in.
  * @param command The command logger for warnings.
- * @returns An object containing arrays of changed files, deleted files, and renamed map from submodules.
+ * @returns An object containing arrays of changed files, deleted files, renamed map, and submodule information.
  */
 export function getChangedSubmoduleFiles(
   refA: string,
   refB: string,
   currentDir: string,
   command: CommandLogger
-): { changed: string[]; deleted: string[]; renamed: Map<string, string> } {
+): { changed: string[]; deleted: string[]; renamed: Map<string, string>; submodules: SubmoduleChangeInfo[] } {
   return withDirectory(currentDir, () => {
     try {
       // Check if there are any submodules
       const submoduleStatus = execSync('git submodule status', { encoding: 'utf8' }).trim();
       if (submoduleStatus === '') {
-        return { changed: [], deleted: [], renamed: new Map() }; // No submodules found
+        return { changed: [], deleted: [], renamed: new Map(), submodules: [] }; // No submodules found
       }
 
       const changedFiles: string[] = [];
       const deletedFiles: string[] = [];
       const renamedMap = new Map<string, string>();
+      const submoduleInfos: SubmoduleChangeInfo[] = [];
       const submodules = submoduleStatus.split('\n').map((line) => line.trim().split(' ')[1]);
 
       for (const submodulePath of submodules) {
@@ -246,29 +258,81 @@ export function getChangedSubmoduleFiles(
           for (const [filename, oldPath] of changes.renamed.entries()) {
             renamedMap.set(filename, oldPath);
           }
+
+          // Store submodule information
+          submoduleInfos.push({
+            path: submodulePath,
+            oldCommit: oldCommit === EMPTY_TREE_SHA ? '(new)' : oldCommit.substring(0, 7),
+            newCommit: newCommit === EMPTY_TREE_SHA ? '(deleted)' : newCommit.substring(0, 7),
+            changedFiles: changes.changed,
+            deletedFiles: changes.deleted,
+          });
         }
       }
 
-      return { changed: changedFiles, deleted: deletedFiles, renamed: renamedMap };
+      return { changed: changedFiles, deleted: deletedFiles, renamed: renamedMap, submodules: submoduleInfos };
     } catch (error) {
       command.warn(`Error processing submodules: ${(error as Error).message}`);
-      return { changed: [], deleted: [], renamed: new Map() };
+      return { changed: [], deleted: [], renamed: new Map(), submodules: [] };
     }
   });
 }
 
 /**
  * Gets the content of a file at a specific git reference.
+ * Handles both main repo files and submodule files.
  *
  * @param ref The git reference (commit, branch, tag).
  * @param filePath The path to the file.
  * @returns The file content as a string, or null if file doesn't exist at that ref.
  */
+/**
+ * Attempts to read file content from a submodule at a specific ref.
+ */
+function getSubmoduleFileContent(ref: string, filePath: string): string | null {
+  try {
+    const submoduleStatus = execSync('git submodule status', { encoding: 'utf8' }).trim();
+    if (submoduleStatus === '') {
+      return null; // No submodules
+    }
+
+    const submodules = submoduleStatus.split('\n').map((line) => line.trim().split(' ')[1]);
+
+    for (const submodulePath of submodules) {
+      if (filePath.startsWith(submodulePath + '/')) {
+        const relativePathInSubmodule = filePath.substring(submodulePath.length + 1);
+        const submoduleCommit = getSubmoduleCommit(ref, submodulePath);
+
+        if (submoduleCommit === EMPTY_TREE_SHA) {
+          return null; // Submodule doesn't exist at this ref
+        }
+
+        return withDirectory(resolve(process.cwd(), submodulePath), () => {
+          try {
+            return execSync(`git show ${submoduleCommit}:${relativePathInSubmodule}`, {
+              encoding: 'utf8',
+              stdio: ['pipe', 'pipe', 'pipe'],
+            });
+          } catch {
+            return null; // File doesn't exist in submodule
+          }
+        });
+      }
+    }
+
+    return null; // File not in any submodule
+  } catch {
+    return null; // Error checking submodules
+  }
+}
+
 export function getGitFileContent(ref: string, filePath: string): string | null {
   try {
+    // Try as a regular file in the main repo
     return execSync(`git show ${ref}:${filePath}`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
-  } catch (e) {
-    return null; // Return null if file does not exist at that ref
+  } catch {
+    // If that fails, try as a submodule file
+    return getSubmoduleFileContent(ref, filePath);
   }
 }
 
@@ -315,14 +379,14 @@ function filterByPackageDirectories(files: string[], packageDirs: string[]): str
  * @param refB The ending Git reference.
  * @param currentDir The directory to run git commands in.
  * @param command The command logger for warnings and info.
- * @returns An object containing arrays of changed files, deleted files, and renamed map.
+ * @returns An object containing arrays of changed files, deleted files, renamed map, and submodule information.
  */
 export function getAllChangedAndDeletedFiles(
   refA: string,
   refB: string,
   currentDir: string,
   command: CommandLogger & { log: (message: string) => void }
-): { changed: string[]; deleted: string[]; renamed: Map<string, string> } {
+): { changed: string[]; deleted: string[]; renamed: Map<string, string>; submodules: SubmoduleChangeInfo[] } {
   // Get changed and deleted files from main repository
   const result = getChangedAndDeletedFiles(refA, refB, currentDir);
 
@@ -338,6 +402,7 @@ export function getAllChangedAndDeletedFiles(
 
   // Filter by package directories
   const packageDirs = getPackageDirectories(currentDir);
+  let filteredSubmodules = submoduleChanges.submodules;
   if (packageDirs.length > 0) {
     result.changed = filterByPackageDirectories(result.changed, packageDirs);
     result.deleted = filterByPackageDirectories(result.deleted, packageDirs);
@@ -351,9 +416,18 @@ export function getAllChangedAndDeletedFiles(
       }
     }
     result.renamed = filteredRenamed;
+
+    // Filter submodule information to only include files that passed the package directory filter
+    filteredSubmodules = submoduleChanges.submodules
+      .map((submodule) => ({
+        ...submodule,
+        changedFiles: filterByPackageDirectories(submodule.changedFiles, packageDirs),
+        deletedFiles: filterByPackageDirectories(submodule.deletedFiles, packageDirs),
+      }))
+      .filter((submodule) => submodule.changedFiles.length > 0 || submodule.deletedFiles.length > 0);
   }
 
-  return result;
+  return { ...result, submodules: filteredSubmodules };
 }
 
 /**
@@ -367,7 +441,7 @@ export function getAllChangedAndDeletedFiles(
  * @returns Object containing filtered and ignored files.
  */
 export function filterFilesWithIgnored(
-  files: { changed: string[]; deleted: string[] },
+  files: { changed: string[]; deleted: string[]; submodules?: SubmoduleChangeInfo[] },
   forceignorePath: string,
   additionalPatterns?: string[],
   renamed?: Map<string, string>
@@ -376,6 +450,7 @@ export function filterFilesWithIgnored(
   deletedFiles: string[];
   ignoredChanged: string[];
   ignoredDeleted: string[];
+  submodules?: SubmoduleChangeInfo[];
 } {
   const changedFiles = filterIgnoredFiles(files.changed, forceignorePath, additionalPatterns);
   const deletedFiles = filterIgnoredFiles(files.deleted, forceignorePath, additionalPatterns);
@@ -415,5 +490,5 @@ export function filterFilesWithIgnored(
     }
   }
 
-  return { changedFiles, deletedFiles, ignoredChanged, ignoredDeleted };
+  return { changedFiles, deletedFiles, ignoredChanged, ignoredDeleted, submodules: files.submodules };
 }

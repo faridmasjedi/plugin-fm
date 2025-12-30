@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { BUNDLE_PATH_REGEX } from './constants.js';
 import { analyzeGranularMetadataChanges } from './metadataUtils.js';
 import type { Logger } from './types.js';
+import type { SubmoduleChangeInfo } from './gitUtils.js';
 
 export type FileChangeStats = {
   changed: string[];
@@ -13,6 +14,7 @@ export type FileChangeStats = {
     changed: Map<string, string[]>; // bundle name -> files
     deleted: Map<string, string[]>; // bundle name -> files
   };
+  submodules?: SubmoduleChangeInfo[]; // submodule changes
 };
 
 export type ManifestStats = {
@@ -135,6 +137,23 @@ export function formatFileChangeReport(stats: FileChangeStats): string {
   lines.push('═══════════════════════════════════════════════════════════');
   lines.push('');
 
+  // Add submodule info note if there are submodule changes
+  if (stats.submodules && stats.submodules.length > 0) {
+    const totalSubmoduleFiles = stats.submodules.reduce(
+      (sum, sub) => sum + sub.changedFiles.length + sub.deletedFiles.length,
+      0
+    );
+    lines.push(
+      `🔗 Submodules: ${stats.submodules.length} submodule${
+        stats.submodules.length > 1 ? 's' : ''
+      } with changes (${totalSubmoduleFiles} file${totalSubmoduleFiles > 1 ? 's' : ''})`
+    );
+    for (const submodule of stats.submodules) {
+      lines.push(`   - ${submodule.path} (${submodule.oldCommit} → ${submodule.newCommit})`);
+    }
+    lines.push('');
+  }
+
   lines.push(...formatChangedFilesSection(stats.changed));
   lines.push(...formatDeletedFilesSection(stats.deleted));
   lines.push(...formatIgnoredFilesSection(stats.ignoredChanged, stats.ignoredDeleted));
@@ -255,6 +274,40 @@ function generateGitHubBundleSection(bundles: FileChangeStats['bundles']): strin
 }
 
 /**
+ * Generates the submodule info section for GitHub Actions summary.
+ */
+function generateGitHubSubmoduleSection(submodules?: SubmoduleChangeInfo[]): string[] {
+  const lines: string[] = [];
+
+  if (!submodules || submodules.length === 0) {
+    return lines;
+  }
+
+  const totalFiles = submodules.reduce((sum, sub) => sum + sub.changedFiles.length + sub.deletedFiles.length, 0);
+
+  lines.push('## 🔗 Submodule Changes');
+  lines.push('');
+  lines.push(
+    `Found changes in ${submodules.length} submodule${submodules.length > 1 ? 's' : ''} (${totalFiles} file${
+      totalFiles > 1 ? 's' : ''
+    } total):`
+  );
+  lines.push('');
+
+  for (const submodule of submodules) {
+    const subFiles = submodule.changedFiles.length + submodule.deletedFiles.length;
+    lines.push(
+      `- **${submodule.path}**: \`${submodule.oldCommit}\` → \`${submodule.newCommit}\` (${subFiles} file${
+        subFiles > 1 ? 's' : ''
+      })`
+    );
+  }
+  lines.push('');
+
+  return lines;
+}
+
+/**
  * Formats metadata components for GitHub summary (with truncation).
  */
 function formatGitHubMetadataComponents(metadata: { [type: string]: string[] }): string[] {
@@ -341,6 +394,7 @@ export function generateGitHubActionsSummary(
   lines.push('');
 
   lines.push(...generateGitHubOverviewTable(fileStats, manifestStats));
+  lines.push(...generateGitHubSubmoduleSection(fileStats.submodules));
   lines.push(...generateGitHubBundleSection(fileStats.bundles));
   lines.push(...generateGitHubMetadataSection(manifestStats));
   lines.push(...generateGitHubArtifactsSection(outputDir));
@@ -471,6 +525,7 @@ function prepareFileStats(
     deletedFiles: string[];
     ignoredChanged: string[];
     ignoredDeleted: string[];
+    submodules?: SubmoduleChangeInfo[];
   },
   modifiedBundles: Array<{
     bundleRoot: string;
@@ -517,6 +572,7 @@ function prepareFileStats(
       changed: changedBundlesMap,
       deleted: deletedBundlesMap,
     },
+    submodules: filtered.submodules,
   };
 }
 
@@ -713,6 +769,7 @@ export async function generateSummaryOutput(
     deletedFiles: string[];
     ignoredChanged: string[];
     ignoredDeleted: string[];
+    submodules?: SubmoduleChangeInfo[];
   },
   deletedMetadataComponents: { [key: string]: Set<string> },
   manifests: {

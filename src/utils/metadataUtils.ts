@@ -37,16 +37,21 @@ function extractMetadataElements(
   ) {
     return new Set((parsed.CustomLabels as { labels: Array<{ fullName: string[] }> }).labels.map((l) => l.fullName[0]));
   }
-  if (
-    metadataType === 'SharingRules' &&
-    parsed.SharingRules &&
-    Array.isArray((parsed.SharingRules as Record<string, unknown>).sharingCriteriaRules)
-  ) {
-    return new Set(
-      (parsed.SharingRules as { sharingCriteriaRules: Array<{ fullName: string[] }> }).sharingCriteriaRules.map(
-        (r) => r.fullName[0]
-      )
-    );
+  if (metadataType === 'SharingRules' && parsed.SharingRules) {
+    const sharingRules = parsed.SharingRules as Record<string, unknown>;
+    const ruleNames: string[] = [];
+
+    // Extract sharing criteria rules
+    if (Array.isArray(sharingRules.sharingCriteriaRules)) {
+      ruleNames.push(...(sharingRules.sharingCriteriaRules as Array<{ fullName: string[] }>).map((r) => r.fullName[0]));
+    }
+
+    // Extract sharing owner rules
+    if (Array.isArray(sharingRules.sharingOwnerRules)) {
+      ruleNames.push(...(sharingRules.sharingOwnerRules as Array<{ fullName: string[] }>).map((r) => r.fullName[0]));
+    }
+
+    return new Set(ruleNames);
   }
   return new Set<string>();
 }
@@ -244,7 +249,12 @@ export async function analyzeGranularMetadataChanges(
         getGranularMetadataChanges(file, refA, refB, 'CustomLabels')
           .then((changes) => {
             if (changes.added.length > 0 || changes.deleted.length > 0) {
-              result.customLabels = changes;
+              // Accumulate labels from multiple files (parent + submodule)
+              if (!result.customLabels) {
+                result.customLabels = { added: [], deleted: [] };
+              }
+              result.customLabels.added.push(...changes.added);
+              result.customLabels.deleted.push(...changes.deleted);
             }
           })
           .catch(() => {
@@ -267,7 +277,12 @@ export async function analyzeGranularMetadataChanges(
               if (!result.sharingRules) {
                 result.sharingRules = {};
               }
-              result.sharingRules[objectName] = changes;
+              // Accumulate rules from multiple files (parent + submodule) for the same object
+              if (!result.sharingRules[objectName]) {
+                result.sharingRules[objectName] = { added: [], deleted: [] };
+              }
+              result.sharingRules[objectName].added.push(...changes.added);
+              result.sharingRules[objectName].deleted.push(...changes.deleted);
             }
           } catch (error) {
             // Skip if there's an error parsing

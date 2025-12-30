@@ -140,6 +140,8 @@ async function createComponentSetAndCopyFiles(
 
 /**
  * Extracts metadata components from ComponentSet organized by type.
+ * Filters out CustomLabels as they're handled separately with granular processing.
+ * Note: SharingRules are NOT filtered - they're deployed as entire files.
  */
 function extractMetadataComponents(componentSet: ComponentSet): { [key: string]: string[] } {
   const metadata: { [key: string]: string[] } = {};
@@ -149,6 +151,12 @@ function extractMetadataComponents(componentSet: ComponentSet): { [key: string]:
   for (const component of components) {
     const typeName = component.type.name;
     const memberName = component.fullName;
+
+    // Skip CustomLabels - they're handled separately with granular processing (partial files)
+    // SharingRules are NOT skipped - they're deployed as entire files, granular comparison is only for logging
+    if (typeName === 'CustomLabels') {
+      continue;
+    }
 
     if (!metadata[typeName]) {
       metadata[typeName] = [];

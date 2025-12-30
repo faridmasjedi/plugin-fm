@@ -403,6 +403,66 @@ export function isSharingRulesFile(filePath: string): boolean {
 }
 
 /**
+ * Processes and merges CustomLabels from multiple files (parent + submodule).
+ */
+async function processAndMergeCustomLabels(
+  files: string[],
+  refA: string,
+  refB: string,
+  changedFilesDir: string,
+  removedFilesDir: string,
+  logger: Logger,
+  stats: { [key: string]: { changed: number; deleted: number } },
+  changedFiles: string[],
+  deletedFiles: string[]
+): Promise<void> {
+  const allChangedLabels: CustomLabelElement[] = [];
+  const allDeletedLabels: CustomLabelElement[] = [];
+
+  // eslint-disable-next-line no-await-in-loop
+  for (const file of files) {
+    try {
+      const contentA =
+        getGitFileContent(refA, file) ??
+        '<?xml version="1.0" encoding="UTF-8"?><CustomLabels xmlns="http://soap.sforce.com/2006/04/metadata"></CustomLabels>';
+      const contentB = getGitFileContent(refB, file);
+      if (!contentB) continue;
+
+      // eslint-disable-next-line no-await-in-loop
+      const labelsA = await parseCustomLabels(contentA);
+      // eslint-disable-next-line no-await-in-loop
+      const labelsB = await parseCustomLabels(contentB);
+      const { changed, deleted } = compareCustomLabels(labelsA, labelsB);
+
+      if (changed.length > 0 || deleted.length > 0) {
+        // eslint-disable-next-line no-param-reassign
+        stats[file] = { changed: changed.length, deleted: deleted.length };
+        allChangedLabels.push(...changed);
+        allDeletedLabels.push(...deleted);
+      }
+    } catch (error) {
+      logger.warn(`Error processing ${file}: ${(error as Error).message}`);
+    }
+  }
+
+  // Write merged file once
+  if (allChangedLabels.length > 0) {
+    const path = resolve(changedFilesDir, 'labels', 'CustomLabels.labels-meta.xml');
+    ensureDirExists(dirname(path));
+    writeFileSync(path, generateCustomLabelsXml(allChangedLabels));
+    changedFiles.push(path);
+    logger.log(`Created partial CustomLabels in ChangedFiles: ${allChangedLabels.length} changed`);
+  }
+  if (allDeletedLabels.length > 0) {
+    const path = resolve(removedFilesDir, 'labels', 'CustomLabels.labels-meta.xml');
+    ensureDirExists(dirname(path));
+    writeFileSync(path, generateCustomLabelsXml(allDeletedLabels));
+    deletedFiles.push(path);
+    logger.log(`Created partial CustomLabels in RemovedFiles: ${allDeletedLabels.length} deleted`);
+  }
+}
+
+/**
  * Processes multiple granular metadata files in batch.
  */
 export async function processGranularMetadataFiles(
@@ -425,16 +485,29 @@ export async function processGranularMetadataFiles(
   const deletedFiles: string[] = [];
   const sharingRulesToAdd: string[] = [];
 
+  // Separate CustomLabels files (need merging) from others
+  const customLabelsFiles = files.filter((f) => isCustomLabelsFile(f));
+  const otherFiles = files.filter((f) => !isCustomLabelsFile(f));
+
+  // Process and merge all CustomLabels files
+  if (customLabelsFiles.length > 0) {
+    await processAndMergeCustomLabels(
+      customLabelsFiles,
+      refA,
+      refB,
+      changedFilesDir,
+      removedFilesDir,
+      logger,
+      stats,
+      changedFiles,
+      deletedFiles
+    );
+  }
+
+  // Process other files (SharingRules) normally
   await Promise.all(
-    files.map(async (file) => {
-      if (isCustomLabelsFile(file)) {
-        const result = await processCustomLabelsFile(file, refA, refB, changedFilesDir, removedFilesDir, logger);
-        if (result.hasChanges) {
-          stats[file] = { changed: result.changedCount, deleted: result.deletedCount };
-          if (result.changedFilePath) changedFiles.push(result.changedFilePath);
-          if (result.deletedFilePath) deletedFiles.push(result.deletedFilePath);
-        }
-      } else if (isSharingRulesFile(file)) {
+    otherFiles.map(async (file) => {
+      if (isSharingRulesFile(file)) {
         const result = await processSharingRulesFile(file, refA, refB, changedFilesDir, logger);
         if (result.hasChanges) {
           stats[file] = {
