@@ -106,51 +106,64 @@ function summarizeDuplicates(result: AnyRecord): { metrics: Metric[]; result: An
   return { metrics: [{ label: 'Duplicates', value: total, tone: total > 0 ? 'bad' : 'good' }], result };
 }
 
+function summarizeRunbook(record: AnyRecord): { metrics: Metric[]; result: AnyRecord } {
+  const steps = (record.steps ?? []) as Array<{ status: string }>;
+  const actions = (record.actions ?? []) as Array<{ status: string; kind: string }>;
+  const done = steps.filter((s) => s.status === 'done').length;
+  const pr = record.pullRequest as { url?: string } | undefined;
+  return {
+    metrics: [
+      {
+        label: 'Steps done',
+        value: `${done}/${steps.length}`,
+        tone: steps.some((s) => s.status === 'failed') ? 'bad' : 'neutral',
+      },
+      { label: 'Org changes', value: actions.filter((a) => a.kind === 'org' && a.status === 'ok').length },
+      { label: 'Manual', value: actions.filter((a) => a.kind === 'manual').length },
+      {
+        label: 'Rejected',
+        value: actions.filter((a) => a.status === 'rejected').length,
+        tone: actions.some((a) => a.status === 'rejected') ? 'warn' : 'neutral',
+      },
+      ...(pr?.url ? [{ label: 'Pull request', value: 'opened', tone: 'good' as const }] : []),
+    ],
+    result: record,
+  };
+}
+
+function summarizeE2e(record: AnyRecord): { metrics: Metric[]; result: AnyRecord } {
+  const stats = (record.stats ?? {}) as Record<string, number>;
+  return {
+    metrics: [
+      { label: 'Passed', value: stats.passed ?? 0, tone: 'good' },
+      { label: 'Failed', value: stats.failed ?? 0, tone: (stats.failed ?? 0) > 0 ? 'bad' : 'neutral' },
+      { label: 'Flaky', value: stats.flaky ?? 0, tone: (stats.flaky ?? 0) > 0 ? 'warn' : 'neutral' },
+      { label: 'Skipped', value: stats.skipped ?? 0 },
+    ],
+    result: record,
+  };
+}
+
+const SUMMARIZERS: Partial<Record<StageUses, (record: AnyRecord) => { metrics: Metric[]; result: unknown }>> = {
+  build: summarizeBuild,
+  quality: summarizeQuality,
+  deploy: summarizeDeploy,
+  'check-duplicates': summarizeDuplicates,
+  'ai-runbook': summarizeRunbook,
+  e2e: summarizeE2e,
+  tag: (record) => ({ metrics: [{ label: 'Tag', value: String(record.tag ?? ''), tone: 'good' }], result: record }),
+};
+
 export function summarizeStage(uses: StageUses, result: unknown): { metrics: Metric[]; result: unknown } {
   if (!result || typeof result !== 'object') return { metrics: [], result };
   const record = result as AnyRecord;
-  switch (uses) {
-    case 'build':
-      return summarizeBuild(record);
-    case 'quality':
-      return summarizeQuality(record);
-    case 'deploy':
-      return summarizeDeploy(record);
-    case 'check-duplicates':
-      return summarizeDuplicates(record);
-    case 'ai-runbook': {
-      const steps = (record.steps ?? []) as Array<{ status: string }>;
-      const actions = (record.actions ?? []) as Array<{ status: string; kind: string }>;
-      const done = steps.filter((s) => s.status === 'done').length;
-      const pr = record.pullRequest as { url?: string } | undefined;
-      return {
-        metrics: [
-          {
-            label: 'Steps done',
-            value: `${done}/${steps.length}`,
-            tone: steps.some((s) => s.status === 'failed') ? 'bad' : 'neutral',
-          },
-          { label: 'Org changes', value: actions.filter((a) => a.kind === 'org' && a.status === 'ok').length },
-          { label: 'Manual', value: actions.filter((a) => a.kind === 'manual').length },
-          {
-            label: 'Rejected',
-            value: actions.filter((a) => a.status === 'rejected').length,
-            tone: actions.some((a) => a.status === 'rejected') ? 'warn' : 'neutral',
-          },
-          ...(pr?.url ? [{ label: 'Pull request', value: 'opened', tone: 'good' as const }] : []),
-        ],
-        result,
-      };
-    }
-    case 'tag':
-      return { metrics: [{ label: 'Tag', value: String(record.tag ?? ''), tone: 'good' }], result };
-    default:
-      return {
-        metrics:
-          'exitCode' in record
-            ? [{ label: 'Exit code', value: Number(record.exitCode), tone: record.exitCode === 0 ? 'good' : 'bad' }]
-            : [],
-        result,
-      };
-  }
+  const summarize = SUMMARIZERS[uses];
+  if (summarize) return summarize(record);
+  return {
+    metrics:
+      'exitCode' in record
+        ? [{ label: 'Exit code', value: Number(record.exitCode), tone: record.exitCode === 0 ? 'good' : 'bad' }]
+        : [],
+    result,
+  };
 }

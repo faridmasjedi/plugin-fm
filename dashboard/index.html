@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Release Dashboard</title>
+    <title>NomadSF</title>
     <!--FM_DATA-->
     <style>
       :root {
@@ -839,6 +839,116 @@
       details summary {
         cursor: pointer;
       }
+      .org-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+      }
+      .org-head h1 {
+        font-size: 20px;
+        margin: 0;
+      }
+      .ox-split {
+        display: grid;
+        grid-template-columns: 270px minmax(0, 1fr);
+        gap: 16px;
+        align-items: start;
+      }
+      .ox-side {
+        padding: 10px;
+        position: sticky;
+        top: 0;
+        max-height: calc(100vh - 140px);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        overflow: hidden;
+      }
+      .ox-side input {
+        min-width: 0;
+        width: 100%;
+      }
+      .ox-list {
+        overflow: auto;
+        max-height: 34vh;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      .ox-item {
+        padding: 4px 8px;
+        cursor: pointer;
+        font-size: 12.5px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-family: var(--mono);
+      }
+      .ox-item:hover {
+        background: var(--accent-soft);
+      }
+      .ox-editor {
+        width: 100%;
+        min-height: 130px;
+        font-family: var(--mono);
+        font-size: 13px;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        color: var(--text);
+        resize: vertical;
+      }
+      .rt-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+      .rt-filter {
+        min-width: 300px;
+      }
+      .rt-wrap {
+        overflow: auto;
+        max-height: 62vh;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      table.rt {
+        font-size: 12.5px;
+      }
+      table.rt th,
+      table.rt td {
+        white-space: nowrap;
+        max-width: 420px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      table.rt thead th {
+        position: sticky;
+        top: 0;
+        background: var(--panel);
+        cursor: pointer;
+        z-index: 1;
+      }
+      table.rt thead tr.filters th {
+        top: 30px;
+        cursor: default;
+      }
+      table.rt tr.filters input {
+        min-width: 70px;
+        width: 100%;
+        padding: 2px 6px;
+        font-size: 12px;
+      }
+      table.rt tbody tr:hover {
+        background: var(--panel-2);
+      }
+      table.rt .sel {
+        width: 28px;
+      }
 
       @media (max-width: 860px) {
         .nav {
@@ -847,6 +957,17 @@
         }
         .runbooks {
           grid-template-columns: 1fr;
+        }
+        .ox-split {
+          grid-template-columns: 1fr;
+        }
+        .ox-side {
+          position: static;
+          max-height: none;
+        }
+        .rt-filter {
+          min-width: 0;
+          width: 100%;
         }
         .app {
           grid-template-columns: 1fr;
@@ -877,7 +998,7 @@
   <body>
     <div class="app">
       <header class="top">
-        <div class="brand"><span class="logo"></span>Release Dashboard</div>
+        <div class="brand"><span class="logo"></span>NomadSF</div>
         <nav class="nav" id="nav"></nav>
         <span class="sub" id="pipelineName"></span>
         <span class="spacer"></span>
@@ -1481,11 +1602,26 @@
             ]
           : [
               ['runs', 'Runs'],
+              ['org', 'Org explorer'],
               ['orgs', 'Orgs'],
               ['repo', 'Repository'],
               ['runbooks', 'Runbooks'],
               ['ai', 'AI'],
             ];
+
+        /** The Org explorer lives in org.js and is loaded on first use (live app only). */
+        async function renderOrgExplorer() {
+          if (!window.NomadSFOrg) {
+            await new Promise((resolveLoad, reject) => {
+              const script = document.createElement('script');
+              script.src = '/org.js';
+              script.onload = resolveLoad;
+              script.onerror = reject;
+              document.head.append(script);
+            });
+          }
+          window.NomadSFOrg.render($('main'));
+        }
 
         async function getJson(path) {
           const res = await fetch(path);
@@ -1856,7 +1992,9 @@
             if (!force) return;
             document.querySelector('.app').classList.add('wide');
             (
-              ({ orgs: renderOrgs, repo: renderRepo, runbooks: renderRunbooks, ai: renderAi })[state.page] || renderRepo
+              ({ org: renderOrgExplorer, orgs: renderOrgs, repo: renderRepo, runbooks: renderRunbooks, ai: renderAi })[
+                state.page
+              ] || renderRepo
             )();
             return;
           }
@@ -1889,6 +2027,8 @@
             $('live').textContent = 'Disconnected';
           }
         }
+
+        window.NomadSF = { esc, post, getJson, fmtTime, go, $ };
 
         $('themeBtn').onclick = () => {
           const root = document.documentElement;

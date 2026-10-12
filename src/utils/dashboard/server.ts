@@ -14,8 +14,10 @@ import {
   startRunbook,
   type RepoInfo,
 } from './appApi.js';
+import { handleOrgRoute } from './orgRoutes.js';
 
 const TEMPLATE_URL = new URL('../../../dashboard/index.html', import.meta.url);
+const ORG_SCRIPT_URL = new URL('../../../dashboard/org.js', import.meta.url);
 const MAX_EXPORTED_LOG = 20_000;
 
 export type DashboardInfo = {
@@ -216,6 +218,11 @@ export function startDashboardServer(options: ServeOptions): Promise<Server> {
     const url = new URL(req.url ?? '/', 'http://localhost');
     const parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
 
+    if (req.method === 'GET' && url.pathname === '/org.js') {
+      res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' });
+      res.end(readFileSync(ORG_SCRIPT_URL, 'utf8'));
+      return;
+    }
     if (req.method === 'GET' && url.pathname === '/') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
       res.end(template());
@@ -226,6 +233,10 @@ export function startDashboardServer(options: ServeOptions): Promise<Server> {
     if (req.method === 'GET' && parts[1] === 'runs' && parts.length === 2) return sendJson(res, 200, store.list());
     if (parts[1] === 'runs' && parts[2]) return handleRun(req, res, parts);
     if (req.method === 'POST' && parts[1] === 'start') return handleStart(req, res);
+    if (parts[1] === 'org' || parts[1] === 'e2e') {
+      const handled = await handleOrgRoute(req, res, parts, { ...options, readBody, sendJson });
+      if (handled) return;
+    }
     return handleApp(req, res, parts);
   };
 

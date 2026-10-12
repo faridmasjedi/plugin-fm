@@ -13,6 +13,7 @@ Comprehensive guide for all `@salesforce/plugin-fm` commands with examples and s
 - [sf fm pipeline run / init / approve](#sf-fm-pipeline-run--init--approve)
 - [sf fm dashboard](#sf-fm-dashboard)
 - [sf fm runbook run / init](#sf-fm-runbook-run--init)
+- [sf fm e2e run / init](#sf-fm-e2e-run--init)
 
 ---
 
@@ -977,6 +978,17 @@ sf fm runbook init                                                     # .fm/ai.
 sf fm runbook run -f .fm/runbooks/pre-deploy.md -o uat --plan          # read-only plan
 sf fm runbook run -f .fm/runbooks/pre-deploy.md -o uat                 # approve each change in the terminal
 sf fm runbook run -f .fm/runbooks/post-deploy.md -o uat --wait-for-approval --pr
+```
+
+---
+
+## sf fm e2e run / init
+
+Playwright end-to-end scenarios against an org, logged in through the frontdoor URL (no stored passwords). See [ORG_EXPLORER.md](ORG_EXPLORER.md#playwright-scenarios).
+
+```bash
+sf fm e2e init
+sf fm e2e run --target-org uat --grep Smoke
 ```
 
 ---

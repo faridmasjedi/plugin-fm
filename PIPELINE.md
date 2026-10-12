@@ -63,21 +63,21 @@ stages:
 
 ### Stage fields
 
-| Field               | Description                                                                                          |
-| ------------------- | ---------------------------------------------------------------------------------------------------- |
-| `id`                | Unique id (letters, digits, `-`, `_`). Used in `${stages.<id>...}` and on the dashboard              |
-| `name`              | Display name                                                                                         |
-| `description`       | Shown in the dashboard and at approval gates                                                         |
-| `uses`              | `build`, `quality`, `deploy`, `check-duplicates`, `script`, `shell`, `approval`, `tag`, `ai-runbook` |
-| `with`              | Flags for the command, same names as on the command line (`true` → `--flag`, lists repeat the flag)  |
-| `run`               | `script`: path to `.apex`, `.sh`, `.js`, `.ts` or `.py`. `shell`: a command line                     |
-| `env`               | Extra environment variables for this stage                                                           |
-| `if`                | `success` (default: all earlier stages passed), `failure`, `always`                                  |
-| `on`                | Only run for these events: `pr`, `push`, `manual` (default: every event)                             |
-| `when`              | Only run when this value, or every value in a list, is truthy (`false`, `0`, `""`, `no` are false)   |
-| `continue-on-error` | A failure is shown as a warning and later stages still run                                           |
-| `manual`            | Ask for approval before running this stage                                                           |
-| `timeout-minutes`   | Timeout for `script` and `shell` stages                                                              |
+| Field               | Description                                                                                                 |
+| ------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `id`                | Unique id (letters, digits, `-`, `_`). Used in `${stages.<id>...}` and on the dashboard                     |
+| `name`              | Display name                                                                                                |
+| `description`       | Shown in the dashboard and at approval gates                                                                |
+| `uses`              | `build`, `quality`, `deploy`, `check-duplicates`, `script`, `shell`, `approval`, `tag`, `ai-runbook`, `e2e` |
+| `with`              | Flags for the command, same names as on the command line (`true` → `--flag`, lists repeat the flag)         |
+| `run`               | `script`: path to `.apex`, `.sh`, `.js`, `.ts` or `.py`. `shell`: a command line                            |
+| `env`               | Extra environment variables for this stage                                                                  |
+| `if`                | `success` (default: all earlier stages passed), `failure`, `always`                                         |
+| `on`                | Only run for these events: `pr`, `push`, `manual` (default: every event)                                    |
+| `when`              | Only run when this value, or every value in a list, is truthy (`false`, `0`, `""`, `no` are false)          |
+| `continue-on-error` | A failure is shown as a warning and later stages still run                                                  |
+| `manual`            | Ask for approval before running this stage                                                                  |
+| `timeout-minutes`   | Timeout for `script` and `shell` stages                                                                     |
 
 `uses: ai-runbook` runs a Markdown runbook with AI (`run:` the file; `with: { target-org, mode, approve, pr, base }`), see [AI_RUNBOOKS.md](AI_RUNBOOKS.md).
 

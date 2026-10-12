@@ -1,0 +1,21 @@
+# NomadSF: Salesforce CLI + plugin-fm + Code Analyzer, for CI jobs (built by .github/workflows/release.yml)
+FROM node:22-slim
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git ca-certificates openjdk-17-jre-headless jq \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g @salesforce/cli && sf plugins install code-analyzer
+
+ARG PLUGIN_TARBALL
+COPY ${PLUGIN_TARBALL} /tmp/plugin-fm.tgz
+RUN mkdir -p /opt/plugin-fm \
+  && tar -xzf /tmp/plugin-fm.tgz -C /opt/plugin-fm --strip-components=1 \
+  && cd /opt/plugin-fm && npm install --omit=dev --ignore-scripts \
+  && sf plugins link /opt/plugin-fm --no-install \
+  && rm /tmp/plugin-fm.tgz
+
+ENV SF_AUTOUPDATE_DISABLE=true SF_DISABLE_TELEMETRY=true
+WORKDIR /workspace
+ENTRYPOINT ["sf"]
+CMD ["fm", "--help"]

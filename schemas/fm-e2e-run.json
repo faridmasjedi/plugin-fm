@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/E2eResult",
+  "definitions": {
+    "E2eResult": {
+      "type": "object",
+      "properties": {
+        "org": {
+          "type": "string"
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "exitCode": {
+          "type": "number"
+        },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "passed": {
+              "type": "number"
+            },
+            "failed": {
+              "type": "number"
+            },
+            "flaky": {
+              "type": "number"
+            },
+            "skipped": {
+              "type": "number"
+            },
+            "durationMs": {
+              "type": "number"
+            }
+          },
+          "required": ["passed", "failed", "flaky", "skipped", "durationMs"],
+          "additionalProperties": false
+        },
+        "tests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/E2eTest"
+          }
+        },
+        "reportDir": {
+          "type": "string"
+        },
+        "resultsFile": {
+          "type": "string"
+        }
+      },
+      "required": ["org", "passed", "exitCode", "stats", "tests", "reportDir", "resultsFile"],
+      "additionalProperties": false
+    },
+    "E2eTest": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "durationMs": {
+          "type": "number"
+        },
+        "error": {
+          "type": "string"
+        },
+        "retries": {
+          "type": "number"
+        }
+      },
+      "required": ["title", "file", "status", "durationMs", "retries"],
+      "additionalProperties": false
+    }
+  }
+}

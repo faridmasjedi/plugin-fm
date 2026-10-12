@@ -12,6 +12,7 @@ export const STAGE_USES = [
   'approval',
   'tag',
   'ai-runbook',
+  'e2e',
 ] as const;
 export type StageUses = (typeof STAGE_USES)[number];
 
