@@ -1,582 +1,74 @@
-# Quality Command Documentation
+# sf fm quality
 
-## Overview
-
-The `sf fm quality` command runs comprehensive quality checks on changed files between two Git commits. It's designed for CI/CD pipelines to ensure code quality on changed files only.
-
-## Command
+Static code analysis on the files that changed between two Git references, so a pull request is judged on the code it touches, not on years of existing code.
 
 ```bash
-sf fm quality --base-sha <base> --head-sha <head> [options]
+sf fm quality --ref-a <git-ref> [--ref-b HEAD] [options]
+sf fm quality --all [options]
 ```
 
-## Quality Checks Performed
+## Engines
 
-### 1. ESLint (JavaScript/TypeScript)
+| Engine          | Used when                                                     | What it checks                                                   |
+| --------------- | ------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `code-analyzer` | `sf code-analyzer` is installed (preferred)                   | PMD, CPD, ESLint (LWC/Aura), RetireJS, Flow Scanner, regex rules |
+| `pmd`           | Code Analyzer is missing, `pmd` is on the PATH, ruleset found | Apex and Visualforce with your `ruleset.xml`, exactly as written |
+| `eslint`        | Code Analyzer is missing, the repo has ESLint installed       | `.js`/`.ts` with the repository's own ESLint configuration       |
 
-- **What it checks**: Code style, best practices, potential bugs
-- **File types**: `.js`, `.ts`, `.jsx`, `.tsx`
-- **Tool**: ESLint
-- **Skippable**: `--skip-eslint`
+Choose explicitly with `--engine` (repeatable): `--engine pmd --engine eslint`.
 
-### 2. XML Validation
+PMD, CPD and the Graph Engine need **Java 11+**. If Java is missing, Code Analyzer still runs the other engines; the report shows a warning such as `pmd did not run: Could not locate Java v11.0.0+` instead of failing the build.
 
-- **What it checks**: XML syntax, well-formedness
-- **File types**: `.xml`
-- **Tool**: `xmllint`
-- **Skippable**: `--skip-xml-lint`
+## Bring your own rules
 
-### 3. PMD Static Analysis
+- **PMD ruleset** — put `ruleset.xml` in the repo (`ruleset.xml`, `pmd-ruleset.xml`, `pmd/ruleset.xml`, `config/pmd/ruleset.xml` or `.pmd/ruleset.xml`) or pass `--pmd-ruleset`.
+  - With the `pmd` engine the ruleset is used exactly as written.
+  - With Code Analyzer the ruleset is registered as a custom ruleset, and the rules it references are added to the rule selectors (`category/apex/security.xml` → `pmd:Security`, `.../ApexCRUDViolation` → `pmd:ApexCRUDViolation`). `<exclude>` elements are not translated.
+- **Code Analyzer config** — a `code-analyzer.yml` in the repo (or `--config-file`) gives full control and takes precedence.
+- **Rule selection** — `--rule-selector` (default `Recommended`), e.g. `--rule-selector Security --rule-selector pmd:ApexCRUDViolation`.
 
-- **What it checks**: Code smells, anti-patterns, complexity
-- **File types**: All source files
-- **Tool**: PMD
-- **Skippable**: `--skip-pmd`
-- **Requires**: PMD installed + ruleset file
+## Gate
 
-### 4. Tests (Jest/Mocha)
+Severities follow Code Analyzer and PMD: **1 Critical, 2 High, 3 Moderate, 4 Low, 5 Info**. ESLint errors count as High, warnings as Low.
 
-- **What it checks**: Test execution and results
-- **File types**: Test files (`.test.ts`, `.spec.ts`)
-- **Tool**: `npm run test:only`
-- **Skippable**: `--skip-tests`
+The command exits with code **1** when a violation at or above `--severity-threshold` (default `2`) is found, or when an engine fails. `--warn-only` reports without failing.
 
----
+## Output
+
+Written to `--output-dir` (default `quality-report/`):
+
+| File            | Use                                                               |
+| --------------- | ----------------------------------------------------------------- |
+| `quality.md`    | Markdown summary; also appended to the GitHub Actions job summary |
+| `quality.sarif` | Upload to GitHub code scanning for inline PR annotations          |
+| `quality.json`  | Full result for automation and the dashboard                      |
 
 ## Flags
 
-### Required
+| Flag                   | Description                                                   |
+| ---------------------- | ------------------------------------------------------------- |
+| `--ref-a`, `-r`        | Scan files changed since this ref                             |
+| `--ref-b`, `-R`        | Newer ref (default `HEAD`)                                    |
+| `--all`, `-a`          | Scan every file in the package directories                    |
+| `--engine`, `-e`       | `code-analyzer`, `pmd`, `eslint` (auto-detected when omitted) |
+| `--rule-selector`      | Code Analyzer rule selector(s) (default `Recommended`)        |
+| `--pmd-ruleset`        | PMD `ruleset.xml` (auto-detected)                             |
+| `--config-file`        | Code Analyzer config (default `code-analyzer.yml`)            |
+| `--forceignore`, `-i`  | Files ignored by `.forceignore` are not scanned               |
+| `--severity-threshold` | Fail on this severity or worse (1–5, default 2)               |
+| `--warn-only`          | Never fail                                                    |
+| `--output-dir`, `-d`   | Report directory (default `quality-report`)                   |
 
-| Flag         | Short | Description                 | Example       |
-| ------------ | ----- | --------------------------- | ------------- |
-| `--base-sha` | `-b`  | Base commit to compare from | `origin/main` |
-| `--head-sha` | `-h`  | Head commit to compare to   | `HEAD`        |
+Changed files include files changed inside Git submodules, filtered by the parent's `sfdx-project.json` package directories, exactly like `sf fm build`.
 
-### Optional
-
-| Flag                 | Description                        | Default     |
-| -------------------- | ---------------------------------- | ----------- |
-| `--pmd-ruleset`      | Path to custom PMD ruleset XML     | Auto-detect |
-| `--skip-eslint`      | Skip ESLint checks                 | `false`     |
-| `--skip-xml-lint`    | Skip XML validation                | `false`     |
-| `--skip-pmd`         | Skip PMD analysis                  | `false`     |
-| `--skip-tests`       | Skip test execution                | `false`     |
-| `--fail-on-warnings` | Fail on warnings (not just errors) | `false`     |
-| `--json`             | Output results as JSON             | `false`     |
-
----
-
-## Usage Examples
-
-### Basic Usage
-
-```bash
-# Compare current branch with main
-sf fm quality --base-sha origin/main --head-sha HEAD
-```
-
-### CI/CD Pipeline
-
-```bash
-# GitHub Actions
-sf fm quality --base-sha ${{ github.base_ref }} --head-sha ${{ github.sha }}
-
-# GitLab CI
-sf fm quality --base-sha $CI_MERGE_REQUEST_TARGET_BRANCH_SHA --head-sha $CI_COMMIT_SHA
-
-# Jenkins
-sf fm quality --base-sha ${env.GIT_PREVIOUS_COMMIT} --head-sha ${env.GIT_COMMIT}
-```
-
-### Custom PMD Ruleset
-
-```bash
-sf fm quality \
-  --base-sha origin/main \
-  --head-sha HEAD \
-  --pmd-ruleset ./custom-pmd-rules.xml
-```
-
-### Skip Specific Checks
-
-```bash
-# Skip PMD and tests
-sf fm quality \
-  --base-sha origin/main \
-  --head-sha HEAD \
-  --skip-pmd \
-  --skip-tests
-```
-
-### Fail on Warnings
-
-```bash
-# Fail if any warnings found
-sf fm quality \
-  --base-sha origin/main \
-  --head-sha HEAD \
-  --fail-on-warnings
-```
-
-### JSON Output
-
-```bash
-# Get JSON output for parsing
-sf fm quality \
-  --base-sha origin/main \
-  --head-sha HEAD \
-  --json > quality-report.json
-```
-
----
-
-## PMD Ruleset Configuration
-
-### Auto-detection
-
-The command looks for PMD rulesets in these locations (in order):
-
-1. `--pmd-ruleset` flag value
-2. `.pmd/ruleset.xml`
-3. `pmd-ruleset.xml`
-4. `.pmd/pmd-ruleset.xml`
-
-If no ruleset is found, PMD checks are skipped.
-
-### Example Ruleset
-
-Create `.pmd/ruleset.xml`:
-
-```xml
-<?xml version="1.0"?>
-<ruleset name="Custom Ruleset"
-    xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
-
-    <description>Custom PMD rules for project</description>
-
-    <!-- JavaScript/ECMAScript rules -->
-    <rule ref="category/ecmascript/bestpractices.xml"/>
-    <rule ref="category/ecmascript/codestyle.xml"/>
-    <rule ref="category/ecmascript/errorprone.xml"/>
-
-    <!-- XML rules -->
-    <rule ref="category/xml/bestpractices.xml"/>
-    <rule ref="category/xml/errorprone.xml"/>
-
-    <!-- Exclude specific rules -->
-    <rule ref="category/ecmascript/codestyle.xml">
-        <exclude name="AssignmentInOperand"/>
-    </rule>
-
-    <!-- Exclude specific files -->
-    <exclude-pattern>.*/test/.*</exclude-pattern>
-    <exclude-pattern>.*/node_modules/.*</exclude-pattern>
-</ruleset>
-```
-
----
-
-## Output Format
-
-### Human-readable Output
-
-```
-Analyzing changes between origin/main and HEAD...
-Found 15 changed file(s)
-Running ESLint on 12 file(s)...
-Running XML validation on 3 file(s)...
-Running PMD static analysis...
-Running tests for changed files...
-
-============================================================
-Quality Check Results
-============================================================
-
-✅ ESLint: PASS
-
-✅ XML Lint: PASS
-
-❌ PMD: FAIL
-   Errors: 3
-   Details:
-     src/utils/helper.ts:45: Avoid using var
-     src/services/api.ts:120: Function too complex
-     src/models/user.ts:30: Missing documentation
-
-⚠️  Tests: WARNING
-   Warnings: 1
-   Details:
-     1 test skipped
-
-============================================================
-Total Errors: 3
-Total Warnings: 1
-============================================================
-
-❌ Quality checks failed with 3 error(s)
-```
-
-### JSON Output (`--json`)
-
-```json
-{
-  "status": 1,
-  "result": {
-    "baseSha": "origin/main",
-    "headSha": "HEAD",
-    "filesChanged": 15,
-    "checks": [
-      {
-        "check": "ESLint",
-        "status": "pass",
-        "errors": 0,
-        "warnings": 0
-      },
-      {
-        "check": "XML Lint",
-        "status": "pass",
-        "errors": 0,
-        "warnings": 0
-      },
-      {
-        "check": "PMD",
-        "status": "fail",
-        "errors": 3,
-        "warnings": 0,
-        "details": [
-          "src/utils/helper.ts:45: Avoid using var",
-          "src/services/api.ts:120: Function too complex",
-          "src/models/user.ts:30: Missing documentation"
-        ]
-      },
-      {
-        "check": "Tests",
-        "status": "warning",
-        "errors": 0,
-        "warnings": 1,
-        "details": ["1 test skipped"]
-      }
-    ],
-    "totalErrors": 3,
-    "totalWarnings": 1,
-    "passed": false
-  }
-}
-```
-
----
-
-## Exit Codes
-
-| Code | Meaning                                            |
-| ---- | -------------------------------------------------- |
-| `0`  | All checks passed                                  |
-| `1`  | One or more checks failed with errors              |
-| `1`  | Warnings found (when `--fail-on-warnings` is used) |
-
----
-
-## CI/CD Integration
-
-### GitHub Actions
+## GitHub Actions
 
 ```yaml
-name: Quality Checks
-
-on:
-  pull_request:
-    branches: [main]
-
-jobs:
-  quality:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Install SF CLI
-        run: npm install -g @salesforce/cli
-
-      - name: Install Plugin
-        run: sf plugins install @salesforce/plugin-fm
-
-      - name: Install PMD (optional)
-        run: |
-          wget https://github.com/pmd/pmd/releases/download/pmd_releases%2F7.0.0/pmd-dist-7.0.0-bin.zip
-          unzip pmd-dist-7.0.0-bin.zip
-          echo "$PWD/pmd-bin-7.0.0/bin" >> $GITHUB_PATH
-
-      - name: Install Dependencies
-        run: npm install
-
-      - name: Run Quality Checks
-        run: |
-          sf fm quality \
-            --base-sha origin/${{ github.base_ref }} \
-            --head-sha ${{ github.sha }} \
-            --json > quality-report.json
-
-      - name: Upload Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: quality-report
-          path: quality-report.json
+- uses: actions/setup-java@v4
+  with: { distribution: temurin, java-version: '17' }
+- run: sf plugins install code-analyzer
+- run: sf fm quality --ref-a origin/${{ github.base_ref }} --severity-threshold 2
+- uses: github/codeql-action/upload-sarif@v3
+  if: always()
+  with: { sarif_file: quality-report/quality.sarif }
 ```
-
-### GitLab CI
-
-```yaml
-quality-checks:
-  stage: test
-  image: node:18
-  before_script:
-    - npm install -g @salesforce/cli
-    - sf plugins install @salesforce/plugin-fm
-    - npm install
-  script:
-    - sf fm quality --base-sha $CI_MERGE_REQUEST_TARGET_BRANCH_SHA --head-sha $CI_COMMIT_SHA
-  artifacts:
-    when: always
-    reports:
-      junit: quality-report.json
-  only:
-    - merge_requests
-```
-
-### Azure DevOps
-
-```yaml
-- task: Bash@3
-  displayName: 'Run Quality Checks'
-  inputs:
-    targetType: 'inline'
-    script: |
-      npm install -g @salesforce/cli
-      sf plugins install @salesforce/plugin-fm
-      npm install
-      sf fm quality \
-        --base-sha $(System.PullRequest.TargetBranch) \
-        --head-sha $(Build.SourceVersion)
-```
-
----
-
-## Requirements
-
-### System Requirements
-
-- Node.js 18.x or higher
-- Git repository
-- npm or yarn
-
-### Tool Requirements
-
-| Tool    | Required For                  | Installation                                                               |
-| ------- | ----------------------------- | -------------------------------------------------------------------------- |
-| ESLint  | JavaScript/TypeScript linting | `npm install eslint` (usually in project)                                  |
-| xmllint | XML validation                | `apt-get install libxml2-utils` (Linux)<br>`brew install libxml2` (macOS)  |
-| PMD     | Static analysis               | [Install PMD](https://pmd.github.io/latest/pmd_userdocs_installation.html) |
-
----
-
-## Troubleshooting
-
-### Issue: "Not a Git repository"
-
-**Solution:**
-
-```bash
-# Ensure you're in a Git repository
-git init
-git remote add origin <repo-url>
-```
-
-### Issue: "Invalid Git reference"
-
-**Solution:**
-
-```bash
-# Fetch all branches
-git fetch --all
-
-# Verify references exist
-git rev-parse origin/main
-git rev-parse HEAD
-```
-
-### Issue: "xmllint: command not found"
-
-**Solution:**
-
-```bash
-# Ubuntu/Debian
-sudo apt-get install libxml2-utils
-
-# macOS
-brew install libxml2
-
-# Or skip XML checks
-sf fm quality --base-sha ... --head-sha ... --skip-xml-lint
-```
-
-### Issue: "PMD not found"
-
-**Solution:**
-
-```bash
-# Install PMD
-brew install pmd  # macOS
-
-# Or download manually
-wget https://github.com/pmd/pmd/releases/download/pmd_releases%2F7.0.0/pmd-dist-7.0.0-bin.zip
-unzip pmd-dist-7.0.0-bin.zip
-export PATH=$PATH:$PWD/pmd-bin-7.0.0/bin
-
-# Or skip PMD checks
-sf fm quality --base-sha ... --head-sha ... --skip-pmd
-```
-
-### Issue: "ESLint errors but code looks fine"
-
-**Solution:**
-
-```bash
-# Run ESLint locally to see details
-npx eslint <file>
-
-# Auto-fix issues
-npx eslint --fix <file>
-
-# Check ESLint config
-cat .eslintrc.js
-```
-
----
-
-## Best Practices
-
-### 1. Run Locally Before Push
-
-```bash
-# Always run quality checks before pushing
-sf fm quality --base-sha origin/main --head-sha HEAD
-```
-
-### 2. Use in Pre-commit Hooks
-
-Add to `.husky/pre-push`:
-
-```bash
-#!/bin/sh
-sf fm quality --base-sha origin/main --head-sha HEAD
-```
-
-### 3. Customize for Your Project
-
-- Create custom PMD ruleset
-- Configure ESLint rules
-- Skip irrelevant checks
-- Set appropriate failure thresholds
-
-### 4. Monitor Metrics
-
-Track:
-
-- Pass rate over time
-- Common error types
-- Time to fix issues
-- Coverage trends
-
----
-
-## Advanced Usage
-
-### Check Specific Commit Range
-
-```bash
-# Check last 5 commits
-sf fm quality --base-sha HEAD~5 --head-sha HEAD
-
-# Check between two commits
-sf fm quality --base-sha abc123 --head-sha def456
-```
-
-### Combine with Other Commands
-
-```bash
-# Build and quality check
-sf fm build --ref-a origin/main --ref-b HEAD --output-dir ./build
-sf fm quality --base-sha origin/main --head-sha HEAD
-```
-
-### Custom Test Command
-
-If you use a different test command, modify `runTests()` in the source or run tests separately:
-
-```bash
-# Run quality checks without tests
-sf fm quality --base-sha origin/main --head-sha HEAD --skip-tests
-
-# Run your custom tests
-npm run custom-test-command
-```
-
----
-
-## API
-
-### Command
-
-```typescript
-sf fm quality --base-sha <base> --head-sha <head>
-```
-
-### Return Type
-
-```typescript
-interface QualityResult {
-  baseSha: string;
-  headSha: string;
-  filesChanged: number;
-  checks: QualityCheckResult[];
-  totalErrors: number;
-  totalWarnings: number;
-  passed: boolean;
-}
-
-interface QualityCheckResult {
-  check: string;
-  status: 'pass' | 'fail' | 'warning' | 'skipped';
-  errors: number;
-  warnings: number;
-  details?: string[];
-}
-```
-
----
-
-## Support
-
-For issues or questions:
-
-- Check logs for detailed error messages
-- Review tool-specific documentation
-- Create issue in repository
-- Contact DevOps team
-
----
-
-## Related Commands
-
-- `sf fm build` - Build deployment artifacts from Git changes
-- `sf fm deploy` - Deploy changed components
-- `sf fm deploy status` - Check deployment status

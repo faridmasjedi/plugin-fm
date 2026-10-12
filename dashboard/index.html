@@ -1,0 +1,1918 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Release Dashboard</title>
+    <!--FM_DATA-->
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --panel: #ffffff;
+        --panel-2: #f1f3f6;
+        --border: #e3e6eb;
+        --text: #1b1f24;
+        --muted: #667085;
+        --accent: #0b5cff;
+        --accent-soft: #e8efff;
+        --good: #12804a;
+        --good-soft: #e3f5ea;
+        --bad: #c62828;
+        --bad-soft: #fde8e8;
+        --warn: #a15c00;
+        --warn-soft: #fff3dc;
+        --wait: #6941c6;
+        --wait-soft: #f0eaff;
+        --idle: #98a2b3;
+        --run: #0b5cff;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          --bg: #0f1216;
+          --panel: #161a20;
+          --panel-2: #1d222a;
+          --border: #2a313b;
+          --text: #e6e9ee;
+          --muted: #9aa4b2;
+          --accent: #6b9bff;
+          --accent-soft: #1b2740;
+          --good: #4cc38a;
+          --good-soft: #15291f;
+          --bad: #ff6b6b;
+          --bad-soft: #321a1c;
+          --warn: #f5b04c;
+          --warn-soft: #2f2414;
+          --wait: #a78bfa;
+          --wait-soft: #251d3d;
+          --idle: #5b6573;
+          --run: #6b9bff;
+          --shadow: none;
+        }
+      }
+      :root[data-theme='dark'] {
+        --bg: #0f1216;
+        --panel: #161a20;
+        --panel-2: #1d222a;
+        --border: #2a313b;
+        --text: #e6e9ee;
+        --muted: #9aa4b2;
+        --accent: #6b9bff;
+        --accent-soft: #1b2740;
+        --good: #4cc38a;
+        --good-soft: #15291f;
+        --bad: #ff6b6b;
+        --bad-soft: #321a1c;
+        --warn: #f5b04c;
+        --warn-soft: #2f2414;
+        --wait: #a78bfa;
+        --wait-soft: #251d3d;
+        --idle: #5b6573;
+        --run: #6b9bff;
+        --shadow: none;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      }
+      button {
+        font: inherit;
+        cursor: pointer;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: var(--text);
+        padding: 6px 12px;
+      }
+      button:hover {
+        border-color: var(--accent);
+      }
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      button.danger {
+        color: var(--bad);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      a {
+        color: var(--accent);
+      }
+      code,
+      .mono {
+        font-family: var(--mono);
+        font-size: 12.5px;
+      }
+
+      .app {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        grid-template-rows: auto 1fr;
+        height: 100vh;
+      }
+      .app.wide {
+        grid-template-columns: 1fr;
+      }
+      .app.wide aside {
+        display: none;
+      }
+      header.top {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 18px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+      }
+      .brand {
+        font-weight: 650;
+        letter-spacing: -0.01em;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .brand .logo {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        background: linear-gradient(135deg, var(--accent), var(--wait));
+      }
+      .top .sub {
+        color: var(--muted);
+      }
+      .top .spacer {
+        flex: 1;
+      }
+      .live {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .live::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--good);
+      }
+      .live.static::before {
+        background: var(--idle);
+      }
+      label.check {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      aside {
+        border-right: 1px solid var(--border);
+        background: var(--panel);
+        overflow: auto;
+        padding: 12px 10px;
+      }
+      aside h3 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin: 8px 8px;
+      }
+      .release {
+        margin-bottom: 6px;
+      }
+      .release-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 8px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      .release-head:hover,
+      .release-head.active {
+        background: var(--panel-2);
+      }
+      .release-head .count {
+        margin-left: auto;
+        color: var(--muted);
+        font-weight: 400;
+        font-size: 12px;
+      }
+      .run-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px 6px 22px;
+        border-radius: 8px;
+        cursor: pointer;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .run-item:hover {
+        background: var(--panel-2);
+      }
+      .run-item.active {
+        background: var(--accent-soft);
+        color: var(--text);
+      }
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        flex: none;
+        background: var(--idle);
+      }
+      .dot.passed {
+        background: var(--good);
+      }
+      .dot.failed {
+        background: var(--bad);
+      }
+      .dot.warning {
+        background: var(--warn);
+      }
+      .dot.running {
+        background: var(--run);
+        animation: pulse 1.2s infinite;
+      }
+      .dot.awaiting-approval,
+      .dot.paused {
+        background: var(--wait);
+      }
+      .dot.canceled,
+      .dot.skipped {
+        background: var(--idle);
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.35;
+        }
+      }
+
+      main {
+        overflow: auto;
+        padding: 20px 24px 40px;
+      }
+      .empty {
+        max-width: 560px;
+        margin: 60px auto;
+        text-align: center;
+        color: var(--muted);
+      }
+      .empty h2 {
+        color: var(--text);
+      }
+      .empty pre {
+        text-align: left;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        padding: 12px;
+        border-radius: 10px;
+      }
+      .tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      .tab {
+        padding: 8px 12px;
+        cursor: pointer;
+        color: var(--muted);
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+      }
+      .tab.active {
+        color: var(--text);
+        border-color: var(--accent);
+        font-weight: 600;
+      }
+
+      .run-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+      .run-head h1 {
+        font-size: 20px;
+        margin: 0 0 4px;
+        letter-spacing: -0.01em;
+      }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .meta span b {
+        color: var(--text);
+        font-weight: 500;
+      }
+      .run-head .actions {
+        margin-left: auto;
+        display: flex;
+        gap: 8px;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        background: var(--panel-2);
+        color: var(--muted);
+        text-transform: capitalize;
+      }
+      .pill.passed {
+        background: var(--good-soft);
+        color: var(--good);
+      }
+      .pill.failed {
+        background: var(--bad-soft);
+        color: var(--bad);
+      }
+      .pill.warning {
+        background: var(--warn-soft);
+        color: var(--warn);
+      }
+      .pill.running {
+        background: var(--accent-soft);
+        color: var(--run);
+      }
+      .pill.awaiting-approval,
+      .pill.paused {
+        background: var(--wait-soft);
+        color: var(--wait);
+      }
+
+      .next {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 16px;
+        border-radius: 12px;
+        border: 1px solid var(--wait);
+        background: var(--wait-soft);
+        margin-bottom: 18px;
+      }
+      .next .label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--wait);
+        font-weight: 700;
+      }
+      .next .title {
+        font-weight: 600;
+        font-size: 15px;
+      }
+      .next .hint {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .next .actions {
+        margin-left: auto;
+        display: flex;
+        gap: 8px;
+      }
+
+      .track {
+        display: flex;
+        gap: 0;
+        overflow-x: auto;
+        padding: 4px 2px 14px;
+        margin-bottom: 8px;
+      }
+      .stage {
+        flex: 0 0 auto;
+        width: 190px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+        cursor: pointer;
+        box-shadow: var(--shadow);
+        position: relative;
+      }
+      .stage:hover {
+        border-color: var(--accent);
+      }
+      .stage.selected {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+      }
+      .stage.awaiting-approval {
+        border-color: var(--wait);
+      }
+      .stage.running {
+        border-color: var(--run);
+      }
+      .stage .kind {
+        font-size: 11px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        display: flex;
+        justify-content: space-between;
+      }
+      .stage .name {
+        font-weight: 600;
+        margin: 4px 0 8px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .stage .status {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12.5px;
+        color: var(--muted);
+        text-transform: capitalize;
+      }
+      .stage .mini {
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .connector {
+        flex: 0 0 28px;
+        align-self: center;
+        height: 2px;
+        background: var(--border);
+        position: relative;
+      }
+      .connector.done {
+        background: var(--good);
+      }
+      .connector::after {
+        content: '';
+        position: absolute;
+        right: -1px;
+        top: -4px;
+        border: 5px solid transparent;
+        border-left-color: inherit;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: var(--shadow);
+        margin-bottom: 16px;
+      }
+      .card h2 {
+        font-size: 16px;
+        margin: 0 0 4px;
+      }
+      .card h3 {
+        font-size: 13px;
+        margin: 18px 0 8px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .card .desc {
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        gap: 10px;
+        margin: 12px 0;
+      }
+      .metric {
+        background: var(--panel-2);
+        border-radius: 10px;
+        padding: 10px 12px;
+      }
+      .metric .v {
+        font-size: 22px;
+        font-weight: 650;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+      .metric .l {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .metric.good .v {
+        color: var(--good);
+      }
+      .metric.bad .v {
+        color: var(--bad);
+      }
+      .metric.warn .v {
+        color: var(--warn);
+      }
+      .error {
+        background: var(--bad-soft);
+        color: var(--bad);
+        padding: 10px 12px;
+        border-radius: 8px;
+        white-space: pre-wrap;
+        font-family: var(--mono);
+        font-size: 12.5px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th {
+        text-align: left;
+        font-weight: 600;
+        color: var(--muted);
+        font-size: 12px;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--border);
+      }
+      td {
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      .sev {
+        font-weight: 600;
+        font-size: 12px;
+      }
+      .sev-1,
+      .sev-2 {
+        color: var(--bad);
+      }
+      .sev-3 {
+        color: var(--warn);
+      }
+      .sev-4,
+      .sev-5 {
+        color: var(--muted);
+      }
+      .types {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .type-row {
+        display: grid;
+        grid-template-columns: 200px 1fr;
+        gap: 12px;
+      }
+      .type-row .t {
+        font-weight: 600;
+      }
+      .type-row .t small {
+        color: var(--muted);
+        font-weight: 400;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .chip {
+        background: var(--panel-2);
+        border-radius: 6px;
+        padding: 1px 8px;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .chip.del {
+        background: var(--bad-soft);
+        color: var(--bad);
+        text-decoration: line-through;
+      }
+      .waves {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+        margin-top: 8px;
+      }
+      .wave {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px;
+        background: var(--panel-2);
+      }
+      .wave.empty {
+        opacity: 0.55;
+      }
+      .wave .wave-head {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .wave .num {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--accent);
+        background: var(--accent-soft);
+        border-radius: 6px;
+        padding: 1px 7px;
+      }
+      .wave .wname {
+        font-weight: 600;
+      }
+      .wave .wmeta {
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+      .wave .types {
+        margin-top: 10px;
+      }
+      .wave .type-row {
+        grid-template-columns: 1fr;
+        gap: 4px;
+        margin-bottom: 6px;
+      }
+      .flags {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin: 4px 0 2px;
+      }
+
+      pre.log {
+        background: #0d1117;
+        color: #d1d7e0;
+        border-radius: 10px;
+        padding: 12px 14px;
+        max-height: 420px;
+        overflow: auto;
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+        margin: 0;
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 6px;
+        height: 90px;
+        padding-top: 8px;
+      }
+      .bar {
+        flex: 1;
+        min-width: 14px;
+        max-width: 40px;
+        display: flex;
+        flex-direction: column-reverse;
+        border-radius: 4px;
+        overflow: hidden;
+        background: var(--panel-2);
+      }
+      .bar .crit {
+        background: var(--bad);
+      }
+      .bar .high {
+        background: var(--warn);
+      }
+
+      .nav {
+        display: flex;
+        gap: 2px;
+        margin-left: 12px;
+      }
+      .navlink {
+        padding: 6px 10px;
+        border-radius: 8px;
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 13.5px;
+      }
+      .navlink:hover {
+        background: var(--panel-2);
+        color: var(--text);
+      }
+      .navlink.active {
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: flex-end;
+        margin: 10px 0;
+      }
+      .form.vertical {
+        flex-direction: column;
+        align-items: stretch;
+        max-width: 560px;
+      }
+      .form label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      .form label.check {
+        flex-direction: row;
+        align-items: center;
+      }
+      input[type='checkbox'] {
+        min-width: 0;
+        padding: 0;
+      }
+      input,
+      select {
+        font: inherit;
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--panel);
+        color: var(--text);
+        min-width: 220px;
+      }
+      .runbooks {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 16px;
+      }
+      .runbooks .list {
+        padding: 8px;
+      }
+      .rb {
+        padding: 8px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .rb:hover {
+        background: var(--panel-2);
+      }
+      .rb.active {
+        background: var(--accent-soft);
+      }
+      .rb .t {
+        font-weight: 600;
+      }
+      .md h2,
+      .md h3,
+      .md h4 {
+        margin: 12px 0 6px;
+      }
+      .md p {
+        margin: 6px 0;
+      }
+      .md ol,
+      .md ul {
+        margin: 6px 0;
+        padding-left: 22px;
+      }
+      .md li {
+        margin: 3px 0;
+      }
+      .md code,
+      .next code {
+        background: var(--panel-2);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-family: var(--mono);
+        font-size: 12.5px;
+      }
+      .steps {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .step {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: var(--panel-2);
+      }
+      .next pre {
+        margin: 8px 0 0;
+        max-height: 260px;
+        overflow: auto;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        white-space: pre-wrap;
+      }
+      details summary {
+        cursor: pointer;
+      }
+
+      @media (max-width: 860px) {
+        .nav {
+          margin-left: 0;
+          overflow-x: auto;
+        }
+        .runbooks {
+          grid-template-columns: 1fr;
+        }
+        .app {
+          grid-template-columns: 1fr;
+          grid-template-rows: auto auto 1fr;
+          height: auto;
+        }
+        aside {
+          border-right: 0;
+          border-bottom: 1px solid var(--border);
+          max-height: 240px;
+        }
+        main {
+          padding: 16px;
+        }
+        .grid2 {
+          grid-template-columns: 1fr;
+        }
+        .type-row {
+          grid-template-columns: 1fr;
+          gap: 4px;
+        }
+        .top .sub {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="top">
+        <div class="brand"><span class="logo"></span>Release Dashboard</div>
+        <nav class="nav" id="nav"></nav>
+        <span class="sub" id="pipelineName"></span>
+        <span class="spacer"></span>
+        <span id="startControls"></span>
+        <span class="live" id="live">Live</span>
+        <button id="themeBtn" title="Toggle theme">◐</button>
+      </header>
+      <aside id="sidebar"></aside>
+      <main id="main"></main>
+    </div>
+    <script>
+      (() => {
+        const STATIC = window.__FM_DATA__ || null;
+        const USES = {
+          build: 'Build',
+          quality: 'Quality',
+          deploy: 'Deploy',
+          'check-duplicates': 'Duplicates',
+          script: 'Script',
+          shell: 'Shell',
+          approval: 'Approval',
+          tag: 'Tag',
+          'ai-runbook': 'AI runbook',
+        };
+        const SEV = { 1: 'Critical', 2: 'High', 3: 'Moderate', 4: 'Low', 5: 'Info' };
+        const state = {
+          runs: [],
+          info: STATIC ? STATIC.info : {},
+          page: 'runs',
+          runId: null,
+          stageId: null,
+          release: null,
+          view: 'run',
+          runbook: null,
+          logs: {},
+          lastJson: '',
+        };
+
+        const $ = (id) => document.getElementById(id);
+        const esc = (v) =>
+          String(v ?? '').replace(
+            /[&<>"']/g,
+            (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+          );
+        const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*m/g, '');
+        const fmtDur = (ms) => {
+          if (ms == null) return '';
+          const s = Math.round(ms / 1000);
+          return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+        };
+        const fmtTime = (iso) =>
+          iso
+            ? new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+            : '';
+        const runDuration = (r) =>
+          r.finishedAt
+            ? new Date(r.finishedAt) - new Date(r.startedAt)
+            : r.status === 'running'
+            ? Date.now() - new Date(r.startedAt)
+            : null;
+        const label = (s) => String(s).replace(/-/g, ' ');
+
+        // ---------- data ----------
+        async function fetchRuns() {
+          if (STATIC) return STATIC.runs;
+          const res = await fetch('/api/runs');
+          return res.json();
+        }
+        async function fetchLog(runId, stageId) {
+          if (STATIC) return (STATIC.logs && STATIC.logs[runId] && STATIC.logs[runId][stageId]) || '';
+          const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/logs/${encodeURIComponent(stageId)}`);
+          return res.text();
+        }
+        async function post(path, body) {
+          const res = await fetch(path, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-fm-dashboard': '1' },
+            body: JSON.stringify(body || {}),
+          });
+          return res.json();
+        }
+
+        // ---------- routing ----------
+        function readHash() {
+          const p = new URLSearchParams(location.hash.slice(1));
+          state.page = p.get('page') || 'runs';
+          state.runId = p.get('run');
+          state.stageId = p.get('stage');
+          state.release = p.get('release');
+          state.view = p.get('view') || 'run';
+        }
+        function go(patch) {
+          const next = {
+            page: state.page,
+            run: state.runId,
+            stage: state.stageId,
+            release: state.release,
+            view: state.view,
+            ...patch,
+          };
+          const p = new URLSearchParams();
+          Object.entries(next).forEach(([k, v]) => v && p.set(k, v));
+          location.hash = p.toString();
+        }
+        window.addEventListener('hashchange', () => {
+          readHash();
+          render(true);
+        });
+
+        // ---------- derived ----------
+        function releases() {
+          const map = new Map();
+          for (const r of state.runs) {
+            if (!map.has(r.release)) map.set(r.release, []);
+            map.get(r.release).push(r);
+          }
+          return [...map.entries()].map(([name, runs]) => ({ name, runs }));
+        }
+        const currentRun = () => state.runs.find((r) => r.id === state.runId) || state.runs[0];
+        function currentStage(run) {
+          if (!run) return null;
+          return (
+            run.stages.find((s) => s.id === state.stageId) ||
+            run.stages.find((s) => s.status === 'awaiting-approval' || s.status === 'running') ||
+            [...run.stages].reverse().find((s) => s.status !== 'pending') ||
+            run.stages[0]
+          );
+        }
+
+        // ---------- render ----------
+        function renderTop() {
+          $('pipelineName').textContent = state.info.pipelineName ? `· ${state.info.pipelineName}` : '';
+          $('live').className = 'live' + (STATIC ? ' static' : '');
+          $('live').textContent = STATIC ? `Snapshot · ${fmtTime(state.info.generatedAt)}` : 'Live';
+          if (state.info.canStart && !$('startBtn')) {
+            $(
+              'startControls'
+            ).innerHTML = `<label class="check"><input type="checkbox" id="stepByStep"> step by step</label> <button class="primary" id="startBtn">▶ Run pipeline</button>`;
+            $('startBtn').onclick = async () => {
+              $('startBtn').disabled = true;
+              await post('/api/start', { stepByStep: $('stepByStep').checked });
+              setTimeout(async () => {
+                await refresh();
+                const r = state.runs[0];
+                if (r) go({ run: r.id, stage: null, view: 'run', release: r.release });
+                $('startBtn').disabled = false;
+              }, 1500);
+            };
+          }
+        }
+
+        function renderSidebar() {
+          const run = currentRun();
+          const rels = releases();
+          const html = ['<h3>Releases</h3>'];
+          for (const rel of rels) {
+            const active = state.view === 'release' && (state.release || (run && run.release)) === rel.name;
+            html.push(
+              `<div class="release"><div class="release-head ${active ? 'active' : ''}" data-release="${esc(
+                rel.name
+              )}"><span class="dot ${esc(rel.runs[0].status)}"></span>${esc(rel.name)}<span class="count">${
+                rel.runs.length
+              } run${rel.runs.length > 1 ? 's' : ''}</span></div>`
+            );
+            for (const r of rel.runs) {
+              const isActive = state.view === 'run' && run && r.id === run.id;
+              html.push(
+                `<div class="run-item ${isActive ? 'active' : ''}" data-run="${esc(r.id)}"><span class="dot ${esc(
+                  r.status
+                )}"></span><span>${fmtTime(r.startedAt)}</span>${
+                  r.event && r.event !== 'manual'
+                    ? `<span class="pill" style="padding:0 6px;font-size:10.5px">${esc(r.event)}</span>`
+                    : ''
+                }<span class="mono" style="margin-left:auto">${esc((r.commit || '').slice(0, 7))}</span></div>`
+              );
+            }
+            html.push('</div>');
+          }
+          $('sidebar').innerHTML = html.join('');
+          $('sidebar')
+            .querySelectorAll('[data-run]')
+            .forEach((el) => (el.onclick = () => go({ run: el.dataset.run, stage: null, view: 'run', release: null })));
+          $('sidebar')
+            .querySelectorAll('[data-release]')
+            .forEach((el) => (el.onclick = () => go({ release: el.dataset.release, view: 'release', stage: null })));
+        }
+
+        function metricsHtml(metrics) {
+          if (!metrics || !metrics.length) return '';
+          return `<div class="metrics">${metrics
+            .map(
+              (m) =>
+                `<div class="metric ${esc(m.tone || '')}"><div class="v">${esc(m.value)}</div><div class="l">${esc(
+                  m.label
+                )}</div></div>`
+            )
+            .join('')}</div>`;
+        }
+
+        function nextBanner(run) {
+          const waiting = run.stages.find((s) => s.status === 'awaiting-approval');
+          if (!waiting) return '';
+          const isApproval = waiting.uses === 'approval';
+          const pending = waiting.pendingAction;
+          if (pending) {
+            const manual = pending.kind === 'manual';
+            const buttons = STATIC
+              ? ''
+              : `<div class="actions"><button class="danger" data-decide="reject" data-stage="${esc(pending.key)}">${
+                  manual ? 'Not done' : 'Reject'
+                }</button><button class="primary" data-decide="approve" data-stage="${esc(pending.key)}">${
+                  manual ? 'Mark done' : 'Approve & run'
+                }</button></div>`;
+            return `<div class="next"><div style="flex:1;min-width:0"><div class="label">${
+              manual ? 'Manual step — do this, then confirm' : `Approval needed · ${esc(waiting.name)}`
+            }</div><div class="title">${esc(pending.title)}</div>${
+              pending.detail ? `<pre>${esc(pending.detail)}</pre>` : ''
+            }</div>${buttons}</div>`;
+          }
+          const actions = STATIC
+            ? ''
+            : `<div class="actions"><button class="danger" data-decide="reject" data-stage="${esc(
+                waiting.id
+              )}">Reject</button><button class="primary" data-decide="approve" data-stage="${esc(waiting.id)}">${
+                isApproval ? 'Approve' : 'Run this step'
+              }</button></div>`;
+          const hint =
+            run.status === 'paused'
+              ? `Paused. Approve here, then resume with <code>sf fm pipeline run --resume ${esc(run.id)}</code>`
+              : waiting.description
+              ? esc(waiting.description)
+              : 'The pipeline is waiting for a decision.';
+          return `<div class="next"><div><div class="label">Next step</div><div class="title">${esc(
+            waiting.name
+          )}</div><div class="hint">${hint}</div></div>${actions}</div>`;
+        }
+
+        function trackHtml(run, selected) {
+          const parts = [];
+          run.stages.forEach((s, i) => {
+            if (i > 0)
+              parts.push(
+                `<div class="connector ${
+                  ['passed', 'warning', 'skipped'].includes(run.stages[i - 1].status) ? 'done' : ''
+                }"></div>`
+              );
+            const mini = s.error
+              ? esc(s.error)
+              : s.status === 'skipped' && s.skipReason
+              ? esc(s.skipReason)
+              : (s.metrics || [])
+                  .slice(0, 2)
+                  .map((m) => `${esc(m.label)} ${esc(m.value)}`)
+                  .join(' · ');
+            parts.push(`<div class="stage ${esc(s.status)} ${
+              selected && selected.id === s.id ? 'selected' : ''
+            }" data-stage="${esc(s.id)}">
+        <div class="kind"><span>${esc(USES[s.uses] || s.uses)}</span><span>${s.manual ? '✋' : ''}</span></div>
+        <div class="name" title="${esc(s.name)}">${esc(s.name)}</div>
+        <div class="status"><span class="dot ${esc(s.status)}"></span>${esc(label(s.status))}${
+              s.durationMs != null ? ` · ${fmtDur(s.durationMs)}` : ''
+            }</div>
+        <div class="mini" title="${mini}">${mini || '&nbsp;'}</div></div>`);
+          });
+          return `<div class="track">${parts.join('')}</div>`;
+        }
+
+        function typeChips(comps, del) {
+          const types = [...new Set([...Object.keys(comps || {}), ...Object.keys(del || {})])].sort();
+          return types
+            .map((t) => {
+              const add = (comps || {})[t] || [];
+              const rem = (del || {})[t] || [];
+              return `<div class="type-row"><div class="t">${esc(t)} <small>${
+                add.length + rem.length
+              }</small></div><div class="chips">${add.map((m) => `<span class="chip">${esc(m)}</span>`).join('')}${rem
+                .map((m) => `<span class="chip del" title="destructive">${esc(m)}</span>`)
+                .join('')}</div></div>`;
+            })
+            .join('');
+        }
+
+        function wavesDetails(result) {
+          const c = result.contains || {};
+          const flags = [
+            c.dataCloud && 'Data Cloud',
+            c.agentforce && 'Agentforce',
+            c.omnistudio && 'OmniStudio',
+          ].filter(Boolean);
+          return `<h3>Deployment waves</h3>
+      ${
+        flags.length
+          ? `<div class="flags">${flags.map((f) => `<span class="pill running">${f} changes</span>`).join('')}</div>`
+          : ''
+      }
+      <div class="waves">${result.waves
+        .map(
+          (w) => `<div class="wave ${w.hasChanges ? '' : 'empty'}">
+        <div class="wave-head"><span class="num">${w.index}</span><span class="wname">${esc(w.name)}</span></div>
+        <div class="wmeta">${
+          w.hasChanges ? `${w.changedFiles} changed · ${w.deletedFiles} deleted` : 'No changes — skipped'
+        }${w.isDefault ? ' · default wave' : ''}</div>
+        ${
+          w.hasChanges
+            ? `<div class="mono" style="font-size:11.5px;color:var(--muted)">${esc(
+                (w.dir || '').split('/').slice(-2).join('/')
+              )}</div><div class="types">${typeChips(w.components, w.destructive)}</div>`
+            : ''
+        }
+      </div>`
+        )
+        .join('')}</div>`;
+        }
+
+        function buildDetails(result) {
+          if (result.waves && result.waves.length) return wavesDetails(result);
+          const comps = result.components || {};
+          const del = result.destructive || {};
+          if (!Object.keys(comps).length && !Object.keys(del).length) return '<p class="desc">No metadata changes.</p>';
+          return `<h3>Metadata in this build</h3><div class="types">${typeChips(comps, del)}</div>`;
+        }
+
+        function qualityDetails(result) {
+          const v = result.violations || [];
+          const warnings = (result.engines || []).flatMap((e) => e.warnings || []);
+          let html = warnings.map((w) => `<p class="desc">⚠️ ${esc(w)}</p>`).join('');
+          if (!v.length) return html + '<p class="desc">No violations.</p>';
+          html += `<h3>Violations${
+            result.violationsTruncated ? ' (first 200)' : ''
+          }</h3><table><thead><tr><th>Severity</th><th>Rule</th><th>Location</th><th>Message</th></tr></thead><tbody>`;
+          html += v
+            .map(
+              (x) =>
+                `<tr><td class="sev sev-${x.severity}">${SEV[x.severity]}</td><td class="mono">${
+                  x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.rule)}</a>` : esc(x.rule)
+                }</td><td class="mono">${esc(x.file)}${x.line ? ':' + x.line : ''}</td><td>${esc(x.message)}</td></tr>`
+            )
+            .join('');
+          return html + '</tbody></table>';
+        }
+
+        function deployDetails(result) {
+          const rows = [
+            ['Job ID', result.jobId],
+            ['Validation ID', result.validationId],
+            ['Deployment tag', result.deploymentTag],
+          ].filter(([, v]) => v && v !== 'N/A');
+          let html = rows.length
+            ? `<table><tbody>${rows
+                .map(([k, v]) => `<tr><th style="width:160px">${k}</th><td class="mono">${esc(v)}</td></tr>`)
+                .join('')}</tbody></table>`
+            : '';
+          if (result.messages && result.messages.length)
+            html += `<h3>Messages</h3><div class="error">${result.messages.map(esc).join('\n')}</div>`;
+          return html;
+        }
+
+        function stageDetails(run, s) {
+          if (!s) return '';
+          const r = s.result || {};
+          let body = '';
+          if (s.uses === 'build') body = buildDetails(r);
+          else if (s.uses === 'quality') body = qualityDetails(r);
+          else if (s.uses === 'deploy') body = deployDetails(r);
+          else if (s.uses === 'ai-runbook') body = runbookDetails(r);
+          const facts = [
+            s.targetOrg && `Org <b>${esc(s.targetOrg)}</b>`,
+            s.startedAt && `Started <b>${fmtTime(s.startedAt)}</b>`,
+            s.durationMs != null && `Took <b>${fmtDur(s.durationMs)}</b>`,
+            s.approvedBy && `Approved by <b>${esc(s.approvedBy)}</b>`,
+          ]
+            .filter(Boolean)
+            .map((f) => `<span>${f}</span>`)
+            .join('');
+          return `<div class="card">
+      <div style="display:flex;align-items:center;gap:10px"><h2>${esc(s.name)}</h2><span class="pill ${esc(
+            s.status
+          )}">${esc(label(s.status))}</span></div>
+      ${s.description ? `<p class="desc">${esc(s.description)}</p>` : ''}
+      <div class="meta">${facts}</div>
+      ${s.error ? `<div class="error" style="margin-top:12px">${esc(s.error)}</div>` : ''}
+      ${
+        s.status === 'skipped' && s.skipReason
+          ? `<p class="desc" style="margin-top:12px">Skipped: ${esc(s.skipReason)}</p>`
+          : ''
+      }
+      ${metricsHtml(s.metrics)}
+      ${body}
+      ${
+        s.uses !== 'approval'
+          ? `<h3>Log</h3><pre class="log" id="log">${esc(
+              stripAnsi(state.logs[run.id + '/' + s.id] || (s.status === 'pending' ? 'Not started yet.' : 'Loading…'))
+            )}</pre>`
+          : ''
+      }
+    </div>`;
+        }
+
+        function renderRun() {
+          const run = currentRun();
+          if (!run) return emptyState();
+          const s = currentStage(run);
+          const actions =
+            !STATIC && ['running', 'awaiting-approval', 'paused'].includes(run.status)
+              ? `<div class="actions"><button class="danger" id="cancelBtn">Cancel run</button></div>`
+              : '';
+          const html = `
+      <div class="run-head">
+        <div>
+          <div style="display:flex;align-items:center;gap:10px"><h1>${esc(run.release)}</h1><span class="pill ${esc(
+            run.status
+          )}">${esc(label(run.status))}</span></div>
+          <div class="meta">
+            <span>Run <b class="mono">${esc(run.id)}</b></span>
+            <span>Branch <b>${esc(run.branch)}</b></span>
+            ${
+              run.event
+                ? `<span>Event <b>${esc(
+                    { pr: 'Pull request', push: 'Push', manual: 'Manual' }[run.event] || run.event
+                  )}</b></span>`
+                : ''
+            }
+            <span>Commit <b class="mono">${esc((run.commit || '').slice(0, 7))}</b> ${esc(
+            run.commitMessage || ''
+          )}</span>
+            ${run.author ? `<span>by <b>${esc(run.author)}</b></span>` : ''}
+            <span>${fmtTime(run.startedAt)}${runDuration(run) != null ? ` · ${fmtDur(runDuration(run))}` : ''}</span>
+            ${run.ciUrl ? `<span><a href="${esc(run.ciUrl)}" target="_blank" rel="noopener">CI run ↗</a></span>` : ''}
+          </div>
+        </div>
+        ${actions}
+      </div>
+      ${nextBanner(run)}
+      ${trackHtml(run, s)}
+      ${stageDetails(run, s)}`;
+          $('main').innerHTML = tabs() + html;
+          bindTabs();
+          $('main')
+            .querySelectorAll('.stage[data-stage]')
+            .forEach((el) => (el.onclick = () => go({ stage: el.dataset.stage, run: run.id })));
+          $('main')
+            .querySelectorAll('[data-decide]')
+            .forEach(
+              (el) =>
+                (el.onclick = async () => {
+                  el.disabled = true;
+                  await post(
+                    `/api/runs/${encodeURIComponent(run.id)}/approve/${encodeURIComponent(el.dataset.stage)}`,
+                    { decision: el.dataset.decide }
+                  );
+                  refresh();
+                })
+            );
+          if ($('cancelBtn'))
+            $('cancelBtn').onclick = async () => {
+              if (confirm('Cancel this run after the current step?')) {
+                await post(`/api/runs/${encodeURIComponent(run.id)}/cancel`);
+                refresh();
+              }
+            };
+          if (s) loadLog(run, s);
+        }
+
+        async function loadLog(run, s) {
+          if (s.uses === 'approval' || s.status === 'pending') return;
+          const key = run.id + '/' + s.id;
+          const text = await fetchLog(run.id, s.id);
+          const el = $('log');
+          if (!el) return;
+          const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 30;
+          state.logs[key] = text || '(no output)';
+          el.textContent = stripAnsi(state.logs[key]);
+          if (atBottom || s.status === 'running') el.scrollTop = el.scrollHeight;
+        }
+
+        function renderRelease() {
+          const name = state.release || (currentRun() && currentRun().release);
+          const runs = state.runs.filter((r) => r.release === name);
+          if (!runs.length) return emptyState();
+          const latest = runs[0];
+          const deploys = runs.flatMap((r) =>
+            r.stages
+              .filter((s) => s.uses === 'deploy' && s.status !== 'pending' && s.status !== 'skipped')
+              .map((s) => ({ run: r, s }))
+          );
+          const build = runs.map((r) => r.stages.find((s) => s.uses === 'build' && s.result)).find(Boolean);
+          const quality = [...runs]
+            .reverse()
+            .map((r) => ({ r, s: r.stages.find((x) => x.uses === 'quality' && x.result) }))
+            .filter((x) => x.s);
+          const passed = runs.filter((r) => r.status === 'passed').length;
+          const maxQ = Math.max(
+            1,
+            ...quality.map(({ s }) => (s.result.counts?.[1] || 0) + (s.result.counts?.[2] || 0))
+          );
+
+          const html = `
+      <div class="run-head"><div>
+        <div style="display:flex;align-items:center;gap:10px"><h1>${esc(name)}</h1><span class="pill ${esc(
+            latest.status
+          )}">latest: ${esc(label(latest.status))}</span></div>
+        <div class="meta"><span>Pipeline <b>${esc(latest.pipeline)}</b></span><span>Branch <b>${esc(
+            latest.branch
+          )}</b></span><span>Last run <b>${fmtTime(latest.startedAt)}</b></span></div>
+      </div></div>
+      ${metricsHtml([
+        { label: 'Runs', value: runs.length },
+        { label: 'Passed', value: passed, tone: passed ? 'good' : 'neutral' },
+        {
+          label: 'Failed',
+          value: runs.filter((r) => r.status === 'failed').length,
+          tone: runs.some((r) => r.status === 'failed') ? 'bad' : 'neutral',
+        },
+        {
+          label: 'Deployments',
+          value: deploys.filter(({ s }) => s.status === 'passed' && s.deployMode !== 'validation').length,
+        },
+        {
+          label: 'Components',
+          value: build ? Object.values(build.result.components || {}).reduce((a, m) => a + m.length, 0) : 0,
+        },
+      ])}
+      <div class="grid2">
+        <div class="card"><h2>Deployments &amp; validations</h2>
+          ${
+            deploys.length
+              ? `<table><thead><tr><th>When</th><th>Step</th><th>Type</th><th>Org</th><th>Status</th><th>Tests</th></tr></thead><tbody>${deploys
+                  .map(
+                    ({ run, s }) =>
+                      `<tr data-goto="${esc(run.id)}" data-stage="${esc(s.id)}" style="cursor:pointer"><td>${fmtTime(
+                        s.startedAt
+                      )}</td><td>${esc(s.name)}</td><td>${
+                        s.deployMode === 'validation' ? 'Validation' : 'Deployment'
+                      }</td><td>${esc(s.targetOrg || '')}</td><td><span class="pill ${esc(s.status)}">${esc(
+                        label(s.status)
+                      )}</span></td><td>${
+                        s.result ? `${s.result.testsPassed ?? 0}/${s.result.testsRun ?? 0}` : ''
+                      }</td></tr>`
+                  )
+                  .join('')}</tbody></table>`
+              : '<p class="desc">No deployments yet.</p>'
+          }
+        </div>
+        <div class="card"><h2>Quality trend</h2><p class="desc">Critical + High violations per run</p>
+          ${
+            quality.length
+              ? `<div class="bars">${quality
+                  .map(({ r, s }) => {
+                    const c = s.result.counts?.[1] || 0;
+                    const h = s.result.counts?.[2] || 0;
+                    return `<div class="bar" title="${esc(
+                      fmtTime(r.startedAt)
+                    )}: ${c} critical, ${h} high" style="height:100%"><div class="crit" style="height:${
+                      (c / maxQ) * 100
+                    }%"></div><div class="high" style="height:${(h / maxQ) * 100}%"></div></div>`;
+                  })
+                  .join('')}</div>`
+              : '<p class="desc">No quality scans yet.</p>'
+          }
+        </div>
+      </div>
+      <div class="card"><h2>What's in this release</h2><p class="desc">From the latest build${
+        build ? '' : ' (none yet)'
+      }</p>${build ? buildDetails(build.result) : ''}</div>`;
+          $('main').innerHTML = tabs() + html;
+          bindTabs();
+          $('main')
+            .querySelectorAll('[data-goto]')
+            .forEach(
+              (el) =>
+                (el.onclick = () => go({ run: el.dataset.goto, stage: el.dataset.stage, view: 'run', release: null }))
+            );
+        }
+
+        function tabs() {
+          const run = currentRun();
+          return `<div class="tabs"><div class="tab ${
+            state.view === 'run' ? 'active' : ''
+          }" data-view="run">Pipeline run</div><div class="tab ${
+            state.view === 'release' ? 'active' : ''
+          }" data-view="release">Release overview${run ? ` · ${esc(state.release || run.release)}` : ''}</div></div>`;
+        }
+        function bindTabs() {
+          $('main')
+            .querySelectorAll('[data-view]')
+            .forEach((el) => (el.onclick = () => go({ view: el.dataset.view })));
+        }
+
+        function emptyState() {
+          $('main').innerHTML = `<div class="empty"><h2>No pipeline runs yet</h2>
+      <p>Runs appear here as soon as a pipeline starts. Create a pipeline file and run it:</p>
+      <pre>sf fm pipeline init\nsf fm pipeline run</pre>
+      ${state.info.canStart ? '<p>…or press <b>Run pipeline</b> above.</p>' : ''}</div>`;
+        }
+
+        // ---------- app pages: orgs, repo, runbooks, AI ----------
+        const PAGES = STATIC
+          ? [
+              ['runs', 'Runs'],
+              ['repo', 'Repository'],
+            ]
+          : [
+              ['runs', 'Runs'],
+              ['orgs', 'Orgs'],
+              ['repo', 'Repository'],
+              ['runbooks', 'Runbooks'],
+              ['ai', 'AI'],
+            ];
+
+        async function getJson(path) {
+          const res = await fetch(path);
+          const body = await res.json();
+          if (!res.ok) throw new Error(body.error || res.statusText);
+          return body;
+        }
+
+        function renderNav() {
+          $('nav').innerHTML = PAGES.map(
+            ([id, label]) => `<a class="navlink ${state.page === id ? 'active' : ''}" href="#page=${id}">${label}</a>`
+          ).join('');
+        }
+
+        function markdown(md) {
+          const lines = esc(md).split('\n');
+          const out = [];
+          let list = null;
+          const inline = (t) => t.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+          const close = () => {
+            if (list) {
+              out.push(`</${list}>`);
+              list = null;
+            }
+          };
+          for (const line of lines) {
+            let m;
+            if ((m = /^(#{1,3})\s+(.*)$/.exec(line))) {
+              close();
+              out.push(`<h${m[1].length + 1}>${inline(m[2])}</h${m[1].length + 1}>`);
+            } else if ((m = /^\s*\d+\.\s+(.*)$/.exec(line))) {
+              if (list !== 'ol') {
+                close();
+                out.push('<ol>');
+                list = 'ol';
+              }
+              out.push(`<li>${inline(m[1])}</li>`);
+            } else if ((m = /^\s*[-*]\s+(.*)$/.exec(line))) {
+              if (list !== 'ul') {
+                close();
+                out.push('<ul>');
+                list = 'ul';
+              }
+              out.push(`<li>${inline(m[1])}</li>`);
+            } else if (!line.trim()) {
+              close();
+            } else if (list && /^\s{2,}/.test(line)) {
+              out.push(`<div class="desc">${inline(line.trim())}</div>`);
+            } else {
+              close();
+              out.push(`<p>${inline(line)}</p>`);
+            }
+          }
+          close();
+          return `<div class="md">${out.join('')}</div>`;
+        }
+
+        async function renderOrgs(refresh) {
+          $('main').innerHTML =
+            '<div class="card"><h2>Orgs</h2><p class="desc">Loading orgs from the Salesforce CLI…</p></div>';
+          let orgs = [];
+          try {
+            orgs = await getJson('/api/orgs' + (refresh ? '?refresh=1' : ''));
+          } catch (e) {
+            /* shown below */
+          }
+          $('main').innerHTML = `
+      <div class="card"><div style="display:flex;align-items:center;gap:10px"><h2>Connected orgs</h2><span class="spacer" style="flex:1"></span><button id="orgsRefresh">Refresh</button></div>
+        <p class="desc">Orgs authorized in the Salesforce CLI on this machine. The dashboard uses the CLI's login; it stores no credentials.</p>
+        ${
+          orgs.length
+            ? `<table><thead><tr><th>Alias</th><th>Username</th><th>Type</th><th>Status</th><th></th></tr></thead><tbody>${orgs
+                .map(
+                  (o) =>
+                    `<tr><td><b>${esc(o.alias || '')}</b></td><td class="mono">${esc(
+                      o.username
+                    )}</td><td><span class="pill ${
+                      o.type === 'Production' ? 'failed' : o.type === 'Sandbox' ? 'running' : ''
+                    }">${esc(o.type)}</span></td><td>${esc(o.connected)}${
+                      o.expires ? ` · expires ${esc(o.expires)}` : ''
+                    }</td><td><button data-open="${esc(o.alias || o.username)}">Open ↗</button></td></tr>`
+                )
+                .join('')}</tbody></table>`
+            : '<p class="desc">No orgs found. Connect one below.</p>'
+        }
+      </div>
+      <div class="card"><h2>Connect an org</h2><p class="desc">Opens the Salesforce login in your browser (sf org login web).</p>
+        <div class="form">
+          <label>Alias<input id="orgAlias" placeholder="uat"></label>
+          <label>Login URL<select id="orgUrl"><option value="https://test.salesforce.com">Sandbox (test.salesforce.com)</option><option value="https://login.salesforce.com">Production / Dev Hub (login.salesforce.com)</option><option value="custom">My Domain…</option></select></label>
+          <label id="orgCustomWrap" style="display:none">My Domain URL<input id="orgCustom" placeholder="https://mycompany--uat.sandbox.my.salesforce.com"></label>
+          <button class="primary" id="orgConnect">Connect</button>
+        </div><p class="desc" id="orgMsg"></p></div>`;
+          $('orgsRefresh').onclick = () => renderOrgs(true);
+          $('orgUrl').onchange = () => {
+            $('orgCustomWrap').style.display = $('orgUrl').value === 'custom' ? '' : 'none';
+          };
+          $('orgConnect').onclick = async () => {
+            const url = $('orgUrl').value === 'custom' ? $('orgCustom').value : $('orgUrl').value;
+            const res = await post('/api/orgs/login', { alias: $('orgAlias').value.trim(), instanceUrl: url });
+            $('orgMsg').textContent = res.error
+              ? res.error
+              : 'Login opened in your browser. Refresh this page when you are done.';
+          };
+          $('main')
+            .querySelectorAll('[data-open]')
+            .forEach((el) => (el.onclick = () => post('/api/orgs/open', { org: el.dataset.open })));
+        }
+
+        async function renderRepo() {
+          $('main').innerHTML = '<div class="card"><h2>Repository</h2><p class="desc">Loading…</p></div>';
+          let repo = STATIC ? STATIC.repo : null;
+          if (!STATIC) {
+            try {
+              repo = await getJson('/api/repo');
+            } catch (e) {
+              repo = null;
+            }
+          }
+          if (!repo) {
+            $('main').innerHTML =
+              '<div class="card"><h2>Repository</h2><p class="desc">No repository information.</p></div>';
+            return;
+          }
+          const prs = repo.pullRequests;
+          $('main').innerHTML = `
+      <div class="run-head"><div><h1>${esc(
+        (repo.remote || 'Local repository')
+          .replace(/\.git$/, '')
+          .split(/[/:]/)
+          .slice(-2)
+          .join('/')
+      )}</h1>
+        <div class="meta"><span>Branch <b>${esc(repo.branch || '')}</b></span>${
+            repo.remote ? `<span class="mono">${esc(repo.remote)}</span>` : ''
+          }</div></div></div>
+      <div class="grid2">
+        <div class="card"><h2>Deployment history</h2><p class="desc">Successful deployments, from the <code>sf-deploy-success/*</code> tags</p>
+          ${
+            repo.deployments.length
+              ? `<table><thead><tr><th>When</th><th>Branch</th><th>Commit</th></tr></thead><tbody>${repo.deployments
+                  .map(
+                    (d) =>
+                      `<tr><td>${fmtTime(d.date)}</td><td>${esc(d.branch)}</td><td class="mono">${esc(
+                        d.commit
+                      )}</td></tr>`
+                  )
+                  .join('')}</tbody></table>`
+              : '<p class="desc">No deployments tagged yet.</p>'
+          }
+        </div>
+        <div class="card"><h2>Open pull requests</h2>
+          ${
+            prs
+              ? prs.length
+                ? `<table><tbody>${prs
+                    .map(
+                      (p) =>
+                        `<tr><td class="mono">#${p.number}</td><td><a href="${esc(
+                          p.url
+                        )}" target="_blank" rel="noopener">${esc(p.title)}</a><div class="desc">${esc(
+                          p.branch
+                        )} · ${esc(p.author)}</div></td><td>${fmtTime(p.updatedAt)}</td></tr>`
+                    )
+                    .join('')}</tbody></table>`
+                : '<p class="desc">No open pull requests.</p>'
+              : `<p class="desc">${esc(repo.pullRequestsError || 'Pull requests not available.')}</p>`
+          }
+        </div>
+      </div>
+      <div class="card"><h2>Recent commits</h2><table><tbody>${repo.commits
+        .map(
+          (c) =>
+            `<tr><td class="mono">${esc(c.short)}</td><td>${esc(c.subject)}</td><td>${esc(c.author)}</td><td>${fmtTime(
+              c.date
+            )}</td></tr>`
+        )
+        .join('')}</tbody></table></div>`;
+        }
+
+        async function renderRunbooks() {
+          $('main').innerHTML = '<div class="card"><h2>Runbooks</h2><p class="desc">Loading…</p></div>';
+          const [books, orgs, ai] = await Promise.all([
+            getJson('/api/runbooks').catch(() => []),
+            getJson('/api/orgs').catch(() => []),
+            getJson('/api/ai').catch(() => ({})),
+          ]);
+          if (!books.length) {
+            $(
+              'main'
+            ).innerHTML = `<div class="empty"><h2>No runbooks yet</h2><p>Runbooks are Markdown files in <code>.fm/runbooks</code> with pre- and post-deployment steps in plain language.</p><pre>sf fm runbook init</pre></div>`;
+            return;
+          }
+          const selected = books.find((b) => b.path === state.runbook) || books[0];
+          const aiLine = ai.current
+            ? `${esc(ai.current.label)} · ${esc(ai.current.model)}${
+                ai.current.apiKeySet
+                  ? ''
+                  : ` · <span style="color:var(--bad)">${esc(ai.current.apiKeyEnv)} is not set</span>`
+              }`
+            : `<span style="color:var(--bad)">${esc(ai.error || 'AI not configured')}</span>`;
+          $('main').innerHTML = `
+      <div class="runbooks">
+        <div class="card list">${books
+          .map(
+            (b) =>
+              `<div class="rb ${b === selected ? 'active' : ''}" data-rb="${esc(b.path)}"><div class="t">${esc(
+                b.title
+              )}</div><div class="mono desc">${esc(b.path)}</div></div>`
+          )
+          .join('')}</div>
+        <div>
+          <div class="card"><h2>Run with AI</h2><p class="desc">AI: ${aiLine} — <a href="#page=ai">change</a></p>
+            <div class="form">
+              <label>Org<select id="rbOrg">${orgs
+                .map(
+                  (o) =>
+                    `<option value="${esc(o.alias || o.username)}" data-type="${esc(o.type)}">${esc(
+                      o.alias || o.username
+                    )} (${esc(o.type)})</option>`
+                )
+                .join('')}</select></label>
+              <label class="check"><input type="checkbox" id="rbPr"> open a pull request for repository changes</label>
+              <button id="rbPlan">Plan only</button><button class="primary" id="rbRun">Run</button>
+            </div>
+            <p class="desc">Every change to the org waits for your approval on the run page. Manual Setup steps are shown as instructions to confirm.</p>
+            <p class="desc" id="rbMsg"></p>
+          </div>
+          <div class="card">${markdown(selected.content)}</div>
+        </div>
+      </div>`;
+          $('main')
+            .querySelectorAll('[data-rb]')
+            .forEach(
+              (el) =>
+                (el.onclick = () => {
+                  state.runbook = el.dataset.rb;
+                  renderRunbooks();
+                })
+            );
+          const start = async (plan) => {
+            const org = $('rbOrg').value;
+            if (!org) {
+              $('rbMsg').textContent = 'Connect an org first.';
+              return;
+            }
+            const type = $('rbOrg').selectedOptions[0]?.dataset.type;
+            const warning = type === 'Production' || type === 'Dev Hub' ? `\n\n${org} is a ${type} org.` : '';
+            if (
+              !plan &&
+              !confirm(`Run "${selected.title}" against ${org}? Each change waits for your approval.${warning}`)
+            )
+              return;
+            const res = await post('/api/runbooks/run', { file: selected.path, org, plan, pr: $('rbPr').checked });
+            if (res.error) {
+              $('rbMsg').textContent = res.error;
+              return;
+            }
+            $('rbMsg').textContent = 'Starting…';
+            setTimeout(async () => {
+              await refresh();
+              const r = state.runs[0];
+              go({ page: 'runs', run: r ? r.id : null, stage: null, view: 'run' });
+            }, 2500);
+          };
+          $('rbPlan').onclick = () => start(true);
+          $('rbRun').onclick = () => start(false);
+        }
+
+        async function renderAi() {
+          const ai = await getJson('/api/ai').catch((e) => ({ error: e.message, providers: [] }));
+          const cur = ai.current || {};
+          $('main').innerHTML = `
+      <div class="card"><h2>AI provider</h2>
+        <p class="desc">${
+          ai.current
+            ? `In use: <b>${esc(cur.label)}</b> · <span class="mono">${esc(cur.model)}</span>${
+                cur.baseUrl ? ` · <span class="mono">${esc(cur.baseUrl)}</span>` : ''
+              }`
+            : esc(ai.error || '')
+        }</p>
+        <p class="desc">API keys are never stored. Each provider reads its key from an environment variable that must be set before you start <code>sf fm dashboard</code> or run a runbook. Use a custom base URL for a company gateway, an Azure OpenAI deployment, or a self-hosted model.</p>
+        <div class="form vertical">
+          <label>Provider<select id="aiProvider">${ai.providers
+            .map(
+              (p) =>
+                `<option value="${esc(p.id)}" ${p.id === cur.provider ? 'selected' : ''}>${esc(p.label)}${
+                  p.apiKeyEnv ? ` — ${esc(p.apiKeyEnv)} ${p.apiKeySet ? '✓' : '(not set)'}` : ''
+                }</option>`
+            )
+            .join('')}</select></label>
+          <label>Model<input id="aiModel" value="${esc(cur.model || '')}" placeholder="e.g. claude-opus-5-5"></label>
+          <label>Base URL (optional)<input id="aiBase" value="${esc(
+            cur.baseUrl || ''
+          )}" placeholder="provider default"></label>
+          <label>API key variable (optional)<input id="aiKeyEnv" value="${esc(
+            cur.apiKeyEnv || ''
+          )}" placeholder="provider default"></label>
+          <div><button class="primary" id="aiSave">Save to ${esc(
+            ai.configFile || '.fm/ai.yml'
+          )}</button> <span class="desc" id="aiMsg"></span></div>
+        </div>
+      </div>`;
+          $('aiProvider').onchange = () => {
+            const p = ai.providers.find((x) => x.id === $('aiProvider').value) || {};
+            $('aiModel').value = p.defaultModel || '';
+            $('aiBase').value = '';
+            $('aiKeyEnv').value = '';
+            $('aiModel').placeholder = p.defaultModel || 'model name from your provider';
+          };
+          $('aiSave').onclick = async () => {
+            const res = await post('/api/ai', {
+              provider: $('aiProvider').value,
+              model: $('aiModel').value,
+              baseUrl: $('aiBase').value,
+              apiKeyEnv: $('aiKeyEnv').value,
+            });
+            $('aiMsg').textContent = res.error ? res.error : 'Saved.';
+          };
+        }
+
+        function runbookDetails(r) {
+          const steps = r.steps || [];
+          const icon = { done: '✅', skipped: '⏭', failed: '❌', manual: '✋', pending: '○' };
+          let html = `<p class="desc">${esc(r.mode === 'plan' ? 'Plan only' : 'Execute')} · org <b>${esc(
+            r.targetOrg
+          )}</b> · ${esc(r.ai ? `${r.ai.label} · ${r.ai.model}` : '')}</p>`;
+          if (r.error) html += `<div class="error">${esc(r.error)}</div>`;
+          if (r.pullRequest)
+            html += `<p>${
+              r.pullRequest.url
+                ? `Pull request: <a href="${esc(r.pullRequest.url)}" target="_blank" rel="noopener">${esc(
+                    r.pullRequest.url
+                  )}</a>`
+                : `Branch <code>${esc(r.pullRequest.branch)}</code> — ${esc(r.pullRequest.error || '')}`
+            }</p>`;
+          if (steps.length)
+            html += `<h3>Steps</h3><div class="steps">${steps
+              .map(
+                (s) =>
+                  `<div class="step ${esc(s.status)}"><span>${icon[s.status] || '○'}</span><div><b>${s.index}. ${esc(
+                    s.title
+                  )}</b>${s.note ? `<div class="desc">${esc(s.note)}</div>` : ''}</div></div>`
+              )
+              .join('')}</div>`;
+          const actions = (r.actions || []).filter((a) => a.kind !== 'read' || a.status === 'error');
+          if (actions.length) {
+            html += `<h3>Actions</h3><table><thead><tr><th>Action</th><th>Kind</th><th>Result</th><th>Approved by</th></tr></thead><tbody>${actions
+              .map(
+                (a) =>
+                  `<tr><td><details><summary>${esc(a.summary)}</summary>${
+                    a.detail ? `<pre class="log" style="max-height:200px">${esc(a.detail)}</pre>` : ''
+                  }${
+                    a.output ? `<pre class="log" style="max-height:200px">${esc(a.output)}</pre>` : ''
+                  }</details></td><td>${esc(a.kind)}</td><td><span class="pill ${
+                    a.status === 'ok' ? 'passed' : a.status === 'rejected' ? 'warning' : 'failed'
+                  }">${esc(a.status)}</span></td><td>${esc(a.approvedBy || '')}</td></tr>`
+              )
+              .join('')}</tbody></table>`;
+          }
+          if (r.summary) html += `<h3>Summary</h3>${markdown(r.summary)}`;
+          return html;
+        }
+
+        function render(force) {
+          renderNav();
+          if (state.page !== 'runs') {
+            if (!force) return;
+            document.querySelector('.app').classList.add('wide');
+            (
+              ({ orgs: renderOrgs, repo: renderRepo, runbooks: renderRunbooks, ai: renderAi })[state.page] || renderRepo
+            )();
+            return;
+          }
+          document.querySelector('.app').classList.remove('wide');
+          const json = JSON.stringify(state.runs);
+          if (!force && json === state.lastJson) {
+            const run = currentRun();
+            const s = currentStage(run);
+            if (run && s && s.status === 'running' && state.view === 'run') loadLog(run, s);
+            return;
+          }
+          state.lastJson = json;
+          renderTop();
+          renderSidebar();
+          if (state.view === 'release') renderRelease();
+          else renderRun();
+        }
+
+        async function refresh() {
+          try {
+            if (!STATIC && !state.info.mode) state.info = await (await fetch('/api/info')).json();
+            state.runs = await fetchRuns();
+            if (!state.navReady) {
+              state.navReady = true;
+              render(true);
+              return;
+            }
+            render(false);
+          } catch (e) {
+            $('live').textContent = 'Disconnected';
+          }
+        }
+
+        $('themeBtn').onclick = () => {
+          const root = document.documentElement;
+          const dark = root.dataset.theme
+            ? root.dataset.theme === 'dark'
+            : matchMedia('(prefers-color-scheme: dark)').matches;
+          root.dataset.theme = dark ? 'light' : 'dark';
+          try {
+            localStorage.setItem('fm-theme', root.dataset.theme);
+          } catch (e) {
+            /* ignore */
+          }
+        };
+        try {
+          const t = localStorage.getItem('fm-theme');
+          if (t) document.documentElement.dataset.theme = t;
+        } catch (e) {
+          /* ignore */
+        }
+
+        readHash();
+        refresh();
+        if (!STATIC) setInterval(refresh, 2000);
+      })();
+    </script>
+  </body>
+</html>

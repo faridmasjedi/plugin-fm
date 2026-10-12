@@ -5,13 +5,15 @@
   "author": "Salesforce",
   "bugs": "https://github.com/forcedotcom/cli/issues",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "@oclif/core": "^4",
     "@salesforce/core": "^8.23.4",
     "@salesforce/kit": "^3.2.4",
     "@salesforce/sf-plugins-core": "^12",
     "@salesforce/source-deploy-retrieve": "^12.0.1",
     "ignore": "^7.0.5",
-    "xml2js": "^0.6.2"
+    "xml2js": "^0.6.2",
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@oclif/plugin-command-snapshot": "^5.3.8",
@@ -28,6 +30,7 @@
     "node": ">=18.0.0"
   },
   "files": [
+    "/dashboard",
     "/lib",
     "/messages",
     "/npm-shrinkwrap.json",
@@ -57,7 +60,15 @@
     ],
     "topics": {
       "fm": {
-        "description": "Force Management deployment tools for building artifacts from Git changes."
+        "description": "Force Management deployment tools for building artifacts from Git changes.",
+        "subtopics": {
+          "pipeline": {
+            "description": "Run an optional release pipeline (build, quality, deploy, scripts, approvals) and track it on the dashboard."
+          },
+          "runbook": {
+            "description": "Run pre- and post-deployment runbooks (Markdown) with AI, approving every change to the org."
+          }
+        }
       }
     },
     "flexibleTaxonomy": true

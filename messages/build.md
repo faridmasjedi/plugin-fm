@@ -98,7 +98,7 @@ The '--base-branch' flag is required when using '--from-last-successful-deployme
 
 # error.noDeploymentTagFound
 
-No successful deployment tag found for branch '%s'.
+No successful deployment tag found for branch '%s'. For the first release, also pass --ref-a (e.g. the commit currently in the org); after a successful 'sf fm deploy --tag-on-success <branch>' later builds will pick up the tag automatically.
 
 # error.refARequired
 
@@ -110,7 +110,7 @@ Generating manifest for changes between '%s' and '%s'.
 
 # info.usingDeploymentTag
 
-Using latest deployment tag commit '%s' from branch '%s' as ref-a.
+Using latest deployment tag %s from branch '%s' as ref-a.
 
 # info.foundChangedFiles
 
@@ -183,3 +183,35 @@ Docker image '%s' built successfully.
 # warn.sfdxProjectJsonNotFound
 
 sfdx-project.json not found in current or parent directories. Using default API version.
+
+# warn.noDeploymentTagFallback
+
+No deployment tag found for branch '%s'. Falling back to --ref-a '%s'.
+
+# warn.deploymentTagNotAncestor
+
+Deployment tag %s is not an ancestor of '%s' (history may have been rewritten). The diff may include unexpected changes.
+
+# flags.waves.summary
+
+Split the changes into ordered deployment waves, one artifact per wave (default: Data Cloud → core → OmniStudio).
+
+# flags.waves.description
+
+Each changed or deleted file is assigned to the first wave whose metadata types or path patterns match it; everything else goes to the default wave. Every wave gets its own complete artifact in <output-dir>/<n>-<wave-id> (Package, Destructive, ChangedFiles, RemovedFiles), so waves are never merged into one manifest. Waves are defined in .fm/waves.yml (or --waves-file); without a file the built-in waves are used: Data Cloud metadata first, then everything else (including Agentforce), then OmniStudio. A waves.json summary is written to the output directory.
+
+# flags.wavesFile.summary
+
+Waves definition file (implies --waves). Defaults to .fm/waves.yml when --waves is set.
+
+# info.usingWaves
+
+Deployment waves: %s (%s)
+
+# info.builtInWaves
+
+built-in defaults
+
+# info.wavesSummary
+
+Waves with changes: %s. Summary written to %s

@@ -137,40 +137,6 @@ export function filterIgnoredFiles(files: string[], forceignorePath: string, add
 }
 
 /**
- * Finds the latest deployment tag for a given branch.
- *
- * @param baseBranch The name of the base branch.
- * @param currentDir The directory to run git commands in.
- * @param command The command logger for warnings.
- * @returns The commit SHA of the latest deployment tag, or undefined if not found.
- */
-export function findLatestDeploymentTag(
-  baseBranch: string,
-  currentDir: string,
-  command: CommandLogger
-): string | undefined {
-  return withDirectory(currentDir, () => {
-    try {
-      // List all tags matching the pattern for the baseBranch, sorted by creation date (newest first)
-      const allTags = execSync(`git tag --list 'sf-deploy-success/${baseBranch}/*' --sort=-creatordate`, {
-        encoding: 'utf8',
-      }).trim();
-      const tagLines = allTags.split('\n').filter((tag: string) => tag.length > 0);
-
-      if (tagLines.length > 0) {
-        const latestTag = tagLines[0];
-        // Get the commit hash that the tag points to
-        return execSync(`git rev-list -n 1 ${latestTag}`, { encoding: 'utf8' }).trim();
-      }
-      return undefined;
-    } catch (error) {
-      command.warn(`Could not find latest deployment tag for branch ${baseBranch}: ${(error as Error).message}`);
-      return undefined;
-    }
-  });
-}
-
-/**
  * Gets the commit SHA for a submodule at a specific ref.
  */
 function getSubmoduleCommit(ref: string, submodulePath: string): string {

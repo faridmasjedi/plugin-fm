@@ -1,0 +1,83 @@
+# Release train for GitHub Actions (copy to .github/workflows/release-train.yml)
+#
+# Uses .fm/pipeline.yml and .fm/waves.yml from `sf fm pipeline init --train`.
+#   pull_request -> Data Cloud: validate, [approve], deploy; core: validate (the PR check)
+#   push to main -> core: deploy; OmniStudio: validate, [approve], deploy; tag
+#
+# Approvals: with FM_REQUIRE_APPROVAL=true the run pauses at its approval gate. The
+# `approve` job then waits for the reviewers of the `salesforce-approval` environment,
+# restores the paused run and resumes it.
+
+name: Salesforce release train
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  FM_REQUIRE_APPROVAL: ${{ vars.FM_REQUIRE_APPROVAL || 'false' }}
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the sf-deploy-success tag
+    outputs:
+      paused: ${{ steps.state.outputs.paused }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, submodules: recursive }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      # plugin-fm is not on npm yet: install it from your registry, or use the image from `sf fm docker init`
+      - run: npm install -g @salesforce/cli && sf plugins install code-analyzer <your plugin-fm package>
+      - run: |
+          echo "${{ secrets.SFDX_AUTH_URL }}" > auth.txt
+          sf org login sfdx-url --sfdx-url-file auth.txt --alias uat && rm auth.txt
+          git config user.name "release-bot" && git config user.email "release-bot@users.noreply.github.com"
+      - run: sf fm pipeline run --no-prompt --release "${{ github.head_ref || github.ref_name }}" --dashboard-export dashboard.html
+      - id: state
+        if: always()
+        run: |
+          RUN=$(ls -t .fm/runs/*.json | grep -v control | head -1)
+          echo "paused=$([ "$(jq -r .status "$RUN")" = paused ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-train
+          include-hidden-files: true
+          path: |
+            .fm/runs/
+            manifest/
+            dashboard.html
+
+  approve:
+    needs: train
+    if: needs.train.outputs.paused == 'true'
+    runs-on: ubuntu-latest
+    environment: salesforce-approval # add required reviewers to this environment
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, submodules: recursive }
+      - run: npm install -g @salesforce/cli && sf plugins install <your plugin-fm package>
+      - run: |
+          echo "${{ secrets.SFDX_AUTH_URL }}" > auth.txt
+          sf org login sfdx-url --sfdx-url-file auth.txt --alias uat && rm auth.txt
+          git config user.name "release-bot" && git config user.email "release-bot@users.noreply.github.com"
+      - uses: actions/download-artifact@v4
+        with: { name: release-train }
+      - run: |
+          sf fm pipeline approve --run latest
+          sf fm pipeline run --resume latest --no-prompt --dashboard-export dashboard.html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-train-approved
+          include-hidden-files: true
+          path: |
+            .fm/runs/
+            dashboard.html

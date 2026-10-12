@@ -1,0 +1,82 @@
+# Publish the release dashboard on GitHub Pages (copy to .github/workflows/release-dashboard.yml)
+#
+# After every run of the release train, the run files are added to a data branch
+# (fm-dashboard-data), so the dashboard keeps the history of every release, and a
+# static dashboard (sf fm dashboard --export) is deployed to GitHub Pages.
+#
+# PRIVACY: runs contain org usernames, metadata names and logs. On GitHub plans
+# without private Pages, a site published from a private repository is PUBLIC.
+# Use private Pages (GitHub Enterprise Cloud) or keep the dashboard.html artifact
+# from the train workflow instead.
+#
+# One-time setup: Settings > Pages > Source: GitHub Actions.
+
+name: Release dashboard
+
+on:
+  workflow_run:
+    workflows: [Salesforce release train]
+    types: [completed]
+
+permissions:
+  contents: write # push the data branch
+  pages: write
+  id-token: write
+  actions: read # download artifacts of the train run
+
+concurrency:
+  group: release-dashboard
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      # Runs from the train job, then the (newer) state from the approval job, if any
+      - uses: actions/download-artifact@v4
+        with:
+          {
+            name: release-train,
+            path: incoming/train,
+            run-id: '${{ github.event.workflow_run.id }}',
+            github-token: '${{ github.token }}',
+          }
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          {
+            name: release-train-approved,
+            path: incoming/approved,
+            run-id: '${{ github.event.workflow_run.id }}',
+            github-token: '${{ github.token }}',
+          }
+
+      - name: Add the runs to the history branch
+        run: |
+          git config user.name "release-bot" && git config user.email "release-bot@users.noreply.github.com"
+          if git ls-remote --exit-code origin fm-dashboard-data >/dev/null; then
+            git fetch origin fm-dashboard-data && git worktree add history origin/fm-dashboard-data && git -C history checkout -B fm-dashboard-data
+          else
+            git worktree add --detach history && git -C history checkout --orphan fm-dashboard-data && git -C history rm -rfq --ignore-unmatch .
+          fi
+          mkdir -p history/runs
+          for dir in incoming/train/.fm/runs incoming/approved/.fm/runs; do
+            [ -d "$dir" ] && cp -R "$dir"/. history/runs/
+          done
+          git -C history add runs && git -C history commit -qm "Runs from ${{ github.event.workflow_run.html_url }}" || true
+          git -C history push origin fm-dashboard-data
+
+      # plugin-fm is not on npm yet: install it from your registry, or use the image from `sf fm docker init`
+      - run: npm install -g @salesforce/cli && sf plugins install <your plugin-fm package>
+      - run: mkdir -p site && sf fm dashboard --export site/index.html --runs-dir history/runs
+
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: site }
+      - id: deploy
+        uses: actions/deploy-pages@v4

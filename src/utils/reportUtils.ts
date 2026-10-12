@@ -495,8 +495,28 @@ export function detectBundleChanges(files: string[]): Map<string, string[]> {
   return bundles;
 }
 
+export type WaveResult = {
+  id: string;
+  name: string;
+  index: number;
+  /** Artifact directory, usable as `sf fm deploy --manifest`. */
+  dir: string;
+  hasChanges: boolean;
+  isDefault: boolean;
+  types: string[];
+  changedFiles: number;
+  deletedFiles: number;
+  manifests?: DiffResult['manifests'];
+};
+
 export type DiffResult = {
   outputDir: string;
+  refA?: string;
+  refB?: string;
+  /** Set when built with --waves. */
+  waves?: WaveResult[];
+  wavesById?: Record<string, WaveResult>;
+  contains?: { dataCloud: boolean; agentforce: boolean; omnistudio: boolean };
   manifests: {
     packageXml: string | string[];
     destructiveChangesXml: string;

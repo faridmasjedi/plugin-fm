@@ -169,6 +169,22 @@ Ignore conflicts and deploy anyway.
 
 When enabled, conflicts between local metadata and org metadata will be ignored. Use with caution as this can overwrite changes made directly in the org.
 
+# flags.tagOnSuccess.summary
+
+Branch name to tag after a successful deployment (creates sf-deploy-success/<branch>/<timestamp>).
+
+# flags.tagOnSuccess.description
+
+After a successful deployment or quick deploy, creates an annotated Git tag on the deployed commit. The next 'sf fm build --from-last-successful-deployment --base-branch <branch>' uses this tag as its starting point, so each release only contains what changed since the last successful deployment. Validations and still-running async deployments are never tagged.
+
+# flags.tagCommit.summary
+
+Commit to tag after a successful deployment (default: HEAD).
+
+# flags.pushTag.summary
+
+Push the deployment tag to the 'origin' remote.
+
 # info.startingDeployment
 
 Starting %s to %s...

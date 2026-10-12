@@ -34,6 +34,7 @@ import { existsSync } from 'node:fs';
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages, Connection } from '@salesforce/core';
 import { updateDeployCacheWaitTime } from '../../utils/deployCacheUtils.js';
+import { createDeploymentTag } from '../../utils/deployTagUtils.js';
 import type { DeploymentOptions } from '../../utils/deploymentService.js';
 
 // Initialize messages
@@ -65,6 +66,7 @@ export type DeployResult = {
   codeCoverage?: number;
   messages: string[];
   async: boolean;
+  deploymentTag?: string;
 };
 
 export default class Deploy extends SfCommand<DeployResult> {
@@ -170,6 +172,18 @@ export default class Deploy extends SfCommand<DeployResult> {
       summary: messages.getMessage('flags.ignoreConflicts.summary'),
       description: messages.getMessage('flags.ignoreConflicts.description'),
       default: false,
+    }),
+    'tag-on-success': Flags.string({
+      summary: messages.getMessage('flags.tagOnSuccess.summary'),
+      description: messages.getMessage('flags.tagOnSuccess.description'),
+    }),
+    'tag-commit': Flags.string({
+      summary: messages.getMessage('flags.tagCommit.summary'),
+      default: 'HEAD',
+    }),
+    'push-tag': Flags.boolean({
+      summary: messages.getMessage('flags.pushTag.summary'),
+      dependsOn: ['tag-on-success'],
     }),
   };
 
@@ -292,7 +306,7 @@ export default class Deploy extends SfCommand<DeployResult> {
     );
 
     // Early return for quick deploy
-    if (mode === 'quick') return this.handleQuickDeploy(flags, targetOrg);
+    if (mode === 'quick') return this.tagIfRequested(await this.handleQuickDeploy(flags, targetOrg), flags, mode);
 
     const manifestDir = flags.manifest!;
 
@@ -330,7 +344,7 @@ export default class Deploy extends SfCommand<DeployResult> {
     const useAsyncForProgress = flags.progress && !flags.async;
     if (useAsyncForProgress) {
       result = await this.monitorAndExecutePostHooks(result, flags, targetOrg, targetOrgUsername, mode, manifestDir);
-      return result;
+      return this.tagIfRequested(result, flags, mode);
     }
 
     // Execute post-hooks and display results
@@ -344,7 +358,37 @@ export default class Deploy extends SfCommand<DeployResult> {
     }
 
     this.displayResults(result, mode);
-    return result;
+    return this.tagIfRequested(result, flags, mode);
+  }
+
+  /**
+   * Tags the deployed commit so the next `sf fm build --from-last-successful-deployment`
+   * diffs from here. Only real, completed deployments are tagged.
+   */
+  private tagIfRequested(result: DeployResult, flags: Record<string, unknown>, mode: DeploymentMode): DeployResult {
+    const branch = flags['tag-on-success'] as string | undefined;
+    if (!branch) return result;
+
+    if (mode === 'validation') {
+      this.log('Skipping deployment tag: validations do not change the org.');
+      return result;
+    }
+    if (result.async || result.status !== 'Succeeded') {
+      if (result.async) this.warn('Skipping deployment tag: the deployment is still running (async).');
+      return result;
+    }
+
+    const tagInfo = createDeploymentTag(
+      {
+        branch,
+        commit: flags['tag-commit'] as string,
+        push: Boolean(flags['push-tag']),
+        message: `Successful Salesforce deployment of ${branch} (job ${result.jobId})`,
+        cwd: process.cwd(),
+      },
+      this
+    );
+    return { ...result, deploymentTag: tagInfo.tag };
   }
 
   /**

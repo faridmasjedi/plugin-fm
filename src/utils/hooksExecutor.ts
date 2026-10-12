@@ -1,7 +1,7 @@
-import { execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { LoggerWithError } from './types.js';
+import { SUPPORTED_SCRIPT_EXTENSIONS, runScriptSync } from './scriptRunner.js';
 
 export type HookResult = {
   success: boolean;
@@ -67,7 +67,7 @@ export class HooksExecutor {
     const files = await fs.readdir(hooksDir);
 
     // Filter for executable scripts
-    const scripts = files.filter((f) => f.endsWith('.sh') || f.endsWith('.js') || f.endsWith('.ts')).sort(); // Execute in alphabetical order
+    const scripts = files.filter((f) => SUPPORTED_SCRIPT_EXTENSIONS.some((ext) => f.endsWith(ext))).sort(); // Execute in alphabetical order
 
     const results: HookResult[] = [];
 
@@ -113,11 +113,10 @@ export class HooksExecutor {
     }
 
     // Check if it's a supported script type
-    const supportedExtensions = ['.sh', '.js', '.ts', '.py'];
-    const hasValidExtension = supportedExtensions.some((ext) => scriptPath.endsWith(ext));
+    const hasValidExtension = SUPPORTED_SCRIPT_EXTENSIONS.some((ext) => scriptPath.endsWith(ext));
 
     if (!hasValidExtension) {
-      errors.push(`Unsupported script type. Must be one of: ${supportedExtensions.join(', ')}`);
+      errors.push(`Unsupported script type. Must be one of: ${SUPPORTED_SCRIPT_EXTENSIONS.join(', ')}`);
     }
 
     return {
@@ -141,55 +140,26 @@ export class HooksExecutor {
    * Executes a hook script with context.
    */
   private static executeHook(scriptPath: string, context: HookContext, type: 'pre' | 'post'): HookResult {
-    const startTime = Date.now();
+    // Set environment variables for the hook
+    const env = {
+      ...process.env,
+      FM_HOOK_TYPE: type,
+      FM_DEPLOY_MODE: context.mode,
+      FM_TARGET_ORG: context.targetOrg,
+      FM_MANIFEST_DIR: context.manifestDir,
+      ...(context.jobId && { FM_JOB_ID: context.jobId }),
+    };
 
-    try {
-      // Set environment variables for the hook
-      const env = {
-        ...process.env,
-        FM_HOOK_TYPE: type,
-        FM_DEPLOY_MODE: context.mode,
-        FM_TARGET_ORG: context.targetOrg,
-        FM_MANIFEST_DIR: context.manifestDir,
-        ...(context.jobId && { FM_JOB_ID: context.jobId }),
-      };
+    // .apex hooks run as anonymous Apex against the target org
+    const result = runScriptSync(scriptPath, { env, targetOrg: context.targetOrg });
 
-      // Make script executable
-      try {
-        execSync(`chmod +x "${scriptPath}"`, { stdio: 'ignore' });
-      } catch {
-        // If chmod fails, try to run anyway
-      }
-
-      // Execute the script
-      const result = execSync(`"${scriptPath}"`, {
-        env,
-        encoding: 'utf8',
-        maxBuffer: 10 * 1024 * 1024, // 10MB
-        timeout: 15 * 60 * 1000, // 15 minutes
-      });
-
-      const duration = Date.now() - startTime;
-
-      return {
-        success: true,
-        exitCode: 0,
-        stdout: result.toString(),
-        stderr: '',
-        duration,
-      };
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      const err = error as { status?: number; stdout?: Buffer; stderr?: Buffer };
-
-      return {
-        success: false,
-        exitCode: err.status ?? 1,
-        stdout: err.stdout?.toString() ?? '',
-        stderr: err.stderr?.toString() ?? (error as Error).message,
-        duration,
-      };
-    }
+    return {
+      success: result.exitCode === 0,
+      exitCode: result.exitCode,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      duration: result.durationMs,
+    };
   }
 
   private static generateBashHook(type: 'pre' | 'post'): string {

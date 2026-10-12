@@ -29,10 +29,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-import { resolve } from 'node:path';
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages } from '@salesforce/core';
 import { getAllChangedAndDeletedFiles, filterFilesWithIgnored } from '../../utils/gitUtils.js';
+import { findLatestDeploymentTagInfo, isAncestor } from '../../utils/deployTagUtils.js';
 import {
   processArtifacts,
   generateManifests,
@@ -41,11 +43,29 @@ import {
   processDeletedFiles,
   addGranularDeletedMetadataToMap,
 } from '../../utils/deploymentUtils.js';
-import { type DiffResult, generateSummaryOutput } from '../../utils/reportUtils.js';
+import { type DiffResult, type WaveResult, generateSummaryOutput } from '../../utils/reportUtils.js';
+import {
+  assignWaves,
+  detectProductAreas,
+  findWavesFile,
+  loadWaves,
+  MetadataTypeDetector,
+} from '../../utils/waveUtils.js';
+import type { Logger } from '../../utils/types.js';
 
 // Initialize messages
 Messages.importMessagesDirectoryFromMetaUrl(new URL('../../../messages', import.meta.url).toString());
 const messages = Messages.loadMessages('@salesforce/plugin-fm', 'build');
+
+type FilteredFiles = ReturnType<typeof filterFilesWithIgnored>;
+
+type BuildContext = {
+  cwd: string;
+  refA: string;
+  refB: string;
+  logger: Logger & { error: (message: string) => never };
+  summaryType: string;
+};
 
 export default class Build extends SfCommand<DiffResult> {
   public static readonly summary = messages.getMessage('summary');
@@ -57,7 +77,6 @@ export default class Build extends SfCommand<DiffResult> {
       char: 'r',
       summary: messages.getMessage('flags.refA.summary'),
       description: messages.getMessage('flags.refA.description'),
-      required: true,
     }),
     'ref-b': Flags.string({
       char: 'R',
@@ -71,6 +90,15 @@ export default class Build extends SfCommand<DiffResult> {
       description: messages.getMessage('flags.outputDir.description'),
       default: 'manifest',
       exists: false,
+    }),
+    'from-last-successful-deployment': Flags.boolean({
+      summary: messages.getMessage('flags.fromLastSuccessfulDeployment.summary'),
+      description: messages.getMessage('flags.fromLastSuccessfulDeployment.description'),
+      dependsOn: ['base-branch'],
+    }),
+    'base-branch': Flags.string({
+      summary: messages.getMessage('flags.baseBranch.summary'),
+      description: messages.getMessage('flags.baseBranch.description'),
     }),
     forceignore: Flags.file({
       char: 'i',
@@ -90,6 +118,15 @@ export default class Build extends SfCommand<DiffResult> {
       description: messages.getMessage('flags.createDockerImage.description'),
       default: false,
     }),
+    waves: Flags.boolean({
+      summary: messages.getMessage('flags.waves.summary'),
+      description: messages.getMessage('flags.waves.description'),
+      default: false,
+    }),
+    'waves-file': Flags.file({
+      summary: messages.getMessage('flags.wavesFile.summary'),
+      exists: true,
+    }),
     summary: Flags.string({
       char: 's',
       summary: 'Generate deployment summary',
@@ -99,44 +136,49 @@ export default class Build extends SfCommand<DiffResult> {
     }),
   };
 
-  public async run(): Promise<DiffResult> {
-    const { flags } = await this.parse(Build);
-    const currentWorkingDir = process.cwd();
-    const refA = flags['ref-a'];
-    const refB = flags['ref-b'];
-
-    // Create a logger that suppresses output when JSON mode is requested
-    const isJsonOutput = flags.summary === 'json';
-    const logger = {
-      log: (message: string): void => {
-        if (!isJsonOutput) this.log(message);
-      },
-      warn: (message: string): void => {
-        if (!isJsonOutput) this.warn(message);
-      },
-      error: (message: string): never => this.error(message),
-    };
-
-    logger.log(messages.getMessage('info.generatingManifest', [refA, refB]));
-
-    // Get all changed and deleted files (including submodules)
-    const changedAndDeleted = getAllChangedAndDeletedFiles(refA, refB, currentWorkingDir, logger);
-
-    // Log additional ignore patterns if provided
-    if (flags.ignore && flags.ignore.length > 0) {
-      logger.log(messages.getMessage('info.usingAdditionalIgnorePatterns', [flags.ignore.length.toString()]));
+  /**
+   * Resolves the 'old' ref: the latest deployment tag on the base branch when requested,
+   * falling back to --ref-a when no tag exists yet (e.g. the very first release).
+   */
+  private static resolveRefA(
+    flags: { 'ref-a'?: string; 'from-last-successful-deployment'?: boolean; 'base-branch'?: string },
+    refB: string,
+    cwd: string,
+    logger: { log: (m: string) => void; warn: (m: string) => void }
+  ): string {
+    if (!flags['from-last-successful-deployment']) {
+      if (!flags['ref-a']) throw messages.createError('error.refARequired');
+      return flags['ref-a'];
     }
 
-    // Filter ignored files (including additional patterns)
-    const filtered = filterFilesWithIgnored(
-      changedAndDeleted,
-      flags.forceignore,
-      flags.ignore,
-      changedAndDeleted.renamed
-    );
+    const baseBranch = flags['base-branch']!;
+    const tagInfo = findLatestDeploymentTagInfo(baseBranch, cwd, logger);
+    if (!tagInfo) {
+      if (flags['ref-a']) {
+        logger.warn(messages.getMessage('warn.noDeploymentTagFallback', [baseBranch, flags['ref-a']]));
+        return flags['ref-a'];
+      }
+      throw messages.createError('error.noDeploymentTagFound', [baseBranch]);
+    }
 
-    // Prepare output directories
-    const baseOutputDir = resolve(currentWorkingDir, flags['output-dir']);
+    logger.log(
+      messages.getMessage('info.usingDeploymentTag', [`${tagInfo.tag} (${tagInfo.sha.substring(0, 8)})`, baseBranch])
+    );
+    if (!isAncestor(tagInfo.sha, refB, cwd)) {
+      logger.warn(messages.getMessage('warn.deploymentTagNotAncestor', [tagInfo.tag, refB]));
+    }
+    return tagInfo.sha;
+  }
+
+  /**
+   * Builds one deployable artifact (Package, Destructive, ChangedFiles, RemovedFiles) in outputDir.
+   */
+  private static async buildArtifact(
+    filtered: FilteredFiles,
+    baseOutputDir: string,
+    context: BuildContext
+  ): Promise<DiffResult> {
+    const { cwd: currentWorkingDir, refA, refB, logger } = context;
     const { packageDir, destructiveDir, changedFilesDir, removedFilesDir } = prepareOutputDirectories(
       baseOutputDir,
       logger
@@ -212,14 +254,9 @@ export default class Build extends SfCommand<DiffResult> {
       artifacts.granularChangedFiles
     );
 
-    // Create Docker image if requested
-    if (flags['create-docker-image']) {
-      createDockerImage(baseOutputDir, logger);
-    }
-
     // Generate and output summary with bundle information
-    const result = await generateSummaryOutput(
-      flags.summary,
+    const summary = await generateSummaryOutput(
+      context.summaryType,
       baseOutputDir,
       filtered,
       deletedMetadataComponents,
@@ -232,6 +269,168 @@ export default class Build extends SfCommand<DiffResult> {
       deletedBundles,
       invalidBundles
     );
+    return { ...summary, refA, refB };
+  }
+
+  /**
+   * Splits the changes into ordered waves (e.g. Data Cloud, core, OmniStudio) and builds
+   * one artifact per wave in <output-dir>/<n>-<wave-id>. Files of one wave never end up
+   * in another wave's manifest.
+   */
+  private static async buildWaves(
+    filtered: FilteredFiles,
+    baseOutputDir: string,
+    wavesFileFlag: string | undefined,
+    context: BuildContext
+  ): Promise<DiffResult> {
+    const { cwd, logger } = context;
+    const wavesFile = wavesFileFlag ? resolve(cwd, wavesFileFlag) : findWavesFile(cwd);
+    const config = loadWaves(wavesFile);
+    logger.log(
+      messages.getMessage('info.usingWaves', [
+        config.waves.map((w) => w.name ?? w.id).join(' → '),
+        wavesFile ?? messages.getMessage('info.builtInWaves'),
+      ])
+    );
+
+    // Start clean so a wave without changes never leaves an old artifact behind
+    mkdirSync(baseOutputDir, { recursive: true });
+    for (const entry of readdirSync(baseOutputDir)) {
+      if (/^\d+-/.test(entry)) rmSync(join(baseOutputDir, entry), { recursive: true, force: true });
+    }
+
+    const assignments = assignWaves(filtered, config, new MetadataTypeDetector(cwd));
+    const waves: WaveResult[] = [];
+    let defaultResult: DiffResult | undefined;
+
+    for (const assignment of assignments) {
+      const { wave, index } = assignment;
+      const dir = join(baseOutputDir, `${index + 1}-${wave.id}`);
+      const hasChanges = assignment.changedFiles.length + assignment.deletedFiles.length > 0;
+      logger.log(
+        `\n━━ Wave ${index + 1}: ${wave.name ?? wave.id} — ${assignment.changedFiles.length} changed, ${
+          assignment.deletedFiles.length
+        } deleted ━━`
+      );
+
+      let artifact: DiffResult | undefined;
+      if (hasChanges) {
+        // eslint-disable-next-line no-await-in-loop
+        artifact = await Build.buildArtifact(
+          {
+            changedFiles: assignment.changedFiles,
+            deletedFiles: assignment.deletedFiles,
+            // Ignored files are reported once, with the default wave
+            ignoredChanged: wave.default ? filtered.ignoredChanged : [],
+            ignoredDeleted: wave.default ? filtered.ignoredDeleted : [],
+            submodules: filtered.submodules,
+          },
+          dir,
+          context
+        );
+        if (wave.default) defaultResult = artifact;
+      }
+      waves.push({
+        id: wave.id,
+        name: wave.name ?? wave.id,
+        index: index + 1,
+        dir,
+        hasChanges,
+        isDefault: Boolean(wave.default),
+        types: assignment.types,
+        changedFiles: assignment.changedFiles.length,
+        deletedFiles: assignment.deletedFiles.length,
+        manifests: artifact?.manifests,
+      });
+    }
+
+    const contains = detectProductAreas(waves.flatMap((w) => w.types));
+    const summary = {
+      waves,
+      wavesById: Object.fromEntries(waves.map((w) => [w.id, w])),
+      contains,
+    };
+    writeFileSync(join(baseOutputDir, 'waves.json'), JSON.stringify(summary, null, 2));
+    logger.log(
+      `\n${messages.getMessage('info.wavesSummary', [
+        waves
+          .filter((w) => w.hasChanges)
+          .map((w) => `${w.index}-${w.id}`)
+          .join(', ') || 'none',
+        join(baseOutputDir, 'waves.json'),
+      ])}`
+    );
+
+    return {
+      outputDir: baseOutputDir,
+      manifests: defaultResult?.manifests ?? {
+        packageXml: [],
+        destructiveChangesXml: '',
+        emptyDestructivePackageXml: '',
+      },
+      changedFilesCopied: waves.reduce((sum, w) => sum + w.changedFiles, 0),
+      sfdxProjectJsonCopied: false,
+      statistics: {
+        totalChanged: filtered.changedFiles.length,
+        totalDeleted: filtered.deletedFiles.length,
+        totalIgnored: filtered.ignoredChanged.length + filtered.ignoredDeleted.length,
+        chunksGenerated: defaultResult?.statistics.chunksGenerated ?? 0,
+      },
+      reports: {},
+      refA: context.refA,
+      refB: context.refB,
+      ...summary,
+    };
+  }
+
+  public async run(): Promise<DiffResult> {
+    const { flags } = await this.parse(Build);
+    const currentWorkingDir = process.cwd();
+    const refB = flags['ref-b'];
+
+    // Create a logger that suppresses output when JSON mode is requested
+    const isJsonOutput = flags.summary === 'json';
+    const logger = {
+      log: (message: string): void => {
+        if (!isJsonOutput) this.log(message);
+      },
+      warn: (message: string): void => {
+        if (!isJsonOutput) this.warn(message);
+      },
+      error: (message: string): never => this.error(message),
+    };
+
+    const refA = Build.resolveRefA(flags, refB, currentWorkingDir, logger);
+    logger.log(messages.getMessage('info.generatingManifest', [refA, refB]));
+
+    // Get all changed and deleted files (including submodules)
+    const changedAndDeleted = getAllChangedAndDeletedFiles(refA, refB, currentWorkingDir, logger);
+
+    // Log additional ignore patterns if provided
+    if (flags.ignore && flags.ignore.length > 0) {
+      logger.log(messages.getMessage('info.usingAdditionalIgnorePatterns', [flags.ignore.length.toString()]));
+    }
+
+    // Filter ignored files (including additional patterns)
+    const filtered = filterFilesWithIgnored(
+      changedAndDeleted,
+      flags.forceignore,
+      flags.ignore,
+      changedAndDeleted.renamed
+    );
+
+    const baseOutputDir = resolve(currentWorkingDir, flags['output-dir']);
+    const context = { cwd: currentWorkingDir, refA, refB, logger, summaryType: flags.summary };
+
+    const useWaves = flags.waves || Boolean(flags['waves-file']);
+    const result = useWaves
+      ? await Build.buildWaves(filtered, baseOutputDir, flags['waves-file'], context)
+      : await Build.buildArtifact(filtered, baseOutputDir, context);
+
+    // Create Docker image if requested
+    if (flags['create-docker-image']) {
+      createDockerImage(baseOutputDir, logger);
+    }
 
     // When JSON mode is requested, output the result directly (bypassing the logger suppression)
     if (isJsonOutput) {

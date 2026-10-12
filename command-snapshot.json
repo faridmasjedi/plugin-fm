@@ -4,7 +4,191 @@
     "command": "fm:build",
     "flagAliases": [],
     "flagChars": ["R", "d", "i", "r", "s"],
-    "flags": ["create-docker-image", "flags-dir", "forceignore", "json", "output-dir", "ref-a", "ref-b", "summary"],
+    "flags": [
+      "base-branch",
+      "create-docker-image",
+      "flags-dir",
+      "forceignore",
+      "from-last-successful-deployment",
+      "ignore",
+      "json",
+      "output-dir",
+      "ref-a",
+      "ref-b",
+      "summary",
+      "waves",
+      "waves-file"
+    ],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
+    "command": "fm:check-duplicates",
+    "flagAliases": [],
+    "flagChars": ["R", "a", "r"],
+    "flags": ["all", "flags-dir", "from", "json", "to"],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
+    "command": "fm:dashboard",
+    "flagAliases": [],
+    "flagChars": ["e", "f", "p"],
+    "flags": ["export", "file", "flags-dir", "json", "open", "port", "runs-dir"],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
+    "command": "fm:deploy",
+    "flagAliases": [],
+    "flagChars": ["c", "i", "l", "m", "o", "p", "t", "w"],
+    "flags": [
+      "async",
+      "check-only",
+      "destructive",
+      "flags-dir",
+      "ignore-conflicts",
+      "ignore-warnings",
+      "intelligent-tests",
+      "json",
+      "manifest",
+      "mode",
+      "post-steps",
+      "pre",
+      "pre-steps",
+      "progress",
+      "push-tag",
+      "tag-commit",
+      "tag-on-success",
+      "target-org",
+      "test-level",
+      "tests",
+      "validation-id",
+      "wait"
+    ],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
+    "command": "fm:deploy:cancel",
+    "flagAliases": [],
+    "flagChars": ["i", "o"],
+    "flags": ["flags-dir", "job-id", "job-id-file", "json", "skip-if-not-found", "target-org"],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
+    "command": "fm:deploy:status",
+    "flagAliases": [],
+    "flagChars": ["i", "o", "w"],
+    "flags": ["flags-dir", "interval", "job-id", "json", "target-org", "timeout", "watch"],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
+    "command": "fm:docker:init",
+    "flagAliases": [],
+    "flagChars": ["b", "d", "m"],
+    "flags": [
+      "base-image",
+      "flags-dir",
+      "github-workflow",
+      "json",
+      "maintainer",
+      "output-dir",
+      "plugin-install-method",
+      "plugin-version",
+      "sf-cli-version"
+    ],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
+    "command": "fm:pipeline:approve",
+    "flagAliases": [],
+    "flagChars": [],
+    "flags": ["flags-dir", "json", "reject", "run", "runs-dir", "stage"],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
+    "command": "fm:pipeline:init",
+    "flagAliases": [],
+    "flagChars": ["b"],
+    "flags": ["base-branch", "flags-dir", "force", "json", "target-org", "train"],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
+    "command": "fm:pipeline:run",
+    "flagAliases": [],
+    "flagChars": ["f"],
+    "flags": [
+      "dashboard-export",
+      "event",
+      "file",
+      "flags-dir",
+      "json",
+      "prompt",
+      "release",
+      "resume",
+      "runs-dir",
+      "step-by-step",
+      "trigger",
+      "wait-for-approval"
+    ],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
+    "command": "fm:quality",
+    "flagAliases": [],
+    "flagChars": ["R", "a", "d", "e", "i", "r", "s"],
+    "flags": [
+      "all",
+      "config-file",
+      "engine",
+      "flags-dir",
+      "forceignore",
+      "json",
+      "output-dir",
+      "pmd-ruleset",
+      "ref-a",
+      "ref-b",
+      "rule-selector",
+      "severity-threshold",
+      "warn-only"
+    ],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
+    "command": "fm:runbook:init",
+    "flagAliases": [],
+    "flagChars": [],
+    "flags": ["flags-dir", "force", "json"],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
+    "command": "fm:runbook:run",
+    "flagAliases": [],
+    "flagChars": ["f", "o"],
+    "flags": [
+      "approve",
+      "base-branch",
+      "file",
+      "flags-dir",
+      "json",
+      "model",
+      "plan",
+      "pr",
+      "provider",
+      "release",
+      "runs-dir",
+      "target-org",
+      "wait-for-approval"
+    ],
     "plugin": "@salesforce/plugin-fm"
   }
 ]

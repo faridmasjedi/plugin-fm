@@ -9,6 +9,10 @@ Comprehensive guide for all `@salesforce/plugin-fm` commands with examples and s
 - [sf fm deploy status](#sf-fm-deploy-status)
 - [sf fm deploy cancel](#sf-fm-deploy-cancel)
 - [sf fm docker init](#sf-fm-docker-init)
+- [sf fm quality](#sf-fm-quality)
+- [sf fm pipeline run / init / approve](#sf-fm-pipeline-run--init--approve)
+- [sf fm dashboard](#sf-fm-dashboard)
+- [sf fm runbook run / init](#sf-fm-runbook-run--init)
 
 ---
 
@@ -48,8 +52,13 @@ Analyzes differences between two Git references and generates:
 | `--ref-b`                           | string  | Git reference for the 'new' state (default: HEAD)                                             |
 | `--output-dir`                      | string  | Output directory for manifests and files (default: manifest)                                  |
 | `--forceignore`                     | file    | Path to .forceignore file                                                                     |
-| `--from-last-successful-deployment` | boolean | Use last successful deployment tag as baseline                                                |
+| `--from-last-successful-deployment` | boolean | Use the latest `sf-deploy-success/<base-branch>/*` tag as baseline; falls back to `--ref-a`   |
 | `--base-branch`                     | string  | Base branch for last successful deployment lookup                                             |
+| `--ignore`                          | string  | Extra ignore patterns, combined with `.forceignore`                                           |
+| `--create-docker-image`             | boolean | Build a Docker image containing the artifact                                                  |
+| `--summary`                         | choice  | Summary format: console, json, github                                                         |
+| `--waves`                           | boolean | Split into ordered wave artifacts (Data Cloud → core → OmniStudio), see PIPELINE.md           |
+| `--waves-file`                      | file    | Waves definition (default `.fm/waves.yml`)                                                    |
 | `--json`                            | boolean | Output in JSON format                                                                         |
 
 ### Examples
@@ -327,8 +336,11 @@ Deploys or validates Salesforce metadata with:
 | `--destructive`       | choice    | Destructive mode: pre, post, both                                    |
 | `--pre`               | string[]  | Pre-destructive files (with --destructive both)                      |
 | `--validation-id`     | string    | Validation ID for quick deploy                                       |
-| `--pre-steps`         | file      | Script to run before deployment                                      |
-| `--post-steps`        | file      | Script to run after deployment                                       |
+| `--pre-steps`         | file      | Script to run before deployment (.sh .js .ts .py .apex)              |
+| `--post-steps`        | file      | Script to run after deployment (.sh .js .ts .py .apex)               |
+| `--tag-on-success`    | string    | Tag the deployed commit as `sf-deploy-success/<branch>/<timestamp>`  |
+| `--tag-commit`        | string    | Commit to tag (default: HEAD)                                        |
+| `--push-tag`          | boolean   | Push the deployment tag to `origin`                                  |
 | `--wait`              | integer   | Wait time in minutes (default: 120)                                  |
 | `--async`             | boolean   | Start deployment and return immediately                              |
 | `--progress`          | boolean   | Show real-time progress                                              |
@@ -911,6 +923,61 @@ The command creates these files in the specified output directory:
 3. **Security Scanning** - Use tools like Trivy to scan images
 4. **Keep Updated** - Rebuild regularly to get security updates
 5. **Test Locally** - Test the Docker image locally before using in CI/CD
+
+---
+
+## sf fm quality
+
+Static code analysis on the files that changed, so pull requests are judged on the code they touch. See [QUALITY_COMMAND.md](QUALITY_COMMAND.md) for details.
+
+```bash
+# Changed files of a PR, team ruleset, block on High or worse
+sf fm quality --ref-a origin/main --pmd-ruleset config/pmd/ruleset.xml --severity-threshold 2
+
+# Whole project, report only
+sf fm quality --all --warn-only
+```
+
+Engines are picked automatically: Salesforce Code Analyzer when installed (bundles PMD, ESLint, RetireJS, Flow Scanner), otherwise a local `pmd` with your `ruleset.xml` and the repository's own ESLint. Results are written to `quality-report/quality.md`, `quality.sarif` (GitHub code scanning) and `quality.json`, and the Markdown is added to the GitHub Actions job summary.
+
+---
+
+## sf fm pipeline run / init / approve
+
+An **optional** pipeline that chains the commands above in `.fm/pipeline.yml`. Nothing else depends on it. See [PIPELINE.md](PIPELINE.md) for the full reference.
+
+```bash
+sf fm pipeline init --target-org uat --base-branch main   # starter .fm/pipeline.yml + example scripts
+sf fm pipeline init --train --target-org uat              # release train: Data Cloud / core / OmniStudio over PR and push
+sf fm pipeline run                                        # run it, asking at approval gates
+sf fm pipeline run --step-by-step                         # confirm before every stage
+sf fm pipeline approve --run latest                       # approve a paused run (CI)
+sf fm pipeline run --resume latest                        # continue a paused run
+```
+
+---
+
+## sf fm dashboard
+
+Local release app: pipeline runs per release (stages, live logs, metrics, approvals), connected orgs, repository and deployment history, AI runbooks and AI settings.
+
+```bash
+sf fm dashboard --open                    # live at http://127.0.0.1:7007
+sf fm dashboard --export dashboard.html   # self-contained snapshot, e.g. a CI artifact or GitHub Pages
+```
+
+---
+
+## sf fm runbook run / init
+
+Run pre- and post-deployment steps written in plain language (Markdown) with AI. Every change to the org waits for approval, and manual Setup steps become instructions to confirm. See [AI_RUNBOOKS.md](AI_RUNBOOKS.md).
+
+```bash
+sf fm runbook init                                                     # .fm/ai.yml + example runbooks
+sf fm runbook run -f .fm/runbooks/pre-deploy.md -o uat --plan          # read-only plan
+sf fm runbook run -f .fm/runbooks/pre-deploy.md -o uat                 # approve each change in the terminal
+sf fm runbook run -f .fm/runbooks/post-deploy.md -o uat --wait-for-approval --pr
+```
 
 ---
 
