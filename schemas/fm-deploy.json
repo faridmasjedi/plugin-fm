@@ -40,6 +40,9 @@
         },
         "async": {
           "type": "boolean"
+        },
+        "deploymentTag": {
+          "type": "string"
         }
       },
       "required": [

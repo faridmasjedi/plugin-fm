@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/DockerInitResult",
+  "definitions": {
+    "DockerInitResult": {
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "outputDir": {
+          "type": "string"
+        }
+      },
+      "required": ["files", "outputDir"],
+      "additionalProperties": false
+    }
+  }
+}

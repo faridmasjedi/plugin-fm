@@ -5,59 +5,147 @@
     "QualityResult": {
       "type": "object",
       "properties": {
-        "baseSha": {
-          "type": "string"
-        },
-        "headSha": {
-          "type": "string"
-        },
-        "filesChanged": {
-          "type": "number"
-        },
-        "checks": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/QualityCheckResult"
-          }
-        },
-        "totalErrors": {
-          "type": "number"
-        },
-        "totalWarnings": {
-          "type": "number"
-        },
         "passed": {
           "type": "boolean"
+        },
+        "refA": {
+          "type": "string"
+        },
+        "refB": {
+          "type": "string"
+        },
+        "filesScanned": {
+          "type": "number"
+        },
+        "severityThreshold": {
+          "type": "number"
+        },
+        "counts": {
+          "type": "object",
+          "properties": {
+            "1": {
+              "type": "number"
+            },
+            "2": {
+              "type": "number"
+            },
+            "3": {
+              "type": "number"
+            },
+            "4": {
+              "type": "number"
+            },
+            "5": {
+              "type": "number"
+            }
+          },
+          "required": ["1", "2", "3", "4", "5"],
+          "additionalProperties": false
+        },
+        "engines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EngineRun"
+          }
+        },
+        "violations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Violation"
+          }
+        },
+        "reports": {
+          "type": "object",
+          "properties": {
+            "json": {
+              "type": "string"
+            },
+            "sarif": {
+              "type": "string"
+            },
+            "markdown": {
+              "type": "string"
+            }
+          },
+          "required": ["json", "sarif", "markdown"],
+          "additionalProperties": false
         }
       },
-      "required": ["baseSha", "headSha", "filesChanged", "checks", "totalErrors", "totalWarnings", "passed"],
+      "required": ["passed", "filesScanned", "severityThreshold", "counts", "engines", "violations", "reports"],
       "additionalProperties": false
     },
-    "QualityCheckResult": {
+    "EngineRun": {
       "type": "object",
       "properties": {
-        "check": {
-          "type": "string"
+        "engine": {
+          "$ref": "#/definitions/QualityEngine"
         },
         "status": {
           "type": "string",
-          "enum": ["pass", "fail", "warning", "skipped"]
+          "enum": ["completed", "skipped", "error"]
         },
-        "errors": {
-          "type": "number"
+        "reason": {
+          "type": "string"
         },
         "warnings": {
-          "type": "number"
-        },
-        "details": {
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Sub-engines that could not run (e.g. Code Analyzer's PMD without Java)."
+        },
+        "filesScanned": {
+          "type": "number"
+        },
+        "violations": {
+          "type": "number"
+        },
+        "durationMs": {
+          "type": "number"
         }
       },
-      "required": ["check", "status", "errors", "warnings"],
+      "required": ["engine", "status", "filesScanned", "violations", "durationMs"],
       "additionalProperties": false
+    },
+    "QualityEngine": {
+      "type": "string",
+      "enum": ["code-analyzer", "pmd", "eslint"]
+    },
+    "Violation": {
+      "type": "object",
+      "properties": {
+        "engine": {
+          "$ref": "#/definitions/QualityEngine"
+        },
+        "rule": {
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/definitions/Severity"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "number"
+        },
+        "column": {
+          "type": "number"
+        },
+        "message": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": ["engine", "rule", "severity", "file", "message"],
+      "additionalProperties": false
+    },
+    "Severity": {
+      "type": "number",
+      "enum": [1, 2, 3, 4, 5],
+      "description": "1 = Critical, 2 = High, 3 = Moderate, 4 = Low, 5 = Info (Code Analyzer / PMD scale)."
     }
   }
 }

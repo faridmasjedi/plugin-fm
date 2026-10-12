@@ -8,6 +8,41 @@
         "outputDir": {
           "type": "string"
         },
+        "refA": {
+          "type": "string"
+        },
+        "refB": {
+          "type": "string"
+        },
+        "waves": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/WaveResult"
+          },
+          "description": "Set when built with --waves."
+        },
+        "wavesById": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/WaveResult"
+          }
+        },
+        "contains": {
+          "type": "object",
+          "properties": {
+            "dataCloud": {
+              "type": "boolean"
+            },
+            "agentforce": {
+              "type": "boolean"
+            },
+            "omnistudio": {
+              "type": "boolean"
+            }
+          },
+          "required": ["dataCloud", "agentforce", "omnistudio"],
+          "additionalProperties": false
+        },
         "manifests": {
           "type": "object",
           "properties": {
@@ -73,6 +108,70 @@
         }
       },
       "required": ["outputDir", "manifests", "changedFilesCopied", "sfdxProjectJsonCopied", "statistics", "reports"],
+      "additionalProperties": false
+    },
+    "WaveResult": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "index": {
+          "type": "number"
+        },
+        "dir": {
+          "type": "string",
+          "description": "Artifact directory, usable as `sf fm deploy --manifest`."
+        },
+        "hasChanges": {
+          "type": "boolean"
+        },
+        "isDefault": {
+          "type": "boolean"
+        },
+        "types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "changedFiles": {
+          "type": "number"
+        },
+        "deletedFiles": {
+          "type": "number"
+        },
+        "manifests": {
+          "type": "object",
+          "properties": {
+            "packageXml": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
+            "destructiveChangesXml": {
+              "type": "string"
+            },
+            "emptyDestructivePackageXml": {
+              "type": "string"
+            }
+          },
+          "required": ["packageXml", "destructiveChangesXml", "emptyDestructivePackageXml"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["id", "name", "index", "dir", "hasChanges", "isDefault", "types", "changedFiles", "deletedFiles"],
       "additionalProperties": false
     }
   }

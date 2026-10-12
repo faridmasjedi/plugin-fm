@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/DashboardResult",
+  "definitions": {
+    "DashboardResult": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "exported": {
+          "type": "string"
+        },
+        "runs": {
+          "type": "number"
+        }
+      },
+      "required": ["runs"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,188 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/RunState",
+  "definitions": {
+    "RunState": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "pipeline": {
+          "type": "string"
+        },
+        "release": {
+          "type": "string"
+        },
+        "configPath": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "commitMessage": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "ciUrl": {
+          "type": "string"
+        },
+        "trigger": {
+          "type": "string",
+          "enum": ["local", "ci", "dashboard"]
+        },
+        "event": {
+          "$ref": "#/definitions/PipelineEvent"
+        },
+        "status": {
+          "$ref": "#/definitions/RunStatus"
+        },
+        "startedAt": {
+          "type": "string"
+        },
+        "finishedAt": {
+          "type": "string"
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/StageState"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "pipeline",
+        "release",
+        "configPath",
+        "branch",
+        "commit",
+        "trigger",
+        "event",
+        "status",
+        "startedAt",
+        "stages"
+      ],
+      "additionalProperties": false
+    },
+    "PipelineEvent": {
+      "type": "string",
+      "enum": ["pr", "push", "manual"]
+    },
+    "RunStatus": {
+      "type": "string",
+      "enum": ["running", "passed", "failed", "paused", "awaiting-approval", "canceled"]
+    },
+    "StageState": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "uses": {
+          "$ref": "#/definitions/StageUses"
+        },
+        "description": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/StageStatus"
+        },
+        "manual": {
+          "type": "boolean"
+        },
+        "startedAt": {
+          "type": "string"
+        },
+        "finishedAt": {
+          "type": "string"
+        },
+        "durationMs": {
+          "type": "number"
+        },
+        "error": {
+          "type": "string"
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Metric"
+          }
+        },
+        "result": {
+          "description": "Command result (trimmed) used for ${stages.<id>.result.*} and the dashboard."
+        },
+        "approvedBy": {
+          "type": "string"
+        },
+        "skipReason": {
+          "type": "string",
+          "description": "Why the stage was skipped."
+        },
+        "pendingAction": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            }
+          },
+          "required": ["key", "kind", "title", "detail"],
+          "additionalProperties": false,
+          "description": "An action inside the stage (e.g. an AI runbook step) waiting for approval."
+        },
+        "targetOrg": {
+          "type": "string",
+          "description": "Target org of build/deploy/script stages, shown on the release overview."
+        },
+        "deployMode": {
+          "type": "string",
+          "description": "Mode of deploy stages (validation, deployment, quick)."
+        }
+      },
+      "required": ["id", "name", "uses", "status", "manual"],
+      "additionalProperties": false
+    },
+    "StageUses": {
+      "type": "string",
+      "enum": ["build", "quality", "deploy", "check-duplicates", "script", "shell", "approval", "tag", "ai-runbook"]
+    },
+    "StageStatus": {
+      "type": "string",
+      "enum": ["pending", "running", "passed", "failed", "warning", "skipped", "awaiting-approval"]
+    },
+    "Metric": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": ["string", "number"]
+        },
+        "tone": {
+          "type": "string",
+          "enum": ["good", "bad", "warn", "neutral"]
+        }
+      },
+      "required": ["label", "value"],
+      "additionalProperties": false
+    }
+  }
+}
