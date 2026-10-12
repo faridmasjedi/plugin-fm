@@ -17,6 +17,7 @@ const FM_COMMANDS: Partial<Record<StageUses, string>> = {
   quality: 'fm:quality',
   deploy: 'fm:deploy',
   'check-duplicates': 'fm:check-duplicates',
+  e2e: 'fm:e2e:run',
 };
 
 const TERMINAL: Array<StageState['status']> = ['passed', 'failed', 'warning', 'skipped'];
@@ -380,8 +381,10 @@ export class PipelineRunner {
       const rawResult = await captureOutput(log, () => this.options.runCommand(commandId, toArgv(resolved.with)));
       // Commands such as quality report failure via the exit code; the pipeline decides instead
       process.exitCode = undefined;
-      const qualityFailed = config.uses === 'quality' && (rawResult as { passed?: boolean })?.passed === false;
-      return { rawResult, error: qualityFailed ? 'Quality gate failed' : undefined };
+      // quality and e2e return passed: false instead of throwing
+      const failed = (rawResult as { passed?: boolean })?.passed === false;
+      const message = config.uses === 'e2e' ? 'End-to-end tests failed' : 'Quality gate failed';
+      return { rawResult, error: failed ? message : undefined };
     }
 
     if (config.uses === 'tag') return { rawResult: this.tagStage(resolved.with, log) };

@@ -65,6 +65,9 @@
           "pipeline": {
             "description": "Run an optional release pipeline (build, quality, deploy, scripts, approvals) and track it on the dashboard."
           },
+          "e2e": {
+            "description": "Run Playwright end-to-end scenarios against Salesforce orgs."
+          },
           "runbook": {
             "description": "Run pre- and post-deployment runbooks (Markdown) with AI, approving every change to the org."
           }

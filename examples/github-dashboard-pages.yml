@@ -72,9 +72,12 @@ jobs:
           git -C history add runs && git -C history commit -qm "Runs from ${{ github.event.workflow_run.html_url }}" || true
           git -C history push origin fm-dashboard-data
 
-      # plugin-fm is not on npm yet: install it from your registry, or use the image from `sf fm docker init`
-      - run: npm install -g @salesforce/cli && sf plugins install <your plugin-fm package>
-      - run: mkdir -p site && sf fm dashboard --export site/index.html --runs-dir history/runs
+      - name: Export the dashboard (NomadSF image)
+        run: |
+          echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          mkdir -p site
+          docker run --rm -v "$PWD:/workspace" --entrypoint sh ghcr.io/faridmasjedi/nomadsf:latest -c \
+            'git config --global --add safe.directory /workspace && sf fm dashboard --export site/index.html --runs-dir history/runs'
 
       - uses: actions/upload-pages-artifact@v3
         with: { path: site }

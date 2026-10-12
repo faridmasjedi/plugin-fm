@@ -22,6 +22,11 @@ env:
 jobs:
   train:
     runs-on: ubuntu-latest
+    # Salesforce CLI + plugin-fm + Code Analyzer + Java, built by the plugin's Release workflow.
+    # For a private image in another repository, GHCR_TOKEN is a token with read:packages.
+    container:
+      image: ghcr.io/faridmasjedi/nomadsf:latest
+      credentials: { username: '${{ github.actor }}', password: '${{ secrets.GHCR_TOKEN }}' }
     permissions:
       contents: write # push the sf-deploy-success tag
     outputs:
@@ -29,10 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0, submodules: recursive }
-      - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: '17' }
-      # plugin-fm is not on npm yet: install it from your registry, or use the image from `sf fm docker init`
-      - run: npm install -g @salesforce/cli && sf plugins install code-analyzer <your plugin-fm package>
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: |
           echo "${{ secrets.SFDX_AUTH_URL }}" > auth.txt
           sf org login sfdx-url --sfdx-url-file auth.txt --alias uat && rm auth.txt
@@ -57,13 +59,16 @@ jobs:
     needs: train
     if: needs.train.outputs.paused == 'true'
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/faridmasjedi/nomadsf:latest
+      credentials: { username: '${{ github.actor }}', password: '${{ secrets.GHCR_TOKEN }}' }
     environment: salesforce-approval # add required reviewers to this environment
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0, submodules: recursive }
-      - run: npm install -g @salesforce/cli && sf plugins install <your plugin-fm package>
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: |
           echo "${{ secrets.SFDX_AUTH_URL }}" > auth.txt
           sf org login sfdx-url --sfdx-url-file auth.txt --alias uat && rm auth.txt

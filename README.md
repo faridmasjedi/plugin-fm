@@ -1,29 +1,30 @@
-# @salesforce/plugin-fm
+# NomadSF
 
-[![NPM](https://img.shields.io/npm/v/@salesforce/plugin-fm.svg?label=@salesforce/plugin-fm)](https://www.npmjs.com/package/@salesforce/plugin-fm)
-[![Downloads/week](https://img.shields.io/npm/dw/@salesforce/plugin-fm.svg)](https://npmjs.org/package/@salesforce/plugin-fm)
-[![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://opensource.org/license/apache-2-0)
-
-A Salesforce CLI plugin for fast, intelligent metadata deployments with built-in CI/CD support.
+Salesforce release tooling as a Salesforce CLI plugin (`sf fm …`) plus the **NomadSF** app (`sf fm dashboard`).
 
 ## Features
 
-- 🚀 **Intelligent Builds** - Automatically analyze Git changes and generate deployment artifacts
-- 🧪 **Smart Test Detection** - Auto-detect which Apex tests to run based on code changes
-- 📦 **Bundle Handling** - Properly handle LWC, Aura, and Experience Bundle changes
-- 🎯 **Granular Metadata** - Optimize CustomLabels and SharingRules deployments
-- 🔄 **Progress Monitoring** - Real-time deployment progress with beautiful visualizations
-- ⚡ **Quick Deploys** - Deploy validated changesets instantly
-- 🎣 **Pre/Post Hooks** - Execute custom scripts before and after deployments
-- 🐳 **Docker Support** - Generate ready-to-use Docker configurations for CI/CD
-- 🤖 **CI/CD Ready** - Built for GitHub Actions, GitLab CI, and other automation tools
-- 🗑️ **Destructive Changes** - Handle pre and post destructive deployments safely
+- 🚀 **Delta builds** — deployment artifacts from Git changes, including submodules, bundles and granular CustomLabels/SharingRules
+- 🌊 **Deployment waves** — Data Cloud → core (incl. Agentforce) → OmniStudio, as separate artifacts ([PIPELINE.md](PIPELINE.md))
+- 🏷️ **Deployment tags** — every build starts from the last successful deployment
+- 🧹 **Quality gate** — Code Analyzer / PMD (your `ruleset.xml`) / ESLint on changed files, SARIF for PRs ([QUALITY_COMMAND.md](QUALITY_COMMAND.md))
+- 🚂 **Release train** — optional pipeline over pull request and push, with approvals, scripts (`.apex`, `.sh`, …) and step-by-step runs
+- 🤖 **AI runbooks** — pre/post-deployment steps in plain language, carried out with approval for every change ([AI_RUNBOOKS.md](AI_RUNBOOKS.md))
+- 🔎 **Org explorer** — queries with a filterable table, all fields, Tooling API, deleted rows; Bulk API import/export/delete; login history, audit trail, permission set assignment; metadata retrieve ([ORG_EXPLORER.md](ORG_EXPLORER.md))
+- 🎭 **Playwright scenarios** — end-to-end tests against any org without stored passwords
+- 📊 **NomadSF app** — runs per release, orgs, repository and deployment history, runbooks, AI settings; also publishable on GitHub Pages
 
 ## Installation
 
 ```bash
-sf plugins install @salesforce/plugin-fm
+# From a release (GitHub Releases has the tarball for each version)
+sf plugins install https://github.com/faridmasjedi/plugin-fm
+
+# Or the ready-made image with the Salesforce CLI, plugin-fm, Code Analyzer and Java
+docker pull ghcr.io/faridmasjedi/nomadsf:latest
 ```
+
+Releasing and repository rules: [RELEASING.md](RELEASING.md).
 
 ## Quick Start
 

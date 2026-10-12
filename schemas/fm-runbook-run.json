@@ -161,7 +161,18 @@
     },
     "StageUses": {
       "type": "string",
-      "enum": ["build", "quality", "deploy", "check-duplicates", "script", "shell", "approval", "tag", "ai-runbook"]
+      "enum": [
+        "build",
+        "quality",
+        "deploy",
+        "check-duplicates",
+        "script",
+        "shell",
+        "approval",
+        "tag",
+        "ai-runbook",
+        "e2e"
+      ]
     },
     "StageStatus": {
       "type": "string",

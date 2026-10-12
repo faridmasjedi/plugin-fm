@@ -1,6 +1,6 @@
 # summary
 
-Open the release dashboard: pipeline runs, steps, logs, quality and deployments per release.
+Open NomadSF: release dashboard, org explorer, runbooks and AI settings.
 
 # description
 

@@ -1,0 +1,77 @@
+name: Release
+
+# Run from Actions > Release > Run workflow. Builds and tests main, bumps the version,
+# tags it, publishes a GitHub release with the plugin tarball, and pushes the NomadSF
+# Docker image (Salesforce CLI + plugin-fm + Code Analyzer) to GitHub Container Registry.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump
+        type: choice
+        options: [patch, minor, major]
+        default: minor
+
+permissions:
+  contents: write # version commit, tag, release
+  packages: write # container image
+
+concurrency: release
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - run: yarn build
+      - run: yarn test
+
+      - name: Bump version
+        id: version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          npm version ${{ inputs.bump }} --no-git-tag-version --ignore-scripts
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          git commit -am "chore(release): v$VERSION" --no-verify
+          git tag -a "v$VERSION" -m "NomadSF v$VERSION"
+
+      - name: Pack
+        id: pack
+        run: |
+          npm pack
+          echo "file=$(ls *.tgz)" >> "$GITHUB_OUTPUT"
+
+      - name: Push version and tag
+        run: git push origin HEAD:main "v${{ steps.version.outputs.version }}"
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" "${{ steps.pack.outputs.file }}" \
+            --title "NomadSF v${{ steps.version.outputs.version }}" --generate-notes
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.release
+          push: true
+          build-args: PLUGIN_TARBALL=${{ steps.pack.outputs.file }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/nomadsf:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/nomadsf:latest

@@ -104,6 +104,22 @@
   },
   {
     "alias": [],
+    "command": "fm:e2e:init",
+    "flagAliases": [],
+    "flagChars": [],
+    "flags": ["flags-dir", "force", "json"],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
+    "command": "fm:e2e:run",
+    "flagAliases": [],
+    "flagChars": ["g", "o"],
+    "flags": ["flags-dir", "grep", "headed", "json", "project", "target-org"],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
     "command": "fm:pipeline:approve",
     "flagAliases": [],
     "flagChars": [],
