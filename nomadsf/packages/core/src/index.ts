@@ -12,3 +12,5 @@ export * from './project.js';
 export * from './savedQueries.js';
 export * from './github.js';
 export * from './inspector.js';
+export * from './apexTests.js';
+export * from './code.js';

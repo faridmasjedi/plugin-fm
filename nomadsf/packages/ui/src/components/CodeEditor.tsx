@@ -5,7 +5,7 @@ import { useTheme } from '../theme';
 registerLanguages();
 
 export type CodeEditorProps = {
-  language: 'apex' | 'soql' | 'plaintext' | 'json';
+  language: 'apex' | 'soql' | 'plaintext' | 'json' | 'javascript' | 'html' | 'css' | 'xml';
   value: string;
   onChange?: (value: string) => void;
   onMount?: OnMount;

@@ -606,3 +606,60 @@ table.record td select {
   box-sizing: border-box;
   max-width: 100%;
 }
+.editor-box.tall {
+  height: 62vh;
+}
+.code-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.code-list input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.code-list ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 64vh;
+  overflow: auto;
+}
+.code-list li button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.code-list li button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.problems {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--bad);
+  font-size: 13px;
+}
+.cov-hit {
+  background: rgba(46, 160, 67, 0.16);
+}
+.cov-miss {
+  background: rgba(218, 54, 51, 0.2);
+}
+.cov-hit-gutter {
+  border-left: 3px solid #2ea043;
+}
+.cov-miss-gutter {
+  border-left: 3px solid #da3633;
+}
+@media (max-width: 900px) {
+  .code-layout {
+    grid-template-columns: 1fr;
+  }
+}
