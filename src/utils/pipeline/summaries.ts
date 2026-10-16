@@ -151,6 +151,18 @@ const SUMMARIZERS: Partial<Record<StageUses, (record: AnyRecord) => { metrics: M
   'check-duplicates': summarizeDuplicates,
   'ai-runbook': summarizeRunbook,
   e2e: summarizeE2e,
+  drift: (record) => {
+    const count = (key: string): number => ((record[key] as unknown[]) ?? []).length;
+    return {
+      metrics: [
+        { label: 'Changed in org', value: count('changed'), tone: count('changed') ? 'bad' : 'good' },
+        { label: 'Only in org', value: count('onlyInOrg'), tone: count('onlyInOrg') ? 'warn' : 'neutral' },
+        { label: 'Missing in org', value: count('onlyInRepo'), tone: count('onlyInRepo') ? 'warn' : 'neutral' },
+        { label: 'Compared', value: Number(record.compared ?? 0) },
+      ],
+      result: record,
+    };
+  },
   tag: (record) => ({ metrics: [{ label: 'Tag', value: String(record.tag ?? ''), tone: 'good' }], result: record }),
 };
 

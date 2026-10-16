@@ -14,6 +14,10 @@ Comprehensive guide for all `@salesforce/plugin-fm` commands with examples and s
 - [sf fm dashboard](#sf-fm-dashboard)
 - [sf fm runbook run / init](#sf-fm-runbook-run--init)
 - [sf fm e2e run / init](#sf-fm-e2e-run--init)
+- [sf fm drift](#sf-fm-drift)
+- [sf fm rollback](#sf-fm-rollback)
+- [sf fm org create](#sf-fm-org-create)
+- [Validate on the PR, quick deploy on merge](#validate-on-the-pr-quick-deploy-on-merge)
 
 ---
 
@@ -1070,3 +1074,66 @@ sf fm deploy --mode quick --validation-id $VALIDATION_ID --target-org prod
 - Generate once and customize the Dockerfile for your needs
 - Version your Docker images with tags
 - Rebuild images regularly for security updates
+
+---
+
+## sf fm drift
+
+Finds what changed directly in an org: builds a manifest from the package directories, retrieves the same metadata into a temporary folder and compares file by file (line endings, trailing spaces and whitespace between XML tags are ignored).
+
+```bash
+sf fm drift --target-org prod
+sf fm drift --target-org prod --include-org-only ApexClass,Flow --fail-on-drift --output-file drift.md
+```
+
+| Option               | Meaning                                                                     |
+| -------------------- | --------------------------------------------------------------------------- |
+| `--target-org`       | Org to compare                                                              |
+| `--source-dir`       | Folders to compare (default: package directories)                           |
+| `--include-org-only` | Types to retrieve completely, to find components that exist only in the org |
+| `--output-file`      | Markdown report (also written to the GitHub job summary in Actions)         |
+| `--fail-on-drift`    | Exit 1 when anything differs                                                |
+
+The report lists **changed in the org**, **in the org, not in the repository** and **in the repository, missing in the org**. As a pipeline stage: `uses: drift` (`with:` takes the same flags); it fails the stage only with `fail-on-drift: true`. A scheduled workflow running it nightly against production catches Setup changes early.
+
+---
+
+## sf fm rollback
+
+Puts an org back on an earlier successful deployment of a branch, using the `sf-deploy-success/<branch>/*` tags written by `sf fm deploy --tag-on-success`.
+
+```bash
+sf fm rollback --target-org prod --branch main --dry-run      # validate only
+sf fm rollback --target-org prod --branch main                # asks, then deploys
+sf fm rollback --target-org prod --branch main --to sf-deploy-success/main/20261012T093000Z --no-prompt
+```
+
+The org is assumed to be on the newest tag. The delta from it to the target (the previous tag with a different commit, or `--to`) is built in a temporary git worktree of the target: metadata changed since is deployed in its earlier version, metadata added since is deleted (post-destructive). On success the target commit is tagged again, so the next `sf fm build --from-last-successful-deployment` starts from it. Data, and metadata Salesforce cannot delete through the API, are not rolled back.
+
+---
+
+## sf fm org create
+
+One command for a ready-to-work org; each step is a Salesforce CLI command and the run stops at the first failure.
+
+```bash
+sf fm org create --alias feature-x --permset App_User --data-plan data/plan.json --apex-script scripts/apex/setup.apex --open
+sf fm org create --type sandbox --alias uat2 --target-org prod --license-type Developer --dry-run
+```
+
+Scratch org (default): create from `config/project-scratch-def.json` (`--definition-file`, `--duration-days`, `--target-dev-hub`), deploy the project (`--no-deploy` to skip). Sandbox: `--target-org` is the production org (`--sandbox-name`, `--license-type`, or `--source-sandbox` to clone); the project is not deployed. Then `--permset`, `--data-plan` (`sf data import tree`) and `--apex-script` (each repeatable), `--set-default`, `--open`. `--dry-run` prints the commands.
+
+---
+
+## Validate on the PR, quick deploy on merge
+
+`sf fm deploy` records every successful validation against a fingerprint of the package (every file in the manifest directory) in `.fm/validations.json`. With `--share-validation` it is also pushed as a git tag `sf-validation/<org>/<package>`, so another CI job can find it.
+
+```bash
+# pull request job
+sf fm deploy --manifest manifest --target-org prod --mode validation --test-level RunLocalTests --share-validation
+# merge (push) job, same package
+sf fm deploy --manifest manifest --target-org prod --mode deployment --reuse-validation --tag-on-success main
+```
+
+With `--reuse-validation` a deployment looks for a validation of exactly the same package in the same org from the last 10 days and quick deploys it (no second test run). Without one, or when Salesforce refuses the quick deploy (for example because something else was deployed since), it deploys normally.

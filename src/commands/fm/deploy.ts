@@ -34,6 +34,7 @@ import { existsSync } from 'node:fs';
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages, Connection } from '@salesforce/core';
 import { updateDeployCacheWaitTime } from '../../utils/deployCacheUtils.js';
+import { findValidation, packageFingerprint, recordValidation } from '../../utils/validationStore.js';
 import { createDeploymentTag } from '../../utils/deployTagUtils.js';
 import type { DeploymentOptions } from '../../utils/deploymentService.js';
 
@@ -185,6 +186,13 @@ export default class Deploy extends SfCommand<DeployResult> {
       summary: messages.getMessage('flags.pushTag.summary'),
       dependsOn: ['tag-on-success'],
     }),
+    'reuse-validation': Flags.boolean({
+      summary: messages.getMessage('flags.reuseValidation.summary'),
+      description: messages.getMessage('flags.reuseValidation.description'),
+    }),
+    'share-validation': Flags.boolean({
+      summary: messages.getMessage('flags.shareValidation.summary'),
+    }),
   };
 
   private static async sleep(ms: number): Promise<void> {
@@ -308,6 +316,12 @@ export default class Deploy extends SfCommand<DeployResult> {
     // Early return for quick deploy
     if (mode === 'quick') return this.tagIfRequested(await this.handleQuickDeploy(flags, targetOrg), flags, mode);
 
+    // Same package already validated in this org: quick deploy it
+    if (mode === 'deployment' && flags['reuse-validation']) {
+      const reused = await this.reuseValidation(flags, targetOrg);
+      if (reused) return this.tagIfRequested(reused, flags, mode);
+    }
+
     const manifestDir = flags.manifest!;
 
     // Execute pre-deployment hooks
@@ -366,6 +380,7 @@ export default class Deploy extends SfCommand<DeployResult> {
    * diffs from here. Only real, completed deployments are tagged.
    */
   private tagIfRequested(result: DeployResult, flags: Record<string, unknown>, mode: DeploymentMode): DeployResult {
+    if (mode === 'validation') this.recordValidationIfDone(result, flags);
     const branch = flags['tag-on-success'] as string | undefined;
     if (!branch) return result;
 
@@ -389,6 +404,50 @@ export default class Deploy extends SfCommand<DeployResult> {
       this
     );
     return { ...result, deploymentTag: tagInfo.tag };
+  }
+
+  /** Quick deploys a recorded validation of this exact package, or returns undefined to deploy normally. */
+  private async reuseValidation(
+    flags: Record<string, unknown>,
+    targetOrg: Connection
+  ): Promise<DeployResult | undefined> {
+    const orgId = targetOrg.getAuthInfoFields().orgId ?? '';
+    const fingerprint = packageFingerprint(flags.manifest as string);
+    const found = findValidation(process.cwd(), orgId, fingerprint);
+    if (!found) {
+      this.log('No validation of this package in this org from the last 10 days; deploying normally.');
+      return undefined;
+    }
+    this.log(`Reusing validation ${found.validationId} from ${found.at} (same package): quick deploy.`);
+    try {
+      const result = await this.handleQuickDeploy({ ...flags, 'validation-id': found.validationId }, targetOrg);
+      if (result.status === 'Succeeded' || result.async) return result;
+      this.warn(`Quick deploy was not accepted (${result.status}); deploying normally.`);
+    } catch (error) {
+      this.warn(`Quick deploy was not accepted (${(error as Error).message}); deploying normally.`);
+    }
+    return undefined;
+  }
+
+  /** Remembers a finished, successful validation for --reuse-validation. */
+  private recordValidationIfDone(result: DeployResult, flags: Record<string, unknown>): void {
+    const validationId = result.validationId ?? result.jobId;
+    if (result.async || result.status !== 'Succeeded' || !validationId || !flags.manifest) return;
+    try {
+      const orgId = (flags['target-org'] as { getOrgId(): string }).getOrgId();
+      recordValidation(
+        process.cwd(),
+        { orgId, fingerprint: packageFingerprint(flags.manifest as string), validationId },
+        { tag: Boolean(flags['share-validation']), push: Boolean(flags['share-validation']) }
+      );
+      this.log(
+        `Recorded validation ${validationId} for --reuse-validation${
+          flags['share-validation'] ? ' (shared as a git tag)' : ''
+        }.`
+      );
+    } catch (error) {
+      this.warn(`Could not record the validation: ${(error as Error).message}`);
+    }
   }
 
   /**
