@@ -11,14 +11,19 @@ import { AccessPage } from './pages/AccessPage';
 import { ActivityPage } from './pages/ActivityPage';
 import { MetadataPage } from './pages/MetadataPage';
 import { LOCAL_PAGES, LocalAppPage } from './pages/LocalAppPage';
+import { ProjectPage } from './pages/ProjectPage';
+import { TestsPage } from './pages/TestsPage';
+import { ProjectStateContext, useProjectState } from './project';
 
 const PAGES = [
+  { id: 'project', label: 'Project', icon: '⌂' },
   { id: 'apex', label: 'Execute Apex', icon: '▶' },
   { id: 'logs', label: 'Debug Logs', icon: '☰' },
   { id: 'query', label: 'Query', icon: '⌕' },
   { id: 'data', label: 'Data', icon: '⇅' },
   { id: 'access', label: 'Users & access', icon: '⚿' },
   { id: 'metadata', label: 'Metadata', icon: '◫' },
+  { id: 'tests', label: 'Tests', icon: '✓' },
   { id: 'activity', label: 'Activity', icon: '⏱' },
 ] as const;
 const host = detectHost();
@@ -92,93 +97,109 @@ export function App() {
     [production, org]
   );
   const logActivity = useCallback(
-    (action: string, details: Record<string, unknown>) =>
+    (action: string, details: Record<string, unknown>) => {
       activityLog.add({
         at: new Date().toISOString(),
         org: org?.label ?? '',
         user: user?.userName ?? '',
         action,
         details,
-      }),
+      });
+      // In the app, changes also go to the project's shared log (.fm/org-activity.log)
+      if (host.kind === 'app') {
+        void fetch('/api/org/activity', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-fm-dashboard': '1' },
+          body: JSON.stringify({ org: org?.id, action, details }),
+        }).catch(() => undefined);
+      }
+    },
     [org, user]
   );
   const studio: Studio | null =
     client && org ? { hostKind: host.kind, client, org, facts, user, confirmRisky, confirmChange, logActivity } : null;
 
   const localPage = LOCAL.find((p) => p.id === page);
+  const project = useProjectState(host.kind);
 
   return (
-    <div className="studio">
-      <header className="top">
-        <div className="brand">
-          <span className="logo" />
-          NomadSF <span className="muted">Studio</span>
-        </div>
-        {host.kind === 'app' ? (
-          <select value={orgId} onChange={(e) => setOrgId(e.target.value)}>
-            {orgs.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.label}
-                {o.type ? ` — ${o.type}` : ''}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span className="org-name">{org?.label}</span>
-        )}
-        {facts && (
-          <span className={`pill ${production ? 'bad' : 'good'}`}>{production ? 'Production' : 'Sandbox'}</span>
-        )}
-        {user && (
-          <span className="muted user">
-            {user.userFullName} · {user.organizationName}
-          </span>
-        )}
-        <span className="grow" />
-        {host.kind === 'app' && (
-          <a className="muted" href="/">
-            ← NomadSF
-          </a>
-        )}
-        <button onClick={toggleTheme} title="Toggle theme">
-          ◐
-        </button>
-      </header>
-      <nav className="side">
-        {PAGES.map((p) => (
-          <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)}>
-            <span className="icon">{p.icon}</span>
-            {p.label}
+    <ProjectStateContext.Provider value={project}>
+      <div className="studio">
+        <header className="top">
+          <div className="brand">
+            <span className="logo" />
+            NomadSF <span className="muted">Studio</span>
+          </div>
+          {host.kind === 'app' ? (
+            <select value={orgId} onChange={(e) => setOrgId(e.target.value)}>
+              {orgs.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                  {o.type ? ` — ${o.type}` : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="org-name">{org?.label}</span>
+          )}
+          {facts && (
+            <span className={`pill ${production ? 'bad' : 'good'}`}>{production ? 'Production' : 'Sandbox'}</span>
+          )}
+          {user && (
+            <span className="muted user">
+              {user.userFullName} · {user.organizationName}
+            </span>
+          )}
+          <span className="grow" />
+          {host.kind === 'app' && (
+            <a className="muted" href="/">
+              ← NomadSF
+            </a>
+          )}
+          <button onClick={toggleTheme} title="Toggle theme">
+            ◐
           </button>
-        ))}
-        {LOCAL.length > 0 && <div className="nav-section">Local app</div>}
-        {LOCAL.map((p) => (
-          <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)}>
-            <span className="icon">{p.icon}</span>
-            {p.label}
-          </button>
-        ))}
-      </nav>
-      <main className={localPage ? 'local' : ''}>
-        {localPage && <LocalAppPage page={localPage.page} />}
-        {!localPage && error && <div className="error">{error}</div>}
-        {!localPage && !error && !studio && (
-          <p className="muted">
-            {orgs.length || host.kind === 'extension' ? 'Connecting…' : 'No orgs. Connect one in NomadSF → Orgs.'}
-          </p>
-        )}
-        {!localPage && studio && (
-          <StudioContext.Provider value={studio}>
-            {page === 'apex' && <ExecutePage />}
-            {page === 'logs' && <LogsPage />}
-            {page === 'query' && <QueryPage />}
-            {page === 'data' && <DataPage />}
-            {page === 'access' && <AccessPage />}
-            {page === 'metadata' && <MetadataPage />}
-            {page === 'activity' && <ActivityPage />}
-          </StudioContext.Provider>
-        )}
-      </main>
-    </div>
+        </header>
+        <nav className="side">
+          {PAGES.map((p) => (
+            <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)}>
+              <span className="icon">{p.icon}</span>
+              {p.label}
+            </button>
+          ))}
+          {LOCAL.length > 0 && <div className="nav-section">Local app</div>}
+          {LOCAL.map((p) => (
+            <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)}>
+              <span className="icon">{p.icon}</span>
+              {p.label}
+            </button>
+          ))}
+        </nav>
+        <main className={localPage ? 'local' : ''}>
+          {localPage && <LocalAppPage page={localPage.page} />}
+          {page === 'project' && <ProjectPage studio={studio} onOpenMetadata={() => setPage('metadata')} />}
+          {page === 'tests' && (
+            <TestsPage hostKind={host.kind} defaultOrg={host.kind === 'app' ? org?.id : undefined} />
+          )}
+          {!localPage && !['project', 'tests'].includes(page) && error && <div className="error">{error}</div>}
+          {!localPage && !['project', 'tests'].includes(page) && !error && !studio && (
+            <p className="muted">
+              {orgs.length || host.kind === 'extension' ? 'Connecting…' : 'No orgs. Connect one in NomadSF → Orgs.'}
+            </p>
+          )}
+          {!localPage && !['project', 'tests'].includes(page) && studio && (
+            <StudioContext.Provider value={studio}>
+              {page === 'apex' && <ExecutePage />}
+              {page === 'logs' && <LogsPage />}
+              {page === 'query' && <QueryPage />}
+              {page === 'data' && <DataPage />}
+              {page === 'access' && <AccessPage />}
+              {page === 'metadata' && <MetadataPage />}
+              {page === 'activity' && <ActivityPage />}
+            </StudioContext.Provider>
+          )}
+        </main>
+      </div>
+    </ProjectStateContext.Provider>
   );
 }

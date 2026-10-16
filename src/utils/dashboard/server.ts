@@ -15,10 +15,10 @@ import {
   type RepoInfo,
 } from './appApi.js';
 import { handleOrgRoute } from './orgRoutes.js';
+import { ProjectContext } from './projects.js';
 import { FRAME_POLICY, handleStudioRoute } from './studio.js';
 
 const TEMPLATE_URL = new URL('../../../dashboard/index.html', import.meta.url);
-const ORG_SCRIPT_URL = new URL('../../../dashboard/org.js', import.meta.url);
 const MAX_EXPORTED_LOG = 20_000;
 
 export type DashboardInfo = {
@@ -73,13 +73,9 @@ export function renderStaticDashboard(
 }
 
 export type ServeOptions = {
-  store: RunStore;
+  /** Current Salesforce project (switchable from the app). */
+  project: ProjectContext;
   port: number;
-  cwd: string;
-  pipelineName?: string;
-  configPath?: string;
-  /** Command line that starts a pipeline run, e.g. [node, bin/run.js, fm, pipeline, run]. */
-  startCommand?: string[];
   /** Command line of this plugin's CLI, e.g. [node, bin/run.js], used to start runbooks. */
   pluginCommand: string[];
   runsDir: string;
@@ -112,35 +108,36 @@ function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
  * to the run's control file, which the pipeline runner polls.
  */
 export function startDashboardServer(options: ServeOptions): Promise<Server> {
-  const { store } = options;
-  const info = (): DashboardInfo => ({
+  const { project } = options;
+  const store = (): RunStore => project.store();
+  const info = (): DashboardInfo & { project: ReturnType<typeof ProjectContext.summary> } => ({
     mode: 'live',
-    pipelineName: options.pipelineName,
-    configPath: options.configPath,
-    canStart: Boolean(options.startCommand),
+    ...project.pipeline(),
+    canStart: Boolean(project.startCommand()),
     generatedAt: new Date().toISOString(),
+    project: ProjectContext.summary(project.cwd),
   });
 
   const handleRun = async (req: IncomingMessage, res: ServerResponse, parts: string[]): Promise<void> => {
-    const run = store.load(parts[2]);
+    const run = store().load(parts[2]);
     if (!run) return sendJson(res, 404, { error: 'Run not found' });
 
     if (req.method === 'GET' && parts.length === 3) return sendJson(res, 200, run);
     if (req.method === 'GET' && parts[3] === 'logs' && parts[4]) {
       res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(store.readLog(run.id, parts[4]));
+      res.end(store().readLog(run.id, parts[4]));
       return;
     }
     if (req.method === 'POST' && parts[3] === 'approve' && parts[4]) {
       const body = await readBody(req);
       const decision = body.decision === 'reject' ? 'reject' : 'approve';
-      store.updateControl(run.id, (c) => {
+      store().updateControl(run.id, (c) => {
         c.approvals[parts[4]] = { decision, by: options.user, at: new Date().toISOString() };
       });
       return sendJson(res, 200, { ok: true, decision });
     }
     if (req.method === 'POST' && parts[3] === 'cancel') {
-      store.updateControl(run.id, (c) => {
+      store().updateControl(run.id, (c) => {
         c.cancel = { by: options.user, at: new Date().toISOString() };
       });
       return sendJson(res, 200, { ok: true });
@@ -148,14 +145,35 @@ export function startDashboardServer(options: ServeOptions): Promise<Server> {
     return sendJson(res, 404, { error: 'Not found' });
   };
 
+  /** Project list / switch, and read-only file access inside the current project. */
+  const handleProject = async (req: IncomingMessage, res: ServerResponse, parts: string[]): Promise<void> => {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    const route = `${req.method ?? 'GET'} ${parts.slice(1).join('/')}`;
+    if (route === 'GET projects') return sendJson(res, 200, project.list());
+    if (route === 'POST projects/select') {
+      const selected = project.select(String((await readBody(req)).path ?? ''));
+      return sendJson(res, 200, { ok: true, current: selected });
+    }
+    if (route === 'GET project/list') return sendJson(res, 200, project.listDir(url.searchParams.get('dir') ?? ''));
+    if (route === 'GET project/file') {
+      // Read first: an error must still be able to answer with JSON
+      const text = project.readFile(url.searchParams.get('path') ?? '');
+      res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
+      res.end(text);
+      return;
+    }
+    return sendJson(res, 404, { error: 'Not found' });
+  };
+
   const handleStart = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-    if (!options.startCommand) return sendJson(res, 400, { error: 'No pipeline file found to start.' });
+    const startCommand = project.startCommand();
+    if (!startCommand) return sendJson(res, 400, { error: 'No pipeline file found to start.' });
     const body = await readBody(req);
-    const [cmd, ...args] = options.startCommand;
+    const [cmd, ...args] = startCommand;
     args.push('--wait-for-approval', '--trigger', 'dashboard');
     if (body.stepByStep) args.push('--step-by-step');
     if (typeof body.release === 'string' && body.release.trim()) args.push('--release', body.release.trim());
-    const child = spawn(cmd, args, { cwd: options.cwd, detached: true, stdio: 'ignore', env: process.env });
+    const child = spawn(cmd, args, { cwd: project.cwd, detached: true, stdio: 'ignore', env: process.env });
     child.unref();
     return sendJson(res, 202, { ok: true });
   };
@@ -171,12 +189,14 @@ export function startDashboardServer(options: ServeOptions): Promise<Server> {
     if (!allowedHosts.has(req.headers.host ?? '')) return false;
     if (req.method === 'GET') return true;
     const origin = req.headers.origin;
-    if (origin && !allowedHosts.has(origin.replace(/^https?:\/\//, ''))) return false;
+    // The NomadSF browser extension calls the app from its own origin; websites never can
+    const fromExtension = origin !== undefined && /^(chrome|moz)-extension:\/\/[\w-]+$/.test(origin);
+    if (origin && !fromExtension && !allowedHosts.has(origin.replace(/^https?:\/\//, ''))) return false;
     return req.headers['x-fm-dashboard'] === '1';
   };
 
   const handleApp = async (req: IncomingMessage, res: ServerResponse, parts: string[]): Promise<void> => {
-    const { cwd } = options;
+    const { cwd } = project;
     const route = `${req.method ?? 'GET'} ${parts.slice(1).join('/')}`;
     switch (route) {
       case 'GET orgs':
@@ -218,7 +238,6 @@ export function startDashboardServer(options: ServeOptions): Promise<Server> {
   const servePage = (res: ServerResponse, pathname: string): boolean => {
     const page = {
       '/': { type: 'text/html', body: template },
-      '/org.js': { type: 'text/javascript', body: () => readFileSync(ORG_SCRIPT_URL, 'utf8') },
     }[pathname];
     if (!page) return false;
     res.writeHead(200, {
@@ -230,6 +249,27 @@ export function startDashboardServer(options: ServeOptions): Promise<Server> {
     return true;
   };
 
+  /** /api/* routes. */
+  const handleApi = async (req: IncomingMessage, res: ServerResponse, parts: string[]): Promise<void> => {
+    if (req.method === 'GET' && parts[1] === 'info') return sendJson(res, 200, info());
+    if (req.method === 'GET' && parts[1] === 'runs' && parts.length === 2) return sendJson(res, 200, store().list());
+    if (parts[1] === 'runs' && parts[2]) return handleRun(req, res, parts);
+    if (req.method === 'POST' && parts[1] === 'start') return handleStart(req, res);
+    if (parts[1] === 'projects' || parts[1] === 'project') return handleProject(req, res, parts);
+    if (parts[1] === 'org' || parts[1] === 'e2e') {
+      const context = {
+        cwd: project.cwd,
+        runsDir: options.runsDir,
+        pluginCommand: options.pluginCommand,
+        readBody,
+        sendJson,
+      };
+      const handled = await handleOrgRoute(req, res, parts, context);
+      if (handled) return;
+    }
+    return handleApp(req, res, parts);
+  };
+
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     if (!isTrusted(req)) return sendJson(res, 403, { error: 'Forbidden' });
     const url = new URL(req.url ?? '/', 'http://localhost');
@@ -238,19 +278,15 @@ export function startDashboardServer(options: ServeOptions): Promise<Server> {
     if (await handleStudioRoute(req, res, url.pathname, readBody, sendJson)) return;
     if (req.method === 'GET' && servePage(res, url.pathname)) return;
     if (parts[0] !== 'api') return sendJson(res, 404, { error: 'Not found' });
-    if (req.method === 'GET' && parts[1] === 'info') return sendJson(res, 200, info());
-    if (req.method === 'GET' && parts[1] === 'runs' && parts.length === 2) return sendJson(res, 200, store.list());
-    if (parts[1] === 'runs' && parts[2]) return handleRun(req, res, parts);
-    if (req.method === 'POST' && parts[1] === 'start') return handleStart(req, res);
-    if (parts[1] === 'org' || parts[1] === 'e2e') {
-      const handled = await handleOrgRoute(req, res, parts, { ...options, readBody, sendJson });
-      if (handled) return;
-    }
-    return handleApp(req, res, parts);
+    return handleApi(req, res, parts);
   };
 
   const server = createServer((req, res) => {
-    handle(req, res).catch((error: Error) => sendJson(res, 400, { error: error.message }));
+    handle(req, res).catch((error: Error) => {
+      // Never let one failed request take the app down
+      if (res.headersSent) res.end();
+      else sendJson(res, 400, { error: error.message });
+    });
   });
 
   return new Promise((resolveServer, reject) => {

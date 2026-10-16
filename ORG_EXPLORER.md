@@ -1,6 +1,6 @@
 # Org explorer and Playwright scenarios
 
-The **Org explorer** page of NomadSF (`sf fm dashboard`) works directly against any org authorized in your Salesforce CLI, in the spirit of Salesforce Inspector. It uses the CLI's own login and stores no credentials. Choose the org at the top of the page; production and Dev Hub orgs are marked.
+The org tools now live in **NomadSF Studio** (`sf fm dashboard` → Studio, or the browser extension); see [nomadsf/STUDIO.md](nomadsf/STUDIO.md). This page describes the same features. The Studio works directly against any org authorized in your Salesforce CLI, in the spirit of Salesforce Inspector. It uses the CLI's own login and stores no credentials. Choose the org at the top of the page; production and Dev Hub orgs are marked.
 
 ## Query
 

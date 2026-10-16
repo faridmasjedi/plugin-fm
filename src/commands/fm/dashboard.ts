@@ -39,6 +39,7 @@ import { DEFAULT_PIPELINE_FILES, loadPipelineConfig } from '../../utils/pipeline
 import { DEFAULT_RUNS_DIR, RunStore } from '../../utils/pipeline/store.js';
 import { findFirstExisting } from '../../utils/qualityUtils.js';
 import { renderStaticDashboard, startDashboardServer } from '../../utils/dashboard/server.js';
+import { ProjectContext } from '../../utils/dashboard/projects.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(new URL('../../../messages', import.meta.url).toString());
 const messages = Messages.loadMessages('@salesforce/plugin-fm', 'dashboard');
@@ -96,30 +97,12 @@ export default class Dashboard extends SfCommand<DashboardResult> {
       return { exported: out, runs: store.list().length };
     }
 
-    // The dashboard starts runs with this same plugin binary
-    const startCommand =
-      configPath && pipelineName
-        ? [
-            process.execPath,
-            join(this.config.root, 'bin', 'run.js'),
-            'fm',
-            'pipeline',
-            'run',
-            '--file',
-            configPath,
-            '--runs-dir',
-            flags['runs-dir'],
-          ]
-        : undefined;
-
+    const pluginCommand = [process.execPath, join(this.config.root, 'bin', 'run.js')];
+    const project = new ProjectContext(cwd, flags['runs-dir'], pluginCommand, flags.file ? configPath : undefined);
     await startDashboardServer({
-      store,
+      project,
       port: flags.port,
-      cwd,
-      pipelineName,
-      configPath,
-      startCommand,
-      pluginCommand: [process.execPath, join(this.config.root, 'bin', 'run.js')],
+      pluginCommand,
       runsDir: flags['runs-dir'],
       user: userInfo().username,
     });
