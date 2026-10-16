@@ -42,7 +42,10 @@ jobs:
       - run: yarn test
       - run: yarn typecheck
       - run: yarn build
+      # Convenience download of the extension; never blocks the check (artifact storage is limited)
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: nomadsf-extension
           path: nomadsf/apps/extension/nomadsf-extension-*.zip
+          retention-days: 7
