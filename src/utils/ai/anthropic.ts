@@ -33,7 +33,7 @@ export function createAnthropicChat(config: AiConfig, system: string, tools: AiT
           model: config.model,
           max_tokens: config.maxTokens ?? 16_000,
           system,
-          tools: toolDefs,
+          ...(toolDefs.length ? { tools: toolDefs } : {}),
           messages,
           output_config: { effort: config.effort ?? 'high' },
           ...(useFallbacks ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),

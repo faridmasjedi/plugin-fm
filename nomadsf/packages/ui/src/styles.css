@@ -663,3 +663,18 @@ table.record td select {
     grid-template-columns: 1fr;
   }
 }
+.ai-help {
+  display: contents;
+}
+.ai-answer {
+  flex-basis: 100%;
+  border-color: var(--accent);
+}
+.ai-text {
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ai-ask input {
+  flex: 1 1 400px;
+}
