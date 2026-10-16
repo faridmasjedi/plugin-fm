@@ -26,6 +26,12 @@ A Salesforce developer workbench in the spirit of the Developer Console and Sale
 - **Metadata** — every metadata type of the org; list components (folder types such as reports and dashboards folder by folder), build a package that mixes types, then **Download zip** (Metadata API retrieve), **package.xml** (download / copy), or in the app **Retrieve into project** (`sf project retrieve start`).
 - **Local app (extension)** — when `sf fm dashboard` runs on this machine, the extension also shows Runs & approvals, Runbooks (AI), Repository, CLI orgs and AI settings from it. Port configurable (default 7007).
 - **Tests** — Playwright scenarios of the project, run through the local app (`sf fm e2e run`), last results and the HTML report.
+- **AI help** (✦, with the AI connected on the local app's AI page; keys stay in the app):
+  - **Query → Write SOQL** from a plain-English question, using the org's own objects and the fields of the objects you mention.
+  - **Explain with AI** on any debug log (errors, limits, likely fix; long logs are cut down to the telling lines first).
+  - **Explain failures with AI** for failed Apex tests.
+  - In the app: **Explain with AI** on a failed pipeline stage, and **Draft release notes** on Repository (commits and changed files since the last deployment tag).
+  - Every answer shows the provider, the model and how much was sent.
 - **Activity** — every export and change made with the Studio, kept in this browser.
 - **Safety** — production orgs (including Dev Hubs) are shown in red, and running Apex or turning on logging there asks first. Every data or access change asks you to type the org name, in any org.
 

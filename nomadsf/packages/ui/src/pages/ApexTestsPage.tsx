@@ -11,6 +11,7 @@ import {
   type TestJob,
   type TestResult,
 } from '@nomadsf/core';
+import { AiExplain } from '../components/AiHelp';
 import { CodeEditor } from '../components/CodeEditor';
 import { DataTable } from '../components/DataTable';
 import { storage, useStudio } from '../context';
@@ -184,6 +185,20 @@ export function ApexTestsPage() {
                     </div>
                   </>
                 )}
+              </div>
+            )}
+            {failed.length > 0 && (
+              <div className="chips">
+                <AiExplain
+                  task="explain-test"
+                  label="Explain failures with AI"
+                  what="the failed tests' messages and stack traces"
+                  getText={() =>
+                    failed
+                      .map((f) => `${f.className}.${f.method}: ${f.outcome}\n${f.message ?? ''}\n${f.stackTrace ?? ''}`)
+                      .join('\n\n')
+                  }
+                />
               </div>
             )}
             {results ? (

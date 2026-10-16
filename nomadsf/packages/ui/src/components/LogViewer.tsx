@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { parseLog } from '@nomadsf/core';
 import { DataTable } from './DataTable';
 import { CodeEditor } from './CodeEditor';
+import { AiExplain } from './AiHelp';
 
 type Tab = 'debug' | 'events' | 'limits' | 'raw';
 
@@ -24,6 +25,7 @@ export function LogViewer({ log, name = 'apex-log' }: { log: string; name?: stri
         <span className="chip">{summary.debugs.length} debug</span>
         {summary.errors.length > 0 && <span className="chip bad">{summary.errors.length} error(s)</span>}
         <span className="grow" />
+        <AiExplain task="explain-log" getText={() => log} what="the debug log" />
         <button
           onClick={() => {
             const a = document.createElement('a');
