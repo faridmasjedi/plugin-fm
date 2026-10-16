@@ -246,6 +246,11 @@ Read-only items can run on any org; everything marked ✎ only on a sandbox.
 | L56   | Apex tests: list                                                                                        | only @isTest classes with method counts                                                                        |
 | L57 ✎ | Run selected / Run all local tests (sandbox)                                                            | progress (job, n/m classes); passed / failed counts; failures with message and stack trace; on Activity        |
 | L58   | Code coverage, click a class                                                                            | org-wide % (red under 75); classes by coverage; source with green / red lines (note when Salesforce has none)  |
+| L59   | Query: ✦ Write SOQL "accounts in Sydney created this year with open opportunities"                      | SOQL in the editor using real field and relationship names; runs                                               |
+| L60   | Debug log → ✦ Explain with AI (a log with an exception; a 5 MB log)                                     | answer names the exception and line; provider, model and characters sent shown; big log cut down first         |
+| L61   | Apex tests with failures → ✦ Explain failures with AI                                                   | cause and fix per failure                                                                                      |
+| L62   | App: failed pipeline stage → ✦ Explain with AI; Repository → ✦ Draft release notes                      | answer under the stage / Markdown notes with range (last deploy tag, last 30 commits or whole short history)   |
+| L63   | AI help without an AI connected / extension without the local app                                       | clear message (connect on the AI page / start `sf fm dashboard`)                                               |
 
 ## Before a demo
 

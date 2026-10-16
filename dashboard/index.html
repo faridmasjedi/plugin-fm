@@ -336,6 +336,19 @@
         display: flex;
         gap: 8px;
       }
+      .ai-row {
+        margin-top: 12px;
+      }
+      .ai-answer {
+        margin-top: 10px;
+        padding: 12px;
+        border: 1px solid var(--accent, #6b9bff);
+        border-radius: 8px;
+      }
+      .ai-answer .ai-text {
+        line-height: 1.5;
+        margin-top: 6px;
+      }
       .pill {
         display: inline-flex;
         align-items: center;
@@ -1040,6 +1053,8 @@
           runbook: null,
           logs: {},
           lastJson: '',
+          // AI answers by key (run/stage, release notes), kept across re-renders
+          ai: {},
         };
 
         const $ = (id) => document.getElementById(id);
@@ -1386,6 +1401,11 @@
       <div class="meta">${facts}</div>
       ${s.error ? `<div class="error" style="margin-top:12px">${esc(s.error)}</div>` : ''}
       ${
+        !STATIC && s.status === 'failed'
+          ? aiBlock(`${run.id}/${s.id}`, 'Explain with AI', { ai: 'deploy', run: run.id, stage: s.id })
+          : ''
+      }
+      ${
         s.status === 'skipped' && s.skipReason
           ? `<p class="desc" style="margin-top:12px">Skipped: ${esc(s.skipReason)}</p>`
           : ''
@@ -1725,6 +1745,48 @@
             .forEach((el) => (el.onclick = () => post('/api/orgs/open', { org: el.dataset.open })));
         }
 
+        /** An AI button and its answer; data-* attributes say what to ask (see the click handler). */
+        function aiBlock(key, label, data) {
+          const a = state.ai[key] || {};
+          const attrs = Object.entries(data)
+            .map(([k, v]) => `data-${k}="${esc(v)}"`)
+            .join(' ');
+          return `<div class="ai-row"><button ${attrs} data-key="${esc(key)}" ${a.busy ? 'disabled' : ''}>${
+            a.busy ? 'Asking AI…' : `✦ ${esc(label)}`
+          }</button>${a.error ? ` <span class="desc" style="color:var(--bad)">${esc(a.error)}</span>` : ''}${
+            a.text
+              ? `<div class="ai-answer"><div class="desc">${esc(a.provider)} · ${esc(a.model)}${
+                  a.range ? ` · ${esc(a.range)}` : ''
+                }</div><div class="ai-text">${markdown(a.text)}</div></div>`
+              : ''
+          }</div>`;
+        }
+
+        document.addEventListener('click', async (event) => {
+          const button = event.target.closest && event.target.closest('button[data-ai]');
+          if (!button) return;
+          const { ai, key, run, stage } = button.dataset;
+          state.ai[key] = { busy: true };
+          rerender();
+          const res =
+            ai === 'deploy'
+              ? await post('/api/ai/assist/deploy', { runId: run, stageId: stage })
+              : await post('/api/ai/assist/release-notes', {});
+          state.ai[key] = res.error
+            ? { error: res.error }
+            : {
+                text: res.text,
+                provider: res.provider,
+                model: res.model,
+                range: res.from ? `${res.from}..${res.to}` : '',
+              };
+          rerender();
+        });
+
+        function rerender() {
+          render(true);
+        }
+
         async function renderRepo() {
           $('main').innerHTML = '<div class="card"><h2>Repository</h2><p class="desc">Loading…</p></div>';
           let repo = STATIC ? STATIC.repo : null;
@@ -1786,6 +1848,17 @@
           }
         </div>
       </div>
+      ${
+        STATIC
+          ? ''
+          : `<div class="card"><h2>Release notes</h2><p class="desc">Draft notes from the commits and changed files since the last deployment of <b>${esc(
+              repo.branch || ''
+            )}</b> (or the last 30 commits), with the AI connected on the AI page.</p>${aiBlock(
+              'release-notes',
+              'Draft release notes',
+              { ai: 'release-notes' }
+            )}</div>`
+      }
       <div class="card"><h2>Recent commits</h2><table><tbody>${repo.commits
         .map(
           (c) =>

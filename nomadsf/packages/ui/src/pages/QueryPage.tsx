@@ -15,6 +15,7 @@ import {
   type SavedQuery,
   type SObjectSummary,
 } from '@nomadsf/core';
+import { askAi } from '../components/AiHelp';
 import { CodeEditor } from '../components/CodeEditor';
 import { DataTable, download } from '../components/DataTable';
 import { storage, useStudio } from '../context';
@@ -137,8 +138,28 @@ function SavedQueries({
   );
 }
 
+/** Objects the question is about: names or labels mentioned (also plural), plus the current FROM. */
+function objectsInQuestion(question: string, objects: SObjectSummary[], current?: string): string[] {
+  const words = new Set(question.toLowerCase().match(/[a-z_][\w]*/g) ?? []);
+  const hits = objects
+    .filter((o) => {
+      const names = [o.name.toLowerCase(), o.label.toLowerCase()];
+      return names.some(
+        (n) =>
+          words.has(n) ||
+          words.has(`${n}s`) ||
+          words.has(n.replace(/y$/, 'ies')) ||
+          (n.includes(' ') && question.toLowerCase().includes(n))
+      );
+    })
+    .map((o) => o.name);
+  return [...new Set([...(current ? [current] : []), ...hits])].slice(0, 5);
+}
+
 export function QueryPage() {
-  const { client, org } = useStudio();
+  const { client, org, hostKind } = useStudio();
+  const [question, setQuestion] = useState('');
+  const [asking, setAsking] = useState(false);
   const [soql, setSoql] = useState<string>(() =>
     storage.get('query.soql', 'SELECT Id, Name, CreatedDate\nFROM Account\nORDER BY CreatedDate DESC\nLIMIT 100')
   );
@@ -258,6 +279,40 @@ export function QueryPage() {
     }
   };
 
+  // Plain-English question -> SOQL, using this org's objects and fields
+  const askSoql = async () => {
+    setAsking(true);
+    setError('');
+    try {
+      const mentioned = objectsInQuestion(question, objects.current, mainSObject(soql));
+      const described = await Promise.all(
+        mentioned.map(async (name) => {
+          const d = await describeSObject(client, name, tooling).catch(() => undefined);
+          return d
+            ? `${d.name} (${d.label}): ${d.fields
+                .map(
+                  (f) =>
+                    `${f.name} ${f.type}${
+                      f.referenceTo.length ? `→${f.referenceTo.join('/')} as ${f.relationshipName ?? ''}` : ''
+                    }`
+                )
+                .join(', ')}`
+            : '';
+        })
+      );
+      const schema = `${described.filter(Boolean).join('\n\n')}\n\nOther objects: ${objects.current
+        .map((o) => o.name)
+        .join(', ')
+        .slice(0, 20_000)}`;
+      const answer = await askAi(hostKind, { task: 'soql', question, schema });
+      if (answer.soql) setSoql(answer.soql);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setAsking(false);
+    }
+  };
+
   const onMount: OnMount = (editor) => {
     editorRef.current = editor;
   };
@@ -300,6 +355,21 @@ export function QueryPage() {
         <button onClick={() => void allFields()}>All fields</button>
         <button className="primary" disabled={running} onClick={() => void run()}>
           {running ? 'Running…' : 'Run ⌘⏎'}
+        </button>
+      </div>
+      <div className="form ai-ask">
+        <input
+          placeholder="✦ Ask in plain English, e.g. accounts in Sydney created this year with their open opportunities"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && question.trim() && void askSoql()}
+        />
+        <button
+          disabled={!question.trim() || asking}
+          onClick={() => void askSoql()}
+          title="Sends the question and the names of this org's objects and fields to the AI connected in NomadSF"
+        >
+          {asking ? 'Writing…' : '✦ Write SOQL'}
         </button>
       </div>
       <SavedQueries

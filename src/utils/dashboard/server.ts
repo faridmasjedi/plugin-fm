@@ -261,7 +261,7 @@ export function startDashboardServer(options: ServeOptions): Promise<Server> {
     if (req.method === 'POST' && parts[1] === 'start') return handleStart(req, res);
     if (parts[1] === 'projects' || parts[1] === 'project') return handleProject(req, res, parts);
     if ((parts[1] === 'ai' && parts[2]) || parts[1] === 'github') {
-      if (await handleConnectionRoute(req, res, parts, { port: options.port, readBody, sendJson })) return;
+      if (await handleConnectionRoute(req, res, parts, { port: options.port, project, readBody, sendJson })) return;
     }
     if (parts[1] === 'org' || parts[1] === 'e2e') {
       const context = {
