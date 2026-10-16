@@ -9,3 +9,5 @@ export * from './bulk.js';
 export * from './access.js';
 export * from './metadata.js';
 export * from './project.js';
+export * from './savedQueries.js';
+export * from './github.js';

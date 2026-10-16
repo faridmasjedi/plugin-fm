@@ -1,5 +1,6 @@
 /* eslint-disable camelcase -- request fields follow the Chat Completions wire format */
 import { PROVIDER_PRESETS } from './config.js';
+import { resolveApiKey } from './credentials.js';
 import type { AiChat, AiConfig, AiToolDefinition, AiToolResult, AiTurn } from './types.js';
 
 /**
@@ -32,9 +33,13 @@ type ChatCompletion = {
 
 export function createOpenAiCompatibleChat(config: AiConfig, system: string, tools: AiToolDefinition[]): AiChat {
   const preset = PROVIDER_PRESETS[config.provider];
-  const apiKey = config.apiKeyEnv ? process.env[config.apiKeyEnv] : undefined;
+  const apiKey = preset.auth === 'none' ? undefined : resolveApiKey(config).key;
   if (preset.auth !== 'none' && !apiKey) {
-    throw new Error(`Set the ${config.apiKeyEnv ?? 'API key'} environment variable for ${preset.label}.`);
+    throw new Error(
+      `Connect ${preset.label} in the NomadSF app (AI page) or set the ${
+        config.apiKeyEnv ?? 'API key'
+      } environment variable.`
+    );
   }
 
   // Azure: baseUrl is the deployment URL, e.g. https://<resource>.openai.azure.com/openai/deployments/<name>?api-version=...

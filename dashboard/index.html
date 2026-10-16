@@ -1812,9 +1812,7 @@
           const selected = books.find((b) => b.path === state.runbook) || books[0];
           const aiLine = ai.current
             ? `${esc(ai.current.label)} · ${esc(ai.current.model)}${
-                ai.current.apiKeySet
-                  ? ''
-                  : ` · <span style="color:var(--bad)">${esc(ai.current.apiKeyEnv)} is not set</span>`
+                ai.current.apiKeySet ? '' : ` · <span style="color:var(--bad)">not connected</span>`
               }`
             : `<span style="color:var(--bad)">${esc(ai.error || 'AI not configured')}</span>`;
           $('main').innerHTML = `
@@ -1885,10 +1883,72 @@
           $('rbRun').onclick = () => start(false);
         }
 
+        const KEY_PAGES = {
+          anthropic: 'https://console.anthropic.com/settings/keys',
+          openai: 'https://platform.openai.com/api-keys',
+          gemini: 'https://aistudio.google.com/apikey',
+          mistral: 'https://console.mistral.ai/api-keys',
+          groq: 'https://console.groq.com/keys',
+        };
+        const KEY_SOURCE = {
+          env: 'environment variable',
+          connected: 'connected',
+          gh: 'GitHub CLI login',
+        };
+
+        /** One provider row of "Connect your AI account". */
+        function aiAccountRow(p, ai, cur) {
+          const status =
+            p.id === 'ollama'
+              ? '<span class="desc">no key needed</span>'
+              : p.keySource && p.keySource !== 'none'
+              ? `<span style="color:var(--good)">✓ ${esc(KEY_SOURCE[p.keySource] || p.keySource)}</span>`
+              : '<span class="desc">not connected</span>';
+          let actions = '';
+          if (p.id === 'openrouter') actions += `<button data-or="1">Sign in with OpenRouter</button>`;
+          else if (p.id === 'github-models')
+            actions +=
+              ai.github && ai.github.cli
+                ? ''
+                : `<span class="desc">Run <code>gh auth login</code>, then Refresh</span>`;
+          if (!['ollama', 'github-models'].includes(p.id))
+            actions += ` <button data-key="${esc(p.id)}">${
+              p.id === 'openrouter' ? 'Paste a key' : 'Connect with key'
+            }</button>`;
+          if (KEY_PAGES[p.id])
+            actions += ` <a href="${KEY_PAGES[p.id]}" target="_blank" rel="noreferrer">get a key ↗</a>`;
+          if (p.keySource === 'connected') actions += ` <button data-off="${esc(p.id)}">Disconnect</button>`;
+          const inUse = p.id === cur.provider;
+          return `<tr><td><b>${esc(p.label)}</b>${
+            inUse ? ' <span class="pill">in use</span>' : ''
+          }</td><td>${status}</td>
+            <td>${actions} ${inUse ? '' : `<button data-use="${esc(p.id)}">Use</button>`}</td></tr>
+            <tr id="aiKeyRow-${esc(p.id)}" hidden><td colspan="3"><div class="form">
+              <input type="password" id="aiKey-${esc(p.id)}" placeholder="API key for ${esc(
+            p.label
+          )}" style="min-width:320px" autocomplete="off">
+              <button class="primary" data-savekey="${esc(p.id)}">Save key</button>
+              <span class="desc">Kept in ~/.nomadsf/credentials.json (only you can read it), never in the project.</span>
+            </div></td></tr>`;
+        }
+
         async function renderAi() {
           const ai = await getJson('/api/ai').catch((e) => ({ error: e.message, providers: [] }));
           const cur = ai.current || {};
+          const back = new URLSearchParams(location.search).get('ai');
+          const notice = !back
+            ? ''
+            : back === 'connected'
+            ? '<p style="color:var(--good)">✓ OpenRouter connected.</p>'
+            : `<p style="color:var(--bad)">${esc(back.replace(/^error:/, ''))}</p>`;
           $('main').innerHTML = `
+      <div class="card"><h2>Connect your AI account</h2>${notice}
+        <p class="desc">Runbooks use the provider marked <i>in use</i>. Subscriptions such as ChatGPT Plus or Claude Pro cannot be used by other apps; connect with a sign-in where the provider offers one (OpenRouter, GitHub Models through your GitHub or Copilot plan) or with an API key. Environment variables still win, so CI keeps working.</p>
+        <table><thead><tr><th>Provider</th><th>Status</th><th></th></tr></thead><tbody>${ai.providers
+          .map((p) => aiAccountRow(p, ai, cur))
+          .join('')}</tbody></table>
+        <p class="desc" id="aiConnMsg"></p>
+      </div>
       <div class="card"><h2>AI provider</h2>
         <p class="desc">${
           ai.current
@@ -1897,13 +1957,13 @@
               }`
             : esc(ai.error || '')
         }</p>
-        <p class="desc">API keys are never stored. Each provider reads its key from an environment variable that must be set before you start <code>sf fm dashboard</code> or run a runbook. Use a custom base URL for a company gateway, an Azure OpenAI deployment, or a self-hosted model.</p>
+        <p class="desc">Settings are saved in the project; keys never are. Use a custom base URL for a company gateway, an Azure OpenAI deployment, or a self-hosted model.</p>
         <div class="form vertical">
           <label>Provider<select id="aiProvider">${ai.providers
             .map(
               (p) =>
                 `<option value="${esc(p.id)}" ${p.id === cur.provider ? 'selected' : ''}>${esc(p.label)}${
-                  p.apiKeyEnv ? ` — ${esc(p.apiKeyEnv)} ${p.apiKeySet ? '✓' : '(not set)'}` : ''
+                  p.apiKeySet ? ' ✓' : ''
                 }</option>`
             )
             .join('')}</select></label>
@@ -1919,12 +1979,55 @@
           )}</button> <span class="desc" id="aiMsg"></span></div>
         </div>
       </div>`;
+          const say = (text) => ($('aiConnMsg').textContent = text);
+          const onClick = (selector, fn) =>
+            document.querySelectorAll(selector).forEach((el) => (el.onclick = () => fn(el)));
+          onClick('[data-or]', async () => {
+            const res = await post('/api/ai/connect/openrouter', {});
+            if (res.error) return say(res.error);
+            // A new tab, so the sign-in also works when the app is embedded in the extension
+            window.open(res.url, '_blank', 'noopener');
+            say('Finish the sign-in in the new tab; it comes back here when done.');
+          });
+          onClick('[data-key]', (el) => {
+            $(`aiKeyRow-${el.dataset.key}`).hidden = false;
+            $(`aiKey-${el.dataset.key}`).focus();
+          });
+          onClick('[data-savekey]', async (el) => {
+            const res = await post('/api/ai/connect', {
+              provider: el.dataset.savekey,
+              key: $(`aiKey-${el.dataset.savekey}`).value,
+            });
+            if (res.error) return say(res.error);
+            renderAi();
+          });
+          onClick('[data-off]', async (el) => {
+            const res = await post('/api/ai/disconnect', { provider: el.dataset.off });
+            if (res.error) return say(res.error);
+            renderAi();
+          });
+          onClick('[data-use]', async (el) => {
+            const p = ai.providers.find((x) => x.id === el.dataset.use) || {};
+            if (!p.defaultModel) {
+              $('aiProvider').value = p.id;
+              $('aiModel').value = '';
+              $('aiModel').placeholder = 'model name from your provider';
+              $('aiModel').focus();
+              return say(`Enter the model to use with ${p.label} below, then Save.`);
+            }
+            const res = await post('/api/ai', { provider: p.id, model: p.defaultModel });
+            if (res.error) return say(res.error);
+            renderAi();
+          });
           $('aiProvider').onchange = () => {
             const p = ai.providers.find((x) => x.id === $('aiProvider').value) || {};
             $('aiModel').value = p.defaultModel || '';
             $('aiBase').value = '';
             $('aiKeyEnv').value = '';
-            $('aiModel').placeholder = p.defaultModel || 'model name from your provider';
+            $('aiModel').placeholder =
+              p.id === 'github-models'
+                ? 'e.g. openai/gpt-4.1 (see github.com/marketplace/models)'
+                : p.defaultModel || 'model name from your provider';
           };
           $('aiSave').onclick = async () => {
             const res = await post('/api/ai', {

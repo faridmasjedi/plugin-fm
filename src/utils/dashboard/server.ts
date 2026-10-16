@@ -14,6 +14,8 @@ import {
   startRunbook,
   type RepoInfo,
 } from './appApi.js';
+import { handleConnectionRoute } from './connectionRoutes.js';
+import { connectionStatus } from './connections.js';
 import { handleOrgRoute } from './orgRoutes.js';
 import { ProjectContext } from './projects.js';
 import { FRAME_POLICY, handleStudioRoute } from './studio.js';
@@ -225,7 +227,7 @@ export function startDashboardServer(options: ServeOptions): Promise<Server> {
         return sendJson(res, 202, { ok: true });
       }
       case 'GET ai':
-        return sendJson(res, 200, aiSettings(cwd));
+        return sendJson(res, 200, { ...aiSettings(cwd), ...connectionStatus() });
       case 'POST ai':
         saveAiSettings(cwd, await readBody(req));
         return sendJson(res, 200, aiSettings(cwd));
@@ -256,6 +258,9 @@ export function startDashboardServer(options: ServeOptions): Promise<Server> {
     if (parts[1] === 'runs' && parts[2]) return handleRun(req, res, parts);
     if (req.method === 'POST' && parts[1] === 'start') return handleStart(req, res);
     if (parts[1] === 'projects' || parts[1] === 'project') return handleProject(req, res, parts);
+    if ((parts[1] === 'ai' && parts[2]) || parts[1] === 'github') {
+      if (await handleConnectionRoute(req, res, parts, { port: options.port, readBody, sendJson })) return;
+    }
     if (parts[1] === 'org' || parts[1] === 'e2e') {
       const context = {
         cwd: project.cwd,
