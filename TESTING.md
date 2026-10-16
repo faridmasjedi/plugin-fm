@@ -230,6 +230,15 @@ Read-only items can run on any org; everything marked ✎ only on a sandbox.
 | L40   | AI page → Sign in with OpenRouter                                                                       | new tab to openrouter.ai; after approval back on the AI page with "OpenRouter connected"                       |
 | L41   | AI page → GitHub Models → Use, set model `openai/gpt-4.1`; run a runbook with `--plan`                  | status "GitHub CLI login"; plan produced without any key variable                                              |
 | L42   | Same provider with its environment variable set                                                         | status "environment variable" (env wins over the connected key)                                                |
+| L43   | Query → ⓘ next to an Id                                                                                 | Record page with every field; header with object, name and Id                                                  |
+| L44   | Record: paste a Lightning record URL / a username; filter; Only fields with a value; click a lookup     | record found; filters work; lookup opens the related record; Recent lists them                                 |
+| L45 ✎ | Record → Edit, change a text, a picklist and a checkbox → Save (sandbox)                                | only changed fields sent; typed org name required; saved values shown; on Activity                             |
+| L46   | Edit a number field with letters, a date as 1/2/2026                                                    | clear error, nothing sent                                                                                      |
+| L47 ✎ | User record → Log in as this user (sandbox, "Login as any user" on)                                     | production asks first; browser logs in as the user                                                             |
+| L48   | Org limits                                                                                              | all limits, most used first; ≥70 % amber, ≥90 % red; filter                                                    |
+| L49   | REST Explorer: GET `/services/data/vXX.X/sobjects/Account/describe`, click a link in the answer         | 200 with formatted JSON, time and api-usage; link opens as GET                                                 |
+| L50   | REST Explorer: POST / DELETE                                                                            | typed org name required; error answers (4xx) shown, not thrown                                                 |
+| L51   | Extension popup on a record page                                                                        | "Show all data of this record" opens the Record page for it                                                    |
 
 ## Before a demo
 

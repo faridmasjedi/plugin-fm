@@ -208,9 +208,11 @@ export function startDashboardServer(options: ServeOptions): Promise<Server> {
         loginOrg(cwd, String(body.alias ?? ''), String(body.instanceUrl ?? 'https://login.salesforce.com'));
         return sendJson(res, 202, { ok: true });
       }
-      case 'POST orgs/open':
-        openOrg(cwd, String((await readBody(req)).org ?? ''));
+      case 'POST orgs/open': {
+        const body = await readBody(req);
+        openOrg(cwd, String(body.org ?? ''), typeof body.path === 'string' ? body.path : undefined);
         return sendJson(res, 202, { ok: true });
+      }
       case 'GET repo':
         return sendJson(res, 200, repoInfo(cwd));
       case 'GET runbooks':
