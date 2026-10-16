@@ -1,0 +1,207 @@
+# Test plan
+
+Everything NomadSF / plugin-fm can do, and how to check it. Automated checks run on every pull request; the rest are scenarios to run by hand before a release or a demo.
+
+## What you need
+
+| Item                                                                                            | Used for                                                               |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **Two sandboxes** (e.g. `uat`, `qa`) or a sandbox + scratch org, authorized in the sf CLI       | anything that deploys or changes data — never use production for these |
+| **Test repository** with a submodule, e.g. `farid-submodule` (fix its `.gitmodules` path first) | build, waves, duplicates, pipeline                                     |
+| Java 11+ and `sf plugins install code-analyzer`                                                 | full quality scan (PMD, CPD, Graph Engine)                             |
+| `ANTHROPIC_API_KEY` (or another provider)                                                       | AI runbooks                                                            |
+| `npm i -D @playwright/test` and `npx playwright install chromium` in the test repository        | end-to-end scenarios                                                   |
+| Docker, GitHub CLI (`gh auth login`)                                                            | image, pull requests, workflows                                        |
+
+Commands below run from the test repository unless stated otherwise. `RUN` = `sf` (installed plugin) or `node <plugin>/bin/run.js`.
+
+## A. Automated (every pull request)
+
+| ID  | Check                                                          | How                 | Expected                                                                                                                                    |
+| --- | -------------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1  | Unit tests (33)                                                | `yarn test:only`    | all pass: tags, waves, pipeline config, quality/SARIF, summaries, runbook agent with a scripted AI, org explorer, Playwright report parsing |
+| A2  | Compile + lint                                                 | `yarn build`        | no errors                                                                                                                                   |
+| A3  | Command snapshot, JSON schemas, deprecation policy, link check | `yarn test`         | all pass; after adding a command or flag, regenerate (see RELEASING.md)                                                                     |
+| A4  | CI on GitHub                                                   | open a pull request | `CI / test` green                                                                                                                           |
+
+## B. Build (`sf fm build`)
+
+| ID  | Scenario                                                                            | Expected                                                                                                              |
+| --- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| B1  | `-r HEAD~1` with an Apex class changed                                              | class in `Package/package.xml`, file in `ChangedFiles/`                                                               |
+| B2  | Delete a class                                                                      | in `Destructive/destructiveChanges.xml` and `RemovedFiles/`                                                           |
+| B3  | Change one file of an LWC                                                           | whole bundle copied, bundle listed once                                                                               |
+| B4  | Delete an LWC's main files                                                          | bundle in destructive changes                                                                                         |
+| B5  | Add one CustomLabel to a big labels file                                            | only that label in the partial `CustomLabels` file                                                                    |
+| B6  | Change a SharingRule                                                                | whole sharing rules file, changed rules reported                                                                      |
+| B7  | Change a file inside the submodule                                                  | included, filtered by the parent's package directories                                                                |
+| B8  | File matched by `.forceignore` / `--ignore`                                         | not in the package; counted as ignored                                                                                |
+| B9  | Rename a file                                                                       | old path in destructive changes, new path in the package (known gap: same file name in a new folder)                  |
+| B10 | `--from-last-successful-deployment --base-branch main` with no tag and no `--ref-a` | clear error explaining the first release                                                                              |
+| B11 | Same, with `--ref-a origin/main`                                                    | warning, falls back to `ref-a`                                                                                        |
+| B12 | Same, after a tag exists                                                            | diff starts at the tagged commit                                                                                      |
+| B13 | Tagged commit not in the history (after a force-push)                               | warning about the tag not being an ancestor                                                                           |
+| B14 | `--waves` with Data Cloud, OmniStudio, Agentforce and Apex changes                  | `1-data-cloud`, `2-core` (incl. Agentforce), `3-omnistudio`; nothing appears twice; `waves.json` has `contains` flags |
+| B15 | `--waves` with a deleted Data Cloud object                                          | destructive change in wave 1 only                                                                                     |
+| B16 | `.fm/waves.yml` with `paths:`                                                       | files under those paths go to that wave                                                                               |
+| B17 | `--waves` when only one wave changed                                                | only that wave's folder exists; old wave folders removed                                                              |
+| B18 | `--summary json` / `--summary github`                                               | JSON on stdout / Markdown summary                                                                                     |
+| B19 | `--create-docker-image`                                                             | image built from the artifact                                                                                         |
+
+## C. Quality (`sf fm quality`)
+
+| ID  | Scenario                                       | Expected                                                              |
+| --- | ---------------------------------------------- | --------------------------------------------------------------------- |
+| C1  | `-r HEAD~3` with Code Analyzer installed       | only changed files scanned; `quality.md`, `.sarif`, `.json` written   |
+| C2  | Without Java                                   | warning "pmd did not run…", not a failure                             |
+| C3  | `ruleset.xml` in the repository                | its rules are used                                                    |
+| C4  | `--engine pmd` / `--engine eslint`             | only that engine                                                      |
+| C5  | A High violation with `--severity-threshold 2` | exit code 1                                                           |
+| C6  | Same with `--warn-only`                        | exit code 0                                                           |
+| C7  | No scannable changes                           | "Nothing to analyze", exit 0                                          |
+| C8  | In GitHub Actions                              | Markdown in the job summary; SARIF upload shows annotations on the PR |
+| C9  | No engine available                            | clear error listing how to install one                                |
+
+## D. Deploy (`sf fm deploy`) — sandbox only
+
+| ID  | Scenario                                                                                         | Expected                                            |
+| --- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| D1  | `--mode validation` on a build                                                                   | validation succeeds, validation ID printed          |
+| D2  | `--mode quick --validation-id <id>`                                                              | quick deploy succeeds                               |
+| D3  | `--mode deployment --intelligent-tests`                                                          | tests chosen from the changed Apex                  |
+| D4  | `--test-level RunSpecifiedTests` without `--tests`                                               | error                                               |
+| D5  | `--destructive post` / `pre` / `both --pre <file>`                                               | components removed in the right order               |
+| D6  | `--async`, then `sf fm deploy status --watch`                                                    | progress until done                                 |
+| D7  | `sf fm deploy cancel --job-id-file` on a running job / a finished job with `--skip-if-not-found` | canceled / skipped without failing                  |
+| D8  | `--pre-steps x.sh` and `--post-steps y.apex`                                                     | both run; `.apex` runs as anonymous Apex in the org |
+| D9  | A failing deployment                                                                             | errors and failed tests listed, exit 1              |
+| D10 | `--tag-on-success main --push-tag` after success                                                 | tag created and pushed                              |
+| D11 | Same in validation mode                                                                          | no tag ("validations do not change the org")        |
+
+## E. Duplicates (`sf fm check-duplicates`)
+
+| ID  | Scenario                             | Expected                      |
+| --- | ------------------------------------ | ----------------------------- |
+| E1  | Same class in parent and submodule   | listed, exit 1                |
+| E2  | Same field name on different objects | not a duplicate               |
+| E3  | Same CustomLabel in both             | listed as a label duplicate   |
+| E4  | `--all`                              | checks the whole working tree |
+
+## F. Pipeline (`sf fm pipeline`)
+
+| ID  | Scenario                                                        | Expected                                                                                               |
+| --- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| F1  | `init`, then `run` in a terminal                                | stops at the approval and asks `[Y/n]`                                                                 |
+| F2  | `run --no-prompt`                                               | pauses; `pipeline approve` + `run --resume latest` continue                                            |
+| F3  | `run --wait-for-approval` + approve on the dashboard            | continues within seconds                                                                               |
+| F4  | `--step-by-step`                                                | asks before every stage                                                                                |
+| F5  | A failing stage                                                 | later `if: success` stages skipped, `if: failure` stage runs, exit 1                                   |
+| F6  | `continue-on-error: true` on a failing stage                    | shown as warning, pipeline continues                                                                   |
+| F7  | `${stages.x.result.y}` that doesn't exist                       | stage fails with "Cannot resolve"                                                                      |
+| F8  | Invalid pipeline file (duplicate ids, unknown `uses`)           | all problems listed at once                                                                            |
+| F9  | Cancel from the dashboard while waiting                         | run ends as canceled                                                                                   |
+| F10 | `init --train`, `run --event pr` with Data Cloud + core changes | Data Cloud validated → approved → deployed; core validated; push-only stages skipped with a reason     |
+| F11 | `run --event push`                                              | core deployed, OmniStudio validated → approved → deployed, tag created                                 |
+| F12 | Push again with nothing new                                     | every wave skipped ("hasChanges is false"), tag reused                                                 |
+| F13 | `FM_REQUIRE_APPROVAL` unset                                     | approval stages skipped                                                                                |
+| F14 | `--dashboard-export dashboard.html`                             | self-contained file opens offline                                                                      |
+| F15 | Train in GitHub Actions (`examples/github-release-train.yml`)   | PR and push behave as F10/F11; the paused run continues in the `approve` job after a reviewer approves |
+
+## G. AI runbooks (`sf fm runbook`) — sandbox only
+
+| ID  | Scenario                                                               | Expected                                                              |
+| --- | ---------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| G1  | `init`                                                                 | `.fm/ai.yml` and two example runbooks                                 |
+| G2  | `run --plan`                                                           | checklist and plan; only read-only actions run                        |
+| G3  | `run` in a terminal                                                    | each Apex / data / permission change shows its code and waits for Y/n |
+| G4  | Reject an action                                                       | not run; step skipped or failed; the AI doesn't retry it              |
+| G5  | A Setup-only step                                                      | shown as numbered instructions; continues after "done"                |
+| G6  | `--approve none` with a manual step, without a terminal                | stops with a clear error (manual steps always need a person)          |
+| G7  | `--pr` with a retrieved or edited file                                 | branch pushed, pull request opened, local branch unchanged            |
+| G8  | Provider switch: OpenAI / Gemini / Ollama / custom URL in `.fm/ai.yml` | same flow works; missing key → clear error naming the variable        |
+| G9  | Wrong API key                                                          | "rejected the credentials" message                                    |
+| G10 | `uses: ai-runbook` in a pipeline with `--wait-for-approval`            | approvals appear on the dashboard with the exact code                 |
+
+## H. NomadSF app (`sf fm dashboard`)
+
+| ID  | Scenario                                                                                              | Expected                                                                 |
+| --- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| H1  | Runs page during a pipeline                                                                           | stages update live, log follows, "Next step" banner                      |
+| H2  | Release overview                                                                                      | runs, deployments per org, quality trend, metadata of the release, waves |
+| H3  | "Run pipeline" (+ step by step)                                                                       | run starts and appears                                                   |
+| H4  | Orgs: Connect (sandbox / My Domain), Open                                                             | browser login opens; org appears after Refresh                           |
+| H5  | Repository                                                                                            | deployment tags, open PRs, commits                                       |
+| H6  | Runbooks page: Plan / Run on a sandbox; Run on a production org                                       | run starts; production asks for an extra confirmation                    |
+| H7  | AI page: save a provider                                                                              | `.fm/ai.yml` written without any key                                     |
+| H8  | Security: `curl -H 'Host: evil.com' …` / POST without `x-fm-dashboard` / POST with a foreign `Origin` | 403 each time                                                            |
+| H9  | `--export`                                                                                            | static snapshot with Runs and Repository                                 |
+| H10 | Light / dark theme, narrow window                                                                     | readable, no horizontal scroll                                           |
+
+## I. Org explorer (NomadSF → Org explorer)
+
+Read-only items can run on any org; everything marked ✎ only on a sandbox.
+
+| ID    | Scenario                                                                      | Expected                                                      |
+| ----- | ----------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| I1    | Pick an object → fields; "All fields"; "Count"                                | SOQL written into the editor                                  |
+| I2    | Query with lookups and a subquery                                             | `Owner.Name` columns; subquery shows a record count           |
+| I3    | Tooling API (`SELECT Id, Name FROM ApexClass`)                                | results                                                       |
+| I4    | Include deleted & archived                                                    | deleted rows counted                                          |
+| I5    | More than 2,000 rows                                                          | paged automatically up to Max rows; "more rows" note when cut |
+| I6    | Table: sort, global filter, column filters `=x`, `!x`, `>10`, `<5`            | rows narrow correctly; Copy/CSV/JSON export the filtered rows |
+| I7    | Click a record ID                                                             | opens the record in Salesforce                                |
+| I8    | History                                                                       | last 25 queries                                               |
+| I9    | Bulk export (incl. deleted)                                                   | CSV download; file under `.fm/exports` (git-ignored)          |
+| I10 ✎ | Import insert / update / upsert (external ID) / delete / hard delete from CSV | counts correct; failures table and CSV                        |
+| I11 ✎ | Delete by query: Count, then Delete                                           | only matching records deleted                                 |
+| I12 ✎ | Any change without typing the org name, or with a wrong name                  | refused                                                       |
+| I13   | Login history (1–180 days), audit trail                                       | tables with usernames; CSV export                             |
+| I14   | Permission set / group: see assignees                                         | table                                                         |
+| I15 ✎ | Assign by usernames / profile / role / public group, with expiry              | assigned; users who already had it skipped                    |
+| I16 ✎ | Remove selected assignments                                                   | removed                                                       |
+| I17   | Metadata: list a type; Retrieve selected                                      | files written to the project                                  |
+| I18   | Activity tab                                                                  | every ✎ action and retrieve listed with user and time         |
+
+## J. Playwright (`sf fm e2e`)
+
+| ID  | Scenario                  | Expected                                              |
+| --- | ------------------------- | ----------------------------------------------------- |
+| J1  | `init`                    | config, login fixture, example spec                   |
+| J2  | `run -o <sandbox>`        | logged in without a password; results summary         |
+| J3  | `--grep`, `--headed`      | filtered / visible browser                            |
+| J4  | A failing step            | exit 1; HTML report with trace and screenshot         |
+| J5  | `PW_CHANNEL=chrome`       | uses installed Chrome, video off                      |
+| J6  | Tests tab: Run on org     | run appears on Runs; last results table; report opens |
+| J7  | `uses: e2e` in a pipeline | stage fails when a test fails                         |
+
+## K. Packaging and GitHub
+
+| ID  | Scenario                                       | Expected                                                                                           |
+| --- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| K1  | `sf fm docker init`                            | Dockerfile, workflow, README generated                                                             |
+| K2  | Release workflow (patch)                       | version commit, tag, GitHub release with tarball, `ghcr.io/<owner>/nomadsf:<version>` and `latest` |
+| K3  | `docker run ghcr.io/<owner>/nomadsf fm --help` | all commands; `sf plugins` lists code-analyzer and fm                                              |
+| K4  | Pages workflow after a train run               | data branch updated; site shows all releases                                                       |
+| K5  | After GitHub Pro: apply the ruleset            | pushes to `main` refused for others; you can bypass and merge                                      |
+
+## L. NomadSF Studio (`nomadsf/`)
+
+| ID   | Scenario                                                                                           | Expected                                                                            |
+| ---- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| L1   | `cd nomadsf && yarn test && yarn typecheck && yarn build`                                          | core tests pass; Studio and extension build; store zip created                      |
+| L2   | `yarn build:studio`, `sf fm dashboard` → Studio ↗                                                  | Studio opens; org badge Production/Sandbox; user shown                              |
+| L3 ✎ | Execute `System.debug('hi');` on a sandbox                                                         | Success; Debug tab shows `hi`; limits and events filled                             |
+| L4 ✎ | Execute code with a syntax error                                                                   | compile error with line:column, marked in the editor                                |
+| L5 ✎ | Execute code that throws                                                                           | Exception with message and stack trace                                              |
+| L6 ✎ | Run selection only                                                                                 | only the selected lines run                                                         |
+| L7   | Execute on a production org                                                                        | confirmation first                                                                  |
+| L8 ✎ | Debug Logs: On 30 min, do something in the org, Refresh                                            | logging on with expiry; new log listed; opens in the viewer                         |
+| L9 ✎ | Extend / Off; Delete listed                                                                        | trace flag extended / removed; logs deleted                                         |
+| L10  | Query with lookups, subquery, Tooling, deleted rows, 2,000+ rows                                   | as in I2–I5; autocomplete suggests objects after FROM and fields of the main object |
+| L11  | Extension: Load unpacked, open a Salesforce page, click the icon / the N tab                       | popup shows the org; Studio opens for that org without the CLI                      |
+| L12  | Extension on a non-Salesforce page / logged out                                                    | popup explains what to do                                                           |
+| L13  | Proxy security: POST `/api/sf/<org>` without the dashboard header, or with a non-`/services/` path | 403 / refused                                                                       |
+
+## Before a demo
+
+Run A1–A4, then on a sandbox: B14, C1, D1–D2, F10–F11, G2–G5, H1–H2, I1–I9, I13–I15, J2, L2–L4, L8, L11. Keep the demo on sandboxes; the explorer marks production and Dev Hub orgs in red.

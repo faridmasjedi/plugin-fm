@@ -1,0 +1,14 @@
+{
+  "name": "nomadsf",
+  "private": true,
+  "description": "NomadSF Studio: Salesforce developer workbench for the NomadSF app, browser extension and IDEs",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "yarn --cwd packages/ui build && yarn --cwd apps/extension build",
+    "test": "yarn --cwd packages/core test",
+    "typecheck": "yarn --cwd packages/core typecheck && yarn --cwd packages/ui typecheck && yarn --cwd apps/extension typecheck"
+  }
+}

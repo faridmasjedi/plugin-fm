@@ -79,6 +79,7 @@
   "repository": "salesforcecli/plugin-fm",
   "scripts": {
     "build": "wireit",
+    "build:studio": "yarn --cwd nomadsf install --frozen-lockfile && yarn --cwd nomadsf build && rm -rf dashboard/studio && cp -R nomadsf/packages/ui/dist dashboard/studio",
     "clean": "sf-clean",
     "clean-all": "sf-clean all",
     "compile": "wireit",

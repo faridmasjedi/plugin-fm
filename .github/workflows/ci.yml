@@ -24,3 +24,25 @@ jobs:
       - run: yarn build
       # unit tests, command snapshot, JSON schemas, deprecation policy, link check
       - run: yarn test
+
+  studio:
+    # NomadSF Studio (nomadsf/): core tests, type check, Studio + browser extension build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nomadsf
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: nomadsf/yarn.lock
+      - run: yarn install --frozen-lockfile
+      - run: yarn test
+      - run: yarn typecheck
+      - run: yarn build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nomadsf-extension
+          path: nomadsf/apps/extension/nomadsf-extension-*.zip

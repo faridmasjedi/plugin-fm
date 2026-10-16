@@ -12,6 +12,7 @@ Salesforce release tooling as a Salesforce CLI plugin (`sf fm …`) plus the **N
 - 🤖 **AI runbooks** — pre/post-deployment steps in plain language, carried out with approval for every change ([AI_RUNBOOKS.md](AI_RUNBOOKS.md))
 - 🔎 **Org explorer** — queries with a filterable table, all fields, Tooling API, deleted rows; Bulk API import/export/delete; login history, audit trail, permission set assignment; metadata retrieve ([ORG_EXPLORER.md](ORG_EXPLORER.md))
 - 🎭 **Playwright scenarios** — end-to-end tests against any org without stored passwords
+- 🧑‍💻 **NomadSF Studio** — Execute Anonymous with debug logs, debug log viewer and trace flags, SOQL with autocomplete; in the app and as a Chrome/Edge extension ([nomadsf/STUDIO.md](nomadsf/STUDIO.md))
 - 📊 **NomadSF app** — runs per release, orgs, repository and deployment history, runbooks, AI settings; also publishable on GitHub Pages
 
 ## Installation
