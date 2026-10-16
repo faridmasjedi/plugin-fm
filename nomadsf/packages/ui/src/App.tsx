@@ -9,6 +9,8 @@ import { QueryPage } from './pages/QueryPage';
 import { DataPage } from './pages/DataPage';
 import { AccessPage } from './pages/AccessPage';
 import { ActivityPage } from './pages/ActivityPage';
+import { MetadataPage } from './pages/MetadataPage';
+import { LOCAL_PAGES, LocalAppPage } from './pages/LocalAppPage';
 
 const PAGES = [
   { id: 'apex', label: 'Execute Apex', icon: '▶' },
@@ -16,11 +18,14 @@ const PAGES = [
   { id: 'query', label: 'Query', icon: '⌕' },
   { id: 'data', label: 'Data', icon: '⇅' },
   { id: 'access', label: 'Users & access', icon: '⚿' },
+  { id: 'metadata', label: 'Metadata', icon: '◫' },
   { id: 'activity', label: 'Activity', icon: '⏱' },
 ] as const;
-type PageId = (typeof PAGES)[number]['id'];
-
 const host = detectHost();
+// Local app pages (pipelines, runbooks, repository) only make sense inside the extension
+const LOCAL = host.kind === 'extension' ? LOCAL_PAGES : [];
+type PageId = (typeof PAGES)[number]['id'] | (typeof LOCAL_PAGES)[number]['id'];
+const isPage = (id: string): id is PageId => PAGES.some((p) => p.id === id) || LOCAL.some((p) => p.id === id);
 
 export function App() {
   const [orgs, setOrgs] = useState<OrgChoice[]>([]);
@@ -28,7 +33,8 @@ export function App() {
   // #apex / #logs / #query (links from the extension popup) win over the last page used
   const [page, setPage] = useState<PageId>(() => {
     const fromHash = location.hash.slice(1);
-    return PAGES.some((p) => p.id === fromHash) ? (fromHash as PageId) : storage.get('studio.page', 'apex');
+    const stored = storage.get<string>('studio.page', 'apex');
+    return isPage(fromHash) ? fromHash : isPage(stored) ? stored : 'apex';
   });
   const [client, setClient] = useState<SalesforceClient | null>(null);
   const [facts, setFacts] = useState<OrgFacts | undefined>();
@@ -97,7 +103,9 @@ export function App() {
     [org, user]
   );
   const studio: Studio | null =
-    client && org ? { client, org, facts, user, confirmRisky, confirmChange, logActivity } : null;
+    client && org ? { hostKind: host.kind, client, org, facts, user, confirmRisky, confirmChange, logActivity } : null;
+
+  const localPage = LOCAL.find((p) => p.id === page);
 
   return (
     <div className="studio">
@@ -143,21 +151,30 @@ export function App() {
             {p.label}
           </button>
         ))}
+        {LOCAL.length > 0 && <div className="nav-section">Local app</div>}
+        {LOCAL.map((p) => (
+          <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)}>
+            <span className="icon">{p.icon}</span>
+            {p.label}
+          </button>
+        ))}
       </nav>
-      <main>
-        {error && <div className="error">{error}</div>}
-        {!error && !studio && (
+      <main className={localPage ? 'local' : ''}>
+        {localPage && <LocalAppPage page={localPage.page} />}
+        {!localPage && error && <div className="error">{error}</div>}
+        {!localPage && !error && !studio && (
           <p className="muted">
             {orgs.length || host.kind === 'extension' ? 'Connecting…' : 'No orgs. Connect one in NomadSF → Orgs.'}
           </p>
         )}
-        {studio && (
+        {!localPage && studio && (
           <StudioContext.Provider value={studio}>
             {page === 'apex' && <ExecutePage />}
             {page === 'logs' && <LogsPage />}
             {page === 'query' && <QueryPage />}
             {page === 'data' && <DataPage />}
             {page === 'access' && <AccessPage />}
+            {page === 'metadata' && <MetadataPage />}
             {page === 'activity' && <ActivityPage />}
           </StudioContext.Provider>
         )}

@@ -7,3 +7,4 @@ export * from './hosts.js';
 export * from './csv.js';
 export * from './bulk.js';
 export * from './access.js';
+export * from './metadata.js';

@@ -3,6 +3,8 @@ import type { SalesforceClient, UserInfo } from '@nomadsf/core';
 import type { OrgChoice, OrgFacts } from './host';
 
 export type Studio = {
+  /** app: inside `sf fm dashboard` (CLI login, local repository); extension: browser session only. */
+  hostKind: 'app' | 'extension';
   client: SalesforceClient;
   org: OrgChoice;
   facts?: OrgFacts;

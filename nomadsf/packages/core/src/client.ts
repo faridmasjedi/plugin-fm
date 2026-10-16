@@ -130,9 +130,9 @@ export class SalesforceClient {
   }
 
   /** SOAP call; `envelope` uses {{SESSION_ID}} for the session header. */
-  public async soap(endpoint: 'apex' | 'partner', envelope: string): Promise<string> {
+  public async soap(endpoint: 'apex' | 'partner' | 'metadata', envelope: string): Promise<string> {
     const version = await this.version();
-    const path = endpoint === 'apex' ? `/services/Soap/s/${version}` : `/services/Soap/u/${version}`;
+    const path = `/services/Soap/${{ apex: 's', partner: 'u', metadata: 'm' }[endpoint]}/${version}`;
     const response = await this.raw({
       method: 'POST',
       path,

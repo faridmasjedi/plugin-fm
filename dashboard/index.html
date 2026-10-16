@@ -839,6 +839,11 @@
       details summary {
         cursor: pointer;
       }
+      /* Inside the NomadSF extension (?embedded=1): the extension shows its own frame */
+      .embedded .brand,
+      .embedded .navlink[href='/studio/'] {
+        display: none;
+      }
       .org-head {
         display: flex;
         align-items: center;
@@ -2031,6 +2036,7 @@
         }
 
         window.NomadSF = { esc, post, getJson, fmtTime, go, $ };
+        if (new URLSearchParams(location.search).has('embedded')) document.documentElement.classList.add('embedded');
 
         $('themeBtn').onclick = () => {
           const root = document.documentElement;
