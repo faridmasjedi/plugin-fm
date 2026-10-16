@@ -97,7 +97,8 @@ export async function proxySalesforce(
   if (response.status === 401) response = await send(true);
   const responseHeaders: Record<string, string> = {};
   response.headers.forEach((value, key) => {
-    if (['content-type', 'sforce-limit-info'].includes(key)) responseHeaders[key] = value;
+    if (['content-type', 'sforce-limit-info', 'sforce-locator', 'sforce-numberofrecords'].includes(key))
+      responseHeaders[key] = value;
   });
   return { status: response.status, headers: responseHeaders, body: await response.text() };
 }

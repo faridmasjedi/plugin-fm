@@ -15,7 +15,10 @@ A Salesforce developer workbench in the spirit of the Developer Console and Sale
 - **Debug Logs** — turn debug logging on for yourself for 30 min / 1 h (trace flag with a `NomadSF` debug level, extended if one is active), list logs (only mine / everyone, auto-refresh), open, download, delete.
 - **Log viewer** — Debug messages, every event (filter by type), governor limits with usage bars, raw log; SOQL / DML / error counts.
 - **Query** — SOQL editor with autocomplete of objects (after `FROM`) and fields of the main object (also with subqueries), Tooling API, deleted & archived rows, up to 50,000 rows, "All fields", history; results in a sortable table with per-column filters (`=exact`, `!not`, `>10`, `<5`), record links, Copy / CSV / JSON.
-- **Safety** — production orgs (including Dev Hubs) are shown in red, and running Apex or turning on logging there asks first.
+- **Data (Bulk API 2.0)** — export any query to CSV (incl. deleted & archived) with a preview table; insert / update / upsert / delete / hard delete from a CSV file with a preview, success and failure CSVs; delete every record a query returns (count first).
+- **Users & access** — login history (1–180 days) with usernames, setup audit trail, permission sets and permission set groups: see assignees, remove selected, assign to users found by usernames, profile, role or public group, with an optional expiry.
+- **Activity** — every export and change made with the Studio, kept in this browser.
+- **Safety** — production orgs (including Dev Hubs) are shown in red, and running Apex or turning on logging there asks first. Every data or access change asks you to type the org name, in any org.
 
 ## Run it
 

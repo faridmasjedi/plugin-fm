@@ -1,16 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getUserInfo, type SalesforceClient, type UserInfo } from '@nomadsf/core';
 import { detectHost, orgFacts, type OrgChoice, type OrgFacts } from './host';
-import { StudioContext, storage, type Studio } from './context';
+import { StudioContext, activityLog, storage, type Studio } from './context';
 import { toggleTheme } from './theme';
 import { ExecutePage } from './pages/ExecutePage';
 import { LogsPage } from './pages/LogsPage';
 import { QueryPage } from './pages/QueryPage';
+import { DataPage } from './pages/DataPage';
+import { AccessPage } from './pages/AccessPage';
+import { ActivityPage } from './pages/ActivityPage';
 
 const PAGES = [
   { id: 'apex', label: 'Execute Apex', icon: '▶' },
   { id: 'logs', label: 'Debug Logs', icon: '☰' },
   { id: 'query', label: 'Query', icon: '⌕' },
+  { id: 'data', label: 'Data', icon: '⇅' },
+  { id: 'access', label: 'Users & access', icon: '⚿' },
+  { id: 'activity', label: 'Activity', icon: '⏱' },
 ] as const;
 type PageId = (typeof PAGES)[number]['id'];
 
@@ -72,7 +78,26 @@ export function App() {
       !production || confirm(`${what} in ${org?.label} — a PRODUCTION org (${facts?.name ?? ''}).\n\nContinue?`),
     [production, org, facts]
   );
-  const studio: Studio | null = client && org ? { client, org, facts, user, confirmRisky } : null;
+  const confirmChange = useCallback(
+    (what: string) => {
+      const warn = production ? `\n\n⚠ ${org?.label} is a PRODUCTION org.` : '';
+      return prompt(`${what}${warn}\n\nType the org name "${org?.label}" to confirm:`) === org?.label;
+    },
+    [production, org]
+  );
+  const logActivity = useCallback(
+    (action: string, details: Record<string, unknown>) =>
+      activityLog.add({
+        at: new Date().toISOString(),
+        org: org?.label ?? '',
+        user: user?.userName ?? '',
+        action,
+        details,
+      }),
+    [org, user]
+  );
+  const studio: Studio | null =
+    client && org ? { client, org, facts, user, confirmRisky, confirmChange, logActivity } : null;
 
   return (
     <div className="studio">
@@ -131,6 +156,9 @@ export function App() {
             {page === 'apex' && <ExecutePage />}
             {page === 'logs' && <LogsPage />}
             {page === 'query' && <QueryPage />}
+            {page === 'data' && <DataPage />}
+            {page === 'access' && <AccessPage />}
+            {page === 'activity' && <ActivityPage />}
           </StudioContext.Provider>
         )}
       </main>

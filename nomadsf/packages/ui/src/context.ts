@@ -9,6 +9,24 @@ export type Studio = {
   user?: UserInfo;
   /** Asks before running code or changing anything in a production org. */
   confirmRisky: (what: string) => boolean;
+  /** Data and access changes: the person types the org name to confirm (any org). */
+  confirmChange: (what: string) => boolean;
+  /** Records a change in this browser's activity log. */
+  logActivity: (action: string, details: Record<string, unknown>) => void;
+};
+
+export type ActivityEntry = { at: string; org: string; user: string; action: string; details: Record<string, unknown> };
+
+export const activityLog = {
+  list(): ActivityEntry[] {
+    return storage.get<ActivityEntry[]>('activity', []);
+  },
+  add(entry: ActivityEntry): void {
+    storage.set('activity', [entry, ...activityLog.list()].slice(0, 300));
+  },
+  clear(): void {
+    storage.set('activity', []);
+  },
 };
 
 export const StudioContext = createContext<Studio | null>(null);

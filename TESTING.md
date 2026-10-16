@@ -186,21 +186,27 @@ Read-only items can run on any org; everything marked ✎ only on a sandbox.
 
 ## L. NomadSF Studio (`nomadsf/`)
 
-| ID   | Scenario                                                                                           | Expected                                                                            |
-| ---- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| L1   | `cd nomadsf && yarn test && yarn typecheck && yarn build`                                          | core tests pass; Studio and extension build; store zip created                      |
-| L2   | `yarn build:studio`, `sf fm dashboard` → Studio ↗                                                  | Studio opens; org badge Production/Sandbox; user shown                              |
-| L3 ✎ | Execute `System.debug('hi');` on a sandbox                                                         | Success; Debug tab shows `hi`; limits and events filled                             |
-| L4 ✎ | Execute code with a syntax error                                                                   | compile error with line:column, marked in the editor                                |
-| L5 ✎ | Execute code that throws                                                                           | Exception with message and stack trace                                              |
-| L6 ✎ | Run selection only                                                                                 | only the selected lines run                                                         |
-| L7   | Execute on a production org                                                                        | confirmation first                                                                  |
-| L8 ✎ | Debug Logs: On 30 min, do something in the org, Refresh                                            | logging on with expiry; new log listed; opens in the viewer                         |
-| L9 ✎ | Extend / Off; Delete listed                                                                        | trace flag extended / removed; logs deleted                                         |
-| L10  | Query with lookups, subquery, Tooling, deleted rows, 2,000+ rows                                   | as in I2–I5; autocomplete suggests objects after FROM and fields of the main object |
-| L11  | Extension: Load unpacked, open a Salesforce page, click the icon / the N tab                       | popup shows the org; Studio opens for that org without the CLI                      |
-| L12  | Extension on a non-Salesforce page / logged out                                                    | popup explains what to do                                                           |
-| L13  | Proxy security: POST `/api/sf/<org>` without the dashboard header, or with a non-`/services/` path | 403 / refused                                                                       |
+| ID    | Scenario                                                                                                | Expected                                                                                  |
+| ----- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| L1    | `cd nomadsf && yarn test && yarn typecheck && yarn build`                                               | core tests pass; Studio and extension build; store zip created                            |
+| L2    | `yarn build:studio`, `sf fm dashboard` → Studio ↗                                                       | Studio opens; org badge Production/Sandbox; user shown                                    |
+| L3 ✎  | Execute `System.debug('hi');` on a sandbox                                                              | Success; Debug tab shows `hi`; limits and events filled                                   |
+| L4 ✎  | Execute code with a syntax error                                                                        | compile error with line:column, marked in the editor                                      |
+| L5 ✎  | Execute code that throws                                                                                | Exception with message and stack trace                                                    |
+| L6 ✎  | Run selection only                                                                                      | only the selected lines run                                                               |
+| L7    | Execute on a production org                                                                             | confirmation first                                                                        |
+| L8 ✎  | Debug Logs: On 30 min, do something in the org, Refresh                                                 | logging on with expiry; new log listed; opens in the viewer                               |
+| L9 ✎  | Extend / Off; Delete listed                                                                             | trace flag extended / removed; logs deleted                                               |
+| L10   | Query with lookups, subquery, Tooling, deleted rows, 2,000+ rows                                        | as in I2–I5; autocomplete suggests objects after FROM and fields of the main object       |
+| L11   | Extension: Load unpacked, open a Salesforce page, click the icon / the N tab                            | popup shows the org; Studio opens for that org without the CLI                            |
+| L12   | Extension on a non-Salesforce page / logged out                                                         | popup explains what to do                                                                 |
+| L13   | Proxy security: POST `/api/sf/<org>` without the dashboard header, or with a non-`/services/` path      | 403 / refused                                                                             |
+| L14   | Data: Export a query (and with deleted rows)                                                            | CSV downloads; preview table; job id shown; listed on Activity                            |
+| L15 ✎ | Data: Insert / update / upsert / delete / hard delete from a CSV                                        | preview before running; typed org name required; success and failure CSVs; failures table |
+| L16 ✎ | Data: Delete by query — Count, then Delete                                                              | only matching records deleted; nothing matched → nothing deleted                          |
+| L17   | Users & access: login history, audit trail                                                              | tables with usernames; CSV                                                                |
+| L18 ✎ | Assign a permission set / group by usernames, profile, role, public group, with expiry; remove selected | assigned (existing assignees skipped) / removed; typed org name required; on Activity     |
+| L19   | Same pages in the extension                                                                             | identical behaviour with the browser session                                              |
 
 ## Before a demo
 
