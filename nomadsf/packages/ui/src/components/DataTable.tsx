@@ -37,6 +37,9 @@ export type DataTableProps = {
   selectedKey?: unknown;
   rowKey?: string;
   maxShown?: number;
+  /** Checkbox column; `selected` holds the rowKey values of the checked rows. */
+  selected?: Set<string>;
+  onSelectedChange?: (selected: Set<string>) => void;
 };
 
 export function DataTable({
@@ -49,7 +52,11 @@ export function DataTable({
   selectedKey,
   rowKey = 'Id',
   maxShown = 1000,
+  selected,
+  onSelectedChange,
 }: DataTableProps) {
+  const selectable = Boolean(selected && onSelectedChange);
+  const keyOf = (r: Row): string => String(r[rowKey] ?? '');
   const [filter, setFilter] = useState('');
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
   const [sort, setSort] = useState<{ col: string; dir: 1 | -1 } | null>(null);
@@ -119,6 +126,20 @@ export function DataTable({
         <table>
           <thead>
             <tr>
+              {selectable && (
+                <th className="sel">
+                  <input
+                    type="checkbox"
+                    title="Select all shown"
+                    checked={visible.length > 0 && visible.every((r) => selected!.has(keyOf(r)))}
+                    onChange={(e) => {
+                      const next = new Set(selected);
+                      for (const r of visible) e.target.checked ? next.add(keyOf(r)) : next.delete(keyOf(r));
+                      onSelectedChange!(next);
+                    }}
+                  />
+                </th>
+              )}
               {columns.map((c) => (
                 <th
                   key={c}
@@ -132,6 +153,7 @@ export function DataTable({
               ))}
             </tr>
             <tr className="dt-filters">
+              {selectable && <th />}
               {columns.map((c) => (
                 <th key={c}>
                   <input
@@ -152,6 +174,19 @@ export function DataTable({
                 }`}
                 onClick={onRowClick ? () => onRowClick(r) : undefined}
               >
+                {selectable && (
+                  <td className="sel" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selected!.has(keyOf(r))}
+                      onChange={(e) => {
+                        const next = new Set(selected);
+                        e.target.checked ? next.add(keyOf(r)) : next.delete(keyOf(r));
+                        onSelectedChange!(next);
+                      }}
+                    />
+                  </td>
+                )}
                 {columns.map((c) => (
                   <td key={c}>{cell(c, r[c])}</td>
                 ))}
