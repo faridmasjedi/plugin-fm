@@ -53,3 +53,4 @@ dashboard/studio/
 nomadsf/**/dist/
 nomadsf/**/node_modules/
 nomadsf/**/*.zip
+nomadsf/apps/extension/nomadsf-extension-*/
