@@ -251,6 +251,13 @@ Read-only items can run on any org; everything marked ✎ only on a sandbox.
 | L61   | Apex tests with failures → ✦ Explain failures with AI                                                   | cause and fix per failure                                                                                      |
 | L62   | App: failed pipeline stage → ✦ Explain with AI; Repository → ✦ Draft release notes                      | answer under the stage / Markdown notes with range (last deploy tag, last 30 commits or whole short history)   |
 | L63   | AI help without an AI connected / extension without the local app                                       | clear message (connect on the AI page / start `sf fm dashboard`)                                               |
+| L64   | Field usage: Account, Count filled values; click a custom field                                         | records and fields counted; filled and % per field; references (e.g. layouts, flows) listed                    |
+| L65   | Field usage on a standard field / an object with 0 records                                              | "custom fields only" note / counting disabled                                                                  |
+| L66   | Events: Listen on /data/ChangeEvents (CDC on for Account), change an Account in another tab (sandbox)   | handshake, subscribe; the change event appears with its payload                                                |
+| L67   | Events: Replay retained (72 h) on a platform event                                                      | earlier events appear with replay ids                                                                          |
+| L68 ✎ | Events: Publish a platform event from JSON (sandbox)                                                    | typed org name; event id shown; seen by the listener; on Activity                                              |
+| L69   | Events: Stop; leave the page while listening                                                            | stream ends (after the current long poll); no errors                                                           |
+| L70   | Proxy: GET `/cometd/…`, POST `/cometd/../x`                                                             | refused; only POST `/cometd/<version>` is streamed                                                             |
 
 ## Before a demo
 

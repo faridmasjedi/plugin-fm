@@ -10,6 +10,7 @@ import {
   saveConnectedKey,
 } from '../../src/utils/ai/index.js';
 import { openOrg } from '../../src/utils/dashboard/appApi.js';
+import { proxySalesforce } from '../../src/utils/dashboard/studio.js';
 import { finishOpenRouterSignIn, openRouterSignInUrl, proxyGitHub } from '../../src/utils/dashboard/connections.js';
 
 describe('AI and GitHub connections', () => {
@@ -76,6 +77,19 @@ describe('AI and GitHub connections', () => {
   it('opens org pages only at safe paths', () => {
     for (const path of ['https://evil.example', '/x; rm -rf /', '/a b', 'javascript:alert(1)']) {
       expect(() => openOrg('.', 'my-org', path), path).to.throw('Invalid path');
+    }
+  });
+
+  it('proxies only API and streaming paths', async () => {
+    for (const request of [
+      { method: 'GET', path: '/cometd/64.0' },
+      { method: 'POST', path: '/cometd/../secur/frontdoor.jsp' },
+      { method: 'GET', path: '/secur/frontdoor.jsp' },
+    ]) {
+      let error = '';
+      // eslint-disable-next-line no-await-in-loop
+      await proxySalesforce('my-org', request).catch((e: Error) => (error = e.message));
+      expect(error, request.path).to.include('Only Salesforce');
     }
   });
 });
