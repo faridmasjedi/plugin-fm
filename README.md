@@ -16,7 +16,7 @@ Salesforce release tooling as a Salesforce CLI plugin (`sf fm …`) plus the **N
 - 🚂 **Release train** — optional pipeline over pull request and push, with approvals, scripts (`.apex`, `.sh`, …) and step-by-step runs
 - 🤖 **AI runbooks** — pre/post-deployment steps in plain language, carried out with approval for every change ([AI_RUNBOOKS.md](AI_RUNBOOKS.md))
 - 🎭 **Playwright scenarios** — end-to-end tests against any org without stored passwords
-- 🧑‍💻 **NomadSF Studio** — Salesforce Inspector and Developer Console in one: Execute Anonymous, debug logs, SOQL with autocomplete and saved queries, record inspector with inline edit, code editor for Apex and LWC, Apex tests with coverage, bulk data, users & access, metadata, field usage, Platform Events / CDC, org limits, REST Explorer, AI help; in the app and as a Chrome/Edge extension ([nomadsf/STUDIO.md](nomadsf/STUDIO.md))
+- 🧑‍💻 **NomadSF Studio** — Salesforce Inspector and Developer Console in one: Execute Anonymous, debug logs, SOQL with autocomplete and saved queries, record inspector with inline edit, code editor for Apex and LWC, Apex tests with coverage, bulk data, users & access, metadata, field usage, Platform Events / CDC, org limits, REST Explorer, AI help; in the app, as a Chrome/Edge extension, in VS Code and as a desktop app ([nomadsf/STUDIO.md](nomadsf/STUDIO.md))
 - 📊 **NomadSF app** — runs per release, orgs, repository and deployment history, runbooks, AI settings; also publishable on GitHub Pages
 
 ## Installation

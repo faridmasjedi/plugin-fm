@@ -53,4 +53,7 @@ dashboard/studio/
 nomadsf/**/dist/
 nomadsf/**/node_modules/
 nomadsf/**/*.zip
+nomadsf/**/*.vsix
+nomadsf/apps/desktop/out/
 nomadsf/apps/extension/nomadsf-extension-*/
+!nomadsf/apps/desktop/package-lock.json

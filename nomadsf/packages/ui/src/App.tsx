@@ -51,7 +51,9 @@ export function App() {
   const [orgId, setOrgId] = useState<string>(() => storage.get('studio.org', ''));
   // #apex / #logs / #query (links from the extension popup) win over the last page used
   const [page, setPage] = useState<PageId>(() => {
-    const fromHash = location.hash.slice(1).split('=')[0];
+    const [fromHash, value] = location.hash.slice(1).split(/=(.*)/s);
+    // #query=<SOQL> (VS Code "Run SOQL") prefills the Query page
+    if (fromHash === 'query' && value) storage.set('query.soql', decodeURIComponent(value));
     const stored = storage.get<string>('studio.page', 'apex');
     return isPage(fromHash) ? fromHash : isPage(stored) ? stored : 'apex';
   });
