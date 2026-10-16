@@ -28,6 +28,8 @@ jobs:
   studio:
     # NomadSF Studio (nomadsf/): core tests, type check, Studio + browser extension build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # update the extension-latest pre-release on main
     defaults:
       run:
         working-directory: nomadsf
@@ -42,10 +44,26 @@ jobs:
       - run: yarn test
       - run: yarn typecheck
       - run: yarn build
-      # Convenience download of the extension; never blocks the check (artifact storage is limited)
-      - uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: nomadsf-extension
-          path: nomadsf/apps/extension/nomadsf-extension-*.zip
-          retention-days: 7
+      # No Actions artifacts (limited storage): the zip is described in the job summary and,
+      # on main, published to the rolling pre-release "extension-latest".
+      - name: Extension package
+        id: zip
+        run: |
+          ZIP=$(ls apps/extension/nomadsf-extension-*.zip)
+          echo "file=nomadsf/$ZIP" >> "$GITHUB_OUTPUT"
+          {
+            echo "### NomadSF browser extension"
+            echo "\`$(basename "$ZIP")\` · $(du -h "$ZIP" | cut -f1) · sha256 \`$(sha256sum "$ZIP" | cut -d' ' -f1)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish to the extension-latest pre-release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view extension-latest >/dev/null 2>&1 || \
+            gh release create extension-latest --prerelease --target main --title "NomadSF extension (latest main)" \
+              --notes "Built from main by CI. Chrome/Edge: unzip, then chrome://extensions > Developer mode > Load unpacked."
+          gh release upload extension-latest "${{ steps.zip.outputs.file }}" --clobber
+          URL=$(gh release view extension-latest --json url --jq .url)
+          echo "Download: $URL" >> "$GITHUB_STEP_SUMMARY"
