@@ -11,6 +11,7 @@ A Salesforce developer workbench in the spirit of the Developer Console and Sale
 
 ## Features
 
+- **Project** — the Salesforce repository you work with: from the local NomadSF app (switch between your projects; runs, runbooks and retrieve follow it) or a folder you pick in the browser (read-only, no CLI). Shows package directories with components per type, manifests, branch and API version; **Compare with org** per type (only in org / only in project / both); load a manifest or a whole type into the Metadata package.
 - **Execute Anonymous** — Monaco editor with Apex highlighting and snippets (`debug`, `query`, `for`, `try`, `limits`), log level presets, run all (⌘/Ctrl+Enter) or the selection (⌘/Ctrl+Shift+Enter), compile errors marked on the line, history of the last 20 snippets.
 - **Debug Logs** — turn debug logging on for yourself for 30 min / 1 h (trace flag with a `NomadSF` debug level, extended if one is active), list logs (only mine / everyone, auto-refresh), open, download, delete.
 - **Log viewer** — Debug messages, every event (filter by type), governor limits with usage bars, raw log; SOQL / DML / error counts.
@@ -19,6 +20,7 @@ A Salesforce developer workbench in the spirit of the Developer Console and Sale
 - **Users & access** — login history (1–180 days) with usernames, setup audit trail, permission sets and permission set groups: see assignees, remove selected, assign to users found by usernames, profile, role or public group, with an optional expiry.
 - **Metadata** — every metadata type of the org; list components (folder types such as reports and dashboards folder by folder), build a package that mixes types, then **Download zip** (Metadata API retrieve), **package.xml** (download / copy), or in the app **Retrieve into project** (`sf project retrieve start`).
 - **Local app (extension)** — when `sf fm dashboard` runs on this machine, the extension also shows Runs & approvals, Runbooks (AI), Repository, CLI orgs and AI settings from it. Port configurable (default 7007).
+- **Tests** — Playwright scenarios of the project, run through the local app (`sf fm e2e run`), last results and the HTML report.
 - **Activity** — every export and change made with the Studio, kept in this browser.
 - **Safety** — production orgs (including Dev Hubs) are shown in red, and running Apex or turning on logging there asks first. Every data or access change asks you to type the org name, in any org.
 

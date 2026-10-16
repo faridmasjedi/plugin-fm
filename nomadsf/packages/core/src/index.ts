@@ -8,3 +8,4 @@ export * from './csv.js';
 export * from './bulk.js';
 export * from './access.js';
 export * from './metadata.js';
+export * from './project.js';

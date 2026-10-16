@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  parsePackageXml,
   describeMetadata,
   listMetadata,
   packageXml,
@@ -10,6 +11,7 @@ import {
 } from '@nomadsf/core';
 import { DataTable } from '../components/DataTable';
 import { useStudio } from '../context';
+import { useProject } from '../project';
 
 const keyOf = (c: Pick<MetadataComponent, 'type' | 'fullName'>): string => `${c.type}:${c.fullName}`;
 const stamp = (): string => new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
@@ -38,6 +40,33 @@ export function MetadataPage() {
   const [status, setStatus] = useState('');
   const [retrieved, setRetrieved] = useState<RetrieveResult | null>(null);
   const [version, setVersion] = useState('');
+  const project = useProject();
+
+  // A manifest or a project type sent from the Project page: wildcards are expanded from the org
+  useEffect(() => {
+    const pending = project.pendingPackage;
+    if (!pending || types.length === 0) return;
+    project.openPackage(undefined);
+    void (async () => {
+      setStatus(`Loading ${pending.label}…`);
+      const next = new Map(basket);
+      try {
+        for (const t of pending.types) {
+          const members = t.members.includes('*')
+            ? // eslint-disable-next-line no-await-in-loop
+              (await listMetadata(client, t.type, types.find((x) => x.xmlName === t.type)?.inFolder)).filter(
+                (c) => c.type === t.type
+              )
+            : t.members.map((fullName) => ({ type: t.type, fullName, fileName: '' }));
+          for (const c of members) next.set(keyOf(c), c);
+        }
+        setBasket(next);
+        setStatus(`Loaded ${pending.label} into the package.`);
+      } catch (e) {
+        setStatus(`❌ ${(e as Error).message}`);
+      }
+    })();
+  }, [project.pendingPackage, types]);
 
   useEffect(() => {
     void client.version().then(setVersion);
@@ -167,6 +196,25 @@ export function MetadataPage() {
 
         <div className="card section">
           <h3>Package ({items.length})</h3>
+          {project.info && project.info.manifests.length > 0 && (
+            <div className="form">
+              <select
+                value=""
+                onChange={async (e) => {
+                  const path = e.target.value;
+                  const text = path ? await project.source?.fs.readText(path) : undefined;
+                  if (text) project.openPackage({ label: path, types: parsePackageXml(text) });
+                }}
+              >
+                <option value="">Load a manifest from {project.info.name}…</option>
+                {project.info.manifests.map((m) => (
+                  <option key={m.path} value={m.path}>
+                    {m.path} ({m.members})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {items.length === 0 ? (
             <p className="muted" style={{ margin: 0 }}>
               Select components on the left and add them; a package can mix types.

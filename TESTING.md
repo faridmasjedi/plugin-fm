@@ -212,6 +212,13 @@ Read-only items can run on any org; everything marked ✎ only on a sandbox.
 | L22 ✎ | Retrieve into project (app only, in a Salesforce project)                                               | files written; table of retrieved files; not shown in the extension                                            |
 | L23   | Extension with `sf fm dashboard` running: Local app → Runs, Runbooks, Repository, CLI orgs, AI          | dashboard pages inside the extension; approvals work; without the app: start instructions, port setting, Retry |
 | L24   | A normal web page tries to frame `http://127.0.0.1:7007`                                                | refused (frame-ancestors)                                                                                      |
+| L25   | Project (app): Open project by path / switch to a recent project                                        | analysis shown; Runs, Runbooks, Repository and retrieve now use that project                                   |
+| L26   | Project (extension, no local app): Choose project folder…; reload the extension page                    | same analysis; after a restart, Reconnect the last folder                                                      |
+| L27   | Project: click a type → Compare with org                                                                | counts in both / only in org / only in project; table filterable                                               |
+| L28   | Project: click a manifest, or Add all to package                                                        | Metadata opens with the package filled (`*` expanded from the org)                                             |
+| L29   | Project file access: `.git/…`, `../…` paths                                                             | refused; the app keeps running                                                                                 |
+| L30   | Tests (Playwright) page in the app and the extension (local app running)                                | specs listed; run starts; last results; report link                                                            |
+| L31   | Dashboard: no Org explorer page; Studio link opens all org tools                                        | old page gone; Activity in the app shows the project's shared log                                              |
 
 ## Before a demo
 

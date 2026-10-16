@@ -1607,26 +1607,11 @@
             ]
           : [
               ['runs', 'Runs'],
-              ['org', 'Org explorer'],
               ['orgs', 'Orgs'],
               ['repo', 'Repository'],
               ['runbooks', 'Runbooks'],
               ['ai', 'AI'],
             ];
-
-        /** The Org explorer lives in org.js and is loaded on first use (live app only). */
-        async function renderOrgExplorer() {
-          if (!window.NomadSFOrg) {
-            await new Promise((resolveLoad, reject) => {
-              const script = document.createElement('script');
-              script.src = '/org.js';
-              script.onload = resolveLoad;
-              script.onerror = reject;
-              document.head.append(script);
-            });
-          }
-          window.NomadSFOrg.render($('main'));
-        }
 
         async function getJson(path) {
           const res = await fetch(path);
@@ -1640,7 +1625,9 @@
             PAGES.map(
               ([id, label]) => `<a class="navlink ${state.page === id ? 'active' : ''}" href="#page=${id}">${label}</a>`
             ).join('') +
-            (STATIC ? '' : '<a class="navlink" href="/studio/" title="Execute Apex, debug logs, query">Studio ↗</a>');
+            (STATIC
+              ? ''
+              : '<a class="navlink" href="/studio/" title="Org tools: Apex, logs, query, data, access, metadata, project, tests">Studio ↗</a>');
         }
 
         function markdown(md) {
@@ -1999,9 +1986,7 @@
             if (!force) return;
             document.querySelector('.app').classList.add('wide');
             (
-              ({ org: renderOrgExplorer, orgs: renderOrgs, repo: renderRepo, runbooks: renderRunbooks, ai: renderAi })[
-                state.page
-              ] || renderRepo
+              ({ orgs: renderOrgs, repo: renderRepo, runbooks: renderRunbooks, ai: renderAi })[state.page] || renderRepo
             )();
             return;
           }

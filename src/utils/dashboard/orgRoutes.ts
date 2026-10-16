@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createReadStream, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { basename, extname, join, relative, resolve, sep } from 'node:path';
+import { extname, join, relative, resolve, sep } from 'node:path';
 import { stringify } from 'yaml';
 import { E2E_DIR, listSpecs } from '../e2e.js';
 import * as explorer from './orgExplorer.js';
@@ -29,11 +29,10 @@ const MIME: Record<string, string> = {
   '.csv': 'text/csv; charset=utf-8',
 };
 
-function sendFile(res: ServerResponse, path: string, download = false): void {
+function sendFile(res: ServerResponse, path: string): void {
   res.writeHead(200, {
     'content-type': MIME[extname(path)] ?? 'application/octet-stream',
     'cache-control': 'no-store',
-    ...(download ? { 'content-disposition': `attachment; filename="${basename(path)}"` } : {}),
   });
   createReadStream(path).pipe(res);
 }
@@ -64,75 +63,18 @@ const str = (value: unknown): string => (typeof value === 'string' ? value : '')
 
 type RouteInput = { org: string; body: Body; q: (key: string) => string; context: OrgRouteContext };
 
-const csvList = (value: unknown): string[] =>
-  str(value)
-    .split(/[\s,;]+/)
-    .filter(Boolean);
-
 /** JSON routes, keyed by "METHOD path" under /api. */
 const ROUTES: Record<string, (input: RouteInput) => unknown> = {
-  'GET org/sobjects': ({ org }) => explorer.listSObjects(org),
-  'GET org/describe': ({ org, q }) => explorer.describeObject(org, q('sobject'), q('tooling') === '1'),
-  'GET org/all-fields': async ({ org, q }) => ({
-    soql: await explorer.allFieldsSoql(org, q('sobject'), q('tooling') === '1'),
-  }),
-  'POST org/query': ({ org, body }) =>
-    explorer.runQuery({
-      org,
-      soql: str(body.soql),
-      tooling: Boolean(body.tooling),
-      includeDeleted: Boolean(body.includeDeleted),
-      maxRows: Number(body.maxRows) || undefined,
-    }),
-  'POST org/bulk/export': ({ org, body, context }) =>
-    explorer.bulkExport(context.cwd, { org, soql: str(body.soql), includeDeleted: Boolean(body.includeDeleted) }),
-  'POST org/bulk/ingest': ({ org, body, context }) =>
-    explorer.bulkIngest(context.cwd, {
-      org,
-      sobject: str(body.sobject),
-      operation: str(body.operation) as explorer.IngestRequest['operation'],
-      csv: str(body.csv),
-      externalIdField: str(body.externalIdField) || undefined,
-      confirm: str(body.confirm),
-    }),
-  'POST org/bulk/delete-query': ({ org, body, context }) =>
-    explorer.deleteByQuery(context.cwd, {
-      org,
-      soql: str(body.soql),
-      hardDelete: Boolean(body.hardDelete),
-      confirm: str(body.confirm),
-    }),
-  'GET org/login-history': ({ org, q }) => explorer.loginHistory(org, Number(q('days')) || 7),
-  'GET org/audit-trail': ({ org, q }) => explorer.auditTrail(org, Number(q('days')) || 30),
-  'GET org/permsets': ({ org }) => explorer.listPermissionSets(org),
-  'GET org/assignments': ({ org, q }) =>
-    explorer.assignments(org, { kind: q('kind') === 'group' ? 'group' : 'permset', id: q('id') }),
-  'POST org/users': ({ org, body }) =>
-    explorer.findUsers(org, {
-      usernames: csvList(body.usernames),
-      profile: str(body.profile) || undefined,
-      role: str(body.role) || undefined,
-      publicGroup: str(body.publicGroup) || undefined,
-    }),
-  'POST org/assign': ({ org, body, context }) =>
-    explorer.assignAccess(context.cwd, {
-      org,
-      target: body.target as explorer.AccessTarget,
-      userIds: (body.userIds as string[] | undefined) ?? [],
-      expirationDate: str(body.expirationDate) || undefined,
-      confirm: str(body.confirm),
-    }),
-  'POST org/unassign': ({ org, body, context }) =>
-    explorer.removeAccess(context.cwd, {
-      org,
-      assignmentIds: (body.assignmentIds as string[] | undefined) ?? [],
-      confirm: str(body.confirm),
-    }),
-  'GET org/metadata-types': ({ org }) => explorer.metadataTypes(org),
-  'GET org/metadata': ({ org, q }) => explorer.listMetadata(org, q('type')),
   'POST org/retrieve': ({ org, body, context }) =>
     explorer.retrieveMetadata(context.cwd, { org, members: (body.members as string[] | undefined) ?? [] }),
   'GET org/activity': ({ context }) => explorer.readActivity(context.cwd),
+  // NomadSF Studio records its changes in the project's activity log too
+  'POST org/activity': ({ org, body, context }) => {
+    const action = str(body.action);
+    if (!/^[\w-]{1,60}$/.test(action)) throw new Error('Invalid action.');
+    explorer.logActivity(context.cwd, org, action, (body.details as Record<string, unknown> | undefined) ?? {});
+    return { ok: true };
+  },
   'GET e2e/specs': ({ context }) => ({
     specs: listSpecs(context.cwd),
     hasConfig: ['playwright.config.ts', 'playwright.config.js'].some((f) => existsSync(resolve(context.cwd, f))),
@@ -172,10 +114,6 @@ export async function handleOrgRoute(
   context: OrgRouteContext
 ): Promise<boolean> {
   const method = req.method ?? 'GET';
-  if (method === 'GET' && parts[1] === 'org' && parts[2] === 'exports' && parts[3]) {
-    sendFile(res, explorer.exportFile(context.cwd, parts[3]), true);
-    return true;
-  }
   if (method === 'GET' && parts[1] === 'e2e' && parts[2] === 'report') {
     sendReportFile(res, parts, context);
     return true;
