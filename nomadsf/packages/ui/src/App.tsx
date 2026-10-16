@@ -18,6 +18,8 @@ import { LimitsPage } from './pages/LimitsPage';
 import { RestPage } from './pages/RestPage';
 import { ApexTestsPage } from './pages/ApexTestsPage';
 import { CodePage } from './pages/CodePage';
+import { EventsPage } from './pages/EventsPage';
+import { FieldUsagePage } from './pages/FieldUsagePage';
 import { ProjectStateContext, useProjectState } from './project';
 
 const PAGES = [
@@ -31,6 +33,8 @@ const PAGES = [
   { id: 'data', label: 'Data', icon: '⇅' },
   { id: 'access', label: 'Users & access', icon: '⚿' },
   { id: 'metadata', label: 'Metadata', icon: '◫' },
+  { id: 'fields', label: 'Field usage', icon: '▦' },
+  { id: 'events', label: 'Events', icon: '⚡' },
   { id: 'limits', label: 'Org limits', icon: '▤' },
   { id: 'rest', label: 'REST Explorer', icon: '⇄' },
   { id: 'tests', label: 'E2E tests', icon: '✓' },
@@ -221,6 +225,8 @@ export function App() {
                 {page === 'limits' && <LimitsPage />}
                 {page === 'rest' && <RestPage />}
                 {page === 'code' && <CodePage />}
+                {page === 'events' && <EventsPage />}
+                {page === 'fields' && <FieldUsagePage />}
                 {page === 'apextests' && <ApexTestsPage />}
               </InspectContext.Provider>
             </StudioContext.Provider>

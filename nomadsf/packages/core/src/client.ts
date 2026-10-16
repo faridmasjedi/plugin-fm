@@ -33,6 +33,8 @@ export function fetchTransport(instanceUrl: string, accessToken: string, fetchIm
   return async (request) => {
     const response = await fetchImpl(base + request.path, {
       method: request.method,
+      // Streaming pins the client to a server with cookies; the browser keeps them for us
+      ...(request.path.startsWith('/cometd/') ? { credentials: 'include' as const } : {}),
       headers: { Authorization: `Bearer ${accessToken}`, ...request.headers },
       body: request.body?.split(SESSION_PLACEHOLDER).join(accessToken),
     });
