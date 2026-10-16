@@ -9,6 +9,7 @@ import {
   resolveApiKey,
   saveConnectedKey,
 } from '../../src/utils/ai/index.js';
+import { openOrg } from '../../src/utils/dashboard/appApi.js';
 import { finishOpenRouterSignIn, openRouterSignInUrl, proxyGitHub } from '../../src/utils/dashboard/connections.js';
 
 describe('AI and GitHub connections', () => {
@@ -69,6 +70,12 @@ describe('AI and GitHub connections', () => {
       // eslint-disable-next-line no-await-in-loop
       await proxyGitHub(path).catch((e: Error) => (error = e.message));
       expect(error, path).to.equal('GitHub path not allowed.');
+    }
+  });
+
+  it('opens org pages only at safe paths', () => {
+    for (const path of ['https://evil.example', '/x; rm -rf /', '/a b', 'javascript:alert(1)']) {
+      expect(() => openOrg('.', 'my-org', path), path).to.throw('Invalid path');
     }
   });
 });
