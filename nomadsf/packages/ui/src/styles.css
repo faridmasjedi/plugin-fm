@@ -416,6 +416,12 @@ table.limits .bar div.hot {
   flex-direction: row;
   align-items: center;
 }
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
 .grid2 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -489,4 +495,28 @@ main.local {
   border: 0;
   width: 100%;
   background: var(--bg);
+}
+.saved-queries {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chip.saved {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+}
+.grid3 .form > select,
+.grid3 .form > input {
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 180px;
 }
