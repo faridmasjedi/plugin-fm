@@ -15,6 +15,7 @@ import {
   type RepoInfo,
 } from './appApi.js';
 import { handleOrgRoute } from './orgRoutes.js';
+import { handleStudioRoute } from './studio.js';
 
 const TEMPLATE_URL = new URL('../../../dashboard/index.html', import.meta.url);
 const ORG_SCRIPT_URL = new URL('../../../dashboard/org.js', import.meta.url);
@@ -213,21 +214,25 @@ export function startDashboardServer(options: ServeOptions): Promise<Server> {
     }
   };
 
+  /** The dashboard page and its Org explorer script. */
+  const servePage = (res: ServerResponse, pathname: string): boolean => {
+    const page = {
+      '/': { type: 'text/html', body: template },
+      '/org.js': { type: 'text/javascript', body: () => readFileSync(ORG_SCRIPT_URL, 'utf8') },
+    }[pathname];
+    if (!page) return false;
+    res.writeHead(200, { 'content-type': `${page.type}; charset=utf-8`, 'cache-control': 'no-store' });
+    res.end(page.body());
+    return true;
+  };
+
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     if (!isTrusted(req)) return sendJson(res, 403, { error: 'Forbidden' });
     const url = new URL(req.url ?? '/', 'http://localhost');
     const parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
 
-    if (req.method === 'GET' && url.pathname === '/org.js') {
-      res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(readFileSync(ORG_SCRIPT_URL, 'utf8'));
-      return;
-    }
-    if (req.method === 'GET' && url.pathname === '/') {
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(template());
-      return;
-    }
+    if (await handleStudioRoute(req, res, url.pathname, readBody, sendJson)) return;
+    if (req.method === 'GET' && servePage(res, url.pathname)) return;
     if (parts[0] !== 'api') return sendJson(res, 404, { error: 'Not found' });
     if (req.method === 'GET' && parts[1] === 'info') return sendJson(res, 200, info());
     if (req.method === 'GET' && parts[1] === 'runs' && parts.length === 2) return sendJson(res, 200, store.list());

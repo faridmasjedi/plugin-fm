@@ -1631,9 +1631,11 @@
         }
 
         function renderNav() {
-          $('nav').innerHTML = PAGES.map(
-            ([id, label]) => `<a class="navlink ${state.page === id ? 'active' : ''}" href="#page=${id}">${label}</a>`
-          ).join('');
+          $('nav').innerHTML =
+            PAGES.map(
+              ([id, label]) => `<a class="navlink ${state.page === id ? 'active' : ''}" href="#page=${id}">${label}</a>`
+            ).join('') +
+            (STATIC ? '' : '<a class="navlink" href="/studio/" title="Execute Apex, debug logs, query">Studio ↗</a>');
         }
 
         function markdown(md) {

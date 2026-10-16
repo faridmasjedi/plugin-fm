@@ -24,3 +24,46 @@ jobs:
       - run: yarn build
       # unit tests, command snapshot, JSON schemas, deprecation policy, link check
       - run: yarn test
+
+  studio:
+    # NomadSF Studio (nomadsf/): core tests, type check, Studio + browser extension build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # update the extension-latest pre-release on main
+    defaults:
+      run:
+        working-directory: nomadsf
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: nomadsf/yarn.lock
+      - run: yarn install --frozen-lockfile
+      - run: yarn test
+      - run: yarn typecheck
+      - run: yarn build
+      # No Actions artifacts (limited storage): the zip is described in the job summary and,
+      # on main, published to the rolling pre-release "extension-latest".
+      - name: Extension package
+        id: zip
+        run: |
+          ZIP=$(ls apps/extension/nomadsf-extension-*.zip)
+          echo "file=nomadsf/$ZIP" >> "$GITHUB_OUTPUT"
+          {
+            echo "### NomadSF browser extension"
+            echo "\`$(basename "$ZIP")\` · $(du -h "$ZIP" | cut -f1) · sha256 \`$(sha256sum "$ZIP" | cut -d' ' -f1)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish to the extension-latest pre-release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view extension-latest >/dev/null 2>&1 || \
+            gh release create extension-latest --prerelease --target main --title "NomadSF extension (latest main)" \
+              --notes "Built from main by CI. Chrome/Edge: unzip, then chrome://extensions > Developer mode > Load unpacked."
+          gh release upload extension-latest "${{ steps.zip.outputs.file }}" --clobber
+          URL=$(gh release view extension-latest --json url --jq .url)
+          echo "Download: $URL" >> "$GITHUB_STEP_SUMMARY"
