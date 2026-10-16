@@ -7,12 +7,16 @@ Salesforce release tooling as a Salesforce CLI plugin (`sf fm …`) plus the **N
 - 🚀 **Delta builds** — deployment artifacts from Git changes, including submodules, bundles and granular CustomLabels/SharingRules
 - 🌊 **Deployment waves** — Data Cloud → core (incl. Agentforce) → OmniStudio, as separate artifacts ([PIPELINE.md](PIPELINE.md))
 - 🏷️ **Deployment tags** — every build starts from the last successful deployment
+- ⚡ **Validate once, deploy fast** — a validation on the pull request is reused as a quick deploy on merge when the package is unchanged
+- ⏪ **Rollback** — back to an earlier successful deployment (`sf fm rollback`), old versions plus destructive changes
+- 🧭 **Drift detection** — what changed directly in the org (`sf fm drift`), as a command, pipeline stage or nightly job
+- 🧪 **Org setup** — scratch org or sandbox ready in one command: create, deploy, permission sets, data, setup Apex (`sf fm org create`)
+- 🔔 **Slack and Teams** — messages for failed runs, waiting approvals and releases ([PIPELINE.md](PIPELINE.md))
 - 🧹 **Quality gate** — Code Analyzer / PMD (your `ruleset.xml`) / ESLint on changed files, SARIF for PRs ([QUALITY_COMMAND.md](QUALITY_COMMAND.md))
 - 🚂 **Release train** — optional pipeline over pull request and push, with approvals, scripts (`.apex`, `.sh`, …) and step-by-step runs
 - 🤖 **AI runbooks** — pre/post-deployment steps in plain language, carried out with approval for every change ([AI_RUNBOOKS.md](AI_RUNBOOKS.md))
-- 🔎 **Org explorer** — queries with a filterable table, all fields, Tooling API, deleted rows; Bulk API import/export/delete; login history, audit trail, permission set assignment; metadata retrieve ([ORG_EXPLORER.md](ORG_EXPLORER.md))
 - 🎭 **Playwright scenarios** — end-to-end tests against any org without stored passwords
-- 🧑‍💻 **NomadSF Studio** — Execute Anonymous with debug logs, debug log viewer and trace flags, SOQL with autocomplete; in the app and as a Chrome/Edge extension ([nomadsf/STUDIO.md](nomadsf/STUDIO.md))
+- 🧑‍💻 **NomadSF Studio** — Salesforce Inspector and Developer Console in one: Execute Anonymous, debug logs, SOQL with autocomplete and saved queries, record inspector with inline edit, code editor for Apex and LWC, Apex tests with coverage, bulk data, users & access, metadata, field usage, Platform Events / CDC, org limits, REST Explorer, AI help; in the app and as a Chrome/Edge extension ([nomadsf/STUDIO.md](nomadsf/STUDIO.md))
 - 📊 **NomadSF app** — runs per release, orgs, repository and deployment history, runbooks, AI settings; also publishable on GitHub Pages
 
 ## Installation

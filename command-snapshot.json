@@ -58,6 +58,8 @@
       "pre-steps",
       "progress",
       "push-tag",
+      "reuse-validation",
+      "share-validation",
       "tag-commit",
       "tag-on-success",
       "target-org",
@@ -104,6 +106,14 @@
   },
   {
     "alias": [],
+    "command": "fm:drift",
+    "flagAliases": [],
+    "flagChars": ["o"],
+    "flags": ["fail-on-drift", "flags-dir", "include-org-only", "json", "output-file", "source-dir", "target-org"],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
     "command": "fm:e2e:init",
     "flagAliases": [],
     "flagChars": [],
@@ -116,6 +126,33 @@
     "flagAliases": [],
     "flagChars": ["g", "o"],
     "flags": ["flags-dir", "grep", "headed", "json", "project", "target-org"],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
+    "command": "fm:org:create",
+    "flagAliases": [],
+    "flagChars": ["a"],
+    "flags": [
+      "alias",
+      "apex-script",
+      "data-plan",
+      "definition-file",
+      "dry-run",
+      "duration-days",
+      "flags-dir",
+      "json",
+      "license-type",
+      "no-deploy",
+      "open",
+      "permset",
+      "sandbox-name",
+      "set-default",
+      "source-sandbox",
+      "target-dev-hub",
+      "target-org",
+      "type"
+    ],
     "plugin": "@salesforce/plugin-fm"
   },
   {
@@ -175,6 +212,14 @@
       "severity-threshold",
       "warn-only"
     ],
+    "plugin": "@salesforce/plugin-fm"
+  },
+  {
+    "alias": [],
+    "command": "fm:rollback",
+    "flagAliases": [],
+    "flagChars": ["o"],
+    "flags": ["branch", "dry-run", "flags-dir", "json", "no-prompt", "target-org", "test-level", "to"],
     "plugin": "@salesforce/plugin-fm"
   },
   {

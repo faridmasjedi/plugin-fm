@@ -1,3 +1,5 @@
+import type { NotifyConfig } from './notify.js';
+
 /**
  * Types shared by the pipeline runner, the run store and the dashboard.
  */
@@ -13,6 +15,7 @@ export const STAGE_USES = [
   'tag',
   'ai-runbook',
   'e2e',
+  'drift',
 ] as const;
 export type StageUses = (typeof STAGE_USES)[number];
 
@@ -47,6 +50,8 @@ export type StageConfig = {
 export type PipelineConfig = {
   name: string;
   release?: string;
+  /** Slack / Teams messages (webhook URLs from environment variables). */
+  notify?: NotifyConfig;
   env?: Record<string, string>;
   stages: StageConfig[];
 };

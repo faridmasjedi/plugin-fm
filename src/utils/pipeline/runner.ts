@@ -7,6 +7,7 @@ import { commandForScript, runProcess } from '../scriptRunner.js';
 import { createDeploymentTag, findLatestDeploymentTagInfo } from '../deployTagUtils.js';
 import { loadAiConfig, type AiProviderId } from '../ai/index.js';
 import { runRunbook, type ApprovalPolicy, type PendingApproval, type RunbookState } from '../runbook/agent.js';
+import { notify, type NotifyEvent } from './notify.js';
 import { interpolate, isTruthy, toArgv, type InterpolationContext } from './config.js';
 import type { RunStore } from './store.js';
 import { summarizeStage } from './summaries.js';
@@ -18,6 +19,7 @@ const FM_COMMANDS: Partial<Record<StageUses, string>> = {
   deploy: 'fm:deploy',
   'check-duplicates': 'fm:check-duplicates',
   e2e: 'fm:e2e:run',
+  drift: 'fm:drift',
 };
 
 const TERMINAL: Array<StageState['status']> = ['passed', 'failed', 'warning', 'skipped'];
@@ -249,7 +251,7 @@ export class PipelineRunner {
     return Boolean(this.store.loadControl(this.run.id).cancel);
   }
 
-  private finish(status: RunState['status']): RunState {
+  private async finish(status: RunState['status']): Promise<RunState> {
     this.run.status = status;
     if (status !== 'paused') this.run.finishedAt = new Date().toISOString();
     this.save();
@@ -258,7 +260,19 @@ export class PipelineRunner {
       status
     ];
     this.options.logger.log(`\n${icon} Pipeline ${status} · run ${this.run.id}`);
+    if (status === 'passed' || status === 'failed' || status === 'canceled') await this.notify(status);
     return this.run;
+  }
+
+  private notify(event: NotifyEvent, detail?: string): Promise<void> {
+    return notify(
+      this.options.config.notify,
+      event,
+      this.run.pipeline,
+      this.run,
+      (m) => this.options.logger.log(m),
+      detail
+    );
   }
 
   private async passGate(stage: StageState): Promise<'approved' | 'rejected' | 'paused' | 'canceled'> {
@@ -270,6 +284,7 @@ export class PipelineRunner {
     this.save();
     const label = stage.uses === 'approval' ? stage.name : `Run "${stage.name}"`;
     this.options.logger.log(`⏸  Waiting for approval: ${label}`);
+    await this.notify('awaiting-approval', label);
 
     if (this.options.interactive) {
       const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -383,7 +398,9 @@ export class PipelineRunner {
       process.exitCode = undefined;
       // quality and e2e return passed: false instead of throwing
       const failed = (rawResult as { passed?: boolean })?.passed === false;
-      const message = config.uses === 'e2e' ? 'End-to-end tests failed' : 'Quality gate failed';
+      const message =
+        { e2e: 'End-to-end tests failed', drift: 'The org differs from the repository' }[config.uses as string] ??
+        'Quality gate failed';
       return { rawResult, error: failed ? message : undefined };
     }
 
