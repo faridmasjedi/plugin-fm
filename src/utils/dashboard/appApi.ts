@@ -7,6 +7,7 @@ import {
   PROVIDER_PRESETS,
   describeAiConfig,
   loadAiConfig,
+  resolveApiKey,
   type AiConfig,
   type AiProviderId,
 } from '../ai/index.js';
@@ -243,6 +244,7 @@ export function aiSettings(cwd: string): {
     baseUrl?: string;
     apiKeyEnv?: string;
     apiKeySet: boolean;
+    keySource: string;
   }>;
 } {
   let current: ReturnType<typeof describeAiConfig> | undefined;
@@ -256,14 +258,19 @@ export function aiSettings(cwd: string): {
     current,
     error,
     configFile: AI_CONFIG_FILE,
-    providers: Object.entries(PROVIDER_PRESETS).map(([id, p]) => ({
-      id,
-      label: p.label,
-      defaultModel: p.defaultModel,
-      baseUrl: p.baseUrl,
-      apiKeyEnv: p.apiKeyEnv,
-      apiKeySet: p.apiKeyEnv ? Boolean(process.env[p.apiKeyEnv]) : true,
-    })),
+    providers: Object.entries(PROVIDER_PRESETS).map(([id, p]) => {
+      const keySource =
+        p.auth === 'none' ? 'none' : resolveApiKey({ provider: id as AiProviderId, apiKeyEnv: p.apiKeyEnv }).source;
+      return {
+        id,
+        label: p.label,
+        defaultModel: p.defaultModel,
+        baseUrl: p.baseUrl,
+        apiKeyEnv: p.apiKeyEnv,
+        apiKeySet: p.auth === 'none' || keySource !== 'none',
+        keySource,
+      };
+    }),
   };
 }
 
@@ -283,6 +290,8 @@ export function saveAiSettings(cwd: string, input: Record<string, unknown>): voi
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(
     path,
-    `# AI provider for plugin-fm runbooks. API keys come from environment variables only.\n${stringify(config)}`
+    `# AI provider for plugin-fm runbooks. Keys come from environment variables or the app's Connect button (~/.nomadsf), never from this file.\n${stringify(
+      config
+    )}`
   );
 }

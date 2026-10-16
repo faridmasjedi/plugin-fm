@@ -67,7 +67,7 @@ Approvals happen in the terminal, or in the dashboard when the run is started wi
 `.fm/ai.yml` (also editable on the dashboard's **AI** page):
 
 ```yaml
-provider: anthropic # anthropic | openai | azure-openai | gemini | mistral | groq | openrouter | ollama | openai-compatible
+provider: anthropic # anthropic | openai | azure-openai | gemini | mistral | groq | openrouter | github-models | ollama | openai-compatible
 model: claude-opus-5-5
 # baseUrl: https://my-gateway.example.com/v1   # company gateway, Azure deployment URL, self-hosted model
 # apiKeyEnv: ANTHROPIC_API_KEY                  # which environment variable holds the key
@@ -80,9 +80,21 @@ model: claude-opus-5-5
 | `azure-openai`                  | `AZURE_OPENAI_API_KEY`                                  | `baseUrl` = deployment URL incl. `?api-version=…`                                                                             |
 | `gemini`                        | `GEMINI_API_KEY`                                        | Gemini's OpenAI-compatible endpoint; set `model`                                                                              |
 | `mistral`, `groq`, `openrouter` | `MISTRAL_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY` | Set `model`                                                                                                                   |
+| `github-models`                 | `GITHUB_MODELS_TOKEN`, or your `gh auth login`          | Models of your GitHub / Copilot plan (`https://models.github.ai/inference`); set `model`, e.g. `openai/gpt-4.1`               |
 | `ollama`                        | none                                                    | Local models on `http://localhost:11434/v1`                                                                                   |
 | `openai-compatible`             | `FM_AI_API_KEY`                                         | Any endpoint that speaks the OpenAI Chat Completions API: set `baseUrl` and `model`                                           |
 
-Keys are only ever read from environment variables. They are never written to `.fm/ai.yml`, run files or logs. `FM_AI_PROVIDER`, `FM_AI_MODEL`, `FM_AI_BASE_URL` and `FM_AI_API_KEY_ENV` override the file, for example in CI.
+### Connect your AI account
+
+The **AI** page of the app (also in the extension under Local app) has a **Connect your AI account** list:
+
+- **OpenRouter — Sign in with OpenRouter.** A browser sign-in (OAuth PKCE); OpenRouter hands the app a key for your account, which gives you Claude, GPT, Gemini and others on one bill.
+- **GitHub Models** — no key at all: the GitHub CLI's login (`gh auth login`) is used, within your GitHub or Copilot plan's limits.
+- **Anthropic, OpenAI, Gemini, Mistral, Groq, Azure, custom — Connect with key**, with a link to each provider's key page. Pasted once.
+- **Use** makes a provider the one runbooks use; **Disconnect** forgets a connected key.
+
+Subscriptions such as ChatGPT Plus or Claude Pro cannot be used by other apps, so a sign-in is offered only where the provider supports one.
+
+Where keys come from, in order: the environment variable (so CI is unchanged) → a key connected in the app → for GitHub Models, the `gh` login. Connected keys live in `~/.nomadsf/credentials.json`, readable only by you (mode 600), outside every project. Keys are never written to `.fm/ai.yml`, run files or logs. `FM_AI_PROVIDER`, `FM_AI_MODEL`, `FM_AI_BASE_URL` and `FM_AI_API_KEY_ENV` override the file, for example in CI.
 
 **Data:** the runbook, query results and file contents the AI reads are sent to the provider you choose. For production data, use a provider and contract your company approves, or a self-hosted model.
