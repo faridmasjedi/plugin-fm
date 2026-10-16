@@ -16,11 +16,15 @@ import { TestsPage } from './pages/TestsPage';
 import { RecordPage } from './pages/RecordPage';
 import { LimitsPage } from './pages/LimitsPage';
 import { RestPage } from './pages/RestPage';
+import { ApexTestsPage } from './pages/ApexTestsPage';
+import { CodePage } from './pages/CodePage';
 import { ProjectStateContext, useProjectState } from './project';
 
 const PAGES = [
   { id: 'project', label: 'Project', icon: '⌂' },
   { id: 'apex', label: 'Execute Apex', icon: '▶' },
+  { id: 'code', label: 'Code', icon: '{}' },
+  { id: 'apextests', label: 'Apex tests', icon: '◎' },
   { id: 'logs', label: 'Debug Logs', icon: '☰' },
   { id: 'query', label: 'Query', icon: '⌕' },
   { id: 'record', label: 'Record', icon: 'ⓘ' },
@@ -29,7 +33,7 @@ const PAGES = [
   { id: 'metadata', label: 'Metadata', icon: '◫' },
   { id: 'limits', label: 'Org limits', icon: '▤' },
   { id: 'rest', label: 'REST Explorer', icon: '⇄' },
-  { id: 'tests', label: 'Tests', icon: '✓' },
+  { id: 'tests', label: 'E2E tests', icon: '✓' },
   { id: 'activity', label: 'Activity', icon: '⏱' },
 ] as const;
 const host = detectHost();
@@ -216,6 +220,8 @@ export function App() {
                 {page === 'record' && <RecordPage initialId={inspectId} />}
                 {page === 'limits' && <LimitsPage />}
                 {page === 'rest' && <RestPage />}
+                {page === 'code' && <CodePage />}
+                {page === 'apextests' && <ApexTestsPage />}
               </InspectContext.Provider>
             </StudioContext.Provider>
           )}
