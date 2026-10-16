@@ -18,7 +18,7 @@ export function matches(value: unknown, filter: string): boolean {
   return v.includes(f);
 }
 
-function download(name: string, content: string, type: string): void {
+export function download(name: string, content: string, type: string): void {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([content], { type }));
   a.download = name;

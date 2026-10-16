@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { listMetadata, parsePackageXml, type ProjectTypeSummary } from '@nomadsf/core';
 import { DataTable } from '../components/DataTable';
+import { GitHubCard } from '../components/GitHubCard';
 import { useProject } from '../project';
 import type { Studio } from '../context';
 
@@ -15,7 +16,15 @@ type Comparison = {
 const FOLDER_BASED = new Set(['Report', 'Dashboard', 'Document', 'EmailTemplate']);
 
 /** The Salesforce project (repository): package directories, types, manifests, compare with the org. */
-export function ProjectPage({ studio, onOpenMetadata }: { studio: Studio | null; onOpenMetadata: () => void }) {
+export function ProjectPage({
+  studio,
+  hostKind,
+  onOpenMetadata,
+}: {
+  studio: Studio | null;
+  hostKind: 'app' | 'extension';
+  onOpenMetadata: () => void;
+}) {
   const project = useProject();
   const [type, setType] = useState<ProjectTypeSummary | null>(null);
   const [comparison, setComparison] = useState<Comparison | null>(null);
@@ -64,7 +73,7 @@ export function ProjectPage({ studio, onOpenMetadata }: { studio: Studio | null;
         <h2>Project</h2>
         {source && (
           <span className="muted">
-            {source.kind === 'local' ? 'Local app' : 'Browser folder'} · <b>{source.name}</b>
+            {{ local: 'Local app', folder: 'Browser folder', github: 'GitHub' }[source.kind]} · <b>{source.name}</b>
             {source.path ? <span className="mono"> · {source.path}</span> : null}
           </span>
         )}
@@ -76,7 +85,7 @@ export function ProjectPage({ studio, onOpenMetadata }: { studio: Studio | null;
         )}
       </div>
 
-      <div className="grid2">
+      <div className="grid3">
         <div className="card section">
           <h3>From the local NomadSF app</h3>
           {project.localAvailable ? (
@@ -144,6 +153,7 @@ export function ProjectPage({ studio, onOpenMetadata }: { studio: Studio | null;
             </p>
           )}
         </div>
+        <GitHubCard hostKind={hostKind} />
       </div>
 
       {project.loading && <p className="muted">Reading the project…</p>}
