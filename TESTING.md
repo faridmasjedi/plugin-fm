@@ -239,6 +239,13 @@ Read-only items can run on any org; everything marked ✎ only on a sandbox.
 | L49   | REST Explorer: GET `/services/data/vXX.X/sobjects/Account/describe`, click a link in the answer         | 200 with formatted JSON, time and api-usage; link opens as GET                                                 |
 | L50   | REST Explorer: POST / DELETE                                                                            | typed org name required; error answers (4xx) shown, not thrown                                                 |
 | L51   | Extension popup on a record page                                                                        | "Show all data of this record" opens the Record page for it                                                    |
+| L52   | Code: Classes / Triggers / LWC lists; open a class; switch type with an unsaved edit                    | source with colouring; lists filterable; asks before discarding                                                |
+| L53 ✎ | Code: Check a class with an error (sandbox)                                                             | problem listed with line:column, squiggle in the editor, click jumps to it; nothing saved                      |
+| L54 ✎ | Code: Save a class / New class / Save two LWC files (sandbox)                                           | typed org name; saved; Activity entry; LWC error message shown when the bundle does not compile                |
+| L55   | Code in a production org (not Developer Edition)                                                        | note shown; Save and New class off; Check still allowed                                                        |
+| L56   | Apex tests: list                                                                                        | only @isTest classes with method counts                                                                        |
+| L57 ✎ | Run selected / Run all local tests (sandbox)                                                            | progress (job, n/m classes); passed / failed counts; failures with message and stack trace; on Activity        |
+| L58   | Code coverage, click a class                                                                            | org-wide % (red under 75); classes by coverage; source with green / red lines (note when Salesforce has none)  |
 
 ## Before a demo
 
