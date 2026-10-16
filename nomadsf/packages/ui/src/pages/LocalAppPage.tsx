@@ -48,9 +48,7 @@ export function LocalAppPage({ page }: { page: string }) {
                 Pipelines, runbooks and the repository run on your machine. Start the local app in your Salesforce
                 project, then retry:
               </p>
-              <pre className="chip" style={{ padding: 10 }}>
-                sf fm dashboard --port {port}
-              </pre>
+              <pre className="chip" style={{ padding: 10 }}>{`sf fm dashboard --port ${port}`}</pre>
               <div className="form">
                 <label>
                   Port
