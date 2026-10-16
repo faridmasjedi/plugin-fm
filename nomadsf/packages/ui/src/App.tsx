@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getUserInfo, type SalesforceClient, type UserInfo } from '@nomadsf/core';
 import { detectHost, orgFacts, type OrgChoice, type OrgFacts } from './host';
-import { StudioContext, activityLog, storage, type Studio } from './context';
+import { InspectContext, StudioContext, activityLog, storage, type Studio } from './context';
 import { toggleTheme } from './theme';
 import { ExecutePage } from './pages/ExecutePage';
 import { LogsPage } from './pages/LogsPage';
@@ -13,6 +13,9 @@ import { MetadataPage } from './pages/MetadataPage';
 import { LOCAL_PAGES, LocalAppPage } from './pages/LocalAppPage';
 import { ProjectPage } from './pages/ProjectPage';
 import { TestsPage } from './pages/TestsPage';
+import { RecordPage } from './pages/RecordPage';
+import { LimitsPage } from './pages/LimitsPage';
+import { RestPage } from './pages/RestPage';
 import { ProjectStateContext, useProjectState } from './project';
 
 const PAGES = [
@@ -20,9 +23,12 @@ const PAGES = [
   { id: 'apex', label: 'Execute Apex', icon: '▶' },
   { id: 'logs', label: 'Debug Logs', icon: '☰' },
   { id: 'query', label: 'Query', icon: '⌕' },
+  { id: 'record', label: 'Record', icon: 'ⓘ' },
   { id: 'data', label: 'Data', icon: '⇅' },
   { id: 'access', label: 'Users & access', icon: '⚿' },
   { id: 'metadata', label: 'Metadata', icon: '◫' },
+  { id: 'limits', label: 'Org limits', icon: '▤' },
+  { id: 'rest', label: 'REST Explorer', icon: '⇄' },
   { id: 'tests', label: 'Tests', icon: '✓' },
   { id: 'activity', label: 'Activity', icon: '⏱' },
 ] as const;
@@ -37,7 +43,7 @@ export function App() {
   const [orgId, setOrgId] = useState<string>(() => storage.get('studio.org', ''));
   // #apex / #logs / #query (links from the extension popup) win over the last page used
   const [page, setPage] = useState<PageId>(() => {
-    const fromHash = location.hash.slice(1);
+    const fromHash = location.hash.slice(1).split('=')[0];
     const stored = storage.get<string>('studio.page', 'apex');
     return isPage(fromHash) ? fromHash : isPage(stored) ? stored : 'apex';
   });
@@ -45,6 +51,14 @@ export function App() {
   const [facts, setFacts] = useState<OrgFacts | undefined>();
   const [user, setUser] = useState<UserInfo | undefined>();
   const [error, setError] = useState('');
+  // #record=<Id> (the extension popup on a record page) opens the inspector
+  const [inspectId, setInspectId] = useState<string | undefined>(
+    () => /^#record=([a-zA-Z0-9]{15,18})$/.exec(location.hash)?.[1]
+  );
+  const inspect = useCallback((id: string) => {
+    setInspectId(id);
+    setPage('record');
+  }, []);
 
   useEffect(() => {
     host
@@ -191,13 +205,18 @@ export function App() {
           )}
           {!localPage && !['project', 'tests'].includes(page) && studio && (
             <StudioContext.Provider value={studio}>
-              {page === 'apex' && <ExecutePage />}
-              {page === 'logs' && <LogsPage />}
-              {page === 'query' && <QueryPage />}
-              {page === 'data' && <DataPage />}
-              {page === 'access' && <AccessPage />}
-              {page === 'metadata' && <MetadataPage />}
-              {page === 'activity' && <ActivityPage />}
+              <InspectContext.Provider value={inspect}>
+                {page === 'apex' && <ExecutePage />}
+                {page === 'logs' && <LogsPage />}
+                {page === 'query' && <QueryPage />}
+                {page === 'data' && <DataPage />}
+                {page === 'access' && <AccessPage />}
+                {page === 'metadata' && <MetadataPage />}
+                {page === 'activity' && <ActivityPage />}
+                {page === 'record' && <RecordPage initialId={inspectId} />}
+                {page === 'limits' && <LimitsPage />}
+                {page === 'rest' && <RestPage />}
+              </InspectContext.Provider>
             </StudioContext.Provider>
           )}
         </main>

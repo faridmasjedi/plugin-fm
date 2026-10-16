@@ -520,3 +520,89 @@ button.link {
   max-width: 100%;
   flex: 1 1 180px;
 }
+table.org-limits,
+table.record {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+table.org-limits th,
+table.org-limits td,
+table.record th,
+table.record td {
+  text-align: left;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+table.record td input:not([type='checkbox']),
+table.record td select {
+  width: 100%;
+}
+table.record td input.changed {
+  border-color: var(--warn);
+}
+button.inspect {
+  margin-left: 4px;
+}
+.usage {
+  position: relative;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.usage span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.usage span.warn {
+  background: var(--warn);
+}
+.usage span.bad {
+  background: var(--bad);
+}
+.usage em {
+  position: absolute;
+  inset: 0 6px;
+  font-size: 11px;
+  font-style: normal;
+  line-height: 16px;
+  text-align: right;
+}
+.bad-text {
+  color: var(--bad);
+}
+.good-text {
+  color: var(--good);
+}
+.rest-body {
+  max-height: 60vh;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--panel-2);
+  padding: 10px;
+  border-radius: 6px;
+}
+table.record {
+  table-layout: fixed;
+}
+table.record th:nth-child(1) {
+  width: 22%;
+}
+table.record th:nth-child(2) {
+  width: 22%;
+}
+table.record th:nth-child(3) {
+  width: 14%;
+}
+table.record td {
+  overflow-wrap: anywhere;
+}
+table.record td input:not([type='checkbox']),
+table.record td select {
+  box-sizing: border-box;
+  max-width: 100%;
+}
