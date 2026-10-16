@@ -27,6 +27,12 @@ export function xmlValue(xml: string, tag: string): string | undefined {
   return match ? unescapeXml(match[1]) : undefined;
 }
 
+/** Inner XML of every element named `tag` (non-nested), in document order. */
+export function xmlBlocks(xml: string, tag: string): string[] {
+  const pattern = new RegExp(`<(?:\\w+:)?${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</(?:\\w+:)?${tag}>`, 'g');
+  return [...xml.matchAll(pattern)].map((m) => m[1]);
+}
+
 export const LOG_CATEGORIES = [
   'Db',
   'Workflow',

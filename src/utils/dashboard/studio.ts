@@ -13,6 +13,12 @@ const PACKAGE_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 // Packaged plugin: dashboard/studio. Working copy: the Studio build output.
 const STUDIO_DIRS = [resolve(PACKAGE_ROOT, 'dashboard/studio'), resolve(PACKAGE_ROOT, 'nomadsf/packages/ui/dist')];
 
+/**
+ * Pages may be framed by the app itself and by browser extensions (the NomadSF extension
+ * shows the local pages); never by websites, which would allow clickjacking.
+ */
+export const FRAME_POLICY = "frame-ancestors 'self' chrome-extension: moz-extension:";
+
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -42,6 +48,7 @@ export function serveStudio(res: ServerResponse, pathname: string): boolean {
     'content-type': MIME[extname(file)] ?? 'application/octet-stream',
     // Hashed assets can be cached; index.html must always be fresh
     'cache-control': file.endsWith('index.html') ? 'no-store' : 'public, max-age=31536000, immutable',
+    'content-security-policy': FRAME_POLICY,
   });
   createReadStream(file).pipe(res);
   return true;

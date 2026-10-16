@@ -15,7 +15,7 @@ import {
   type RepoInfo,
 } from './appApi.js';
 import { handleOrgRoute } from './orgRoutes.js';
-import { handleStudioRoute } from './studio.js';
+import { FRAME_POLICY, handleStudioRoute } from './studio.js';
 
 const TEMPLATE_URL = new URL('../../../dashboard/index.html', import.meta.url);
 const ORG_SCRIPT_URL = new URL('../../../dashboard/org.js', import.meta.url);
@@ -221,7 +221,11 @@ export function startDashboardServer(options: ServeOptions): Promise<Server> {
       '/org.js': { type: 'text/javascript', body: () => readFileSync(ORG_SCRIPT_URL, 'utf8') },
     }[pathname];
     if (!page) return false;
-    res.writeHead(200, { 'content-type': `${page.type}; charset=utf-8`, 'cache-control': 'no-store' });
+    res.writeHead(200, {
+      'content-type': `${page.type}; charset=utf-8`,
+      'cache-control': 'no-store',
+      'content-security-policy': FRAME_POLICY,
+    });
     res.end(page.body());
     return true;
   };

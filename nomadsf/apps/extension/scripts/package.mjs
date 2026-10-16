@@ -100,7 +100,8 @@ const manifest = {
   action: { default_popup: 'popup.html', default_title: 'NomadSF', default_icon: icons },
   background: { service_worker: 'background.js', type: 'module' },
   permissions: ['cookies', 'activeTab'],
-  host_permissions: salesforceHosts,
+  // Salesforce APIs, plus the local NomadSF app (sf fm dashboard) on this machine
+  host_permissions: [...salesforceHosts, 'http://127.0.0.1/*', 'http://localhost/*'],
   content_scripts: [
     {
       matches: [

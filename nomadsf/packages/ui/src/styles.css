@@ -458,3 +458,35 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+.nav-section {
+  margin: 14px 10px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+main.local {
+  padding: 0;
+  overflow: hidden;
+}
+.local-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.local-bar {
+  display: flex;
+  gap: 8px;
+  padding: 6px 14px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+.local-frame iframe {
+  flex: 1;
+  border: 0;
+  width: 100%;
+  background: var(--bg);
+}
