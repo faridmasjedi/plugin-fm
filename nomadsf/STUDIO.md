@@ -57,6 +57,26 @@ cd nomadsf && yarn install && yarn build
 
 The extension asks for `cookies`, access to `127.0.0.1` / `localhost` (the local NomadSF app) and to Salesforce domains only (`*.salesforce.com`, `*.force.com`, `*.salesforce-setup.com`, `*.cloudforce.com`, `*.site.com`). It reads the `sid` cookie of the org you are on and calls the Salesforce API with it, like Salesforce Inspector does. Nothing is sent anywhere else.
 
+### VS Code
+
+`nomadsf-vscode.vsix` (from a release or the `extension-latest` pre-release; or `yarn --cwd nomadsf/apps/vscode package`): **Extensions → … → Install from VSIX**. Needs the Salesforce CLI with plugin-fm.
+
+- Opening a Salesforce DX project starts the local app for that workspace (or switches a running one to it), and **NomadSF** in the status bar opens the Studio in an editor tab. Everything of the app and the Studio is there: runs and approvals, orgs, runbooks, AI, and every Studio page.
+- Commands (⇧⌘P → NomadSF): _Open the app_, _Open Studio_, _Open Studio page…_, _Stop the local app_. In the editor (right-click on a selection): **Show all data of the selected record Id** and **Run the selected SOQL in Studio**.
+- Settings: `nomadsf.port` (7007), `nomadsf.sfCommand` (`sf`), `nomadsf.autoStart`. Works in remote windows and Codespaces (the port is forwarded).
+
+### Desktop app
+
+`nomadsf/apps/desktop` (Electron, kept out of the yarn workspaces so normal installs do not download Electron):
+
+```bash
+cd nomadsf/apps/desktop && npm install
+npm start          # choose a Salesforce project folder; the app opens in its own window
+npm run dist       # installers: dmg / zip (macOS), NSIS (Windows), AppImage (Linux)
+```
+
+It starts `sf fm dashboard` for the project on a free port, finds `sf` through your login shell's PATH (also when started from the Dock), remembers the last project (**File → Open Salesforce project…**, ⌘O to switch), and has **Go → Runs / Studio / Orgs / AI**. Only the local app opens inside the window; sign-ins and Salesforce links open in your browser. Quitting stops the local app.
+
 ## Develop
 
 ```

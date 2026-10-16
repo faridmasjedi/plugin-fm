@@ -17,7 +17,9 @@ const STUDIO_DIRS = [resolve(PACKAGE_ROOT, 'dashboard/studio'), resolve(PACKAGE_
  * Pages may be framed by the app itself and by browser extensions (the NomadSF extension
  * shows the local pages); never by websites, which would allow clickjacking.
  */
-export const FRAME_POLICY = "frame-ancestors 'self' chrome-extension: moz-extension:";
+// The app may be framed by itself, the browser extension, and VS Code webviews (desktop and web)
+export const FRAME_POLICY =
+  "frame-ancestors 'self' chrome-extension: moz-extension: vscode-webview: vscode-file: https://*.vscode-cdn.net";
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',

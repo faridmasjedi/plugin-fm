@@ -44,16 +44,25 @@ jobs:
       - run: yarn test
       - run: yarn typecheck
       - run: yarn build
+      - name: VS Code extension
+        run: yarn --cwd apps/vscode package
+      - name: Desktop app helpers
+        working-directory: nomadsf/apps/desktop
+        run: node --test test/app.test.js
       # No Actions artifacts (limited storage): the zip is described in the job summary and,
       # on main, published to the rolling pre-release "extension-latest".
       - name: Extension package
         id: zip
         run: |
           ZIP=$(ls apps/extension/nomadsf-extension-*.zip)
+          VSIX=apps/vscode/nomadsf-vscode.vsix
           echo "file=nomadsf/$ZIP" >> "$GITHUB_OUTPUT"
+          echo "vsix=nomadsf/$VSIX" >> "$GITHUB_OUTPUT"
           {
-            echo "### NomadSF browser extension"
-            echo "\`$(basename "$ZIP")\` · $(du -h "$ZIP" | cut -f1) · sha256 \`$(sha256sum "$ZIP" | cut -d' ' -f1)\`"
+            echo "### NomadSF browser extension and VS Code extension"
+            for f in "$ZIP" "$VSIX"; do
+              echo "- \`$(basename "$f")\` · $(du -h "$f" | cut -f1) · sha256 \`$(sha256sum "$f" | cut -d' ' -f1)\`"
+            done
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Publish to the extension-latest pre-release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -63,7 +72,7 @@ jobs:
         run: |
           gh release view extension-latest >/dev/null 2>&1 || \
             gh release create extension-latest --prerelease --target main --title "NomadSF extension (latest main)" \
-              --notes "Built from main by CI. Chrome/Edge: unzip, then chrome://extensions > Developer mode > Load unpacked."
-          gh release upload extension-latest "${{ steps.zip.outputs.file }}" --clobber
+              --notes "Built from main by CI. Chrome/Edge: unzip, then chrome://extensions > Developer mode > Load unpacked. VS Code: Extensions > ... > Install from VSIX."
+          gh release upload extension-latest "${{ steps.zip.outputs.file }}" "${{ steps.zip.outputs.vsix }}" --clobber
           URL=$(gh release view extension-latest --json url --jq .url)
           echo "Download: $URL" >> "$GITHUB_STEP_SUMMARY"

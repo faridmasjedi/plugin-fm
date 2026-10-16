@@ -1,0 +1,106 @@
+{
+  "name": "nomadsf-vscode",
+  "displayName": "NomadSF",
+  "description": "NomadSF in VS Code: Salesforce Inspector + Developer Console (Studio), release runs, runbooks and AI help for the workspace's Salesforce project.",
+  "version": "0.1.0",
+  "publisher": "nomadsf",
+  "private": true,
+  "license": "BSD-3-Clause",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "salesforce",
+    "soql",
+    "apex",
+    "devops"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:sfdx-project.json"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "nomadsf.open",
+        "title": "Open the app (runs, orgs, runbooks, AI)",
+        "category": "NomadSF"
+      },
+      {
+        "command": "nomadsf.openStudio",
+        "title": "Open Studio",
+        "category": "NomadSF"
+      },
+      {
+        "command": "nomadsf.openStudioPage",
+        "title": "Open Studio page…",
+        "category": "NomadSF"
+      },
+      {
+        "command": "nomadsf.inspectSelection",
+        "title": "Show all data of the selected record Id",
+        "category": "NomadSF"
+      },
+      {
+        "command": "nomadsf.querySelection",
+        "title": "Run the selected SOQL in Studio",
+        "category": "NomadSF"
+      },
+      {
+        "command": "nomadsf.stop",
+        "title": "Stop the local app",
+        "category": "NomadSF"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "nomadsf.inspectSelection",
+          "when": "editorHasSelection",
+          "group": "nomadsf@1"
+        },
+        {
+          "command": "nomadsf.querySelection",
+          "when": "editorHasSelection",
+          "group": "nomadsf@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "NomadSF",
+      "properties": {
+        "nomadsf.port": {
+          "type": "number",
+          "default": 7007,
+          "description": "Port of the local NomadSF app (sf fm dashboard)."
+        },
+        "nomadsf.sfCommand": {
+          "type": "string",
+          "default": "sf",
+          "description": "Salesforce CLI command (with plugin-fm installed)."
+        },
+        "nomadsf.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Start the local app for this workspace when it is not running."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --outfile=dist/extension.js",
+    "typecheck": "tsc -p .",
+    "package": "yarn build && npx --yes @vscode/vsce@3.2.1 package --no-dependencies --allow-missing-repository --skip-license -o nomadsf-vscode.vsix",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/vscode": "1.95.0",
+    "esbuild": "0.25.12",
+    "typescript": "5.8.3",
+    "vitest": "3.2.7"
+  }
+}

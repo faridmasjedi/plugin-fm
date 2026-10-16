@@ -1,0 +1,41 @@
+{
+  "name": "nomadsf-desktop",
+  "productName": "NomadSF",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NomadSF desktop app: the local NomadSF app (sf fm dashboard) in its own window.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "npx --yes electron-builder@25.1.8 --publish never",
+    "test": "node --test test/app.test.js"
+  },
+  "devDependencies": {
+    "electron": "33.2.1"
+  },
+  "build": {
+    "appId": "dev.nomadsf.desktop",
+    "productName": "NomadSF",
+    "files": [
+      "main.js",
+      "src/**"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    }
+  }
+}
