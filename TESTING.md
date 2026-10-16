@@ -89,23 +89,33 @@ Commands below run from the test repository unless stated otherwise. `RUN` = `sf
 
 ## F. Pipeline (`sf fm pipeline`)
 
-| ID  | Scenario                                                        | Expected                                                                                               |
-| --- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| F1  | `init`, then `run` in a terminal                                | stops at the approval and asks `[Y/n]`                                                                 |
-| F2  | `run --no-prompt`                                               | pauses; `pipeline approve` + `run --resume latest` continue                                            |
-| F3  | `run --wait-for-approval` + approve on the dashboard            | continues within seconds                                                                               |
-| F4  | `--step-by-step`                                                | asks before every stage                                                                                |
-| F5  | A failing stage                                                 | later `if: success` stages skipped, `if: failure` stage runs, exit 1                                   |
-| F6  | `continue-on-error: true` on a failing stage                    | shown as warning, pipeline continues                                                                   |
-| F7  | `${stages.x.result.y}` that doesn't exist                       | stage fails with "Cannot resolve"                                                                      |
-| F8  | Invalid pipeline file (duplicate ids, unknown `uses`)           | all problems listed at once                                                                            |
-| F9  | Cancel from the dashboard while waiting                         | run ends as canceled                                                                                   |
-| F10 | `init --train`, `run --event pr` with Data Cloud + core changes | Data Cloud validated → approved → deployed; core validated; push-only stages skipped with a reason     |
-| F11 | `run --event push`                                              | core deployed, OmniStudio validated → approved → deployed, tag created                                 |
-| F12 | Push again with nothing new                                     | every wave skipped ("hasChanges is false"), tag reused                                                 |
-| F13 | `FM_REQUIRE_APPROVAL` unset                                     | approval stages skipped                                                                                |
-| F14 | `--dashboard-export dashboard.html`                             | self-contained file opens offline                                                                      |
-| F15 | Train in GitHub Actions (`examples/github-release-train.yml`)   | PR and push behave as F10/F11; the paused run continues in the `approve` job after a reviewer approves |
+| ID  | Scenario                                                                                                  | Expected                                                                                               |
+| --- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| F1  | `init`, then `run` in a terminal                                                                          | stops at the approval and asks `[Y/n]`                                                                 |
+| F2  | `run --no-prompt`                                                                                         | pauses; `pipeline approve` + `run --resume latest` continue                                            |
+| F3  | `run --wait-for-approval` + approve on the dashboard                                                      | continues within seconds                                                                               |
+| F4  | `--step-by-step`                                                                                          | asks before every stage                                                                                |
+| F5  | A failing stage                                                                                           | later `if: success` stages skipped, `if: failure` stage runs, exit 1                                   |
+| F6  | `continue-on-error: true` on a failing stage                                                              | shown as warning, pipeline continues                                                                   |
+| F7  | `${stages.x.result.y}` that doesn't exist                                                                 | stage fails with "Cannot resolve"                                                                      |
+| F8  | Invalid pipeline file (duplicate ids, unknown `uses`)                                                     | all problems listed at once                                                                            |
+| F9  | Cancel from the dashboard while waiting                                                                   | run ends as canceled                                                                                   |
+| F10 | `init --train`, `run --event pr` with Data Cloud + core changes                                           | Data Cloud validated → approved → deployed; core validated; push-only stages skipped with a reason     |
+| F11 | `run --event push`                                                                                        | core deployed, OmniStudio validated → approved → deployed, tag created                                 |
+| F12 | Push again with nothing new                                                                               | every wave skipped ("hasChanges is false"), tag reused                                                 |
+| F13 | `FM_REQUIRE_APPROVAL` unset                                                                               | approval stages skipped                                                                                |
+| F14 | `--dashboard-export dashboard.html`                                                                       | self-contained file opens offline                                                                      |
+| F15 | Train in GitHub Actions (`examples/github-release-train.yml`)                                             | PR and push behave as F10/F11; the paused run continues in the `approve` job after a reviewer approves |
+| F16 | `sf fm deploy --mode validation --share-validation` then `--mode deployment --reuse-validation` (sandbox) | validation recorded (and tagged); deployment says "Reusing validation …: quick deploy", no test run    |
+| F17 | Same, after changing one file in the package                                                              | "No validation of this package…"; normal deployment                                                    |
+| F18 | `sf fm rollback --branch main --dry-run` with two deployment tags (sandbox)                               | plan shows both tags and the commits undone; validation of old versions + destructive for added files  |
+| F19 | `sf fm rollback` without tags / `--to` the current tag                                                    | clear errors                                                                                           |
+| F20 | `sf fm drift --target-org <org> --include-org-only ApexClass --output-file drift.md`                      | changed / only in org / missing in org lists; Markdown file; GitHub job summary in Actions             |
+| F21 | Pipeline stage `uses: drift` with `fail-on-drift: true` on a drifted org                                  | stage fails with "The org differs from the repository"; metrics on the run page                        |
+| F22 | `sf fm org create --alias x --permset P --data-plan p.json --dry-run`, then for real (Dev Hub)            | plan printed; scratch org created, project deployed, permset, data; stops at the first failing step    |
+| F23 | `sf fm org create --type sandbox --target-org prod --alias uat2 --dry-run`                                | sandbox command with name, license, production org                                                     |
+| F24 | Pipeline with `notify:` (Slack + Teams test webhooks), a failing stage and an approval                    | messages for failed and awaiting-approval with release, branch, stage, error and link                  |
+| F25 | `notify.slack: https://…` (a URL instead of a variable name)                                              | pipeline file refused: must be the NAME of an environment variable                                     |
 
 ## G. AI runbooks (`sf fm runbook`) — sandbox only
 

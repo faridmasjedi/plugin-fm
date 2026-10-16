@@ -23,6 +23,10 @@ This command deploys or validates Salesforce metadata to target orgs with compre
 - Deploy with pre-destructive changes:
   <%= config.bin %> <%= command.id %> --manifest ./manifest --target-org myorg --destructive pre
 
+- Validate on the pull request (and share the validation), then deploy on merge reusing it:
+  <%= config.bin %> <%= command.id %> --manifest ./manifest --target-org prod --mode validation --share-validation
+  <%= config.bin %> <%= command.id %> --manifest ./manifest --target-org prod --mode deployment --reuse-validation
+
 - Async deployment with progress monitoring:
   <%= config.bin %> <%= command.id %> --manifest ./manifest --target-org myorg --async --progress
 
@@ -296,3 +300,15 @@ No test classes specified. Deployment may fail in production.
 # warn.noIntelligentTests
 
 Could not determine test classes automatically. Consider using --tests flag.
+
+# flags.reuseValidation.summary
+
+Quick deploy when this exact package was already validated in the target org.
+
+# flags.reuseValidation.description
+
+Successful validations are recorded against a fingerprint of the package (every file in the manifest directory). With this flag a deployment looks for a validation of the same package in the same org from the last 10 days (in .fm/validations.json or a shared sf-validation/\* git tag) and quick deploys it without running tests again. If there is none, or the quick deploy is refused, it deploys normally.
+
+# flags.shareValidation.summary
+
+After a successful validation, also record it as a git tag (sf-validation/<org>/<package>) and push it, so a later CI job can reuse it.

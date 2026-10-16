@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/DriftResult",
+  "definitions": {
+    "DriftResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "org": {
+          "type": "string"
+        },
+        "sourceDirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "reportFile": {
+          "type": "string"
+        },
+        "compared": {
+          "type": "number"
+        },
+        "changed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DriftItem"
+          }
+        },
+        "onlyInOrg": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DriftItem"
+          }
+        },
+        "onlyInRepo": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DriftItem"
+          }
+        },
+        "drift": {
+          "type": "boolean"
+        }
+      },
+      "required": ["changed", "compared", "drift", "onlyInOrg", "onlyInRepo", "org", "passed", "sourceDirs"]
+    },
+    "DriftItem": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["changed", "only-in-org", "only-in-repo"]
+        },
+        "repoPath": {
+          "type": "string"
+        }
+      },
+      "required": ["key", "status"],
+      "additionalProperties": false,
+      "description": "Drift: differences between what the repository says and what the org has, usually changes made directly in Setup. Files are matched by their path from the metadata type folder (classes/A.cls, objects/Account/fields/X.field-meta.xml), so the package directory layout of the repository and of the retrieve do not matter."
+    }
+  }
+}
