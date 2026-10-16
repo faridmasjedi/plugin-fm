@@ -678,3 +678,9 @@ table.record td select {
 .ai-ask input {
   flex: 1 1 400px;
 }
+table.events tbody tr {
+  cursor: pointer;
+}
+table.events tbody tr.selected {
+  background: var(--accent-soft);
+}
