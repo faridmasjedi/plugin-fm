@@ -33,6 +33,9 @@ export const activityLog = {
 
 export const StudioContext = createContext<Studio | null>(null);
 
+/** Opens a record in the Record inspector (from any table with Ids). */
+export const InspectContext = createContext<((id: string) => void) | null>(null);
+
 export function useStudio(): Studio {
   const studio = useContext(StudioContext);
   if (!studio) throw new Error('No org selected.');

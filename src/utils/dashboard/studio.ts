@@ -17,7 +17,9 @@ const STUDIO_DIRS = [resolve(PACKAGE_ROOT, 'dashboard/studio'), resolve(PACKAGE_
  * Pages may be framed by the app itself and by browser extensions (the NomadSF extension
  * shows the local pages); never by websites, which would allow clickjacking.
  */
-export const FRAME_POLICY = "frame-ancestors 'self' chrome-extension: moz-extension:";
+// The app may be framed by itself, the browser extension, and VS Code webviews (desktop and web)
+export const FRAME_POLICY =
+  "frame-ancestors 'self' chrome-extension: moz-extension: vscode-webview: vscode-file: https://*.vscode-cdn.net";
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -65,10 +67,32 @@ const FORWARDED_HEADERS = new Set([
   'sforce-query-options',
 ]);
 const SESSION_PLACEHOLDER = '{{SESSION_ID}}';
+const COMETD = /^\/cometd\/\d+\.\d$/;
+
+/**
+ * Streaming (CometD) pins a client to one Salesforce server with cookies (BAYEUX_BROWSER),
+ * which browsers keep but a proxy must keep itself: one jar per org.
+ */
+const cometdCookies = new Map<string, Map<string, string>>();
+
+function cookieHeader(org: string): string {
+  return [...(cometdCookies.get(org) ?? new Map<string, string>())].map(([k, v]) => `${k}=${v}`).join('; ');
+}
+
+function keepCookies(org: string, response: Response): void {
+  const jar = cometdCookies.get(org) ?? new Map<string, string>();
+  for (const cookie of response.headers.getSetCookie()) {
+    const [pair] = cookie.split(';');
+    const at = pair.indexOf('=');
+    if (at > 0) jar.set(pair.slice(0, at).trim(), pair.slice(at + 1).trim());
+  }
+  cometdCookies.set(org, jar);
+}
 
 /**
  * Forwards one Studio request to the org with the Salesforce CLI's access token.
- * Only /services/* API paths are allowed; an expired token is refreshed once.
+ * Only /services/* API paths (and streaming POSTs to /cometd/<version>) are allowed; an
+ * expired token is refreshed once.
  */
 export async function proxySalesforce(
   org: string,
@@ -78,7 +102,8 @@ export async function proxySalesforce(
   const method = String(request.method ?? 'GET').toUpperCase();
   const path = String(request.path ?? '');
   if (!METHODS.has(method)) throw new Error('Method not allowed.');
-  if (!/^\/services\/[\w./%-]*(\?.*)?$/.test(path) || path.includes('..'))
+  const streaming = method === 'POST' && COMETD.test(path);
+  if (!streaming && (!/^\/services\/[\w./%-]*(\?.*)?$/.test(path) || path.includes('..')))
     throw new Error('Only Salesforce /services/ API paths are allowed.');
 
   const headers: Record<string, string> = {};
@@ -90,9 +115,10 @@ export async function proxySalesforce(
     const conn = await connect(org);
     if (refresh) await conn.refreshAuth?.();
     const token = String(conn.accessToken ?? '');
+    const cookie = streaming ? cookieHeader(org) : '';
     return fetch(`${conn.instanceUrl}${path}`, {
       method,
-      headers: { ...headers, Authorization: `Bearer ${token}` },
+      headers: { ...headers, Authorization: `Bearer ${token}`, ...(cookie ? { cookie } : {}) },
       body:
         request.body === undefined || method === 'GET'
           ? undefined
@@ -102,6 +128,7 @@ export async function proxySalesforce(
 
   let response = await send(false);
   if (response.status === 401) response = await send(true);
+  if (streaming) keepCookies(org, response);
   const responseHeaders: Record<string, string> = {};
   response.headers.forEach((value, key) => {
     if (['content-type', 'sforce-limit-info', 'sforce-locator', 'sforce-numberofrecords'].includes(key))

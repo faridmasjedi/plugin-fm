@@ -75,3 +75,20 @@ export async function orgFacts(client: SalesforceClient): Promise<OrgFacts> {
     name: String(row.Name ?? ''),
   };
 }
+
+/**
+ * Opens a page of the org logged in. The extension uses the browser's own session; the app
+ * asks the Salesforce CLI (`sf org open --path`), which logs the browser in first.
+ */
+export async function openInOrg(kind: 'app' | 'extension', org: OrgChoice, path: string): Promise<void> {
+  if (kind === 'extension') {
+    window.open(`${org.instanceUrl ?? ''}${path}`, '_blank', 'noopener');
+    return;
+  }
+  const res = await fetch('/api/orgs/open', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-fm-dashboard': '1' },
+    body: JSON.stringify({ org: org.id, path }),
+  });
+  if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? res.statusText);
+}

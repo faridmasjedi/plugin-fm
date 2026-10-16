@@ -89,23 +89,33 @@ Commands below run from the test repository unless stated otherwise. `RUN` = `sf
 
 ## F. Pipeline (`sf fm pipeline`)
 
-| ID  | Scenario                                                        | Expected                                                                                               |
-| --- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| F1  | `init`, then `run` in a terminal                                | stops at the approval and asks `[Y/n]`                                                                 |
-| F2  | `run --no-prompt`                                               | pauses; `pipeline approve` + `run --resume latest` continue                                            |
-| F3  | `run --wait-for-approval` + approve on the dashboard            | continues within seconds                                                                               |
-| F4  | `--step-by-step`                                                | asks before every stage                                                                                |
-| F5  | A failing stage                                                 | later `if: success` stages skipped, `if: failure` stage runs, exit 1                                   |
-| F6  | `continue-on-error: true` on a failing stage                    | shown as warning, pipeline continues                                                                   |
-| F7  | `${stages.x.result.y}` that doesn't exist                       | stage fails with "Cannot resolve"                                                                      |
-| F8  | Invalid pipeline file (duplicate ids, unknown `uses`)           | all problems listed at once                                                                            |
-| F9  | Cancel from the dashboard while waiting                         | run ends as canceled                                                                                   |
-| F10 | `init --train`, `run --event pr` with Data Cloud + core changes | Data Cloud validated → approved → deployed; core validated; push-only stages skipped with a reason     |
-| F11 | `run --event push`                                              | core deployed, OmniStudio validated → approved → deployed, tag created                                 |
-| F12 | Push again with nothing new                                     | every wave skipped ("hasChanges is false"), tag reused                                                 |
-| F13 | `FM_REQUIRE_APPROVAL` unset                                     | approval stages skipped                                                                                |
-| F14 | `--dashboard-export dashboard.html`                             | self-contained file opens offline                                                                      |
-| F15 | Train in GitHub Actions (`examples/github-release-train.yml`)   | PR and push behave as F10/F11; the paused run continues in the `approve` job after a reviewer approves |
+| ID  | Scenario                                                                                                  | Expected                                                                                               |
+| --- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| F1  | `init`, then `run` in a terminal                                                                          | stops at the approval and asks `[Y/n]`                                                                 |
+| F2  | `run --no-prompt`                                                                                         | pauses; `pipeline approve` + `run --resume latest` continue                                            |
+| F3  | `run --wait-for-approval` + approve on the dashboard                                                      | continues within seconds                                                                               |
+| F4  | `--step-by-step`                                                                                          | asks before every stage                                                                                |
+| F5  | A failing stage                                                                                           | later `if: success` stages skipped, `if: failure` stage runs, exit 1                                   |
+| F6  | `continue-on-error: true` on a failing stage                                                              | shown as warning, pipeline continues                                                                   |
+| F7  | `${stages.x.result.y}` that doesn't exist                                                                 | stage fails with "Cannot resolve"                                                                      |
+| F8  | Invalid pipeline file (duplicate ids, unknown `uses`)                                                     | all problems listed at once                                                                            |
+| F9  | Cancel from the dashboard while waiting                                                                   | run ends as canceled                                                                                   |
+| F10 | `init --train`, `run --event pr` with Data Cloud + core changes                                           | Data Cloud validated → approved → deployed; core validated; push-only stages skipped with a reason     |
+| F11 | `run --event push`                                                                                        | core deployed, OmniStudio validated → approved → deployed, tag created                                 |
+| F12 | Push again with nothing new                                                                               | every wave skipped ("hasChanges is false"), tag reused                                                 |
+| F13 | `FM_REQUIRE_APPROVAL` unset                                                                               | approval stages skipped                                                                                |
+| F14 | `--dashboard-export dashboard.html`                                                                       | self-contained file opens offline                                                                      |
+| F15 | Train in GitHub Actions (`examples/github-release-train.yml`)                                             | PR and push behave as F10/F11; the paused run continues in the `approve` job after a reviewer approves |
+| F16 | `sf fm deploy --mode validation --share-validation` then `--mode deployment --reuse-validation` (sandbox) | validation recorded (and tagged); deployment says "Reusing validation …: quick deploy", no test run    |
+| F17 | Same, after changing one file in the package                                                              | "No validation of this package…"; normal deployment                                                    |
+| F18 | `sf fm rollback --branch main --dry-run` with two deployment tags (sandbox)                               | plan shows both tags and the commits undone; validation of old versions + destructive for added files  |
+| F19 | `sf fm rollback` without tags / `--to` the current tag                                                    | clear errors                                                                                           |
+| F20 | `sf fm drift --target-org <org> --include-org-only ApexClass --output-file drift.md`                      | changed / only in org / missing in org lists; Markdown file; GitHub job summary in Actions             |
+| F21 | Pipeline stage `uses: drift` with `fail-on-drift: true` on a drifted org                                  | stage fails with "The org differs from the repository"; metrics on the run page                        |
+| F22 | `sf fm org create --alias x --permset P --data-plan p.json --dry-run`, then for real (Dev Hub)            | plan printed; scratch org created, project deployed, permset, data; stops at the first failing step    |
+| F23 | `sf fm org create --type sandbox --target-org prod --alias uat2 --dry-run`                                | sandbox command with name, license, production org                                                     |
+| F24 | Pipeline with `notify:` (Slack + Teams test webhooks), a failing stage and an approval                    | messages for failed and awaiting-approval with release, branch, stage, error and link                  |
+| F25 | `notify.slack: https://…` (a URL instead of a variable name)                                              | pipeline file refused: must be the NAME of an environment variable                                     |
 
 ## G. AI runbooks (`sf fm runbook`) — sandbox only
 
@@ -230,6 +240,41 @@ Read-only items can run on any org; everything marked ✎ only on a sandbox.
 | L40   | AI page → Sign in with OpenRouter                                                                       | new tab to openrouter.ai; after approval back on the AI page with "OpenRouter connected"                       |
 | L41   | AI page → GitHub Models → Use, set model `openai/gpt-4.1`; run a runbook with `--plan`                  | status "GitHub CLI login"; plan produced without any key variable                                              |
 | L42   | Same provider with its environment variable set                                                         | status "environment variable" (env wins over the connected key)                                                |
+| L43   | Query → ⓘ next to an Id                                                                                 | Record page with every field; header with object, name and Id                                                  |
+| L44   | Record: paste a Lightning record URL / a username; filter; Only fields with a value; click a lookup     | record found; filters work; lookup opens the related record; Recent lists them                                 |
+| L45 ✎ | Record → Edit, change a text, a picklist and a checkbox → Save (sandbox)                                | only changed fields sent; typed org name required; saved values shown; on Activity                             |
+| L46   | Edit a number field with letters, a date as 1/2/2026                                                    | clear error, nothing sent                                                                                      |
+| L47 ✎ | User record → Log in as this user (sandbox, "Login as any user" on)                                     | production asks first; browser logs in as the user                                                             |
+| L48   | Org limits                                                                                              | all limits, most used first; ≥70 % amber, ≥90 % red; filter                                                    |
+| L49   | REST Explorer: GET `/services/data/vXX.X/sobjects/Account/describe`, click a link in the answer         | 200 with formatted JSON, time and api-usage; link opens as GET                                                 |
+| L50   | REST Explorer: POST / DELETE                                                                            | typed org name required; error answers (4xx) shown, not thrown                                                 |
+| L51   | Extension popup on a record page                                                                        | "Show all data of this record" opens the Record page for it                                                    |
+| L52   | Code: Classes / Triggers / LWC lists; open a class; switch type with an unsaved edit                    | source with colouring; lists filterable; asks before discarding                                                |
+| L53 ✎ | Code: Check a class with an error (sandbox)                                                             | problem listed with line:column, squiggle in the editor, click jumps to it; nothing saved                      |
+| L54 ✎ | Code: Save a class / New class / Save two LWC files (sandbox)                                           | typed org name; saved; Activity entry; LWC error message shown when the bundle does not compile                |
+| L55   | Code in a production org (not Developer Edition)                                                        | note shown; Save and New class off; Check still allowed                                                        |
+| L56   | Apex tests: list                                                                                        | only @isTest classes with method counts                                                                        |
+| L57 ✎ | Run selected / Run all local tests (sandbox)                                                            | progress (job, n/m classes); passed / failed counts; failures with message and stack trace; on Activity        |
+| L58   | Code coverage, click a class                                                                            | org-wide % (red under 75); classes by coverage; source with green / red lines (note when Salesforce has none)  |
+| L59   | Query: ✦ Write SOQL "accounts in Sydney created this year with open opportunities"                      | SOQL in the editor using real field and relationship names; runs                                               |
+| L60   | Debug log → ✦ Explain with AI (a log with an exception; a 5 MB log)                                     | answer names the exception and line; provider, model and characters sent shown; big log cut down first         |
+| L61   | Apex tests with failures → ✦ Explain failures with AI                                                   | cause and fix per failure                                                                                      |
+| L62   | App: failed pipeline stage → ✦ Explain with AI; Repository → ✦ Draft release notes                      | answer under the stage / Markdown notes with range (last deploy tag, last 30 commits or whole short history)   |
+| L63   | AI help without an AI connected / extension without the local app                                       | clear message (connect on the AI page / start `sf fm dashboard`)                                               |
+| L64   | Field usage: Account, Count filled values; click a custom field                                         | records and fields counted; filled and % per field; references (e.g. layouts, flows) listed                    |
+| L65   | Field usage on a standard field / an object with 0 records                                              | "custom fields only" note / counting disabled                                                                  |
+| L66   | Events: Listen on /data/ChangeEvents (CDC on for Account), change an Account in another tab (sandbox)   | handshake, subscribe; the change event appears with its payload                                                |
+| L67   | Events: Replay retained (72 h) on a platform event                                                      | earlier events appear with replay ids                                                                          |
+| L68 ✎ | Events: Publish a platform event from JSON (sandbox)                                                    | typed org name; event id shown; seen by the listener; on Activity                                              |
+| L69   | Events: Stop; leave the page while listening                                                            | stream ends (after the current long poll); no errors                                                           |
+| L70   | Proxy: GET `/cometd/…`, POST `/cometd/../x`                                                             | refused; only POST `/cometd/<version>` is streamed                                                             |
+| L71   | VS Code: install the .vsix, open a Salesforce project, click NomadSF in the status bar                  | local app starts for the workspace (Output → NomadSF); Studio tab with the org; all pages work                 |
+| L72   | VS Code with the app already running for another project                                                | the app switches to this workspace's project                                                                   |
+| L73   | VS Code: select an Id → Show all data; select a SOQL → Run the selected SOQL                            | Record page for the Id / Query page with the SOQL                                                              |
+| L74   | VS Code: NomadSF: Stop the local app; close VS Code                                                     | the app (and its Node server) stops; port free                                                                 |
+| L75   | Desktop: `npm start`, choose a project; ⌘2 Studio; File → Open Salesforce project…                      | window with the app on a free port; Studio; switches project                                                   |
+| L76   | Desktop: AI → Sign in with OpenRouter, a record link in Studio                                          | open in the default browser, not in the app window                                                             |
+| L77   | Desktop started from the Dock/Finder (no terminal)                                                      | `sf` found via the login shell PATH; quitting frees the port                                                   |
 
 ## Before a demo
 

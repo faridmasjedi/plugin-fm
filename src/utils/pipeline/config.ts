@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { PIPELINE_EVENTS, STAGE_USES, type PipelineConfig, type StageConfig } from './types.js';
+import { validateNotify } from './notify.js';
 
 export const DEFAULT_PIPELINE_FILES = ['.fm/pipeline.yml', '.fm/pipeline.yaml', '.fm/pipeline.json'];
 
@@ -48,6 +49,7 @@ export function validatePipelineConfig(raw: Partial<PipelineConfig>): PipelineCo
     }
   });
 
+  errors.push(...validateNotify((raw as { notify?: unknown }).notify));
   if (errors.length > 0) throw new PipelineConfigError(`Invalid pipeline file:\n  - ${errors.join('\n  - ')}`);
   return { name: raw.name ?? 'Salesforce pipeline', ...raw } as PipelineConfig;
 }

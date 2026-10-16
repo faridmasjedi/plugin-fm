@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/RollbackResult",
+  "definitions": {
+    "RollbackResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["validation", "deployment"]
+        },
+        "changed": {
+          "type": "number"
+        },
+        "deleted": {
+          "type": "number"
+        },
+        "deploy": {},
+        "branch": {
+          "type": "string"
+        },
+        "current": {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "type": "string"
+            },
+            "sha": {
+              "type": "string"
+            }
+          },
+          "required": ["tag", "sha"],
+          "additionalProperties": false,
+          "description": "Deployment tag the org is on now (the latest)."
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "type": "string"
+            },
+            "sha": {
+              "type": "string"
+            }
+          },
+          "required": ["tag", "sha"],
+          "additionalProperties": false,
+          "description": "Deployment tag to go back to."
+        },
+        "commits": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["branch", "changed", "commits", "current", "deleted", "mode", "target"]
+    }
+  }
+}

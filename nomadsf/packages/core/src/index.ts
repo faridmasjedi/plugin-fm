@@ -11,3 +11,8 @@ export * from './metadata.js';
 export * from './project.js';
 export * from './savedQueries.js';
 export * from './github.js';
+export * from './inspector.js';
+export * from './apexTests.js';
+export * from './code.js';
+export * from './streaming.js';
+export * from './fieldUsage.js';

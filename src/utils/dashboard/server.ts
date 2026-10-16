@@ -208,9 +208,11 @@ export function startDashboardServer(options: ServeOptions): Promise<Server> {
         loginOrg(cwd, String(body.alias ?? ''), String(body.instanceUrl ?? 'https://login.salesforce.com'));
         return sendJson(res, 202, { ok: true });
       }
-      case 'POST orgs/open':
-        openOrg(cwd, String((await readBody(req)).org ?? ''));
+      case 'POST orgs/open': {
+        const body = await readBody(req);
+        openOrg(cwd, String(body.org ?? ''), typeof body.path === 'string' ? body.path : undefined);
         return sendJson(res, 202, { ok: true });
+      }
       case 'GET repo':
         return sendJson(res, 200, repoInfo(cwd));
       case 'GET runbooks':
@@ -259,7 +261,7 @@ export function startDashboardServer(options: ServeOptions): Promise<Server> {
     if (req.method === 'POST' && parts[1] === 'start') return handleStart(req, res);
     if (parts[1] === 'projects' || parts[1] === 'project') return handleProject(req, res, parts);
     if ((parts[1] === 'ai' && parts[2]) || parts[1] === 'github') {
-      if (await handleConnectionRoute(req, res, parts, { port: options.port, readBody, sendJson })) return;
+      if (await handleConnectionRoute(req, res, parts, { port: options.port, project, readBody, sendJson })) return;
     }
     if (parts[1] === 'org' || parts[1] === 'e2e') {
       const context = {

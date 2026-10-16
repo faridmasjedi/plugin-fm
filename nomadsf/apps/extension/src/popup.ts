@@ -1,4 +1,4 @@
-import { apiHostFor } from '@nomadsf/core';
+import { apiHostFor, extractRecordId } from '@nomadsf/core';
 
 const main = document.getElementById('main')!;
 
@@ -42,10 +42,14 @@ async function render(): Promise<void> {
     };
     main.append(button);
   };
-  open('Open NomadSF Studio', undefined, true);
+  // On a record page: Salesforce Inspector's "Show all data"
+  const recordId = tab?.url ? extractRecordId(tab.url) : undefined;
+  if (recordId) open('ⓘ  Show all data of this record', `record=${recordId}`, true);
+  open('Open NomadSF Studio', undefined, !recordId);
   open('▶  Execute Apex', 'apex');
   open('☰  Debug logs', 'logs');
   open('⌕  Query', 'query');
+  open('▤  Org limits', 'limits');
 }
 
 render().catch((error: Error) => {

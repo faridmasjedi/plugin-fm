@@ -1,4 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useContext, useMemo, useState, type ReactNode } from 'react';
+import { InspectContext } from '../context';
 
 type Row = Record<string, unknown>;
 
@@ -55,6 +56,7 @@ export function DataTable({
   selected,
   onSelectedChange,
 }: DataTableProps) {
+  const inspect = useContext(InspectContext);
   const selectable = Boolean(selected && onSelectedChange);
   const keyOf = (r: Row): string => String(r[rowKey] ?? '');
   const [filter, setFilter] = useState('');
@@ -95,9 +97,23 @@ export function DataTable({
     const s = text(v);
     if (instanceUrl && ID_RE.test(s) && (c === 'Id' || c.endsWith('Id'))) {
       return (
-        <a href={`${instanceUrl}/${s}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
-          {s}
-        </a>
+        <>
+          <a href={`${instanceUrl}/${s}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+            {s}
+          </a>
+          {inspect && (
+            <button
+              className="link inspect"
+              title="Show all fields"
+              onClick={(e) => {
+                e.stopPropagation();
+                inspect(s);
+              }}
+            >
+              ⓘ
+            </button>
+          )}
+        </>
       );
     }
     return s.length > 300 ? `${s.slice(0, 300)}…` : s;

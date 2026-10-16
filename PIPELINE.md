@@ -83,6 +83,8 @@ stages:
 
 `uses: tag` takes `with: { branch, push, commit }` and tags the commit as `sf-deploy-success/<branch>/<timestamp>`.
 
+`uses: drift` compares the org with the repository (`with: { target-org, include-org-only, fail-on-drift }`), see [COMMANDS.md](COMMANDS.md#sf-fm-drift). Deploy stages take `reuse-validation: true` / `share-validation: true` to quick deploy a package validated earlier.
+
 ### Scripts
 
 `uses: script` runs a file by its extension: `.apex` with `sf apex run --file … --target-org <with.target-org>`, `.js` with Node, `.ts` with `tsx`, `.py` with Python 3, `.sh` with Bash. Scripts receive `FM_TARGET_ORG`, `FM_RUN_ID` and `FM_RELEASE`.
@@ -165,6 +167,18 @@ A stage stops for a decision when it is `uses: approval`, has `manual: true`, or
 | CI or `--no-prompt`                     | Pauses and exits 0; approve, then `sf fm pipeline run --resume <id>`       |
 
 Resuming keeps passed, warning and skipped stages and their results, and runs the rest.
+
+### Slack and Teams
+
+```yaml
+notify:
+  slack: SLACK_WEBHOOK_URL # name of the environment variable with the incoming webhook URL
+  teams: TEAMS_WEBHOOK_URL # Teams "Workflows" webhook (adaptive card)
+  on: [failed, awaiting-approval, passed] # default: failed, awaiting-approval
+  dashboard: https://ci.example.com/nomadsf # optional: link to the run in messages
+```
+
+Messages say which pipeline, release and branch, the failed stage and its error, or which approval is waiting. Webhook URLs are read from the environment only (CI secrets), never from the file; a failed notification is logged and never fails the run. Approving still happens in the dashboard, the terminal or with `sf fm pipeline approve`.
 
 ## Dashboard
 

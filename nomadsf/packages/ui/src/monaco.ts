@@ -1,6 +1,11 @@
 // Monaco bundled locally (no CDN): required for the browser extension (MV3 forbids remote code).
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import 'monaco-editor/esm/vs/editor/edcore.main';
+// Syntax colouring for LWC files (tokenizers only, no extra workers)
+import 'monaco-editor/esm/vs/basic-languages/javascript/javascript.contribution';
+import 'monaco-editor/esm/vs/basic-languages/html/html.contribution';
+import 'monaco-editor/esm/vs/basic-languages/css/css.contribution';
+import 'monaco-editor/esm/vs/basic-languages/xml/xml.contribution';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import { loader } from '@monaco-editor/react';
 

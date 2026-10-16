@@ -82,9 +82,15 @@ export function loginOrg(cwd: string, alias: string, instanceUrl: string): void 
   }).unref();
 }
 
-export function openOrg(cwd: string, org: string): void {
+/** Opens the org in the browser, optionally at a path (e.g. a record or "login as" link). */
+export function openOrg(cwd: string, org: string, path?: string): void {
   if (!SAFE_NAME.test(org)) throw new Error('Unknown org.');
-  spawn('sf', ['org', 'open', '--target-org', org], { cwd, detached: true, stdio: 'ignore' }).unref();
+  const args = ['org', 'open', '--target-org', org];
+  if (path) {
+    if (!/^\/[\w/.?=&%+-]*$/.test(path)) throw new Error('Invalid path.');
+    args.push('--path', path);
+  }
+  spawn('sf', args, { cwd, detached: true, stdio: 'ignore' }).unref();
 }
 
 function stripCredentials(remote: string): string {

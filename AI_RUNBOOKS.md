@@ -84,6 +84,10 @@ model: claude-opus-5-5
 | `ollama`                        | none                                                    | Local models on `http://localhost:11434/v1`                                                                                   |
 | `openai-compatible`             | `FM_AI_API_KEY`                                         | Any endpoint that speaks the OpenAI Chat Completions API: set `baseUrl` and `model`                                           |
 
+### AI help outside runbooks
+
+The same provider also answers one-off questions in NomadSF: SOQL from plain English, explain a debug log, failed Apex tests or a failed pipeline stage, and draft release notes (see [STUDIO.md](nomadsf/STUDIO.md)). Only what the task needs is sent: the question with object and field names, the shortened log, the failures, or commit subjects and file names.
+
 ### Connect your AI account
 
 The **AI** page of the app (also in the extension under Local app) has a **Connect your AI account** list:

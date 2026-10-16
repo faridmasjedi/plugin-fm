@@ -62,7 +62,13 @@ export function createOpenAiCompatibleChat(config: AiConfig, system: string, too
     const res = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ model: config.model, messages, tools: toolDefs, max_tokens: config.maxTokens ?? 16_000 }),
+      // An empty tools list is rejected by OpenAI-style APIs; plain questions send none
+      body: JSON.stringify({
+        model: config.model,
+        messages,
+        ...(toolDefs.length ? { tools: toolDefs } : {}),
+        max_tokens: config.maxTokens ?? 16_000,
+      }),
     });
     const body = (await res.json().catch(() => ({}))) as ChatCompletion;
     if (!res.ok) {

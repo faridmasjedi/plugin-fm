@@ -4,11 +4,12 @@
   "description": "NomadSF Studio: Salesforce developer workbench for the NomadSF app, browser extension and IDEs",
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/extension",
+    "apps/vscode"
   ],
   "scripts": {
-    "build": "yarn --cwd packages/ui build && yarn --cwd apps/extension build",
-    "test": "yarn --cwd packages/core test",
-    "typecheck": "yarn --cwd packages/core typecheck && yarn --cwd packages/ui typecheck && yarn --cwd apps/extension typecheck"
+    "build": "yarn --cwd packages/ui build && yarn --cwd apps/extension build && yarn --cwd apps/vscode build",
+    "test": "yarn --cwd packages/core test && yarn --cwd apps/vscode test",
+    "typecheck": "yarn --cwd packages/core typecheck && yarn --cwd packages/ui typecheck && yarn --cwd apps/extension typecheck && yarn --cwd apps/vscode typecheck"
   }
 }

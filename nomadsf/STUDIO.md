@@ -13,14 +13,27 @@ A Salesforce developer workbench in the spirit of the Developer Console and Sale
 
 - **Project** — the Salesforce repository you work with: from the local NomadSF app (switch between your projects; runs, runbooks and retrieve follow it), a folder you pick in the browser (read-only, no CLI), or **GitHub**: connect once, then open any repository and branch you can read. GitHub connects through the local app's GitHub CLI login (the token stays on the machine), **Sign in with GitHub** in the extension (device code; needs the client ID of a GitHub OAuth app with device flow enabled, entered once or built in with `VITE_NOMADSF_GITHUB_CLIENT_ID`), or a pasted fine-grained token (Contents: read-only). Shows package directories with components per type, manifests, branch and API version; **Compare with org** per type (only in org / only in project / both); load a manifest or a whole type into the Metadata package.
 - **Execute Anonymous** — Monaco editor with Apex highlighting and snippets (`debug`, `query`, `for`, `try`, `limits`), log level presets, run all (⌘/Ctrl+Enter) or the selection (⌘/Ctrl+Shift+Enter), compile errors marked on the line, history of the last 20 snippets.
+- **Code** — the Developer Console editor: Apex classes, triggers and LWC bundles of the org (filterable list), Monaco with Apex / JavaScript / HTML / CSS / XML colouring. **Check** compiles without saving; **Save** compiles and saves (MetadataContainer, like the Developer Console) with problems marked on the line; LWC files save one by one (unsaved files marked •). **New class** from a template. Every save asks for the org name and goes to Activity. In production Salesforce only accepts Apex through a deployment, so Save is off there (Developer Edition orgs allow it).
+- **Apex tests** — finds the org's test classes, runs the selected ones or all local tests (asynchronously, with progress), failures first with message and stack trace. **Code coverage**: org-wide percentage against the 75 % production rule, every class and trigger by coverage, and the source with covered lines green and uncovered red.
 - **Debug Logs** — turn debug logging on for yourself for 30 min / 1 h (trace flag with a `NomadSF` debug level, extended if one is active), list logs (only mine / everyone, auto-refresh), open, download, delete.
 - **Log viewer** — Debug messages, every event (filter by type), governor limits with usage bars, raw log; SOQL / DML / error counts.
 - **Query** — SOQL editor with autocomplete of objects (after `FROM`) and fields of the main object (also with subqueries), Tooling API, deleted & archived rows, up to 50,000 rows, "All fields", history, **saved queries** (named; click to load, × to delete; Export / Import as `nomadsf-queries.json`, or **From project** to load the team's file from the repository root); results in a sortable table with per-column filters (`=exact`, `!not`, `>10`, `<5`), record links, Copy / CSV / JSON.
+- **Record** — Salesforce Inspector's "Show all data": paste an Id, a record URL or a username; every field with label, API name, type and value; filter, only filled fields, follow lookups, recent records. **Edit** changes fields inline (picklists and checkboxes as such); only changed fields are saved, after you type the org name. Users: **Log in as this user**. Every Id in a result table has an ⓘ that opens it here, and the extension popup offers **Show all data of this record** on a record page.
+- **Field usage** — every field of an object with how many records fill it (one COUNT per field, on request) and, for custom fields, every component that references it (layouts, flows, Apex, … from Salesforce's dependency API) before you change or delete it.
+- **Events** — listen to Platform Events, Change Data Capture (all changes or per object) and PushTopics live, new events only or replaying the last 72 hours; payload of each event; publish a platform event from JSON (asks for the org name). In the app the stream goes through the local app (which keeps Salesforce's streaming cookie); in the extension it uses the browser session.
+- **Org limits** — every limit of `/limits` with used, max and a usage bar, most used first.
+- **REST Explorer** — any `/services/` call (`vXX.X` = latest version) with formatted JSON, timing and API usage; links in the answer are clickable. POST / PATCH / PUT / DELETE ask for the org name and go to Activity.
 - **Data (Bulk API 2.0)** — export any query to CSV (incl. deleted & archived) with a preview table; insert / update / upsert / delete / hard delete from a CSV file with a preview, success and failure CSVs; delete every record a query returns (count first).
 - **Users & access** — login history (1–180 days) with usernames, setup audit trail, permission sets and permission set groups: see assignees, remove selected, assign to users found by usernames, profile, role or public group, with an optional expiry.
 - **Metadata** — every metadata type of the org; list components (folder types such as reports and dashboards folder by folder), build a package that mixes types, then **Download zip** (Metadata API retrieve), **package.xml** (download / copy), or in the app **Retrieve into project** (`sf project retrieve start`).
 - **Local app (extension)** — when `sf fm dashboard` runs on this machine, the extension also shows Runs & approvals, Runbooks (AI), Repository, CLI orgs and AI settings from it. Port configurable (default 7007).
 - **Tests** — Playwright scenarios of the project, run through the local app (`sf fm e2e run`), last results and the HTML report.
+- **AI help** (✦, with the AI connected on the local app's AI page; keys stay in the app):
+  - **Query → Write SOQL** from a plain-English question, using the org's own objects and the fields of the objects you mention.
+  - **Explain with AI** on any debug log (errors, limits, likely fix; long logs are cut down to the telling lines first).
+  - **Explain failures with AI** for failed Apex tests.
+  - In the app: **Explain with AI** on a failed pipeline stage, and **Draft release notes** on Repository (commits and changed files since the last deployment tag).
+  - Every answer shows the provider, the model and how much was sent.
 - **Activity** — every export and change made with the Studio, kept in this browser.
 - **Safety** — production orgs (including Dev Hubs) are shown in red, and running Apex or turning on logging there asks first. Every data or access change asks you to type the org name, in any org.
 
@@ -43,6 +56,26 @@ cd nomadsf && yarn install && yarn build
 - `nomadsf/apps/extension/nomadsf-extension-<version>.zip` is the package for the Chrome Web Store / Edge Add-ons. Every GitHub release has it attached.
 
 The extension asks for `cookies`, access to `127.0.0.1` / `localhost` (the local NomadSF app) and to Salesforce domains only (`*.salesforce.com`, `*.force.com`, `*.salesforce-setup.com`, `*.cloudforce.com`, `*.site.com`). It reads the `sid` cookie of the org you are on and calls the Salesforce API with it, like Salesforce Inspector does. Nothing is sent anywhere else.
+
+### VS Code
+
+`nomadsf-vscode.vsix` (from a release or the `extension-latest` pre-release; or `yarn --cwd nomadsf/apps/vscode package`): **Extensions → … → Install from VSIX**. Needs the Salesforce CLI with plugin-fm.
+
+- Opening a Salesforce DX project starts the local app for that workspace (or switches a running one to it), and **NomadSF** in the status bar opens the Studio in an editor tab. Everything of the app and the Studio is there: runs and approvals, orgs, runbooks, AI, and every Studio page.
+- Commands (⇧⌘P → NomadSF): _Open the app_, _Open Studio_, _Open Studio page…_, _Stop the local app_. In the editor (right-click on a selection): **Show all data of the selected record Id** and **Run the selected SOQL in Studio**.
+- Settings: `nomadsf.port` (7007), `nomadsf.sfCommand` (`sf`), `nomadsf.autoStart`. Works in remote windows and Codespaces (the port is forwarded).
+
+### Desktop app
+
+`nomadsf/apps/desktop` (Electron, kept out of the yarn workspaces so normal installs do not download Electron):
+
+```bash
+cd nomadsf/apps/desktop && npm install
+npm start          # choose a Salesforce project folder; the app opens in its own window
+npm run dist       # installers: dmg / zip (macOS), NSIS (Windows), AppImage (Linux)
+```
+
+It starts `sf fm dashboard` for the project on a free port, finds `sf` through your login shell's PATH (also when started from the Dock), remembers the last project (**File → Open Salesforce project…**, ⌘O to switch), and has **Go → Runs / Studio / Orgs / AI**. Only the local app opens inside the window; sign-ins and Salesforce links open in your browser. Quitting stops the local app.
 
 ## Develop
 
