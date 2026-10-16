@@ -47,6 +47,7 @@ export type AiProviderId =
   | 'mistral'
   | 'groq'
   | 'openrouter'
+  | 'github-models'
   | 'ollama'
   | 'openai-compatible';
 

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parse } from 'yaml';
+import { resolveApiKey, type KeySource } from './credentials.js';
 import type { AiConfig, AiProviderId } from './types.js';
 
 export const AI_CONFIG_FILE = '.fm/ai.yml';
@@ -32,6 +33,12 @@ export const PROVIDER_PRESETS: Record<AiProviderId, ProviderPreset> = {
     label: 'OpenRouter',
     baseUrl: 'https://openrouter.ai/api/v1',
     apiKeyEnv: 'OPENROUTER_API_KEY',
+    auth: 'bearer',
+  },
+  'github-models': {
+    label: 'GitHub Models (your GitHub / Copilot plan)',
+    baseUrl: 'https://models.github.ai/inference',
+    apiKeyEnv: 'GITHUB_MODELS_TOKEN',
     auth: 'bearer',
   },
   ollama: { label: 'Ollama (local)', baseUrl: 'http://localhost:11434/v1', auth: 'none' },
@@ -83,13 +90,17 @@ export function describeAiConfig(config: AiConfig): {
   baseUrl?: string;
   apiKeyEnv?: string;
   apiKeySet: boolean;
+  keySource: KeySource;
 } {
+  const { source } =
+    PROVIDER_PRESETS[config.provider].auth === 'none' ? { source: 'none' as const } : resolveApiKey(config);
   return {
     provider: config.provider,
     label: PROVIDER_PRESETS[config.provider].label,
     model: config.model,
     baseUrl: config.baseUrl,
     apiKeyEnv: config.apiKeyEnv,
-    apiKeySet: config.apiKeyEnv ? Boolean(process.env[config.apiKeyEnv]) : true,
+    apiKeySet: PROVIDER_PRESETS[config.provider].auth === 'none' || source !== 'none',
+    keySource: source,
   };
 }

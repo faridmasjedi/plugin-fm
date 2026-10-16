@@ -219,6 +219,17 @@ Read-only items can run on any org; everything marked ✎ only on a sandbox.
 | L29   | Project file access: `.git/…`, `../…` paths                                                             | refused; the app keeps running                                                                                 |
 | L30   | Tests (Playwright) page in the app and the extension (local app running)                                | specs listed; run starts; last results; report link                                                            |
 | L31   | Dashboard: no Org explorer page; Studio link opens all org tools                                        | old page gone; Activity in the app shows the project's shared log                                              |
+| L32   | Query: Save query with a name; save again with the same name; click it; ×                               | listed; replaced, not duplicated; loads SOQL and the Tooling setting; deleted                                  |
+| L33   | Query: Export, then Import the file in another browser / Import a non-JSON file                         | same saved queries; clear error, nothing lost                                                                  |
+| L34   | Query: commit `nomadsf-queries.json` to the project root → From project                                 | the team's queries merged in (same names replaced)                                                             |
+| L35   | Project → From GitHub with the local app running and `gh auth login` done                               | "Connected as @you · GitHub CLI login"; repositories listed, filter works; branches of the chosen repo         |
+| L36   | Open a repo + branch                                                                                    | same analysis as a local project; branch shown; Compare with org and manifests work; restored after reload     |
+| L37   | Extension without the local app: paste a fine-grained token / Sign in with GitHub (client ID set)       | connected; device code shown and github.com/login/device opens; Disconnect forgets the token                   |
+| L38   | GitHub proxy security: POST `/api/github` with `/user/emails` or `/repos/a/../b`                        | refused ("GitHub path not allowed")                                                                            |
+| L39   | AI page → Connect with key (OpenAI), then Disconnect                                                    | ✓ connected; `~/.nomadsf/credentials.json` mode 600; key not in `.fm/ai.yml` or the page; disconnected         |
+| L40   | AI page → Sign in with OpenRouter                                                                       | new tab to openrouter.ai; after approval back on the AI page with "OpenRouter connected"                       |
+| L41   | AI page → GitHub Models → Use, set model `openai/gpt-4.1`; run a runbook with `--plan`                  | status "GitHub CLI login"; plan produced without any key variable                                              |
+| L42   | Same provider with its environment variable set                                                         | status "environment variable" (env wins over the connected key)                                                |
 
 ## Before a demo
 

@@ -101,7 +101,14 @@ const manifest = {
   background: { service_worker: 'background.js', type: 'module' },
   permissions: ['cookies', 'activeTab'],
   // Salesforce APIs, plus the local NomadSF app (sf fm dashboard) on this machine
-  host_permissions: [...salesforceHosts, 'http://127.0.0.1/*', 'http://localhost/*'],
+  host_permissions: [
+    ...salesforceHosts,
+    'http://127.0.0.1/*',
+    'http://localhost/*',
+    // Repository browser and "Sign in with GitHub" (device flow)
+    'https://api.github.com/*',
+    'https://github.com/*',
+  ],
   content_scripts: [
     {
       matches: [

@@ -1,13 +1,31 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { analyzeProject, httpProjectFs, type ProjectEntry, type ProjectFs, type ProjectInfo } from '@nomadsf/core';
+import {
+  analyzeProject,
+  githubProjectFs,
+  httpProjectFs,
+  type GitHubTransport,
+  type ProjectEntry,
+  type ProjectFs,
+  type ProjectInfo,
+} from '@nomadsf/core';
 import { storage } from './context';
+import { currentGitHub, lastRepo } from './github';
 
 /**
  * The Salesforce project (repository) the Studio works with:
  * - local: the project of the local NomadSF app (`sf fm dashboard`), switchable there;
- * - folder: a folder picked in the browser (File System Access API), no CLI needed.
+ * - folder: a folder picked in the browser (File System Access API), no CLI needed;
+ * - github: a branch of any GitHub repository the person can read.
  */
-export type ProjectSource = { kind: 'local' | 'folder'; name: string; fs: ProjectFs; path?: string };
+export type ProjectSource = {
+  kind: 'local' | 'folder' | 'github';
+  name: string;
+  fs: ProjectFs;
+  path?: string;
+  /** GitHub: owner/repo and branch. */
+  repo?: string;
+  ref?: string;
+};
 
 export type RecentProject = { name: string; path: string; sfdx: boolean };
 
@@ -98,6 +116,7 @@ export type ProjectState = {
   reconnectFolder(): Promise<void>;
   useLocal(): Promise<void>;
   switchLocal(path: string): Promise<void>;
+  openGitHub(api: GitHubTransport, fullName: string, ref: string): Promise<void>;
   refresh(): Promise<void>;
   /** Components waiting to be loaded into the Metadata page's package (from a manifest or a type). */
   pendingPackage?: PendingPackage;
@@ -201,6 +220,22 @@ export function useProjectState(hostKind: 'app' | 'extension', describeFolders?:
     [base, useLocal]
   );
 
+  const openGitHub = useCallback(
+    async (api: GitHubTransport, fullName: string, ref: string) => {
+      storage.set('project.source', 'github');
+      lastRepo.set({ fullName, ref });
+      await load({
+        kind: 'github',
+        name: fullName.split('/')[1] ?? fullName,
+        repo: fullName,
+        ref,
+        path: `github.com/${fullName} @ ${ref}`,
+        fs: githubProjectFs(api, fullName, ref),
+      });
+    },
+    [load]
+  );
+
   const refresh = useCallback(async () => {
     if (source) await load(source);
   }, [source, load]);
@@ -211,6 +246,14 @@ export function useProjectState(hostKind: 'app' | 'extension', describeFolders?:
       const preferred = storage.get<string>('project.source', hostKind === 'app' ? 'local' : 'folder');
       const projects = await localProject(base);
       setLocalAvailable(Boolean(projects));
+      const repo = lastRepo.get();
+      if (preferred === 'github' && repo) {
+        const github = await currentGitHub(hostKind);
+        if (github) {
+          await openGitHub(github.api, repo.fullName, repo.ref);
+          return;
+        }
+      }
       if (projects && (preferred === 'local' || hostKind === 'app')) {
         await useLocal();
         return;
@@ -243,6 +286,7 @@ export function useProjectState(hostKind: 'app' | 'extension', describeFolders?:
     reconnectFolder,
     useLocal,
     switchLocal,
+    openGitHub,
     refresh,
     pendingPackage,
     openPackage: setPendingPackage,

@@ -1,5 +1,6 @@
 /* eslint-disable camelcase -- request fields follow the Claude API wire format */
 import Anthropic from '@anthropic-ai/sdk';
+import { resolveApiKey } from './credentials.js';
 import type { AiChat, AiConfig, AiToolDefinition, AiToolResult, AiTurn } from './types.js';
 
 /**
@@ -7,8 +8,8 @@ import type { AiChat, AiConfig, AiToolDefinition, AiToolResult, AiTurn } from '.
  * every tool call. History is append-only: each response's full content is sent back.
  */
 export function createAnthropicChat(config: AiConfig, system: string, tools: AiToolDefinition[]): AiChat {
-  const apiKey = config.apiKeyEnv ? process.env[config.apiKeyEnv] : undefined;
-  // Without a key in the configured variable the SDK resolves ANTHROPIC_AUTH_TOKEN or an `ant auth login` profile
+  const apiKey = resolveApiKey(config).key;
+  // Without a key in the configured variable or a connected key the SDK resolves ANTHROPIC_AUTH_TOKEN or an `ant auth login` profile
   const client = new Anthropic({
     ...(apiKey ? { apiKey } : {}),
     ...(config.baseUrl ? { baseURL: config.baseUrl } : {}),
@@ -58,9 +59,9 @@ export function createAnthropicChat(config: AiConfig, system: string, tools: AiT
     } catch (error) {
       if (error instanceof Anthropic.AuthenticationError) {
         throw new Error(
-          `Claude rejected the credentials. Set ${
+          `Claude rejected the credentials. Connect Claude in the NomadSF app (AI page), set ${
             config.apiKeyEnv ?? 'ANTHROPIC_API_KEY'
-          } or log in with 'ant auth login'.`
+          }, or log in with 'ant auth login'.`
         );
       }
       throw error;

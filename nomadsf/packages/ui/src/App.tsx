@@ -177,7 +177,9 @@ export function App() {
         </nav>
         <main className={localPage ? 'local' : ''}>
           {localPage && <LocalAppPage page={localPage.page} />}
-          {page === 'project' && <ProjectPage studio={studio} onOpenMetadata={() => setPage('metadata')} />}
+          {page === 'project' && (
+            <ProjectPage studio={studio} hostKind={host.kind} onOpenMetadata={() => setPage('metadata')} />
+          )}
           {page === 'tests' && (
             <TestsPage hostKind={host.kind} defaultOrg={host.kind === 'app' ? org?.id : undefined} />
           )}

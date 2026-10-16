@@ -3,16 +3,139 @@ import type { OnMount } from '@monaco-editor/react';
 import {
   describeGlobal,
   describeSObject,
+  exportSavedQueries,
+  importSavedQueries,
   mainSObject,
   query,
+  removeSavedQuery,
+  SAVED_QUERIES_FILE,
+  upsertSavedQuery,
   type FieldSummary,
   type QueryResult,
+  type SavedQuery,
   type SObjectSummary,
 } from '@nomadsf/core';
 import { CodeEditor } from '../components/CodeEditor';
-import { DataTable } from '../components/DataTable';
+import { DataTable, download } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { monaco } from '../monaco';
+import { useProject } from '../project';
+
+/** Named queries kept in this browser, exportable as nomadsf-queries.json to share with the team. */
+function SavedQueries({
+  soql,
+  tooling,
+  onLoad,
+}: {
+  soql: string;
+  tooling: boolean;
+  onLoad: (query: SavedQuery) => void;
+}) {
+  const project = useProject();
+  const [saved, setSaved] = useState<SavedQuery[]>(() => storage.get('query.saved', []));
+  const [name, setName] = useState('');
+  const [message, setMessage] = useState('');
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const update = (next: SavedQuery[], note = '') => {
+    setSaved(next);
+    storage.set('query.saved', next);
+    setMessage(note);
+  };
+  const attempt = (action: () => void) => {
+    try {
+      action();
+    } catch (e) {
+      setMessage(`❌ ${(e as Error).message}`);
+    }
+  };
+  const merge = (text: string, from: string) =>
+    attempt(() => {
+      const { list, added } = importSavedQueries(saved, text);
+      update(list, `Imported ${added} ${added === 1 ? 'query' : 'queries'} from ${from}.`);
+    });
+  const fromProject = async () => {
+    const text = await project.source?.fs.readText(SAVED_QUERIES_FILE);
+    if (text) merge(text, SAVED_QUERIES_FILE);
+    else setMessage(`No ${SAVED_QUERIES_FILE} at the root of ${project.source?.name ?? 'the project'}.`);
+  };
+
+  return (
+    <div className="card saved-queries">
+      <div className="form">
+        <input
+          placeholder="Name this query"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) =>
+            e.key === 'Enter' &&
+            attempt(() => update(upsertSavedQuery(saved, { name, soql, tooling }), `Saved “${name.trim()}”.`))
+          }
+        />
+        <button
+          disabled={!name.trim()}
+          onClick={() =>
+            attempt(() => update(upsertSavedQuery(saved, { name, soql, tooling }), `Saved “${name.trim()}”.`))
+          }
+        >
+          Save query
+        </button>
+        <span className="grow" />
+        <button
+          disabled={!saved.length}
+          onClick={() => download(SAVED_QUERIES_FILE, exportSavedQueries(saved), 'application/json')}
+        >
+          Export
+        </button>
+        <button onClick={() => fileInput.current?.click()}>Import…</button>
+        {project.source && (
+          <button title={`Read ${SAVED_QUERIES_FILE} from the project`} onClick={() => void fromProject()}>
+            From project
+          </button>
+        )}
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".json,application/json"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void file.text().then((text) => merge(text, file.name));
+            e.target.value = '';
+          }}
+        />
+      </div>
+      {saved.length > 0 ? (
+        <div className="chips">
+          {saved.map((q) => (
+            <span key={q.name} className="chip saved" title={q.soql}>
+              <button
+                className="link"
+                onClick={() => {
+                  setName(q.name);
+                  onLoad(q);
+                }}
+              >
+                {q.name}
+                {q.tooling ? ' · tooling' : ''}
+              </button>
+              <button
+                className="link"
+                aria-label={`Delete ${q.name}`}
+                onClick={() => update(removeSavedQuery(saved, q.name), `Deleted “${q.name}”.`)}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <span className="muted">No saved queries yet.</span>
+      )}
+      {message && <span className="muted">{message}</span>}
+    </div>
+  );
+}
 
 export function QueryPage() {
   const { client, org } = useStudio();
@@ -179,6 +302,14 @@ export function QueryPage() {
           {running ? 'Running…' : 'Run ⌘⏎'}
         </button>
       </div>
+      <SavedQueries
+        soql={soql}
+        tooling={tooling}
+        onLoad={(q) => {
+          setSoql(q.soql);
+          setTooling(q.tooling);
+        }}
+      />
       <div className="editor-box small">
         <CodeEditor language="soql" value={soql} onChange={setSoql} onMount={onMount} />
       </div>
