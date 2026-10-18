@@ -16,3 +16,8 @@ export * from './apexTests.js';
 export * from './code.js';
 export * from './streaming.js';
 export * from './fieldUsage.js';
+export * from './idNames.js';
+export * from './fileLookup.js';
+export * from './zip.js';
+export * from './deploy.js';
+export * from './ingestCheck.js';

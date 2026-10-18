@@ -20,6 +20,7 @@ import { ApexTestsPage } from './pages/ApexTestsPage';
 import { CodePage } from './pages/CodePage';
 import { EventsPage } from './pages/EventsPage';
 import { FieldUsagePage } from './pages/FieldUsagePage';
+import { LookupPage } from './pages/LookupPage';
 import { ProjectStateContext, useProjectState } from './project';
 
 const PAGES = [
@@ -31,6 +32,7 @@ const PAGES = [
   { id: 'query', label: 'Query', icon: '⌕' },
   { id: 'record', label: 'Record', icon: 'ⓘ' },
   { id: 'data', label: 'Data', icon: '⇅' },
+  { id: 'lookup', label: 'Lookup', icon: '⌖' },
   { id: 'access', label: 'Users & access', icon: '⚿' },
   { id: 'metadata', label: 'Metadata', icon: '◫' },
   { id: 'fields', label: 'Field usage', icon: '▦' },
@@ -41,7 +43,7 @@ const PAGES = [
   { id: 'activity', label: 'Activity', icon: '⏱' },
 ] as const;
 const host = detectHost();
-// Local app pages (pipelines, runbooks, repository) only make sense inside the extension
+// Pages of the NomadSF CLI app (CLI orgs, AI settings) only make sense inside the extension
 const LOCAL = host.kind === 'extension' ? LOCAL_PAGES : [];
 type PageId = (typeof PAGES)[number]['id'] | (typeof LOCAL_PAGES)[number]['id'];
 const isPage = (id: string): id is PageId => PAGES.some((p) => p.id === id) || LOCAL.some((p) => p.id === id);
@@ -143,8 +145,15 @@ export function App() {
   const studio: Studio | null =
     client && org ? { hostKind: host.kind, client, org, facts, user, confirmRisky, confirmChange, logActivity } : null;
 
-  const localPage = LOCAL.find((p) => p.id === page);
   const project = useProjectState(host.kind);
+  // E2E tests and the Local app pages need the NomadSF CLI app; the extension hides them without it
+  const needsLocal = (id: string): boolean => id === 'tests' || LOCAL.some((p) => p.id === id);
+  const shownPages = PAGES.filter((p) => !needsLocal(p.id) || project.localAppReady);
+  const shownLocal = project.localAppReady ? LOCAL : [];
+  const localPage = shownLocal.find((p) => p.id === page);
+  useEffect(() => {
+    if (project.localChecked && !project.localAppReady && needsLocal(page)) setPage('project');
+  }, [project.localChecked, project.localAppReady, page]);
 
   return (
     <ProjectStateContext.Provider value={project}>
@@ -185,14 +194,14 @@ export function App() {
           </button>
         </header>
         <nav className="side">
-          {PAGES.map((p) => (
+          {shownPages.map((p) => (
             <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)}>
               <span className="icon">{p.icon}</span>
               {p.label}
             </button>
           ))}
-          {LOCAL.length > 0 && <div className="nav-section">Local app</div>}
-          {LOCAL.map((p) => (
+          {shownLocal.length > 0 && <div className="nav-section">Local app</div>}
+          {shownLocal.map((p) => (
             <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)}>
               <span className="icon">{p.icon}</span>
               {p.label}
@@ -204,7 +213,7 @@ export function App() {
           {page === 'project' && (
             <ProjectPage studio={studio} hostKind={host.kind} onOpenMetadata={() => setPage('metadata')} />
           )}
-          {page === 'tests' && (
+          {page === 'tests' && project.localAppReady && (
             <TestsPage hostKind={host.kind} defaultOrg={host.kind === 'app' ? org?.id : undefined} />
           )}
           {!localPage && !['project', 'tests'].includes(page) && error && <div className="error">{error}</div>}
@@ -229,6 +238,7 @@ export function App() {
                 {page === 'code' && <CodePage />}
                 {page === 'events' && <EventsPage />}
                 {page === 'fields' && <FieldUsagePage />}
+                {page === 'lookup' && <LookupPage />}
                 {page === 'apextests' && <ApexTestsPage />}
               </InspectContext.Provider>
             </StudioContext.Provider>

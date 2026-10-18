@@ -336,6 +336,10 @@
         display: flex;
         gap: 8px;
       }
+      .ai-advanced summary {
+        cursor: pointer;
+        margin-bottom: 8px;
+      }
       .ai-row {
         margin-top: 12px;
       }
@@ -1991,9 +1995,10 @@
           if (KEY_PAGES[p.id])
             actions += ` <a href="${KEY_PAGES[p.id]}" target="_blank" rel="noreferrer">get a key ↗</a>`;
           if (p.keySource === 'connected') actions += ` <button data-off="${esc(p.id)}">Disconnect</button>`;
-          const inUse = p.id === cur.provider;
+          // "In use" only when the chosen provider can actually be used (it has a key)
+          const inUse = Boolean(ai.current && ai.current.apiKeySet) && p.id === cur.provider;
           return `<tr><td><b>${esc(p.label)}</b>${
-            inUse ? ' <span class="pill">in use</span>' : ''
+            inUse ? ` <span class="pill">in use · ${esc(cur.model)}</span>` : ''
           }</td><td>${status}</td>
             <td>${actions} ${inUse ? '' : `<button data-use="${esc(p.id)}">Use</button>`}</td></tr>
             <tr id="aiKeyRow-${esc(p.id)}" hidden><td colspan="3"><div class="form">
@@ -2016,20 +2021,18 @@
             : `<p style="color:var(--bad)">${esc(back.replace(/^error:/, ''))}</p>`;
           $('main').innerHTML = `
       <div class="card"><h2>Connect your AI account</h2>${notice}
-        <p class="desc">Runbooks use the provider marked <i>in use</i>. Subscriptions such as ChatGPT Plus or Claude Pro cannot be used by other apps; connect with a sign-in where the provider offers one (OpenRouter, GitHub Models through your GitHub or Copilot plan) or with an API key. Environment variables still win, so CI keeps working.</p>
+        <p>${
+          ai.current && ai.current.apiKeySet
+            ? `In use: <b>${esc(cur.label)}</b> · <span class="mono">${esc(cur.model)}</span>`
+            : '<b>No AI connected.</b> Connect a provider below with your own account or key, then press <b>Use</b>. Until then the ✦ AI features are off.'
+        }</p>
+        <p class="desc">AI help and runbooks use the provider marked <i>in use</i>, with your own account. Subscriptions such as ChatGPT Plus or Claude Pro cannot be used by other apps; connect with a sign-in where the provider offers one (OpenRouter, GitHub Models through your GitHub or Copilot plan) or with an API key. Environment variables still win, so CI keeps working.</p>
         <table><thead><tr><th>Provider</th><th>Status</th><th></th></tr></thead><tbody>${ai.providers
           .map((p) => aiAccountRow(p, ai, cur))
           .join('')}</tbody></table>
         <p class="desc" id="aiConnMsg"></p>
       </div>
-      <div class="card"><h2>AI provider</h2>
-        <p class="desc">${
-          ai.current
-            ? `In use: <b>${esc(cur.label)}</b> · <span class="mono">${esc(cur.model)}</span>${
-                cur.baseUrl ? ` · <span class="mono">${esc(cur.baseUrl)}</span>` : ''
-              }`
-            : esc(ai.error || '')
-        }</p>
+      <details class="card ai-advanced"><summary><b>Advanced:</b> model, base URL, API key variable</summary>
         <p class="desc">Settings are saved in the project; keys never are. Use a custom base URL for a company gateway, an Azure OpenAI deployment, or a self-hosted model.</p>
         <div class="form vertical">
           <label>Provider<select id="aiProvider">${ai.providers
@@ -2051,7 +2054,7 @@
             ai.configFile || '.fm/ai.yml'
           )}</button> <span class="desc" id="aiMsg"></span></div>
         </div>
-      </div>`;
+      </details>`;
           const say = (text) => ($('aiConnMsg').textContent = text);
           const onClick = (selector, fn) =>
             document.querySelectorAll(selector).forEach((el) => (el.onclick = () => fn(el)));

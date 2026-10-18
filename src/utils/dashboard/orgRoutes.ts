@@ -67,6 +67,16 @@ type RouteInput = { org: string; body: Body; q: (key: string) => string; context
 const ROUTES: Record<string, (input: RouteInput) => unknown> = {
   'POST org/retrieve': ({ org, body, context }) =>
     explorer.retrieveMetadata(context.cwd, { org, members: (body.members as string[] | undefined) ?? [] }),
+  'POST org/deploy': ({ org, body, context }) =>
+    explorer.deployFromProject(context.cwd, {
+      org,
+      members: (body.members as string[] | undefined) ?? [],
+      testLevel: str(body.testLevel) || undefined,
+      tests: (body.tests as string[] | undefined) ?? [],
+      checkOnly: Boolean(body.checkOnly),
+    }),
+  'POST org/deploy/quick': ({ org, body, context }) =>
+    explorer.quickDeployFromProject(context.cwd, org, str(body.jobId)),
   'GET org/activity': ({ context }) => explorer.readActivity(context.cwd),
   // NomadSF Studio records its changes in the project's activity log too
   'POST org/activity': ({ org, body, context }) => {

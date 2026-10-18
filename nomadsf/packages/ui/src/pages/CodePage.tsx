@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import {
-  createApexClass,
+  createCode,
+  isBundle,
   listCode,
-  newClassTemplate,
   openCode,
   saveApex,
-  saveLwcFile,
+  saveBundleFile,
   type CodeFile,
   type CodeItem,
   type CodeKind,
@@ -16,13 +16,17 @@ import { CodeEditor } from '../components/CodeEditor';
 import { storage, useStudio } from '../context';
 import { monaco } from '../monaco';
 
-const KINDS: Array<{ id: CodeKind; label: string }> = [
-  { id: 'ApexClass', label: 'Classes' },
-  { id: 'ApexTrigger', label: 'Triggers' },
-  { id: 'LWC', label: 'LWC' },
+const KINDS: Array<{ id: CodeKind; label: string; one: string }> = [
+  { id: 'ApexClass', label: 'Classes', one: 'Apex class' },
+  { id: 'ApexTrigger', label: 'Triggers', one: 'Apex trigger' },
+  { id: 'ApexPage', label: 'VF pages', one: 'Visualforce page' },
+  { id: 'ApexComponent', label: 'VF components', one: 'Visualforce component' },
+  { id: 'LWC', label: 'LWC', one: 'Lightning web component' },
+  { id: 'Aura', label: 'Aura', one: 'Aura component' },
 ];
+const kindInfo = (id: CodeKind): (typeof KINDS)[number] => KINDS.find((k) => k.id === id) ?? KINDS[0];
 
-/** Developer Console's editor: open, compile and save Apex classes, triggers and LWC files. */
+/** Developer Console's editor: open, compile and save Apex, Visualforce, LWC and Aura source. */
 export function CodePage() {
   const studio = useStudio();
   const { client, facts } = studio;
@@ -128,7 +132,7 @@ export function CodePage() {
     }
   };
 
-  const saveLwc = async () => {
+  const saveBundle = async () => {
     if (!item || !dirty.length) return;
     if (!studio.confirmChange(`Save ${dirty.length} file(s) of ${item.name} to ${studio.org.label}`)) return;
     setBusy(true);
@@ -136,15 +140,15 @@ export function CodePage() {
     try {
       for (const file of dirty) {
         // eslint-disable-next-line no-await-in-loop
-        await saveLwcFile(client, file.id, drafts[file.id]);
+        await saveBundleFile(client, item.kind as 'LWC' | 'Aura', file.id, drafts[file.id]);
       }
-      studio.logActivity('save code', { kind: 'LWC', name: item.name, files: dirty.map((f) => f.path) });
+      studio.logActivity('save code', { kind: item.kind, name: item.name, files: dirty.map((f) => f.path) });
       setFiles(files.map((f) => (drafts[f.id] !== undefined ? { ...f, source: drafts[f.id] } : f)));
       setDrafts({});
       setProblems([]);
       setStatus('✓ Saved.');
     } catch (e) {
-      // LWC compile errors come back as the save error
+      // LWC / Aura compile errors come back as the save error
       setProblems([{ problem: (e as Error).message }]);
       setStatus(`❌ ${(e as Error).message}`);
     } finally {
@@ -152,16 +156,26 @@ export function CodePage() {
     }
   };
 
-  const newClass = async () => {
-    const name = prompt('Name of the new Apex class:')?.trim();
+  /** Creates a new item of the current kind from a starter template and opens it. */
+  const createNew = async () => {
+    const info = kindInfo(kind);
+    const name = prompt(
+      kind === 'LWC' ? `Name of the new ${info.one} (camelCase, e.g. accountCard):` : `Name of the new ${info.one}:`
+    )?.trim();
     if (!name) return;
-    if (!/^[A-Za-z]\w{0,39}$/.test(name)) return setStatus('❌ Use letters, digits and _ (max 40).');
-    if (!studio.confirmChange(`Create the Apex class ${name} in ${studio.org.label}`)) return;
+    let sobject: string | undefined;
+    if (kind === 'ApexTrigger') {
+      sobject = prompt(`Object the trigger ${name} runs on (API name, e.g. Account or Invoice__c):`)?.trim();
+      if (!sobject) return;
+    }
+    if (!studio.confirmChange(`Create the ${info.one} ${name} in ${studio.org.label}`)) return;
+    setStatus(`Creating ${name}…`);
     try {
-      const id = await createApexClass(client, newClassTemplate(name));
-      studio.logActivity('create class', { name });
+      const created = await createCode(client, { kind, name, sobject });
+      studio.logActivity('create code', { kind, name, sobject });
       await load();
-      await openItem({ id, name, kind: 'ApexClass' });
+      await openItem(created);
+      setStatus(`✓ Created ${name}.`);
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
     }
@@ -182,12 +196,14 @@ export function CodePage() {
           ))}
         </div>
         <span className="grow" />
-        {kind === 'ApexClass' && (
-          <button disabled={apexLocked} onClick={() => void newClass()}>
-            New class
-          </button>
-        )}
-        {item && item.kind !== 'LWC' && (
+        <button
+          disabled={apexLocked && !isBundle(kind)}
+          title={`Create a ${kindInfo(kind).one} from a starter template`}
+          onClick={() => void createNew()}
+        >
+          New {kindInfo(kind).one}
+        </button>
+        {item && !isBundle(item.kind) && (
           <>
             <button disabled={busy} onClick={() => void compile(true)}>
               Check
@@ -201,15 +217,16 @@ export function CodePage() {
             </button>
           </>
         )}
-        {item?.kind === 'LWC' && (
-          <button className="primary" disabled={busy || !dirty.length} onClick={() => void saveLwc()}>
+        {item && isBundle(item.kind) && (
+          <button className="primary" disabled={busy || !dirty.length} onClick={() => void saveBundle()}>
             Save {dirty.length || ''}
           </button>
         )}
       </div>
-      {apexLocked && kind !== 'LWC' && (
+      {apexLocked && !isBundle(kind) && (
         <p className="muted">
-          Production org: Salesforce only accepts Apex changes through a deployment. Opening and Check still work.
+          Production org: Salesforce only accepts Apex and Visualforce changes through a deployment. Opening and Check
+          still work.
         </p>
       )}
       {status && <p className="muted">{status}</p>}
@@ -238,11 +255,8 @@ export function CodePage() {
         <div className="card section">
           {!file ? (
             <p className="muted">
-              Open a{' '}
-              {KINDS.find((k) => k.id === kind)
-                ?.label.toLowerCase()
-                .replace(/s$/, '')}{' '}
-              on the left.
+              Open {/^[AEIOU]/.test(kindInfo(kind).one) ? 'an' : 'a'} {kindInfo(kind).one} on the left, or create a new
+              one.
             </p>
           ) : (
             <>

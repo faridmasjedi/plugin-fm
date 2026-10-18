@@ -76,7 +76,7 @@ export function TestsPage({ hostKind, defaultOrg }: { hostKind: 'app' | 'extensi
   return (
     <div className="page">
       <div className="toolbar">
-        <h2>Tests</h2>
+        <h2>E2E tests</h2>
         <span className="muted">Playwright scenarios of the project, logged in through the frontdoor URL</span>
         <span className="grow" />
         <button onClick={() => void load()}>Refresh</button>

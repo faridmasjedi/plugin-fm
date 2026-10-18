@@ -1,19 +1,10 @@
 import { useState } from 'react';
-import { listMetadata, parsePackageXml, type ProjectTypeSummary } from '@nomadsf/core';
+import { parsePackageXml, type ProjectTypeSummary } from '@nomadsf/core';
 import { DataTable } from '../components/DataTable';
 import { GitHubCard } from '../components/GitHubCard';
+import { ProjectCompare } from '../components/ProjectCompare';
 import { useProject } from '../project';
 import type { Studio } from '../context';
-
-type Comparison = {
-  type: string;
-  rows: Array<{ name: string; where: string }>;
-  onlyOrg: number;
-  onlyProject: number;
-  both: number;
-};
-
-const FOLDER_BASED = new Set(['Report', 'Dashboard', 'Document', 'EmailTemplate']);
 
 /** The Salesforce project (repository): package directories, types, manifests, compare with the org. */
 export function ProjectPage({
@@ -27,7 +18,6 @@ export function ProjectPage({
 }) {
   const project = useProject();
   const [type, setType] = useState<ProjectTypeSummary | null>(null);
-  const [comparison, setComparison] = useState<Comparison | null>(null);
   const [status, setStatus] = useState('');
   const [switchPath, setSwitchPath] = useState('');
   const { source, info } = project;
@@ -37,34 +27,6 @@ export function ProjectPage({
     if (!text) return setStatus(`❌ Could not read ${path}.`);
     project.openPackage({ label: path, types: parsePackageXml(text) });
     onOpenMetadata();
-  };
-
-  const compare = async (t: ProjectTypeSummary) => {
-    if (!studio) return setStatus('Connect an org to compare.');
-    setStatus(`Listing ${t.type} in ${studio.org.label}…`);
-    try {
-      const inOrg = new Set(
-        (await listMetadata(studio.client, t.type, FOLDER_BASED.has(t.type)))
-          .filter((c) => c.type === t.type)
-          .map((c) => c.fullName)
-      );
-      const inProject = new Set(t.names);
-      const names = [...new Set([...inOrg, ...inProject])].sort();
-      const rows = names.map((name) => ({
-        name,
-        where: inOrg.has(name) && inProject.has(name) ? 'both' : inOrg.has(name) ? 'only in org' : 'only in project',
-      }));
-      setComparison({
-        type: t.type,
-        rows,
-        onlyOrg: rows.filter((r) => r.where === 'only in org').length,
-        onlyProject: rows.filter((r) => r.where === 'only in project').length,
-        both: rows.filter((r) => r.where === 'both').length,
-      });
-      setStatus('');
-    } catch (e) {
-      setStatus(`❌ ${(e as Error).message}`);
-    }
   };
 
   // Only the app (sf fm dashboard) has a project of its own; the extension uses a folder or GitHub
@@ -191,6 +153,12 @@ export function ProjectPage({
             )}
           </div>
 
+          {studio ? (
+            <ProjectCompare studio={studio} info={info} />
+          ) : (
+            <p className="muted">Connect an org to compare the project with it.</p>
+          )}
+
           <div className="split">
             <div className="card section">
               {info.packageDirectories.map((dir) => (
@@ -210,7 +178,6 @@ export function ProjectPage({
                     name={`${dir.path}-types`}
                     onRowClick={(row) => {
                       setType(dir.types.find((t) => t.type === row.type) ?? null);
-                      setComparison(null);
                     }}
                     note={<span>· click a type</span>}
                   />
@@ -234,7 +201,8 @@ export function ProjectPage({
             <div className="card section">
               {!type ? (
                 <p className="muted">
-                  Click a type to see its components, compare them with the org, or put them in a package.
+                  Click a type to see its components or put them in a package. To compare with the org, use Compare
+                  above.
                 </p>
               ) : (
                 <>
@@ -242,9 +210,6 @@ export function ProjectPage({
                     {type.type} <span className="muted">({type.count} in the project)</span>
                   </h3>
                   <div className="form">
-                    <button className="primary" disabled={!studio} onClick={() => void compare(type)}>
-                      Compare with {studio?.org.label ?? 'the org'}
-                    </button>
                     <button
                       onClick={() => {
                         project.openPackage({
@@ -257,34 +222,12 @@ export function ProjectPage({
                       Add all to package
                     </button>
                   </div>
-                  {comparison && comparison.type === type.type ? (
-                    <>
-                      <div className="metrics">
-                        <div className="metric">
-                          <b>{comparison.both}</b>in both
-                        </div>
-                        <div className={`metric ${comparison.onlyOrg ? 'bad' : ''}`}>
-                          <b>{comparison.onlyOrg}</b>only in org
-                        </div>
-                        <div className={`metric ${comparison.onlyProject ? 'bad' : ''}`}>
-                          <b>{comparison.onlyProject}</b>only in project
-                        </div>
-                      </div>
-                      <DataTable
-                        columns={['name', 'where']}
-                        rows={comparison.rows}
-                        rowKey="name"
-                        name={`${type.type}-compare`}
-                      />
-                    </>
-                  ) : (
-                    <DataTable
-                      columns={['name']}
-                      rows={type.names.map((name) => ({ name }))}
-                      rowKey="name"
-                      name={`${type.type}-components`}
-                    />
-                  )}
+                  <DataTable
+                    columns={['name']}
+                    rows={type.names.map((name) => ({ name }))}
+                    rowKey="name"
+                    name={`${type.type}-components`}
+                  />
                 </>
               )}
             </div>

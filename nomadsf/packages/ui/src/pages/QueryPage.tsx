@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import {
   describeGlobal,
   describeSObject,
   exportSavedQueries,
   importSavedQueries,
+  lookupIdNames,
   mainSObject,
   openQuery,
+  withIdNames,
+  type IdNameLookup,
   queryMore,
   removeSavedQuery,
   SAVED_QUERIES_FILE,
@@ -151,6 +154,7 @@ function objectsInQuestion(question: string, objects: SObjectSummary[], current?
 
 export function QueryPage() {
   const { client, org, hostKind } = useStudio();
+  const project = useProject();
   const [question, setQuestion] = useState('');
   const [saved, setSavedState] = useState<SavedQuery[]>(() => storage.get('query.saved', []));
   const [savedName, setSavedName] = useState('');
@@ -168,6 +172,10 @@ export function QueryPage() {
   const [result, setResult] = useState<QueryCursor | null>(null);
   const [ranSoql, setRanSoql] = useState('');
   const [loading, setLoading] = useState(false);
+  // Names for Id columns SOQL cannot follow (e.g. LoginHistory.UserId)
+  const [idNames, setIdNames] = useState<boolean>(() => storage.get('query.idNames', false));
+  const [lookup, setLookup] = useState<IdNameLookup | null>(null);
+  const [lookingUp, setLookingUp] = useState(false);
   // Each load has a token; Stop or a new query changes it and the old loop ends
   const loadToken = useRef(0);
   const [error, setError] = useState('');
@@ -266,6 +274,30 @@ export function QueryPage() {
     [client]
   );
 
+  // Once rows stop loading, look up names for their Id columns (only Ids not seen before)
+  useEffect(() => {
+    if (!idNames || !result || loading || running) return;
+    let canceled = false;
+    setLookingUp(true);
+    lookupIdNames(client, result.columns, result.rows, { known: lookup ?? undefined })
+      .then((found) => !canceled && setLookup(found))
+      .catch(() => undefined)
+      .finally(() => !canceled && setLookingUp(false));
+    return () => {
+      canceled = true;
+    };
+    // `lookup` is an input to the next lookup, not a trigger
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, result, loading, running, idNames]);
+
+  const shown = useMemo(
+    () =>
+      result && idNames && lookup
+        ? withIdNames(result.columns, result.rows, lookup)
+        : { columns: result?.columns ?? [], rows: result?.rows ?? [] },
+    [result, idNames, lookup]
+  );
+
   const run = useCallback(async () => {
     const editor = editorRef.current;
     const selection = editor?.getSelection();
@@ -279,6 +311,7 @@ export function QueryPage() {
       const first = await openQuery(client, text, { tooling, includeDeleted });
       setResult(first);
       setRanSoql(text);
+      setLookup(null);
       const next = [text, ...history.filter((h) => h !== text)].slice(0, 30);
       setHistory(next);
       storage.set('query.history', next);
@@ -368,6 +401,20 @@ export function QueryPage() {
           />{' '}
           Deleted &amp; archived
         </label>
+        <label
+          className="check"
+          title="Adds name columns next to Id columns SOQL cannot follow, e.g. LoginHistory.UserId → Name, Username"
+        >
+          <input
+            type="checkbox"
+            checked={idNames}
+            onChange={(e) => {
+              setIdNames(e.target.checked);
+              storage.set('query.idNames', e.target.checked);
+            }}
+          />{' '}
+          Names for Ids
+        </label>
         <select
           value=""
           title="Saved queries"
@@ -400,21 +447,23 @@ export function QueryPage() {
           {running ? 'Running…' : 'Run ⌘⏎'}
         </button>
       </div>
-      <div className="form ai-ask">
-        <input
-          placeholder="✦ Ask in plain English, e.g. accounts in Sydney created this year with their open opportunities"
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && question.trim() && void askSoql()}
-        />
-        <button
-          disabled={!question.trim() || asking}
-          onClick={() => void askSoql()}
-          title="Sends the question and the names of this org's objects and fields to the AI connected in NomadSF"
-        >
-          {asking ? 'Writing…' : '✦ Write SOQL'}
-        </button>
-      </div>
+      {project.aiReady && (
+        <div className="form ai-ask">
+          <input
+            placeholder="✦ Ask in plain English, e.g. accounts in Sydney created this year with their open opportunities"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && question.trim() && void askSoql()}
+          />
+          <button
+            disabled={!question.trim() || asking}
+            onClick={() => void askSoql()}
+            title="Sends the question and the names of this org's objects and fields to the AI connected in NomadSF"
+          >
+            {asking ? 'Writing…' : '✦ Write SOQL'}
+          </button>
+        </div>
+      )}
       <SavedQueries
         soql={soql}
         tooling={tooling}
@@ -455,12 +504,17 @@ export function QueryPage() {
               </>
             ) : null}
             <span className="grow" />
-            <QueryExport soql={ranSoql} cursor={result} includeDeleted={includeDeleted} />
+            {lookingUp && <span className="muted">Looking up names…</span>}
+            <QueryExport
+              soql={ranSoql}
+              cursor={{ ...result, columns: shown.columns, rows: shown.rows }}
+              includeDeleted={includeDeleted}
+            />
           </div>
           <DataTable
             name={result.sobject ?? 'query'}
-            columns={result.columns}
-            rows={result.rows}
+            columns={shown.columns}
+            rows={shown.rows}
             instanceUrl={org.instanceUrl}
             note={
               <>

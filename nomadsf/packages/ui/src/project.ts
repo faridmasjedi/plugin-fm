@@ -112,6 +112,12 @@ export type ProjectState = {
   needsPermission: boolean;
   canPickFolder: boolean;
   localAvailable: boolean;
+  /** The NomadSF CLI app can be used: always in the app; in the extension when it answers. */
+  localAppReady: boolean;
+  /** The extension has checked for the CLI app at least once. */
+  localChecked: boolean;
+  /** The CLI app has an AI connected (a provider with a key): the ✦ AI buttons are shown only then. */
+  aiReady: boolean;
   pickFolder(): Promise<void>;
   reconnectFolder(): Promise<void>;
   useLocal(): Promise<void>;
@@ -141,6 +147,8 @@ export function useProjectState(hostKind: 'app' | 'extension', describeFolders?:
   const [error, setError] = useState('');
   const [needsPermission, setNeedsPermission] = useState(false);
   const [localAvailable, setLocalAvailable] = useState(false);
+  const [localChecked, setLocalChecked] = useState(false);
+  const [aiReady, setAiReady] = useState(false);
   const [pendingPackage, setPendingPackage] = useState<PendingPackage>();
   const base = localAppBase(hostKind);
 
@@ -240,12 +248,40 @@ export function useProjectState(hostKind: 'app' | 'extension', describeFolders?:
     if (source) await load(source);
   }, [source, load]);
 
+  // Is an AI connected in the CLI app? Checked when the app is found and whenever the tab gets focus
+  useEffect(() => {
+    if (hostKind !== 'app' && !localAvailable) {
+      setAiReady(false);
+      return undefined;
+    }
+    const check = (): void => {
+      fetch(`${base}/api/ai`, { cache: 'no-store' })
+        .then((res) => (res.ok ? (res.json() as Promise<{ current?: { apiKeySet?: boolean } }>) : undefined))
+        .then((ai) => setAiReady(Boolean(ai?.current?.apiKeySet)))
+        .catch(() => setAiReady(false));
+    };
+    check();
+    window.addEventListener('focus', check);
+    return () => window.removeEventListener('focus', check);
+  }, [base, hostKind, localAvailable]);
+
+  // The extension looks for the CLI app again whenever its tab gets focus (started or stopped since)
+  useEffect(() => {
+    if (hostKind === 'app') return undefined;
+    const check = (): void => {
+      void localProject(base).then((projects) => setLocalAvailable(Boolean(projects)));
+    };
+    window.addEventListener('focus', check);
+    return () => window.removeEventListener('focus', check);
+  }, [base, hostKind]);
+
   // Start with the last choice: local app first, then a stored folder
   useEffect(() => {
     void (async () => {
       const preferred = storage.get<string>('project.source', hostKind === 'app' ? 'local' : 'folder');
       const projects = await localProject(base);
       setLocalAvailable(Boolean(projects));
+      setLocalChecked(true);
       const repo = lastRepo.get();
       if (preferred === 'github' && repo) {
         const github = await currentGitHub(hostKind);
@@ -279,6 +315,9 @@ export function useProjectState(hostKind: 'app' | 'extension', describeFolders?:
     needsPermission,
     canPickFolder: supportsFolders(),
     localAvailable,
+    localAppReady: hostKind === 'app' || localAvailable,
+    aiReady,
+    localChecked: hostKind === 'app' || localChecked,
     pickFolder,
     reconnectFolder,
     useLocal,

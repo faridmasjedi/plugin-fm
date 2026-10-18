@@ -16,6 +16,8 @@ export function FieldUsagePage() {
   const { client } = useStudio();
   const [objects, setObjects] = useState<SObjectSummary[]>([]);
   const [sobject, setSobject] = useState<string>(() => storage.get('fields.object', 'Account'));
+  // What is typed in the box; an object loads only once this is a real object name
+  const [typed, setTyped] = useState(sobject);
   const [fields, setFields] = useState<FieldInfo[] | null>(null);
   const [total, setTotal] = useState(0);
   const [onlyCustom, setOnlyCustom] = useState(true);
@@ -81,8 +83,24 @@ export function FieldUsagePage() {
         <h2>Field usage</h2>
         <input
           list="field-usage-objects"
-          value={sobject}
-          onChange={(e) => /^\w+$/.test(e.target.value) && setSobject(e.target.value)}
+          value={typed}
+          placeholder="Object, e.g. Account"
+          onChange={(e) => {
+            const value = e.target.value;
+            setTyped(value);
+            // Picking from the list (or typing a full name) opens it; partial text just filters the list
+            const match = objects.find((o) => o.name.toLowerCase() === value.trim().toLowerCase());
+            if (match && match.name !== sobject) setSobject(match.name);
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter') return;
+            const match = objects.find((o) => o.name.toLowerCase() === typed.trim().toLowerCase());
+            if (match) setSobject(match.name);
+            else setStatus(`❌ No object called "${typed.trim()}" in this org.`);
+          }}
+          onBlur={() => {
+            if (!objects.some((o) => o.name.toLowerCase() === typed.trim().toLowerCase())) setTyped(sobject);
+          }}
           style={{ minWidth: 240 }}
         />
         <datalist id="field-usage-objects">

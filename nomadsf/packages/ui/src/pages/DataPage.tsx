@@ -1,17 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   bulkIngest,
-  bulkQuery,
+  checkColumns,
   deleteByQuery,
+  fieldRules,
   describeGlobal,
   mainSObject,
   parseCsv,
   query,
+  toCsv,
+  type FieldRule,
   type IngestOperation,
   type IngestResult,
 } from '@nomadsf/core';
 import { DataTable } from '../components/DataTable';
-import { storage, useStudio } from '../context';
+import { EditableGrid, type GridRow } from '../components/EditableGrid';
+import { useStudio } from '../context';
 
 const OPERATIONS: Array<[IngestOperation, string]> = [
   ['insert', 'Insert'],
@@ -30,11 +34,6 @@ function saveFile(name: string, content: string): void {
 }
 
 const stamp = (): string => new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
-
-function Preview({ csv, name, instanceUrl }: { csv: string; name: string; instanceUrl?: string }) {
-  const table = parseCsv(csv);
-  return <DataTable columns={table.columns} rows={table.rows} name={name} rowKey="__none" instanceUrl={instanceUrl} />;
-}
 
 function IngestSummary({ result, orgLabel, object }: { result: IngestResult; orgLabel: string; object: string }) {
   const failed = parseCsv(result.failedCsv);
@@ -84,51 +83,69 @@ export function DataPage() {
       .catch(() => undefined);
   }, [client]);
 
-  // ---------- export ----------
-  const [exportSoql, setExportSoql] = useState<string>(() =>
-    storage.get('data.export', 'SELECT Id, Name FROM Account')
-  );
-  const [exportDeleted, setExportDeleted] = useState(false);
-  const [exportCsv, setExportCsv] = useState('');
-  const [exportStatus, setExportStatus] = useState('');
-
-  const runExport = async () => {
-    storage.set('data.export', exportSoql);
-    setExportCsv('');
-    setExportStatus('Starting Bulk query…');
-    try {
-      const r = await bulkQuery(client, exportSoql, {
-        includeDeleted: exportDeleted,
-        onProgress: (state) => setExportStatus(`Bulk query: ${state}…`),
-      });
-      setExportCsv(r.csv);
-      setExportStatus(`${r.rows.toLocaleString()} rows · job ${r.jobId}`);
-      saveFile(`${org.label}-${mainSObject(exportSoql) ?? 'export'}-${stamp()}.csv`, r.csv);
-      logActivity('bulk-export', { soql: exportSoql, rows: r.rows });
-    } catch (e) {
-      setExportStatus(`❌ ${(e as Error).message}`);
-    }
-  };
-
   // ---------- import ----------
   const [object, setObject] = useState('');
   const [operation, setOperation] = useState<IngestOperation>('insert');
   const [externalId, setExternalId] = useState('');
-  const [file, setFile] = useState<{ name: string; csv: string } | null>(null);
+  // The uploaded file as editable rows; what is sent is the edited, included rows
+  const [file, setFile] = useState<{ name: string; columns: string[] } | null>(null);
+  const [rows, setRows] = useState<GridRow[]>([]);
+  const [original, setOriginal] = useState<Map<number, Record<string, string>>>(new Map());
+  const [included, setIncluded] = useState<Set<number>>(new Set());
   const [ingestStatus, setIngestStatus] = useState('');
   const [ingest, setIngest] = useState<IngestResult | null>(null);
-  const preview = file ? parseCsv(file.csv) : null;
+  const toSend = useMemo(() => rows.filter((r) => included.has(r.id)), [rows, included]);
+
+  // Which columns Salesforce accepts for this object and operation; the others start unticked
+  const [rules, setRules] = useState<FieldRule[] | null>(null);
+  const [sendColumns, setSendColumns] = useState<Set<string>>(new Set());
+  const knownObject = objects.find((o) => o.toLowerCase() === object.trim().toLowerCase());
+  useEffect(() => {
+    setRules(null);
+    if (!knownObject) return;
+    fieldRules(client, knownObject)
+      .then(setRules)
+      .catch(() => setRules(null));
+  }, [client, knownObject]);
+  const report = useMemo(
+    () => (rules && file ? checkColumns(rules, file.columns, operation, externalId || undefined) : null),
+    [rules, file, operation, externalId]
+  );
+  useEffect(() => {
+    if (report) setSendColumns(new Set(report.columns.filter((c) => c.ok).map((c) => c.column)));
+    else if (file) setSendColumns(new Set(file.columns));
+  }, [report, file]);
+  const columnsToSend = (file?.columns ?? []).filter((c) => sendColumns.has(c));
+
+  const openFile = async (f: File) => {
+    const table = parseCsv(await f.text());
+    const loaded = table.rows.map((values, id) => ({ id, values }));
+    setFile({ name: f.name, columns: table.columns });
+    setRows(loaded);
+    setOriginal(new Map(loaded.map((r) => [r.id, r.values])));
+    setIncluded(new Set(loaded.map((r) => r.id)));
+    setIngest(null);
+    setIngestStatus('');
+  };
 
   const runIngest = async () => {
-    if (!file || !object || !preview) return;
+    if (!file || !object || !toSend.length || report?.problems.length || !columnsToSend.length) return;
     const label = OPERATIONS.find(([op]) => op === operation)?.[1];
-    if (!confirmChange(`${label} ${preview.rows.length.toLocaleString()} ${object} record(s) in ${org.label}.`)) return;
+    if (!confirmChange(`${label} ${toSend.length.toLocaleString()} ${object} record(s) in ${org.label}.`)) return;
     setIngest(null);
     setIngestStatus('Uploading…');
     try {
       const r = await bulkIngest(
         client,
-        { object, operation, csv: file.csv, externalIdField: externalId || undefined },
+        {
+          object,
+          operation,
+          csv: toCsv(
+            columnsToSend,
+            toSend.map((r) => r.values)
+          ),
+          externalIdField: externalId || undefined,
+        },
         { onProgress: (state, n) => setIngestStatus(`Bulk ${operation}: ${state} · ${n} processed…`) }
       );
       setIngest(r);
@@ -136,6 +153,8 @@ export function DataPage() {
       logActivity(`bulk-${operation}`, {
         object,
         file: file.name,
+        rows: toSend.length,
+        columns: columnsToSend,
         processed: r.processed,
         failed: r.failed,
         job: r.jobId,
@@ -199,23 +218,12 @@ export function DataPage() {
         ))}
       </datalist>
 
-      <div className="card section">
-        <h3>Export</h3>
-        <textarea rows={3} value={exportSoql} onChange={(e) => setExportSoql(e.target.value)} spellCheck={false} />
-        <div className="form">
-          <label className="check">
-            <input type="checkbox" checked={exportDeleted} onChange={(e) => setExportDeleted(e.target.checked)} />{' '}
-            Include deleted &amp; archived
-          </label>
-          <button className="primary" onClick={() => void runExport()}>
-            Export CSV
-          </button>
-          <span className="muted">{exportStatus}</span>
-        </div>
-        {exportCsv && <Preview csv={exportCsv} name="export" instanceUrl={org.instanceUrl} />}
-      </div>
+      <p className="muted" style={{ margin: 0 }}>
+        To export records, use <b>Query</b>: Export CSV there uses the Bulk API for large results, including deleted
+        &amp; archived rows.
+      </p>
 
-      <div className="grid2">
+      <div className="data-sections">
         <div className="card section">
           <h3>Import, update or delete from CSV</h3>
           <p className="muted" style={{ margin: 0 }}>
@@ -253,25 +261,65 @@ export function DataPage() {
                 accept=".csv,text/csv"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
-                  if (!f) return;
-                  void f.text().then((csv) => setFile({ name: f.name, csv }));
+                  if (f) void openFile(f);
+                  e.target.value = '';
                 }}
               />
             </label>
           </div>
-          {preview && (
-            <p className="muted" style={{ margin: 0 }}>
-              {file?.name}: {preview.rows.length.toLocaleString()} rows · columns{' '}
-              <code>{preview.columns.join(', ')}</code>
-            </p>
+          {file && (
+            <>
+              <p className="muted" style={{ margin: 0 }}>
+                {file.name} · columns <code>{file.columns.join(', ')}</code> · click a cell to change it before running
+              </p>
+              {!knownObject && <p className="muted">Choose the object to check which columns Salesforce accepts.</p>}
+              {report && (
+                <div className="column-check">
+                  {report.problems.map((p) => (
+                    <div key={p} className="error">
+                      {p}
+                    </div>
+                  ))}
+                  <b>Columns to send</b>
+                  <div className="column-list">
+                    {report.columns.map((c) => (
+                      <label key={c.column} className={`check ${c.ok ? '' : 'warn'}`} title={c.reason}>
+                        <input
+                          type="checkbox"
+                          checked={sendColumns.has(c.column)}
+                          onChange={(e) => {
+                            const next = new Set(sendColumns);
+                            if (e.target.checked) next.add(c.column);
+                            else next.delete(c.column);
+                            setSendColumns(next);
+                          }}
+                        />{' '}
+                        {c.ok ? '✓' : '⚠'} <code>{c.column}</code>
+                        {c.reason && <span className="muted"> — {c.reason}</span>}
+                      </label>
+                    ))}
+                  </div>
+                  {report.columns.some((c) => !c.ok) && (
+                    <span className="muted">
+                      Columns marked ⚠ would fail every row, so they start unticked; tick one to send it anyway.
+                    </span>
+                  )}
+                </div>
+              )}
+              <EditableGrid
+                mutedColumns={new Set(file.columns.filter((c) => !sendColumns.has(c)))}
+                columns={file.columns}
+                rows={rows}
+                original={original}
+                included={included}
+                onRowsChange={setRows}
+                onIncludedChange={setIncluded}
+              />
+            </>
           )}
           <div className="form">
-            <button
-              className="primary"
-              disabled={!preview || preview.rows.length === 0 || !object}
-              onClick={() => void runIngest()}
-            >
-              Run…
+            <button className="primary" disabled={!toSend.length || !object} onClick={() => void runIngest()}>
+              Run on {toSend.length.toLocaleString()} row(s), {columnsToSend.length} column(s)…
             </button>
             <span className="muted">{ingestStatus}</span>
           </div>

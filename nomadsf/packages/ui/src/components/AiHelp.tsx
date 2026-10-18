@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react';
 import { StudioContext } from '../context';
-import { localAppBase } from '../project';
+import { localAppBase, useProject } from '../project';
 
 export type AiAnswer = { text: string; model: string; provider: string; sentChars: number; soql?: string };
 
@@ -50,6 +50,7 @@ export function AiExplain({
   what: string;
 }) {
   const hostKind = useContext(StudioContext)?.hostKind ?? 'app';
+  const { aiReady } = useProject();
   const [answer, setAnswer] = useState<AiAnswer | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -65,6 +66,9 @@ export function AiExplain({
       setBusy(false);
     }
   };
+
+  // AI help runs through the NomadSF CLI app with an AI the person connected there
+  if (!aiReady) return null;
 
   return (
     <div className="ai-help">
