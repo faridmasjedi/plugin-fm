@@ -684,3 +684,10 @@ table.events tbody tr {
 table.events tbody tr.selected {
   background: var(--accent-soft);
 }
+.query-more {
+  margin-bottom: 8px;
+  align-items: center;
+}
+.query-export {
+  align-items: center;
+}

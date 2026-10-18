@@ -254,7 +254,7 @@ export function useProjectState(hostKind: 'app' | 'extension', describeFolders?:
           return;
         }
       }
-      if (projects && (preferred === 'local' || hostKind === 'app')) {
+      if (hostKind === 'app' && projects) {
         await useLocal();
         return;
       }
@@ -263,10 +263,7 @@ export function useProjectState(hostKind: 'app' | 'extension', describeFolders?:
         'readonly',
         (s) => s.get('project') as IDBRequest<DirHandle | undefined>
       ).catch(() => undefined);
-      if (!handle) {
-        if (projects) await useLocal();
-        return;
-      }
+      if (!handle) return;
       if ((await handle.queryPermission({ mode: 'read' })) === 'granted') await fromHandle(handle);
       else setNeedsPermission(true);
     })();

@@ -64,3 +64,12 @@ export function toCsv(columns: string[], rows: Array<Record<string, unknown>>): 
 export function csvRowCount(text: string): number {
   return Math.max(0, parseCsv(text).rows.length);
 }
+
+/** Splits rows into CSV files of at most `rowsPerFile` rows, each with the header row. */
+export function toCsvFiles(columns: string[], rows: Array<Record<string, unknown>>, rowsPerFile: number): string[] {
+  if (rowsPerFile < 1) throw new Error('Rows per file must be at least 1.');
+  const files: string[] = [];
+  for (let i = 0; i < Math.max(rows.length, 1); i += rowsPerFile)
+    files.push(toCsv(columns, rows.slice(i, i + rowsPerFile)));
+  return files;
+}

@@ -25,7 +25,13 @@ export async function askAi(
       'AI help runs through the local NomadSF app: start `sf fm dashboard`, then connect an AI on its AI page.'
     );
   }
-  const answer = (await res.json()) as AiAnswer & { error?: string };
+  const answer = (await res.json().catch(() => ({}))) as AiAnswer & { error?: string };
+  // An app started before AI help existed answers 404: it has to be restarted (or updated)
+  if (res.status === 404) {
+    throw new Error(
+      'The running NomadSF app is older than this Studio and has no AI help yet. Restart `sf fm dashboard` (update the plugin first if needed).'
+    );
+  }
   if (!res.ok || answer.error) throw new Error(answer.error ?? res.statusText);
   return answer;
 }

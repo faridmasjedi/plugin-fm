@@ -67,6 +67,51 @@ export function ProjectPage({
     }
   };
 
+  // Only the app (sf fm dashboard) has a project of its own; the extension uses a folder or GitHub
+  const localCard = (
+    <div className="card section">
+      <h3>Projects of this app</h3>
+      {project.localAvailable ? (
+        <>
+          <p className="muted" style={{ margin: 0 }}>
+            Your Salesforce project as opened by <code>sf fm dashboard</code> on this computer. Runs, runbooks, AI help
+            and retrieve into the project follow the project you choose here.
+          </p>
+          <div className="form">
+            <button className={source?.kind === 'local' ? '' : 'primary'} onClick={() => void project.useLocal()}>
+              Use the local app project
+            </button>
+            {project.recent.length > 0 && (
+              <select value="" onChange={(e) => e.target.value && void project.switchLocal(e.target.value)}>
+                <option value="">Switch to a recent project…</option>
+                {project.recent.map((r) => (
+                  <option key={r.path} value={r.path}>
+                    {r.name} — {r.path}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div className="form">
+            <input
+              placeholder="/path/to/salesforce-project"
+              value={switchPath}
+              onChange={(e) => setSwitchPath(e.target.value)}
+              style={{ minWidth: 300 }}
+            />
+            <button disabled={!switchPath.trim()} onClick={() => void project.switchLocal(switchPath.trim())}>
+              Open project
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className="muted" style={{ margin: 0 }}>
+          Could not reach the app. Is <code>sf fm dashboard</code> still running?
+        </p>
+      )}
+    </div>
+  );
+
   return (
     <div className="page">
       <div className="toolbar">
@@ -86,54 +131,13 @@ export function ProjectPage({
       </div>
 
       <div className="grid3">
-        <div className="card section">
-          <h3>From the local NomadSF app</h3>
-          {project.localAvailable ? (
-            <>
-              <p className="muted" style={{ margin: 0 }}>
-                The project of <code>sf fm dashboard</code>. Runs, runbooks and retrieve follow the project you choose
-                here.
-              </p>
-              <div className="form">
-                <button className={source?.kind === 'local' ? '' : 'primary'} onClick={() => void project.useLocal()}>
-                  Use the local app project
-                </button>
-                {project.recent.length > 0 && (
-                  <select value="" onChange={(e) => e.target.value && void project.switchLocal(e.target.value)}>
-                    <option value="">Switch to a recent project…</option>
-                    {project.recent.map((r) => (
-                      <option key={r.path} value={r.path}>
-                        {r.name} — {r.path}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-              <div className="form">
-                <input
-                  placeholder="/path/to/salesforce-project"
-                  value={switchPath}
-                  onChange={(e) => setSwitchPath(e.target.value)}
-                  style={{ minWidth: 300 }}
-                />
-                <button disabled={!switchPath.trim()} onClick={() => void project.switchLocal(switchPath.trim())}>
-                  Open project
-                </button>
-              </div>
-            </>
-          ) : (
-            <p className="muted" style={{ margin: 0 }}>
-              Not running. Start <code>sf fm dashboard</code> in a Salesforce project to use it here (runs, runbooks,
-              retrieve into the project).
-            </p>
-          )}
-        </div>
+        {hostKind === 'app' && localCard}
         <div className="card section">
           <h3>From a folder on this computer</h3>
           {project.canPickFolder ? (
             <>
               <p className="muted" style={{ margin: 0 }}>
-                Read-only access to a repository folder you choose; nothing is uploaded. Works without the CLI.
+                Read-only access to a project folder you choose; nothing is uploaded.
               </p>
               <div className="form">
                 <button
