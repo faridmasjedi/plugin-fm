@@ -96,6 +96,15 @@ describe('AI assist', () => {
       expect(extractSoql(answer.text)).to.equal('SELECT Id FROM Account');
     });
 
+    it('refuses to run without a connected key', async () => {
+      const key = process.env.FM_AI_API_KEY;
+      delete process.env.FM_AI_API_KEY;
+      let error = '';
+      await assist(tmpdir(), 'soql', { question: 'x' }).catch((e: Error) => (error = e.message));
+      process.env.FM_AI_API_KEY = key;
+      expect(error).to.include('No AI connected');
+    });
+
     it('refuses unknown tasks and empty input', async () => {
       let error = '';
       await assist(tmpdir(), 'nope' as 'soql', {}).catch((e: Error) => (error = e.message));

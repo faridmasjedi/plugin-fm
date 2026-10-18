@@ -108,3 +108,127 @@ describe('field usage', () => {
     await expect(fieldDependencies(client, 'Account', 'Name')).rejects.toThrow('custom fields only');
   });
 });
+
+describe('field access', () => {
+  const holders = [
+    {
+      Id: '0PS000000000001AAA',
+      Label: 'x',
+      Type: 'Profile',
+      IsOwnedByProfile: true,
+      Profile: { Name: 'Standard User', UserLicense: { Name: 'Salesforce' } },
+    },
+    {
+      Id: '0PS000000000002AAA',
+      Label: 'x',
+      Type: 'Profile',
+      IsOwnedByProfile: true,
+      Profile: { Name: 'System Administrator', UserLicense: { Name: 'Salesforce' } },
+    },
+    {
+      Id: '0PS000000000003AAA',
+      Label: 'x',
+      Type: 'Profile',
+      IsOwnedByProfile: true,
+      Profile: { Name: 'Web', UserLicense: { Name: 'Guest' } },
+    },
+    {
+      Id: '0PS000000000004AAA',
+      Label: 'x',
+      Type: 'Profile',
+      IsOwnedByProfile: true,
+      Profile: { Name: 'Web', UserLicense: { Name: 'Partner' } },
+    },
+    { Id: '0PS000000000005AAA', Label: 'Sales Ops', Type: 'Regular', IsOwnedByProfile: false },
+    { Id: '0PS000000000006AAA', Label: 'Marketing', Type: 'Regular', IsOwnedByProfile: false },
+    {
+      Id: '0PS000000000007AAA',
+      Label: 'grp',
+      Type: 'Group',
+      IsOwnedByProfile: false,
+      PermissionSetGroup: { MasterLabel: 'Support Team' },
+    },
+  ];
+
+  it('covers profiles, permission sets and groups, with and without access', async () => {
+    const { fieldAccess } = await import('../src/index.js');
+    const { calls, client } = fake((soql) =>
+      soql.includes('FieldPermissions')
+        ? records([
+            { ParentId: '0PS000000000002AAA', PermissionsRead: true, PermissionsEdit: true },
+            { ParentId: '0PS000000000003AAA', PermissionsRead: true, PermissionsEdit: false },
+            { ParentId: '0PS000000000005AAA', PermissionsRead: true, PermissionsEdit: false },
+            { ParentId: '0PS000000000007AAA', PermissionsRead: true, PermissionsEdit: true },
+          ])
+        : records(holders)
+    );
+    expect(await fieldAccess(client, 'Account', 'Active__c')).toEqual([
+      { kind: 'Permission set group', name: 'Support Team', access: 'Read & edit' },
+      { kind: 'Profile', name: 'System Administrator', access: 'Read & edit' },
+      { kind: 'Permission set', name: 'Sales Ops', access: 'Read only' },
+      { kind: 'Profile', name: 'Web (Guest)', access: 'Read only' },
+      { kind: 'Permission set', name: 'Marketing', access: 'No access' },
+      { kind: 'Profile', name: 'Standard User', access: 'No access' },
+      { kind: 'Profile', name: 'Web (Partner)', access: 'No access' },
+    ]);
+    expect(calls[0]).toContain("Field = 'Account.Active__c'");
+  });
+
+  it('reads object, field and system permissions of one holder', async () => {
+    const {
+      objectAccessOf,
+      fieldAccessOf,
+      systemPermissionsOf,
+      SalesforceClient: Client,
+    } = await import('../src/index.js');
+    const objects = fake(() =>
+      records([
+        { SobjectType: 'Account', PermissionsRead: true, PermissionsEdit: true, PermissionsModifyAllRecords: false },
+      ])
+    );
+    expect((await objectAccessOf(objects.client, '0PS000000000002AAA'))[0]).toMatchObject({
+      object: 'Account',
+      read: true,
+      edit: true,
+      create: false,
+    });
+    const fields = fake(() =>
+      records([{ SobjectType: 'Account', Field: 'Account.Active__c', PermissionsRead: true, PermissionsEdit: false }])
+    );
+    expect(await fieldAccessOf(fields.client, '0PS000000000002AAA', 'Account')).toEqual([
+      { object: 'Account', field: 'Active__c', read: true, edit: false },
+    ]);
+    expect(fields.calls[0]).toContain("AND SobjectType = 'Account'");
+    await expect(objectAccessOf(objects.client, '005000000000001')).rejects.toThrow('permission set');
+    const queries: string[] = [];
+    const sys = new Client(async (r) => {
+      if (r.path.endsWith('/describe'))
+        return {
+          status: 200,
+          headers: {},
+          body: JSON.stringify({
+            fields: [
+              { name: 'PermissionsApiEnabled', label: 'API Enabled', type: 'boolean' },
+              { name: 'PermissionsModifyAllData', label: 'Modify All Data', type: 'boolean' },
+              { name: 'Label', label: 'Label', type: 'string' },
+            ],
+          }),
+        };
+      queries.push(decodeURIComponent(r.path));
+      return {
+        status: 200,
+        headers: {},
+        body: JSON.stringify({
+          totalSize: 1,
+          done: true,
+          records: [{ PermissionsApiEnabled: true, PermissionsModifyAllData: false }],
+        }),
+      };
+    }, '62.0');
+    expect(await systemPermissionsOf(sys, '0PS000000000002AAA')).toEqual([
+      { api: 'ApiEnabled', label: 'API Enabled', enabled: true },
+      { api: 'ModifyAllData', label: 'Modify All Data', enabled: false },
+    ]);
+    expect(queries).toHaveLength(1);
+  });
+});

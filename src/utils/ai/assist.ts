@@ -93,6 +93,12 @@ function prompt(task: AssistTask, input: Record<string, unknown>): string {
 export async function assist(cwd: string, task: AssistTask, input: Record<string, unknown>): Promise<AssistAnswer> {
   if (!SYSTEM[task]) throw new Error('Unknown AI task.');
   const config = loadAiConfig(cwd);
+  // Only an AI the person connected themselves (key in their environment or the app); nothing is borrowed
+  if (!describeAiConfig(config).apiKeySet) {
+    throw new Error(
+      'No AI connected. Open AI settings, connect a provider with your own account or key, and press Use.'
+    );
+  }
   const message = prompt(task, input);
   const chat = createChat({ ...config, maxTokens: Math.min(config.maxTokens ?? 8000, 8000) }, SYSTEM[task], []);
   const turn = await chat.send(message);

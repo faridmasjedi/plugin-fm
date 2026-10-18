@@ -30,6 +30,10 @@ export function GitHubCard({ hostKind }: { hostKind: 'app' | 'extension' }) {
   const abort = useRef<AbortController | undefined>(undefined);
   // github.com's sign-in endpoints allow no browser CORS; the extension's host permission covers them
   const canSignIn = hostKind === 'extension';
+  // A client ID baked into the build (VITE_NOMADSF_GITHUB_CLIENT_ID) makes sign-in one click
+  const builtInClientId = Boolean(
+    (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_NOMADSF_GITHUB_CLIENT_ID
+  );
 
   const connect = useCallback(async () => {
     setChecking(true);
@@ -159,17 +163,12 @@ export function GitHubCard({ hostKind }: { hostKind: 'app' | 'extension' }) {
           <p className="muted" style={{ margin: 0 }}>
             Read-only access to your repositories: pick any repository and branch to browse it as the project.
           </p>
-          {canSignIn && (
+          {/* Sign-in needs a GitHub OAuth app's client ID (built in, or entered under "Sign in with GitHub") */}
+          {canSignIn && builtInClientId && (
             <div className="form">
-              <button className="primary" disabled={!clientId.trim() || Boolean(device)} onClick={() => void signIn()}>
+              <button className="primary" disabled={Boolean(device)} onClick={() => void signIn()}>
                 Sign in with GitHub
               </button>
-              <input
-                placeholder="OAuth app client ID"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                title="Client ID of a GitHub OAuth app with device flow enabled (Settings → Developer settings → OAuth Apps)"
-              />
             </div>
           )}
           {device && (
@@ -185,7 +184,7 @@ export function GitHubCard({ hostKind }: { hostKind: 'app' | 'extension' }) {
             <input
               type="password"
               autoComplete="off"
-              placeholder="or paste a token (Contents: read-only)"
+              placeholder="Paste a GitHub token (Contents: read-only)"
               value={token}
               onChange={(e) => setToken(e.target.value)}
             />
@@ -196,22 +195,34 @@ export function GitHubCard({ hostKind }: { hostKind: 'app' | 'extension' }) {
               create one ↗
             </a>
           </div>
-          <p className="muted" style={{ margin: 0 }}>
-            {project.localAvailable ? (
-              <>
-                Or log in the GitHub CLI on this computer (<code>gh auth login</code>) and{' '}
-                <button className="link" onClick={() => void connect()}>
-                  check again
+          {canSignIn && !builtInClientId && (
+            <details>
+              <summary className="muted">Sign in with GitHub instead (needs a GitHub OAuth app)</summary>
+              <p className="muted" style={{ margin: '6px 0' }}>
+                Create an OAuth app in GitHub (Settings → Developer settings → OAuth Apps, enable device flow) and paste
+                its client ID; NomadSF remembers it in this browser.
+              </p>
+              <div className="form">
+                <input
+                  placeholder="OAuth app client ID"
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                />
+                <button disabled={!clientId.trim() || Boolean(device)} onClick={() => void signIn()}>
+                  Sign in with GitHub
                 </button>
-                .
-              </>
-            ) : (
-              <>
-                With the local app (<code>sf fm dashboard</code>) running, its GitHub CLI login is used — no token
-                needed.
-              </>
-            )}
-          </p>
+              </div>
+            </details>
+          )}
+          {hostKind === 'app' && (
+            <p className="muted" style={{ margin: 0 }}>
+              Or log in the GitHub CLI on this computer (<code>gh auth login</code>) and{' '}
+              <button className="link" onClick={() => void connect()}>
+                check again
+              </button>
+              .
+            </p>
+          )}
         </>
       )}
       {message && <p className="muted">{message}</p>}

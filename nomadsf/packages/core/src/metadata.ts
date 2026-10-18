@@ -3,7 +3,8 @@ import { escapeXml, xmlBlocks, xmlValue } from './soap.js';
 
 /** Metadata API (SOAP): describe types, list components, retrieve as a zip. */
 
-const envelope = (body: string): string => `<?xml version="1.0" encoding="UTF-8"?>
+/** SOAP envelope for Metadata API calls (the session is filled in by the transport). */
+export const metadataEnvelope = (body: string): string => `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:met="http://soap.sforce.com/2006/04/metadata">
 <soapenv:Header><met:SessionHeader><met:sessionId>${SESSION_PLACEHOLDER}</met:sessionId></met:SessionHeader></soapenv:Header>
 <soapenv:Body>${body}</soapenv:Body>
@@ -15,7 +16,7 @@ export async function describeMetadata(client: SalesforceClient): Promise<Metada
   const version = await client.version();
   const xml = await client.soap(
     'metadata',
-    envelope(`<met:describeMetadata><met:asOfVersion>${version}</met:asOfVersion></met:describeMetadata>`)
+    metadataEnvelope(`<met:describeMetadata><met:asOfVersion>${version}</met:asOfVersion></met:describeMetadata>`)
   );
   return xmlBlocks(xml, 'metadataObjects')
     .map((block) => ({
@@ -75,7 +76,7 @@ async function listQueries(
     // eslint-disable-next-line no-await-in-loop
     const xml = await client.soap(
       'metadata',
-      envelope(`<met:listMetadata>${body}<met:asOfVersion>${version}</met:asOfVersion></met:listMetadata>`)
+      metadataEnvelope(`<met:listMetadata>${body}<met:asOfVersion>${version}</met:asOfVersion></met:listMetadata>`)
     );
     out.push(...parseFileProperties(xml));
   }
@@ -156,7 +157,7 @@ export async function retrieveZip(
     .join('');
   const started = await client.soap(
     'metadata',
-    envelope(
+    metadataEnvelope(
       `<met:retrieve><met:retrieveRequest><met:apiVersion>${version}</met:apiVersion><met:singlePackage>true</met:singlePackage><met:unpackaged>${types}<met:version>${version}</met:version></met:unpackaged></met:retrieveRequest></met:retrieve>`
     )
   );
@@ -168,7 +169,7 @@ export async function retrieveZip(
     // eslint-disable-next-line no-await-in-loop
     const xml = await client.soap(
       'metadata',
-      envelope(
+      metadataEnvelope(
         `<met:checkRetrieveStatus><met:asyncProcessId>${id}</met:asyncProcessId><met:includeZip>true</met:includeZip></met:checkRetrieveStatus>`
       )
     );

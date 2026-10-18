@@ -2,10 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { storage } from '../context';
 
 /** Dashboard pages that need the local NomadSF app (CLI, git, pipelines). */
+// Release runs, runbooks and the repository live in the NomadSF release app (sf fm dashboard), not here
 export const LOCAL_PAGES = [
-  { id: 'local-runs', page: 'runs', label: 'Runs & approvals', icon: '⛭' },
-  { id: 'local-runbooks', page: 'runbooks', label: 'Runbooks (AI)', icon: '✦' },
-  { id: 'local-repo', page: 'repo', label: 'Repository', icon: '⑂' },
   { id: 'local-orgs', page: 'orgs', label: 'CLI orgs', icon: '☁' },
   { id: 'local-ai', page: 'ai', label: 'AI settings', icon: '⚙' },
 ] as const;

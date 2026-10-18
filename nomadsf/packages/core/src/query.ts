@@ -46,35 +46,89 @@ export function mainSObject(soql: string): string | undefined {
   return /\bfrom\s+(\w+)/i.exec(text)?.[1];
 }
 
-export async function query(client: SalesforceClient, soql: string, options: QueryOptions = {}): Promise<QueryResult> {
+/** A query being read page by page (Salesforce returns up to 2,000 rows per page). */
+export type QueryCursor = QueryResult & {
+  /** Next page to read; undefined when every row is loaded. */
+  next?: string;
+  tooling: boolean;
+};
+
+function addColumns(columns: string[], rows: Row[]): string[] {
+  const out = [...columns];
+  for (const row of rows) for (const key of Object.keys(row)) if (!out.includes(key)) out.push(key);
+  return out;
+}
+
+const pathOf = (nextRecordsUrl?: string): string | undefined =>
+  // nextRecordsUrl is absolute from the instance root; strip the version prefix
+  nextRecordsUrl?.replace(/^\/services\/data\/v[\d.]+(\/tooling)?/, '');
+
+/** Runs a query and reads its first page. */
+export async function openQuery(
+  client: SalesforceClient,
+  soql: string,
+  options: Omit<QueryOptions, 'maxRows'> = {}
+): Promise<QueryCursor> {
   const start = Date.now();
-  const max = options.maxRows ?? 10_000;
-  const resource = options.includeDeleted && !options.tooling ? '/queryAll' : '/query';
+  const tooling = Boolean(options.tooling);
+  const resource = options.includeDeleted && !tooling ? '/queryAll' : '/query';
   const q = encodeURIComponent(soql.trim().replace(/;$/, ''));
-  const call = (path: string): Promise<QueryPage> =>
-    options.tooling ? client.tooling<QueryPage>('GET', path) : client.rest<QueryPage>('GET', path);
-
-  let page = await call(`${resource}?q=${q}`);
-  const records = [...page.records];
-  while (!page.done && page.nextRecordsUrl && records.length < max) {
-    // nextRecordsUrl is absolute from the instance root; strip the version prefix
-    const next = page.nextRecordsUrl.replace(/^\/services\/data\/v[\d.]+(\/tooling)?/, '');
-    // eslint-disable-next-line no-await-in-loop
-    page = await call(next);
-    records.push(...page.records);
-  }
-
-  const rows = records.slice(0, max).map((r) => flattenRecord(r));
-  const columns: string[] = [];
-  for (const row of rows) for (const key of Object.keys(row)) if (!columns.includes(key)) columns.push(key);
+  const page = tooling
+    ? await client.tooling<QueryPage>('GET', `${resource}?q=${q}`)
+    : await client.rest<QueryPage>('GET', `${resource}?q=${q}`);
+  const rows = page.records.map((r) => flattenRecord(r));
   return {
-    columns,
+    columns: addColumns([], rows),
     rows,
     totalSize: page.totalSize,
-    truncated: records.length > max || !page.done,
-    sobject: (records[0]?.attributes as { type?: string } | undefined)?.type ?? mainSObject(soql),
+    truncated: !page.done,
+    sobject: (page.records[0]?.attributes as { type?: string } | undefined)?.type ?? mainSObject(soql),
     durationMs: Date.now() - start,
+    next: page.done ? undefined : pathOf(page.nextRecordsUrl),
+    tooling,
   };
+}
+
+/** Reads the next page of a cursor; returns a new cursor with the rows appended. */
+export async function queryMore(client: SalesforceClient, cursor: QueryCursor): Promise<QueryCursor> {
+  if (!cursor.next) return cursor;
+  const start = Date.now();
+  const page = cursor.tooling
+    ? await client.tooling<QueryPage>('GET', cursor.next)
+    : await client.rest<QueryPage>('GET', cursor.next);
+  const added = page.records.map((r) => flattenRecord(r));
+  return {
+    ...cursor,
+    columns: addColumns(cursor.columns, added),
+    rows: [...cursor.rows, ...added],
+    truncated: !page.done,
+    durationMs: cursor.durationMs + Date.now() - start,
+    next: page.done ? undefined : pathOf(page.nextRecordsUrl),
+  };
+}
+
+/** Reads up to `maxRows` rows (default 10,000) in one call. */
+export async function query(client: SalesforceClient, soql: string, options: QueryOptions = {}): Promise<QueryResult> {
+  const max = options.maxRows ?? 10_000;
+  let cursor = await openQuery(client, soql, options);
+  while (cursor.next && cursor.rows.length < max) {
+    // eslint-disable-next-line no-await-in-loop
+    cursor = await queryMore(client, cursor);
+  }
+  const rows = cursor.rows.slice(0, max);
+  return {
+    columns: cursor.columns,
+    rows,
+    totalSize: cursor.totalSize,
+    truncated: cursor.rows.length > max || Boolean(cursor.next),
+    sobject: cursor.sobject,
+    durationMs: cursor.durationMs,
+  };
+}
+
+/** Parent-to-child subqueries ("(SELECT … FROM Contacts)") are not supported by Bulk API 2.0. */
+export function bulkCompatible(soql: string, tooling: boolean): boolean {
+  return !tooling && !/\(\s*select\b/i.test(soql);
 }
 
 export type SObjectSummary = { name: string; label: string; custom: boolean; queryable: boolean; keyPrefix?: string };

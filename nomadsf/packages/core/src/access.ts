@@ -173,3 +173,57 @@ export async function removeAccess(
   }
   return { removed, errors };
 }
+
+export type UserMatch = {
+  Id: string;
+  Name: string;
+  Username: string;
+  Email: string;
+  Profile: string;
+  IsActive: boolean;
+  LastLoginDate?: string;
+};
+
+const soqlText = (value: string): string => value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+/** Users by Id, username, email or (part of the) name; at most 50. */
+export async function searchUsers(client: SalesforceClient, text: string): Promise<UserMatch[]> {
+  const term = text.trim();
+  if (!term) return [];
+  const where = /^005[a-zA-Z0-9]{12}([a-zA-Z0-9]{3})?$/.test(term)
+    ? `Id = '${term}'`
+    : `Username LIKE '%${soqlText(term)}%' OR Email LIKE '%${soqlText(term)}%' OR Name LIKE '%${soqlText(term)}%'`;
+  const result = await query(
+    client,
+    `SELECT Id, Name, Username, Email, Profile.Name, IsActive, LastLoginDate FROM User WHERE ${where} ORDER BY IsActive DESC, Name LIMIT 50`
+  );
+  return result.rows.map((r) => ({
+    Id: String(r.Id),
+    Name: String(r.Name ?? ''),
+    Username: String(r.Username ?? ''),
+    Email: String(r.Email ?? ''),
+    Profile: String(r['Profile.Name'] ?? ''),
+    IsActive: r.IsActive === true,
+    LastLoginDate: r.LastLoginDate ? String(r.LastLoginDate) : undefined,
+  }));
+}
+
+/** Freeze state of a user (UserLogin.IsFrozen). */
+export async function userLogin(
+  client: SalesforceClient,
+  userId: string
+): Promise<{ id: string; frozen: boolean } | undefined> {
+  if (!/^005\w{12,15}$/.test(userId)) throw new Error('Invalid user Id.');
+  const row = (await query(client, `SELECT Id, IsFrozen FROM UserLogin WHERE UserId = '${userId}'`)).rows[0];
+  return row ? { id: String(row.Id), frozen: row.IsFrozen === true } : undefined;
+}
+
+export async function setFrozen(client: SalesforceClient, userLoginId: string, frozen: boolean): Promise<void> {
+  if (!/^\w{15,18}$/.test(userLoginId)) throw new Error('Invalid Id.');
+  await client.rest('PATCH', `/sobjects/UserLogin/${userLoginId}`, { IsFrozen: frozen });
+}
+
+export async function setActive(client: SalesforceClient, userId: string, active: boolean): Promise<void> {
+  if (!/^005\w{12,15}$/.test(userId)) throw new Error('Invalid user Id.');
+  await client.rest('PATCH', `/sobjects/User/${userId}`, { IsActive: active });
+}

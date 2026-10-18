@@ -1,46 +1,58 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import {
   describeGlobal,
   describeSObject,
   exportSavedQueries,
   importSavedQueries,
+  lookupIdNames,
   mainSObject,
-  query,
+  openQuery,
+  withIdNames,
+  type IdNameLookup,
+  queryMore,
   removeSavedQuery,
   SAVED_QUERIES_FILE,
   upsertSavedQuery,
   type FieldSummary,
-  type QueryResult,
+  type QueryCursor,
   type SavedQuery,
   type SObjectSummary,
 } from '@nomadsf/core';
 import { askAi } from '../components/AiHelp';
 import { CodeEditor } from '../components/CodeEditor';
-import { DataTable, download } from '../components/DataTable';
+import { DataTable, EmptyHint, download } from '../components/DataTable';
+import { QueryExport } from '../components/QueryExport';
 import { storage, useStudio } from '../context';
 import { monaco } from '../monaco';
 import { useProject } from '../project';
+
+/** Rows kept in the browser before asking to load more (memory guard). */
+const BATCH = 100_000;
 
 /** Named queries kept in this browser, exportable as nomadsf-queries.json to share with the team. */
 function SavedQueries({
   soql,
   tooling,
-  onLoad,
+  saved,
+  setSaved,
+  name,
+  setName,
 }: {
   soql: string;
   tooling: boolean;
-  onLoad: (query: SavedQuery) => void;
+  saved: SavedQuery[];
+  setSaved: (list: SavedQuery[]) => void;
+  name: string;
+  setName: (name: string) => void;
 }) {
   const project = useProject();
-  const [saved, setSaved] = useState<SavedQuery[]>(() => storage.get('query.saved', []));
-  const [name, setName] = useState('');
   const [message, setMessage] = useState('');
+  const current = saved.find((q) => q.name.toLowerCase() === name.trim().toLowerCase());
   const fileInput = useRef<HTMLInputElement>(null);
 
   const update = (next: SavedQuery[], note = '') => {
     setSaved(next);
-    storage.set('query.saved', next);
     setMessage(note);
   };
   const attempt = (action: () => void) => {
@@ -79,16 +91,28 @@ function SavedQueries({
             attempt(() => update(upsertSavedQuery(saved, { name, soql, tooling }), `Saved “${name.trim()}”.`))
           }
         >
-          Save query
+          {current ? 'Update saved query' : 'Save query'}
         </button>
+        {current && (
+          <button
+            onClick={() => {
+              update(removeSavedQuery(saved, current.name), `Deleted “${current.name}”.`);
+              setName('');
+            }}
+          >
+            Delete
+          </button>
+        )}
+        {message && <span className="muted">{message}</span>}
         <span className="grow" />
         <button
           disabled={!saved.length}
           onClick={() => download(SAVED_QUERIES_FILE, exportSavedQueries(saved), 'application/json')}
+          title="Download saved queries as nomadsf-queries.json"
         >
-          Export
+          Export saved
         </button>
-        <button onClick={() => fileInput.current?.click()}>Import…</button>
+        <button onClick={() => fileInput.current?.click()}>Import saved…</button>
         {project.source && (
           <button title={`Read ${SAVED_QUERIES_FILE} from the project`} onClick={() => void fromProject()}>
             From project
@@ -106,34 +130,6 @@ function SavedQueries({
           }}
         />
       </div>
-      {saved.length > 0 ? (
-        <div className="chips">
-          {saved.map((q) => (
-            <span key={q.name} className="chip saved" title={q.soql}>
-              <button
-                className="link"
-                onClick={() => {
-                  setName(q.name);
-                  onLoad(q);
-                }}
-              >
-                {q.name}
-                {q.tooling ? ' · tooling' : ''}
-              </button>
-              <button
-                className="link"
-                aria-label={`Delete ${q.name}`}
-                onClick={() => update(removeSavedQuery(saved, q.name), `Deleted “${q.name}”.`)}
-              >
-                ×
-              </button>
-            </span>
-          ))}
-        </div>
-      ) : (
-        <span className="muted">No saved queries yet.</span>
-      )}
-      {message && <span className="muted">{message}</span>}
     </div>
   );
 }
@@ -158,16 +154,30 @@ function objectsInQuestion(question: string, objects: SObjectSummary[], current?
 
 export function QueryPage() {
   const { client, org, hostKind } = useStudio();
+  const project = useProject();
   const [question, setQuestion] = useState('');
+  const [saved, setSavedState] = useState<SavedQuery[]>(() => storage.get('query.saved', []));
+  const [savedName, setSavedName] = useState('');
+  const setSaved = (list: SavedQuery[]) => {
+    setSavedState(list);
+    storage.set('query.saved', list);
+  };
   const [asking, setAsking] = useState(false);
   const [soql, setSoql] = useState<string>(() =>
     storage.get('query.soql', 'SELECT Id, Name, CreatedDate\nFROM Account\nORDER BY CreatedDate DESC\nLIMIT 100')
   );
   const [tooling, setTooling] = useState<boolean>(() => storage.get('query.tooling', false));
   const [includeDeleted, setIncludeDeleted] = useState(false);
-  const [maxRows, setMaxRows] = useState(10_000);
   const [history, setHistory] = useState<string[]>(() => storage.get('query.history', []));
-  const [result, setResult] = useState<QueryResult | null>(null);
+  const [result, setResult] = useState<QueryCursor | null>(null);
+  const [ranSoql, setRanSoql] = useState('');
+  const [loading, setLoading] = useState(false);
+  // Names for Id columns SOQL cannot follow (e.g. LoginHistory.UserId)
+  const [idNames, setIdNames] = useState<boolean>(() => storage.get('query.idNames', false));
+  const [lookup, setLookup] = useState<IdNameLookup | null>(null);
+  const [lookingUp, setLookingUp] = useState(false);
+  // Each load has a token; Stop or a new query changes it and the old loop ends
+  const loadToken = useRef(0);
   const [error, setError] = useState('');
   const [running, setRunning] = useState(false);
   const objects = useRef<SObjectSummary[]>([]);
@@ -241,24 +251,78 @@ export function QueryPage() {
     return () => provider.dispose();
   }, [client, tooling]);
 
+  /** Reads more pages until everything is loaded, Stop is pressed, or `limit` rows are in the browser. */
+  const loadRest = useCallback(
+    async (start: QueryCursor, limit: number) => {
+      let cursor = start;
+      const token = ++loadToken.current;
+      setLoading(true);
+      try {
+        while (cursor.next && loadToken.current === token && cursor.rows.length < limit) {
+          // eslint-disable-next-line no-await-in-loop
+          const nextPage = await queryMore(client, cursor);
+          if (loadToken.current !== token) break;
+          cursor = nextPage;
+          setResult(cursor);
+        }
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        if (loadToken.current === token) setLoading(false);
+      }
+    },
+    [client]
+  );
+
+  // Once rows stop loading, look up names for their Id columns (only Ids not seen before)
+  useEffect(() => {
+    if (!idNames || !result || loading || running) return;
+    let canceled = false;
+    setLookingUp(true);
+    lookupIdNames(client, result.columns, result.rows, { known: lookup ?? undefined })
+      .then((found) => !canceled && setLookup(found))
+      .catch(() => undefined)
+      .finally(() => !canceled && setLookingUp(false));
+    return () => {
+      canceled = true;
+    };
+    // `lookup` is an input to the next lookup, not a trigger
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, result, loading, running, idNames]);
+
+  const shown = useMemo(
+    () =>
+      result && idNames && lookup
+        ? withIdNames(result.columns, result.rows, lookup)
+        : { columns: result?.columns ?? [], rows: result?.rows ?? [] },
+    [result, idNames, lookup]
+  );
+
   const run = useCallback(async () => {
     const editor = editorRef.current;
     const selection = editor?.getSelection();
     const text = selection && !selection.isEmpty() ? editor?.getModel()?.getValueInRange(selection) ?? soql : soql;
     if (!text.trim()) return;
+    loadToken.current++;
+    setLoading(false);
     setRunning(true);
     setError('');
     try {
-      setResult(await query(client, text, { tooling, includeDeleted, maxRows }));
+      const first = await openQuery(client, text, { tooling, includeDeleted });
+      setResult(first);
+      setRanSoql(text);
+      setLookup(null);
       const next = [text, ...history.filter((h) => h !== text)].slice(0, 30);
       setHistory(next);
       storage.set('query.history', next);
+      setRunning(false);
+      await loadRest(first, BATCH);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setRunning(false);
     }
-  }, [client, soql, tooling, includeDeleted, maxRows, history]);
+  }, [client, soql, tooling, includeDeleted, history, loadRest]);
 
   const allFields = async () => {
     const from = mainSObject(soql);
@@ -337,10 +401,36 @@ export function QueryPage() {
           />{' '}
           Deleted &amp; archived
         </label>
-        <select value={maxRows} onChange={(e) => setMaxRows(Number(e.target.value))}>
-          {[2000, 10_000, 50_000].map((n) => (
-            <option key={n} value={n}>
-              max {n.toLocaleString()}
+        <label
+          className="check"
+          title="Adds name columns next to Id columns SOQL cannot follow, e.g. LoginHistory.UserId → Name, Username"
+        >
+          <input
+            type="checkbox"
+            checked={idNames}
+            onChange={(e) => {
+              setIdNames(e.target.checked);
+              storage.set('query.idNames', e.target.checked);
+            }}
+          />{' '}
+          Names for Ids
+        </label>
+        <select
+          value=""
+          title="Saved queries"
+          onChange={(e) => {
+            const query = saved.find((q) => q.name === e.target.value);
+            if (!query) return;
+            setSoql(query.soql);
+            setTooling(query.tooling);
+            setSavedName(query.name);
+          }}
+        >
+          <option value="">{saved.length ? `Saved (${saved.length})…` : 'Saved…'}</option>
+          {saved.map((q) => (
+            <option key={q.name} value={q.name}>
+              {q.name}
+              {q.tooling ? ' · Tooling' : ''}
             </option>
           ))}
         </select>
@@ -357,44 +447,79 @@ export function QueryPage() {
           {running ? 'Running…' : 'Run ⌘⏎'}
         </button>
       </div>
-      <div className="form ai-ask">
-        <input
-          placeholder="✦ Ask in plain English, e.g. accounts in Sydney created this year with their open opportunities"
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && question.trim() && void askSoql()}
-        />
-        <button
-          disabled={!question.trim() || asking}
-          onClick={() => void askSoql()}
-          title="Sends the question and the names of this org's objects and fields to the AI connected in NomadSF"
-        >
-          {asking ? 'Writing…' : '✦ Write SOQL'}
-        </button>
-      </div>
+      {project.aiReady && (
+        <div className="form ai-ask">
+          <input
+            placeholder="✦ Ask in plain English, e.g. accounts in Sydney created this year with their open opportunities"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && question.trim() && void askSoql()}
+          />
+          <button
+            disabled={!question.trim() || asking}
+            onClick={() => void askSoql()}
+            title="Sends the question and the names of this org's objects and fields to the AI connected in NomadSF"
+          >
+            {asking ? 'Writing…' : '✦ Write SOQL'}
+          </button>
+        </div>
+      )}
       <SavedQueries
         soql={soql}
         tooling={tooling}
-        onLoad={(q) => {
-          setSoql(q.soql);
-          setTooling(q.tooling);
-        }}
+        saved={saved}
+        setSaved={setSaved}
+        name={savedName}
+        setName={setSavedName}
       />
       <div className="editor-box small">
         <CodeEditor language="soql" value={soql} onChange={setSoql} onMount={onMount} />
       </div>
       {error && <div className="error">{error}</div>}
+      {result && result.totalSize === 0 && !running && <EmptyHint />}
       {result && (
         <div className="card">
+          <div className="form query-more">
+            {loading ? (
+              <>
+                <span className="muted">
+                  Loading… {result.rows.length.toLocaleString()} of {result.totalSize.toLocaleString()}
+                </span>
+                <button
+                  onClick={() => {
+                    loadToken.current++;
+                    setLoading(false);
+                  }}
+                >
+                  Stop
+                </button>
+              </>
+            ) : result.next ? (
+              <>
+                <span className="muted">
+                  {result.rows.length.toLocaleString()} of {result.totalSize.toLocaleString()} rows loaded.
+                </span>
+                <button onClick={() => void loadRest(result, result.rows.length + BATCH)}>
+                  Load next {Math.min(BATCH, result.totalSize - result.rows.length).toLocaleString()}
+                </button>
+              </>
+            ) : null}
+            <span className="grow" />
+            {lookingUp && <span className="muted">Looking up names…</span>}
+            <QueryExport
+              soql={ranSoql}
+              cursor={{ ...result, columns: shown.columns, rows: shown.rows }}
+              includeDeleted={includeDeleted}
+            />
+          </div>
           <DataTable
             name={result.sobject ?? 'query'}
-            columns={result.columns}
-            rows={result.rows}
+            columns={shown.columns}
+            rows={shown.rows}
             instanceUrl={org.instanceUrl}
             note={
               <>
-                · {result.durationMs} ms
-                {result.truncated ? ` · ${result.totalSize.toLocaleString()} in the org (raise max rows)` : ''}
+                · {result.totalSize.toLocaleString()} in the org · {(result.durationMs / 1000).toFixed(1)} s
               </>
             }
           />

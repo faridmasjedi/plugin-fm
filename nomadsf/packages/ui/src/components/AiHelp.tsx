@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react';
 import { StudioContext } from '../context';
-import { localAppBase } from '../project';
+import { localAppBase, useProject } from '../project';
 
 export type AiAnswer = { text: string; model: string; provider: string; sentChars: number; soql?: string };
 
@@ -25,7 +25,13 @@ export async function askAi(
       'AI help runs through the local NomadSF app: start `sf fm dashboard`, then connect an AI on its AI page.'
     );
   }
-  const answer = (await res.json()) as AiAnswer & { error?: string };
+  const answer = (await res.json().catch(() => ({}))) as AiAnswer & { error?: string };
+  // An app started before AI help existed answers 404: it has to be restarted (or updated)
+  if (res.status === 404) {
+    throw new Error(
+      'The running NomadSF app is older than this Studio and has no AI help yet. Restart `sf fm dashboard` (update the plugin first if needed).'
+    );
+  }
   if (!res.ok || answer.error) throw new Error(answer.error ?? res.statusText);
   return answer;
 }
@@ -44,6 +50,7 @@ export function AiExplain({
   what: string;
 }) {
   const hostKind = useContext(StudioContext)?.hostKind ?? 'app';
+  const { aiReady } = useProject();
   const [answer, setAnswer] = useState<AiAnswer | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -59,6 +66,9 @@ export function AiExplain({
       setBusy(false);
     }
   };
+
+  // AI help runs through the NomadSF CLI app with an AI the person connected there
+  if (!aiReady) return null;
 
   return (
     <div className="ai-help">

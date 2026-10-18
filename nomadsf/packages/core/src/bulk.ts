@@ -33,11 +33,20 @@ async function waitForJob(client: SalesforceClient, path: string, options: PollO
 
 export type BulkQueryResult = { jobId: string; csv: string; rows: number };
 
+/**
+ * Bulk API 2.0 query. Results come in chunks (one per `rowsPerFile`, default 50,000); with
+ * `onFile` each chunk is handed over as its own CSV file (with the header) and nothing is kept
+ * in memory, so exports of millions of rows work. Without it, the chunks are joined into `csv`.
+ */
 export async function bulkQuery(
   client: SalesforceClient,
   soql: string,
-  options: PollOptions & { includeDeleted?: boolean } = {}
-): Promise<BulkQueryResult> {
+  options: PollOptions & {
+    includeDeleted?: boolean;
+    rowsPerFile?: number;
+    onFile?: (csv: string, index: number, rows: number) => void | Promise<void>;
+  } = {}
+): Promise<BulkQueryResult & { files: number }> {
   const job = await client.rest<JobInfo>('POST', '/jobs/query', {
     operation: options.includeDeleted ? 'queryAll' : 'query',
     query: soql.trim().replace(/;$/, ''),
@@ -49,26 +58,35 @@ export async function bulkQuery(
   if (info.state !== 'JobComplete') throw new Error(info.errorMessage ?? `Bulk query ${info.state.toLowerCase()}.`);
 
   const version = await client.version();
+  const perFile = Math.max(1, Math.floor(options.rowsPerFile ?? 50_000));
   let csv = '';
   let rows = 0;
+  let files = 0;
   let locator = '';
   do {
     // eslint-disable-next-line no-await-in-loop
     const page = await client.raw({
       method: 'GET',
-      path: `/services/data/v${version}/jobs/query/${job.id}/results?maxRecords=50000${
+      path: `/services/data/v${version}/jobs/query/${job.id}/results?maxRecords=${perFile}${
         locator ? `&locator=${encodeURIComponent(locator)}` : ''
       }`,
       headers: { accept: 'text/csv' },
     });
     const body = page.body.endsWith('\n') ? page.body : `${page.body}\n`;
-    // Every page repeats the header row; keep it once
-    const chunk = csv ? body.slice(body.indexOf('\n') + 1) : body;
-    csv += chunk;
-    rows += Number(page.headers['sforce-numberofrecords'] ?? 0);
+    const count = Number(page.headers['sforce-numberofrecords'] ?? 0);
+    rows += count;
+    if (options.onFile) {
+      // Every chunk starts with the header row, so each one is a complete CSV file
+      // eslint-disable-next-line no-await-in-loop
+      await options.onFile(body, files, count);
+    } else {
+      // Joined: keep the header once
+      csv += csv ? body.slice(body.indexOf('\n') + 1) : body;
+    }
+    files++;
     locator = page.headers['sforce-locator'] ?? '';
   } while (locator && locator !== 'null');
-  return { jobId: job.id, csv, rows };
+  return { jobId: job.id, csv, rows, files };
 }
 
 export type IngestOperation = 'insert' | 'update' | 'upsert' | 'delete' | 'hardDelete';

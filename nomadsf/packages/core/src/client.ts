@@ -35,6 +35,8 @@ export function fetchTransport(instanceUrl: string, accessToken: string, fetchIm
       method: request.method,
       // Streaming pins the client to a server with cookies; the browser keeps them for us
       ...(request.path.startsWith('/cometd/') ? { credentials: 'include' as const } : {}),
+      // Status polls ask the same URL again and again; never answer them from the browser cache
+      cache: 'no-store',
       headers: { Authorization: `Bearer ${accessToken}`, ...request.headers },
       body: request.body?.split(SESSION_PLACEHOLDER).join(accessToken),
     });
@@ -73,16 +75,42 @@ export function proxyTransport(endpoint: string, extraHeaders: Record<string, st
 
 type ErrorBody = Array<{ message?: string; errorCode?: string }> | { message?: string; errorCode?: string };
 
+const NO_PERMISSION =
+  'Your user may not have permission for this (object, field or user permission). Ask an admin, or try with another user.';
+const MAYBE_HIDDEN = 'If the name is right, your user may not have access to it (object or field-level security).';
+
+/** A plain-language line for errors that usually mean "your user is not allowed to see or do this". */
+export function accessHint(message: string, status: number, errorCode = ''): string | undefined {
+  const code = errorCode.toUpperCase();
+  const text = `${code} ${message}`;
+  if (/INSUFFICIENT_ACCESS|insufficient access|INSUFFICIENT_PRIVILEGES|NOT_PERMISSIONED|privilege/i.test(text))
+    return NO_PERMISSION;
+  if (/API_DISABLED_FOR_ORG|API_CURRENTLY_DISABLED|API is not enabled/i.test(text))
+    return 'The API is not enabled for your user (user permission "API Enabled"). Ask an admin.';
+  if (/FUNCTIONALITY_NOT_ENABLED|not enabled for this organization|feature is not enabled/i.test(text))
+    return 'This feature is not turned on in the org, or not available to your user.';
+  if (/INVALID_TYPE|is not supported|INVALID_FIELD|No such column|Didn\'t understand relationship/i.test(text))
+    return MAYBE_HIDDEN;
+  if (status === 403) return NO_PERMISSION;
+  return undefined;
+}
+
+function withHint(message: string, status: number, errorCode?: string): SalesforceError {
+  const hint = accessHint(message, status, errorCode);
+  return new SalesforceError(hint ? `${message}\n${hint}` : message, status, errorCode);
+}
+
 function errorFrom(response: HttpResponse): SalesforceError {
   try {
     const parsed = JSON.parse(response.body) as ErrorBody;
     const first = Array.isArray(parsed) ? parsed[0] : parsed;
-    if (first?.message) return new SalesforceError(first.message, response.status, first.errorCode);
+    if (first?.message) return withHint(first.message, response.status, first.errorCode);
   } catch {
     // not JSON (e.g. a SOAP fault or an HTML error page)
   }
   const fault = /<faultstring>([\s\S]*?)<\/faultstring>/.exec(response.body)?.[1];
-  return new SalesforceError(fault ?? (response.body.slice(0, 300) || `HTTP ${response.status}`), response.status);
+  const code = /<faultcode>(?:[\w-]+:)?([\s\S]*?)<\/faultcode>/.exec(response.body)?.[1];
+  return withHint(fault ?? (response.body.slice(0, 300) || `HTTP ${response.status}`), response.status, code);
 }
 
 export class SalesforceClient {

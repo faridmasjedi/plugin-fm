@@ -5,7 +5,7 @@ import { localAppBase } from './project';
 /**
  * How the Studio reaches GitHub:
  * - token: a token from "Sign in with GitHub" or pasted by the person, kept in this browser profile;
- * - app: the local NomadSF app, using the GitHub CLI's login (the token stays on the machine).
+ * - app: inside the NomadSF app (sf fm dashboard), its GitHub CLI login (the token stays on the machine).
  */
 export type GitHubConnection = { mode: 'token' | 'app'; api: GitHubTransport };
 
@@ -39,6 +39,8 @@ export const githubToken = {
 export async function currentGitHub(hostKind: 'app' | 'extension'): Promise<GitHubConnection | undefined> {
   const token = githubToken.get();
   if (token) return { mode: 'token', api: tokenTransport(token) };
+  // The extension connects with a token or "Sign in with GitHub" only; the app uses its gh login
+  if (hostKind !== 'app') return undefined;
   const base = localAppBase(hostKind);
   try {
     const res = await fetch(`${base}/api/github/status`, { cache: 'no-store' });
