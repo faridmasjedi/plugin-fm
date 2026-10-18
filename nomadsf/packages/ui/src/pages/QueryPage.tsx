@@ -21,7 +21,7 @@ import {
 } from '@nomadsf/core';
 import { askAi } from '../components/AiHelp';
 import { CodeEditor } from '../components/CodeEditor';
-import { DataTable, download } from '../components/DataTable';
+import { DataTable, EmptyHint, download } from '../components/DataTable';
 import { QueryExport } from '../components/QueryExport';
 import { storage, useStudio } from '../context';
 import { monaco } from '../monaco';
@@ -476,6 +476,7 @@ export function QueryPage() {
         <CodeEditor language="soql" value={soql} onChange={setSoql} onMount={onMount} />
       </div>
       {error && <div className="error">{error}</div>}
+      {result && result.totalSize === 0 && !running && <EmptyHint />}
       {result && (
         <div className="card">
           <div className="form query-more">

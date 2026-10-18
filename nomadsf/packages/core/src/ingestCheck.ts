@@ -141,3 +141,36 @@ export function checkColumns(
     problems.push('No column can be set for this operation.');
   return { columns: checks, problems };
 }
+
+/** Bulk API 2.0 CSV value that empties a field (a blank value leaves it unchanged). */
+export const BULK_NULL = '#N/A';
+
+/**
+ * Update file from edited records: only rows with a change, with Id and the changed columns.
+ * A cleared cell becomes #N/A so Salesforce empties the field instead of leaving it as it was.
+ */
+export function changedRecords(
+  editable: string[],
+  rows: Array<{ id: number; values: Record<string, string> }>,
+  original: Map<number, Record<string, string>>
+): { columns: string[]; rows: Array<Record<string, string>>; cells: number } {
+  const changedColumns = new Set<string>();
+  const out: Array<Record<string, string>> = [];
+  let cells = 0;
+  for (const row of rows) {
+    const before = original.get(row.id) ?? {};
+    const changes: Record<string, string> = {};
+    for (const column of editable) {
+      const now = row.values[column] ?? '';
+      if (now === (before[column] ?? '')) continue;
+      changes[column] = now === '' ? BULK_NULL : now;
+      changedColumns.add(column);
+      cells++;
+    }
+    if (Object.keys(changes).length) {
+      if (!row.values.Id) throw new Error('Every record needs its Id to be updated.');
+      out.push({ Id: row.values.Id, ...changes });
+    }
+  }
+  return { columns: ['Id', ...editable.filter((c) => changedColumns.has(c))], rows: out, cells };
+}

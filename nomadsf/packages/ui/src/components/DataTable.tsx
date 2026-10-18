@@ -217,3 +217,12 @@ export function DataTable({
     </div>
   );
 }
+
+/** Shown when Salesforce returns nothing: records the user cannot see are left out silently. */
+export function EmptyHint({ what = 'rows' }: { what?: string }) {
+  return (
+    <p className="muted" style={{ margin: 0 }}>
+      No {what}. If you expected some, your user may not be able to see them (sharing, object or field permissions).
+    </p>
+  );
+}

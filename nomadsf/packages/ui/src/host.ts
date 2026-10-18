@@ -1,4 +1,4 @@
-import { SalesforceClient, fetchTransport, proxyTransport, query } from '@nomadsf/core';
+import { SalesforceClient, apiHostFor, fetchTransport, proxyTransport, query } from '@nomadsf/core';
 
 /**
  * Where the Studio runs decides how it reaches Salesforce:
@@ -41,15 +41,41 @@ function appHost(): Host {
   };
 }
 
+/** Kind of org from its My Domain host (the session check tells production from the rest). */
+function typeFromHost(host: string): string | undefined {
+  if (/\.sandbox\.my\.salesforce\.com$/.test(host)) return 'Sandbox';
+  if (/\.scratch\.my\.salesforce\.com$/.test(host)) return 'Scratch';
+  if (/\.develop\.my\.salesforce\.com$/.test(host)) return 'Developer';
+  return undefined;
+}
+
+const orgChoice = (host: string): OrgChoice => ({
+  id: host,
+  label: host.replace(/\.my\.salesforce\.com$/, ''),
+  type: typeFromHost(host),
+  instanceUrl: `https://${host}`,
+});
+
+/**
+ * Orgs this browser is logged in to: every Salesforce API host with a `sid` cookie. The org of
+ * the tab the Studio was opened from comes first. No CLI and nothing stored by NomadSF.
+ */
+export async function browserOrgs(preferred = ''): Promise<OrgChoice[]> {
+  const cookies = await chrome.cookies.getAll({ name: 'sid' });
+  const hosts = new Set<string>();
+  for (const cookie of cookies) {
+    const host = apiHostFor(cookie.domain.replace(/^\./, ''));
+    if (host && cookie.value) hosts.add(host);
+  }
+  if (preferred) hosts.delete(preferred);
+  return [...(preferred ? [preferred] : []), ...[...hosts].sort()].map(orgChoice);
+}
+
 function extensionHost(): Host {
   const host = new URLSearchParams(location.search).get('host') ?? '';
   return {
     kind: 'extension',
-    async orgs() {
-      return host
-        ? [{ id: host, label: host.replace(/\.my\.salesforce\.com$/, ''), instanceUrl: `https://${host}` }]
-        : [];
-    },
+    orgs: () => browserOrgs(host),
     async client(org) {
       const cookie = await chrome.cookies.get({ url: `https://${org.id}`, name: 'sid' });
       if (!cookie?.value)
@@ -91,4 +117,20 @@ export async function openInOrg(kind: 'app' | 'extension', org: OrgChoice, path:
     body: JSON.stringify({ org: org.id, path }),
   });
   if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? res.statusText);
+}
+
+export type OrgCheck = { ok: true; facts: OrgFacts } | { ok: false; error: string };
+
+/** Is the login to this org still valid? Reads its name and type (production, sandbox…). */
+export async function checkOrg(org: OrgChoice): Promise<OrgCheck> {
+  try {
+    const client = await detectHost().client(org);
+    return { ok: true, facts: await orgFacts(client) };
+  } catch (e) {
+    const message = (e as Error).message;
+    return {
+      ok: false,
+      error: /session|INVALID_SESSION|401|logged in/i.test(message) ? 'Session expired: log in again' : message,
+    };
+  }
 }

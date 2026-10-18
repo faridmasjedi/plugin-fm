@@ -31,10 +31,9 @@ header {
   border-bottom: 1px solid var(--border);
 }
 .logo {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, #0b5cff, #8b5cf6);
+  width: 22px;
+  height: 22px;
+  display: block;
 }
 main {
   padding: 12px 14px 14px;

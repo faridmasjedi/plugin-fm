@@ -12,11 +12,20 @@ export type FieldInfo = {
   type: string;
   custom: boolean;
   filterable: boolean;
+  /** Field-level security applies (false: always visible, e.g. Id, Name, required fields). */
+  permissionable?: boolean;
   filled?: number;
   percent?: number;
 };
 
-type RawField = { name: string; label: string; type: string; custom: boolean; filterable: boolean };
+type RawField = {
+  name: string;
+  label: string;
+  type: string;
+  custom: boolean;
+  filterable: boolean;
+  permissionable?: boolean;
+};
 
 export async function objectFields(
   client: SalesforceClient,
@@ -30,7 +39,14 @@ export async function objectFields(
   return {
     total: count.totalSize,
     fields: describe.fields
-      .map((f) => ({ name: f.name, label: f.label, type: f.type, custom: f.custom, filterable: f.filterable }))
+      .map((f) => ({
+        name: f.name,
+        label: f.label,
+        type: f.type,
+        custom: f.custom,
+        filterable: f.filterable,
+        permissionable: f.permissionable,
+      }))
       .sort((a, b) => Number(b.custom) - Number(a.custom) || a.name.localeCompare(b.name)),
   };
 }
@@ -110,4 +126,155 @@ export async function fieldDependencies(
       id: String(r.MetadataComponentId),
     }))
     .sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+}
+
+export type FieldAccess = {
+  kind: 'Profile' | 'Permission set' | 'Permission set group';
+  name: string;
+  access: 'Read & edit' | 'Read only' | 'No access';
+};
+
+/**
+ * Who can see / edit a field: every profile, permission set and permission set group (also those
+ * without access), from FieldPermissions. Fields without field-level security are visible to all.
+ */
+export async function fieldAccess(client: SalesforceClient, sobject: string, field: string): Promise<FieldAccess[]> {
+  if (!/^\w+$/.test(sobject) || !/^\w+$/.test(field)) throw new Error('Invalid object or field.');
+  const [perms, holders] = await Promise.all([
+    query(
+      client,
+      `SELECT ParentId, PermissionsRead, PermissionsEdit FROM FieldPermissions WHERE SobjectType = '${sobject}' AND Field = '${sobject}.${field}'`,
+      { maxRows: 10_000 }
+    ),
+    permissionHolders(client),
+  ]);
+  const level = new Map<string, FieldAccess['access']>();
+  for (const r of perms.rows) {
+    level.set(
+      String(r.ParentId).slice(0, 15),
+      r.PermissionsEdit === true ? 'Read & edit' : r.PermissionsRead === true ? 'Read only' : 'No access'
+    );
+  }
+  const order = { 'Read & edit': 0, 'Read only': 1, 'No access': 2 };
+  return holders
+    .map((h) => ({ kind: h.kind, name: h.name, access: level.get(h.id.slice(0, 15)) ?? ('No access' as const) }))
+    .sort((a, b) => order[a.access] - order[b.access] || a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
+}
+
+export type PermissionHolder = { id: string; kind: FieldAccess['kind']; name: string };
+
+/**
+ * Every profile, permission set and permission set group, by the PermissionSet record that holds
+ * its permissions (a profile's own one; a group's calculated one). Repeated names get the licence,
+ * then the end of the Id, so they can be told apart.
+ */
+export async function permissionHolders(client: SalesforceClient): Promise<PermissionHolder[]> {
+  const result = await query(
+    client,
+    'SELECT Id, Label, Type, IsOwnedByProfile, Profile.Name, Profile.UserLicense.Name, PermissionSetGroup.MasterLabel FROM PermissionSet ORDER BY Label',
+    { maxRows: 10_000 }
+  );
+  const rows = result.rows.map((r) => {
+    const profile = r.IsOwnedByProfile === true;
+    const group = r.Type === 'Group';
+    return {
+      id: String(r.Id),
+      kind: (profile ? 'Profile' : group ? 'Permission set group' : 'Permission set') as PermissionHolder['kind'],
+      name: String(
+        (profile ? r['Profile.Name'] : group ? r['PermissionSetGroup.MasterLabel'] ?? r.Label : r.Label) ?? ''
+      ),
+      licence: profile ? String(r['Profile.UserLicense.Name'] ?? '') : '',
+    };
+  });
+  return rows.map((r) => {
+    const same = rows.filter((x) => x.kind === r.kind && x.name === r.name);
+    if (same.length < 2) return { id: r.id, kind: r.kind, name: r.name };
+    const sameLicence = same.filter((x) => x.licence === r.licence).length > 1;
+    const suffix = r.licence && !sameLicence ? r.licence : `${r.licence ? `${r.licence}, ` : ''}…${r.id.slice(9, 15)}`;
+    return { id: r.id, kind: r.kind, name: `${r.name} (${suffix})` };
+  });
+}
+
+const PS_ID = /^0PS\w{12}(\w{3})?$/;
+
+export type ObjectAccessRow = {
+  object: string;
+  read: boolean;
+  create: boolean;
+  edit: boolean;
+  delete: boolean;
+  viewAll: boolean;
+  modifyAll: boolean;
+};
+
+export async function objectAccessOf(client: SalesforceClient, permissionSetId: string): Promise<ObjectAccessRow[]> {
+  if (!PS_ID.test(permissionSetId)) throw new Error('Invalid permission set Id.');
+  const result = await query(
+    client,
+    `SELECT SobjectType, PermissionsRead, PermissionsCreate, PermissionsEdit, PermissionsDelete, PermissionsViewAllRecords, PermissionsModifyAllRecords FROM ObjectPermissions WHERE ParentId = '${permissionSetId}' ORDER BY SobjectType`,
+    { maxRows: 10_000 }
+  );
+  return result.rows.map((r) => ({
+    object: String(r.SobjectType),
+    read: r.PermissionsRead === true,
+    create: r.PermissionsCreate === true,
+    edit: r.PermissionsEdit === true,
+    delete: r.PermissionsDelete === true,
+    viewAll: r.PermissionsViewAllRecords === true,
+    modifyAll: r.PermissionsModifyAllRecords === true,
+  }));
+}
+
+export type FieldAccessRow = { object: string; field: string; read: boolean; edit: boolean };
+
+export async function fieldAccessOf(
+  client: SalesforceClient,
+  permissionSetId: string,
+  sobject?: string
+): Promise<FieldAccessRow[]> {
+  if (!PS_ID.test(permissionSetId)) throw new Error('Invalid permission set Id.');
+  if (sobject && !/^\w+$/.test(sobject)) throw new Error('Invalid object.');
+  const result = await query(
+    client,
+    `SELECT SobjectType, Field, PermissionsRead, PermissionsEdit FROM FieldPermissions WHERE ParentId = '${permissionSetId}'${
+      sobject ? ` AND SobjectType = '${sobject}'` : ''
+    } ORDER BY SobjectType, Field`,
+    { maxRows: 50_000 }
+  );
+  return result.rows.map((r) => ({
+    object: String(r.SobjectType),
+    field: String(r.Field).split('.').slice(1).join('.'),
+    read: r.PermissionsRead === true,
+    edit: r.PermissionsEdit === true,
+  }));
+}
+
+export type SystemPermission = { api: string; label: string; enabled: boolean };
+
+/** User & system permissions (the Permissions* checkboxes of the permission set), in chunks to keep URLs short. */
+export async function systemPermissionsOf(
+  client: SalesforceClient,
+  permissionSetId: string
+): Promise<SystemPermission[]> {
+  if (!PS_ID.test(permissionSetId)) throw new Error('Invalid permission set Id.');
+  const describe = await client.rest<{ fields: Array<{ name: string; label: string; type: string }> }>(
+    'GET',
+    '/sobjects/PermissionSet/describe'
+  );
+  const fields = describe.fields.filter((f) => f.type === 'boolean' && f.name.startsWith('Permissions'));
+  const out: SystemPermission[] = [];
+  for (let i = 0; i < fields.length; i += 150) {
+    const chunk = fields.slice(i, i + 150);
+    // eslint-disable-next-line no-await-in-loop
+    const row =
+      (
+        await query(
+          client,
+          `SELECT ${chunk.map((f) => f.name).join(', ')} FROM PermissionSet WHERE Id = '${permissionSetId}'`
+        )
+      ).rows[0] ?? {};
+    for (const f of chunk)
+      out.push({ api: f.name.replace(/^Permissions/, ''), label: f.label, enabled: row[f.name] === true });
+  }
+  return out.sort((a, b) => Number(b.enabled) - Number(a.enabled) || a.label.localeCompare(b.label));
 }

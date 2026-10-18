@@ -12,6 +12,7 @@ import { ActivityPage } from './pages/ActivityPage';
 import { MetadataPage } from './pages/MetadataPage';
 import { LOCAL_PAGES, LocalAppPage } from './pages/LocalAppPage';
 import { ProjectPage } from './pages/ProjectPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { TestsPage } from './pages/TestsPage';
 import { RecordPage } from './pages/RecordPage';
 import { LimitsPage } from './pages/LimitsPage';
@@ -41,6 +42,7 @@ const PAGES = [
   { id: 'rest', label: 'REST Explorer', icon: '⇄' },
   { id: 'tests', label: 'E2E tests', icon: '✓' },
   { id: 'activity', label: 'Activity', icon: '⏱' },
+  { id: 'settings', label: 'Settings', icon: '⚙' },
 ] as const;
 const host = detectHost();
 // Pages of the NomadSF CLI app (CLI orgs, AI settings) only make sense inside the extension
@@ -50,7 +52,11 @@ const isPage = (id: string): id is PageId => PAGES.some((p) => p.id === id) || L
 
 export function App() {
   const [orgs, setOrgs] = useState<OrgChoice[]>([]);
-  const [orgId, setOrgId] = useState<string>(() => storage.get('studio.org', ''));
+  // The extension opened from a Salesforce tab starts on that tab's org
+  const [orgId, setOrgId] = useState<string>(
+    () =>
+      (host.kind === 'extension' && new URLSearchParams(location.search).get('host')) || storage.get('studio.org', '')
+  );
   // #apex / #logs / #query (links from the extension popup) win over the last page used
   const [page, setPage] = useState<PageId>(() => {
     const [fromHash, value] = location.hash.slice(1).split(/=(.*)/s);
@@ -72,17 +78,37 @@ export function App() {
     setPage('record');
   }, []);
 
-  useEffect(() => {
+  const loadOrgs = useCallback(() => {
     host
       .orgs()
       .then((list) => {
-        setOrgs(list);
+        // Same orgs as before: keep the old list, so nothing reconnects (e.g. after a dialog returns focus)
+        setOrgs((current) => (JSON.stringify(current) === JSON.stringify(list) ? current : list));
         setOrgId((current) => (list.some((o) => o.id === current) ? current : list[0]?.id ?? ''));
       })
       .catch((e: Error) => setError(e.message));
   }, []);
+  useEffect(() => {
+    loadOrgs();
+    // In the extension, orgs logged in to in another tab show up when you come back
+    if (host.kind !== 'extension') return undefined;
+    window.addEventListener('focus', loadOrgs);
+    return () => window.removeEventListener('focus', loadOrgs);
+  }, [loadOrgs]);
 
-  const org = useMemo(() => orgs.find((o) => o.id === orgId), [orgs, orgId]);
+  const switchOrg = useCallback((id: string) => {
+    setOrgId(id);
+    if (host.kind === 'extension') {
+      // Keep the address in step, so a reload stays on this org
+      const url = new URL(location.href);
+      url.searchParams.set('host', id);
+      history.replaceState(null, '', url);
+    }
+  }, []);
+
+  // Stable while the chosen org stays the same, even if the org list is read again
+  const orgKey = JSON.stringify(orgs.find((o) => o.id === orgId) ?? null);
+  const org = useMemo(() => (JSON.parse(orgKey) as OrgChoice | null) ?? undefined, [orgKey]);
 
   useEffect(() => {
     if (!org) return;
@@ -101,7 +127,15 @@ export function App() {
         setFacts(f);
         setUser(u);
       })
-      .catch((e: Error) => !canceled && setError(e.message));
+      .catch(
+        (e: Error) =>
+          !canceled &&
+          setError(
+            host.kind === 'extension' && orgs.length > 1
+              ? `${e.message} Choose another org in Settings, or log in to this one again.`
+              : e.message
+          )
+      );
     return () => {
       canceled = true;
     };
@@ -160,11 +194,11 @@ export function App() {
       <div className="studio">
         <header className="top">
           <div className="brand">
-            <span className="logo" />
+            <img className="logo" src="./logo.png" alt="" />
             NomadSF <span className="muted">Studio</span>
           </div>
-          {host.kind === 'app' ? (
-            <select value={orgId} onChange={(e) => setOrgId(e.target.value)}>
+          {orgs.length > 1 || host.kind === 'app' ? (
+            <select value={orgId} onChange={(e) => switchOrg(e.target.value)} title="Org (change it in Settings too)">
               {orgs.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.label}
@@ -194,12 +228,14 @@ export function App() {
           </button>
         </header>
         <nav className="side">
-          {shownPages.map((p) => (
-            <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)}>
-              <span className="icon">{p.icon}</span>
-              {p.label}
-            </button>
-          ))}
+          {shownPages
+            .filter((p) => p.id !== 'settings')
+            .map((p) => (
+              <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)}>
+                <span className="icon">{p.icon}</span>
+                {p.label}
+              </button>
+            ))}
           {shownLocal.length > 0 && <div className="nav-section">Local app</div>}
           {shownLocal.map((p) => (
             <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)}>
@@ -207,22 +243,44 @@ export function App() {
               {p.label}
             </button>
           ))}
+          {/* Settings last, under everything else */}
+          <div className="nav-spacer" />
+          <button className={page === 'settings' ? 'active' : ''} onClick={() => setPage('settings')}>
+            <span className="icon">⚙</span>
+            Settings
+          </button>
         </nav>
         <main className={localPage ? 'local' : ''}>
           {localPage && <LocalAppPage page={localPage.page} />}
           {page === 'project' && (
-            <ProjectPage studio={studio} hostKind={host.kind} onOpenMetadata={() => setPage('metadata')} />
+            <ProjectPage
+              studio={studio}
+              onOpenMetadata={() => setPage('metadata')}
+              onOpenSettings={() => setPage('settings')}
+            />
+          )}
+          {page === 'settings' && (
+            <SettingsPage
+              hostKind={host.kind}
+              onOpenProject={() => setPage('project')}
+              orgs={orgs}
+              orgId={orgId}
+              onSwitchOrg={switchOrg}
+              onRefreshOrgs={loadOrgs}
+            />
           )}
           {page === 'tests' && project.localAppReady && (
             <TestsPage hostKind={host.kind} defaultOrg={host.kind === 'app' ? org?.id : undefined} />
           )}
-          {!localPage && !['project', 'tests'].includes(page) && error && <div className="error">{error}</div>}
-          {!localPage && !['project', 'tests'].includes(page) && !error && !studio && (
+          {!localPage && !['project', 'tests', 'settings'].includes(page) && error && (
+            <div className="error">{error}</div>
+          )}
+          {!localPage && !['project', 'tests', 'settings'].includes(page) && !error && !studio && (
             <p className="muted">
               {orgs.length || host.kind === 'extension' ? 'Connecting…' : 'No orgs. Connect one in NomadSF → Orgs.'}
             </p>
           )}
-          {!localPage && !['project', 'tests'].includes(page) && studio && (
+          {!localPage && !['project', 'tests', 'settings'].includes(page) && studio && (
             <StudioContext.Provider value={studio}>
               <InspectContext.Provider value={inspect}>
                 {page === 'apex' && <ExecutePage />}

@@ -17,6 +17,9 @@ export function EditableGrid({
   onRowsChange,
   onIncludedChange,
   mutedColumns,
+  lockedColumns,
+  allowAddRemove = true,
+  includedWord = 'included',
 }: {
   columns: string[];
   rows: GridRow[];
@@ -27,6 +30,12 @@ export function EditableGrid({
   onIncludedChange: (included: Set<number>) => void;
   /** Columns that will not be sent (greyed out). */
   mutedColumns?: Set<string>;
+  /** Columns shown but not editable (e.g. formula or related fields). */
+  lockedColumns?: Set<string>;
+  /** Add row / remove row buttons (off for records read from the org). */
+  allowAddRemove?: boolean;
+  /** How ticked rows are described ("included", "selected"). */
+  includedWord?: string;
 }) {
   const [filter, setFilter] = useState('');
   const [page, setPage] = useState(0);
@@ -57,7 +66,7 @@ export function EditableGrid({
   };
 
   return (
-    <div className="egrid">
+    <div className={`egrid ${includedWord === 'included' ? '' : 'select-mode'}`}>
       <div className="form">
         <input
           placeholder="Filter rows"
@@ -68,22 +77,24 @@ export function EditableGrid({
           }}
         />
         <span className="muted">
-          {included.size.toLocaleString()} of {rows.length.toLocaleString()} rows included
+          {included.size.toLocaleString()} of {rows.length.toLocaleString()} rows {includedWord}
           {edits ? ` · ${edits.toLocaleString()} cell(s) edited` : ''}
         </span>
         <span className="grow" />
-        <button
-          onClick={() => {
-            const id = Math.max(-1, ...rows.map((r) => r.id)) + 1;
-            onRowsChange([...rows, { id, values: Object.fromEntries(columns.map((c) => [c, ''])) }]);
-            onIncludedChange(new Set([...included, id]));
-            setFilter('');
-            setPage(Math.floor(rows.length / PAGE));
-            setEditing({ id, column: columns[0] });
-          }}
-        >
-          Add row
-        </button>
+        {allowAddRemove && (
+          <button
+            onClick={() => {
+              const id = Math.max(-1, ...rows.map((r) => r.id)) + 1;
+              onRowsChange([...rows, { id, values: Object.fromEntries(columns.map((c) => [c, ''])) }]);
+              onIncludedChange(new Set([...included, id]));
+              setFilter('');
+              setPage(Math.floor(rows.length / PAGE));
+              setEditing({ id, column: columns[0] });
+            }}
+          >
+            Add row
+          </button>
+        )}
       </div>
       <div className="egrid-scroll">
         <table>
@@ -102,8 +113,9 @@ export function EditableGrid({
                 <th
                   key={c}
                   className={mutedColumns?.has(c) ? 'muted-col' : ''}
-                  title={mutedColumns?.has(c) ? 'Not sent' : undefined}
+                  title={mutedColumns?.has(c) ? 'Not sent' : lockedColumns?.has(c) ? 'Read-only' : undefined}
                 >
+                  {lockedColumns?.has(c) ? '🔒 ' : ''}
                   {c}
                 </th>
               ))}
@@ -112,7 +124,7 @@ export function EditableGrid({
           </thead>
           <tbody>
             {visible.map((r) => (
-              <tr key={r.id} className={included.has(r.id) ? '' : 'excluded'}>
+              <tr key={r.id} className={included.has(r.id) ? 'picked' : includedWord === 'included' ? 'excluded' : ''}>
                 <td>
                   <input
                     type="checkbox"
@@ -133,9 +145,11 @@ export function EditableGrid({
                   return (
                     <td
                       key={c}
-                      className={`cell ${changed ? 'changed' : ''} ${mutedColumns?.has(c) ? 'muted-col' : ''}`}
+                      className={`cell ${changed ? 'changed' : ''} ${mutedColumns?.has(c) ? 'muted-col' : ''} ${
+                        lockedColumns?.has(c) ? 'locked' : ''
+                      }`}
                       title={changed ? `Was: ${original.get(r.id)?.[c] ?? '(new row)'}` : 'Click to edit'}
-                      onClick={() => !isEditing && setEditing({ id: r.id, column: c })}
+                      onClick={() => !isEditing && !lockedColumns?.has(c) && setEditing({ id: r.id, column: c })}
                     >
                       {isEditing ? (
                         <input
@@ -147,7 +161,8 @@ export function EditableGrid({
                             if (e.key === 'Enter' || e.key === 'Escape') setEditing(null);
                             if (e.key === 'Tab') {
                               e.preventDefault();
-                              const next = columns[columns.indexOf(c) + (e.shiftKey ? -1 : 1)];
+                              const editable = columns.filter((x) => !lockedColumns?.has(x));
+                              const next = editable[editable.indexOf(c) + (e.shiftKey ? -1 : 1)];
                               setEditing(next ? { id: r.id, column: next } : null);
                             }
                           }}
@@ -159,18 +174,20 @@ export function EditableGrid({
                   );
                 })}
                 <td>
-                  <button
-                    className="link"
-                    title="Remove this row"
-                    onClick={() => {
-                      onRowsChange(rows.filter((x) => x.id !== r.id));
-                      const next = new Set(included);
-                      next.delete(r.id);
-                      onIncludedChange(next);
-                    }}
-                  >
-                    ×
-                  </button>
+                  {allowAddRemove && (
+                    <button
+                      className="link"
+                      title="Remove this row"
+                      onClick={() => {
+                        onRowsChange(rows.filter((x) => x.id !== r.id));
+                        const next = new Set(included);
+                        next.delete(r.id);
+                        onIncludedChange(next);
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

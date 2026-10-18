@@ -106,10 +106,9 @@ header.top {
   gap: 8px;
 }
 .logo {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, var(--accent), #8b5cf6);
+  width: 24px;
+  height: 24px;
+  display: block;
 }
 .user {
   font-size: 13px;
@@ -818,4 +817,51 @@ button.metric.filter.active {
 }
 .egrid td.muted-col {
   text-decoration: none;
+}
+nav.side .nav-spacer {
+  height: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+.empty-project {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 640px;
+}
+table.org-list {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+table.org-list td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+table.org-list td:last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+table.org-list tr.current {
+  background: var(--accent-soft);
+}
+.egrid td.cell.locked {
+  cursor: default;
+  color: var(--muted);
+}
+.egrid td.cell.locked:hover {
+  background: transparent;
+}
+.egrid.select-mode tr.picked td {
+  background: var(--accent-soft);
+}
+.user-actions {
+  align-items: center;
+  padding: 8px 0;
+}
+.record-embedded {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }

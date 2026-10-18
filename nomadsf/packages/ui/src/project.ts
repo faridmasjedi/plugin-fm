@@ -91,7 +91,12 @@ const supportsFolders = (): boolean =>
 export const localAppBase = (kind: 'app' | 'extension'): string =>
   kind === 'app' ? '' : `http://127.0.0.1:${storage.get('local.port', 7007)}`;
 
+/** The extension only looks for the NomadSF CLI app when it is switched on in Settings (no failed requests otherwise). */
+export const localAppEnabled = (): boolean => storage.get('local.enabled', false);
+
 async function localProject(base: string): Promise<{ current: RecentProject; recent: RecentProject[] } | undefined> {
+  // base '' = inside the app itself, which is always there
+  if (base && !localAppEnabled()) return undefined;
   try {
     const res = await fetch(`${base}/api/projects`, { cache: 'no-store' });
     return res.ok ? ((await res.json()) as { current: RecentProject; recent: RecentProject[] }) : undefined;

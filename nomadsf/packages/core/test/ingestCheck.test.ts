@@ -74,3 +74,26 @@ describe('which columns Salesforce accepts', () => {
     expect(checkColumns(user, ['Id', 'Name'], 'update').problems).toContain('No column can be set for this operation.');
   });
 });
+
+describe('changed records', () => {
+  it('keeps only changed rows and columns, empties cleared cells', async () => {
+    const { changedRecords } = await import('../src/index.js');
+    const original = new Map([
+      [0, { Id: '001A', Name: 'Acme', Phone: '1', Industry: 'Tech' }],
+      [1, { Id: '001B', Name: 'Globex', Phone: '2', Industry: 'Retail' }],
+      [2, { Id: '001C', Name: 'Initech', Phone: '3', Industry: '' }],
+    ]);
+    const rows = [
+      { id: 0, values: { Id: '001A', Name: 'Acme Corp', Phone: '1', Industry: 'Tech' } },
+      { id: 1, values: { Id: '001B', Name: 'Globex', Phone: '2', Industry: 'Retail' } },
+      { id: 2, values: { Id: '001C', Name: 'Initech', Phone: '', Industry: '' } },
+    ];
+    const out = changedRecords(['Name', 'Phone', 'Industry'], rows, original);
+    expect(out.columns).toEqual(['Id', 'Name', 'Phone']);
+    expect(out.rows).toEqual([
+      { Id: '001A', Name: 'Acme Corp' },
+      { Id: '001C', Phone: '#N/A' },
+    ]);
+    expect(out.cells).toBe(2);
+  });
+});

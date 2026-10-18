@@ -113,7 +113,10 @@ export function CodePage() {
     setBusy(true);
     setStatus(checkOnly ? 'Compiling…' : 'Saving…');
     try {
-      const result = await saveApex(client, item, body, { checkOnly });
+      const result = await saveApex(client, item, body, {
+        checkOnly,
+        onWait: (seconds) => setStatus(`${checkOnly ? 'Compiling' : 'Saving'}… ${seconds} s`),
+      });
       setProblems(result.problems);
       if (result.ok) {
         setStatus(checkOnly ? '✓ Compiles.' : '✓ Saved.');

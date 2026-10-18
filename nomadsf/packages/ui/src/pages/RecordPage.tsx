@@ -25,7 +25,8 @@ async function resolveInput(client: ReturnType<typeof useStudio>['client'], inpu
 }
 
 /** Every field of one record, with inline edit (Salesforce Inspector's "Show all data"). */
-export function RecordPage({ initialId }: { initialId?: string }) {
+/** `embedded`: inside another page (no own search bar). */
+export function RecordPage({ initialId, embedded = false }: { initialId?: string; embedded?: boolean }) {
   const studio = useStudio();
   const { client, org, user } = studio;
   const [input, setInput] = useState(initialId ?? '');
@@ -162,30 +163,32 @@ export function RecordPage({ initialId }: { initialId?: string }) {
   };
 
   return (
-    <div className="page">
-      <div className="toolbar">
-        <h2>Record</h2>
-        <input
-          style={{ minWidth: 360 }}
-          placeholder="Record Id, record URL or username"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && void open(input)}
-        />
-        <button className="primary" disabled={!input.trim()} onClick={() => void open(input)}>
-          Show all data
-        </button>
-        {recent.length > 0 && (
-          <select value="" onChange={(e) => e.target.value && void open(e.target.value)}>
-            <option value="">Recent…</option>
-            {recent.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
+    <div className={embedded ? 'record-embedded' : 'page'}>
+      {!embedded && (
+        <div className="toolbar">
+          <h2>Record</h2>
+          <input
+            style={{ minWidth: 360 }}
+            placeholder="Record Id, record URL or username"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && void open(input)}
+          />
+          <button className="primary" disabled={!input.trim()} onClick={() => void open(input)}>
+            Show all data
+          </button>
+          {recent.length > 0 && (
+            <select value="" onChange={(e) => e.target.value && void open(e.target.value)}>
+              <option value="">Recent…</option>
+              {recent.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
       {status && <p className="muted">{status}</p>}
       {record && (
         <div className="card section">

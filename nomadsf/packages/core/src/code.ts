@@ -142,11 +142,28 @@ type ContainerRequest = {
  * Compiles (and with `checkOnly: false` saves) an Apex class or trigger, like the Developer
  * Console: MetadataContainer + member + ContainerAsyncRequest, polled until done.
  */
+/** Was the class / trigger / page saved in the org after `since` (a timestamp)? */
+async function savedSince(
+  client: SalesforceClient,
+  item: Pick<CodeItem, 'id' | 'kind'>,
+  since: number
+): Promise<boolean> {
+  try {
+    const row = await client.tooling<{ LastModifiedDate?: string }>(
+      'GET',
+      `/sobjects/${item.kind}/${item.id}?fields=LastModifiedDate`
+    );
+    return Boolean(row.LastModifiedDate) && Date.parse(row.LastModifiedDate!) >= since - 5000;
+  } catch {
+    return false;
+  }
+}
+
 export async function saveApex(
   client: SalesforceClient,
   item: Pick<CodeItem, 'id' | 'kind'>,
   body: string,
-  options: { checkOnly?: boolean; intervalMs?: number; timeoutMs?: number } = {}
+  options: { checkOnly?: boolean; intervalMs?: number; timeoutMs?: number; onWait?: (seconds: number) => void } = {}
 ): Promise<SaveResult> {
   if (isBundle(item.kind)) throw new Error('Use saveBundleFile for LWC and Aura.');
   if (!SAFE_ID.test(item.id)) throw new Error('Invalid Id.');
@@ -163,11 +180,17 @@ export async function saveApex(
       MetadataContainerId: container.id,
       IsCheckOnly: options.checkOnly ?? false,
     });
-    const until = Date.now() + (options.timeoutMs ?? 120_000);
+    const started = Date.now();
+    const until = started + (options.timeoutMs ?? 120_000);
     for (;;) {
       // eslint-disable-next-line no-await-in-loop
-      const state = await client.tooling<ContainerRequest>('GET', `/sobjects/ContainerAsyncRequest/${request.id}`);
-      if (state.State !== 'Queued' && state.State !== 'Invalidated') {
+      const state = await client.tooling<ContainerRequest>(
+        'GET',
+        `/sobjects/ContainerAsyncRequest/${request.id}?t=${Date.now()}`
+      );
+      options.onWait?.(Math.round((Date.now() - started) / 1000));
+      // Queued is the only state that is still running; Invalidated, Error, Aborted are final
+      if (state.State !== 'Queued') {
         const problems = (state.DeployDetails?.componentFailures ?? []).map((f) => ({
           line: f.lineNumber,
           column: f.columnNumber,
@@ -176,10 +199,25 @@ export async function saveApex(
         }));
         if (state.ErrorMsg && problems.length === 0)
           problems.push({ problem: state.ErrorMsg, line: undefined, column: undefined, name: undefined });
+        if (state.State === 'Invalidated' && problems.length === 0)
+          problems.push({
+            problem: 'Salesforce dropped this save because the class changed meanwhile; save again.',
+            line: undefined,
+            column: undefined,
+            name: undefined,
+          });
         return { ok: state.State === 'Completed', state: state.State, problems };
       }
-      if (Date.now() > until)
-        return { ok: false, state: 'Timeout', problems: [{ problem: 'Still compiling; check again later.' }] };
+      if (Date.now() > until) {
+        // Salesforce may have finished without telling us yet: was the class saved after we started?
+        if (!options.checkOnly && (await savedSince(client, item, started)))
+          return { ok: true, state: 'Completed', problems: [] };
+        return {
+          ok: false,
+          state: 'Timeout',
+          problems: [{ problem: 'Still compiling after 2 minutes; check the class in the org.' }],
+        };
+      }
       // eslint-disable-next-line no-await-in-loop
       await new Promise((r) => setTimeout(r, options.intervalMs ?? 1000));
     }

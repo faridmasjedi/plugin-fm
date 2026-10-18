@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   describeGlobal,
+  fieldAccess,
   fieldDependencies,
   fillRates,
   objectFields,
+  type FieldAccess,
   type FieldDependency,
   type FieldInfo,
   type SObjectSummary,
 } from '@nomadsf/core';
-import { DataTable } from '../components/DataTable';
+import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 
 /** How full each field is, and what references a custom field, before changing or deleting it. */
@@ -24,6 +26,12 @@ export function FieldUsagePage() {
   const [counting, setCounting] = useState(false);
   const [field, setField] = useState<FieldInfo | null>(null);
   const [deps, setDeps] = useState<FieldDependency[] | null>(null);
+  const [access, setAccess] = useState<FieldAccess[] | null>(null);
+  const [tab, setTab] = useState<'usage' | 'access'>(() => storage.get('fields.tab', 'usage'));
+  const [countingOne, setCountingOne] = useState(false);
+  // Access tab: which level (tile) and which kind of holder to list
+  const [level, setLevel] = useState<FieldAccess['access'] | 'all'>('all');
+  const [kind, setKind] = useState<FieldAccess['kind'] | 'all'>('all');
   const [status, setStatus] = useState('');
   const abort = useRef<AbortController>(undefined);
 
@@ -38,6 +46,7 @@ export function FieldUsagePage() {
     setFields(null);
     setField(null);
     setDeps(null);
+    setAccess(null);
     storage.set('fields.object', sobject);
     objectFields(client, sobject)
       .then((r) => {
@@ -65,16 +74,41 @@ export function FieldUsagePage() {
     setCounting(false);
   };
 
-  const openField = async (name: string) => {
-    const chosen = fields?.find((f) => f.name === name) ?? null;
-    setField(chosen);
+  const openField = (name: string) => {
+    setField(fields?.find((f) => f.name === name) ?? null);
     setDeps(null);
-    if (!chosen?.custom) return;
-    try {
-      setDeps(await fieldDependencies(client, sobject, name));
-    } catch (e) {
-      setStatus(`❌ ${(e as Error).message}`);
+    setAccess(null);
+  };
+
+  // What the chosen field's tab needs, loaded when the field or tab changes
+  useEffect(() => {
+    if (!field) return;
+    let canceled = false;
+    if (tab === 'usage' && field.custom && deps === null) {
+      fieldDependencies(client, sobject, field.name)
+        .then((d) => !canceled && setDeps(d))
+        .catch((e: Error) => !canceled && setStatus(`❌ ${e.message}`));
     }
+    if (tab === 'access' && access === null && field.permissionable !== false) {
+      fieldAccess(client, sobject, field.name)
+        .then((a) => !canceled && setAccess(a))
+        .catch((e: Error) => !canceled && setStatus(`❌ ${e.message}`));
+    }
+    return () => {
+      canceled = true;
+    };
+    // deps / access are results, not triggers
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, sobject, field, tab]);
+
+  const countOne = async () => {
+    if (!field) return;
+    setCountingOne(true);
+    await fillRates(client, sobject, [field], total, (updated) => {
+      setFields((list) => list?.map((f) => (f.name === updated.name ? updated : f)) ?? null);
+      setField(updated);
+    });
+    setCountingOne(false);
   };
 
   return (
@@ -119,7 +153,7 @@ export function FieldUsagePage() {
           <button onClick={() => abort.current?.abort()}>Stop counting</button>
         ) : (
           <button className="primary" disabled={!fields || !total} onClick={() => void count()}>
-            Count filled values ({shown.filter((f) => f.filterable).length} queries)
+            Count all ({shown.filter((f) => f.filterable).length} queries)
           </button>
         )}
       </div>
@@ -145,34 +179,125 @@ export function FieldUsagePage() {
               name={`${sobject}-field-usage`}
               onRowClick={(row) => void openField(String(row.name))}
               selectedKey={field?.name}
-              note={<span>· click a custom field for what uses it</span>}
+              note={<span>· click a field</span>}
             />
           )}
         </div>
         <div className="card section">
           {!field ? (
-            <p className="muted">Click a field to see where it is used.</p>
-          ) : !field.custom ? (
-            <p className="muted">Salesforce lists references for custom fields only.</p>
-          ) : deps === null ? (
-            <p className="muted">Finding references to {field.name}…</p>
+            <p className="muted">Click a field to see how full it is, where it is used and who can access it.</p>
           ) : (
             <>
               <h3>
-                {field.name} <span className="muted">used by {deps.length} component(s)</span>
+                {field.label} <span className="muted mono">{field.name}</span>{' '}
+                <span className="muted">· {field.type}</span>
               </h3>
-              {deps.length === 0 ? (
-                <p className="muted">
-                  Nothing references it (reports and some metadata types are not tracked by Salesforce; check them too).
-                </p>
-              ) : (
-                <DataTable
-                  columns={['type', 'name']}
-                  rows={deps.map((d) => ({ ...d }))}
-                  rowKey="id"
-                  name={`${field.name}-references`}
-                />
+              <div className="tabs">
+                {(
+                  [
+                    ['usage', 'Usage'],
+                    ['access', 'Access'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    className={`tab ${tab === id ? 'active' : ''}`}
+                    onClick={() => {
+                      setTab(id);
+                      storage.set('fields.tab', id);
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {tab === 'usage' && (
+                <>
+                  <div className="form">
+                    <button disabled={countingOne || !field.filterable || !total} onClick={() => void countOne()}>
+                      {countingOne ? 'Counting…' : 'Count filled values'}
+                    </button>
+                    {field.filled !== undefined ? (
+                      <span>
+                        <b>{field.filled.toLocaleString()}</b> of {total.toLocaleString()} records filled (
+                        <b>{field.percent}%</b>)
+                      </span>
+                    ) : (
+                      !field.filterable && <span className="muted">Salesforce cannot count this field type.</span>
+                    )}
+                  </div>
+                  <h3 style={{ margin: 0 }}>Where it is used</h3>
+                  {!field.custom ? (
+                    <p className="muted">Salesforce lists references for custom fields only.</p>
+                  ) : deps === null ? (
+                    <p className="muted">Finding references…</p>
+                  ) : deps.length === 0 ? (
+                    <p className="muted">
+                      Nothing references it (reports and some metadata types are not tracked by Salesforce; check them
+                      too).
+                    </p>
+                  ) : (
+                    <DataTable
+                      columns={['type', 'name']}
+                      rows={deps.map((d) => ({ ...d }))}
+                      rowKey="id"
+                      name={`${field.name}-references`}
+                      note={<span>· {deps.length} component(s)</span>}
+                    />
+                  )}
+                </>
               )}
+              {tab === 'access' &&
+                (field.permissionable === false ? (
+                  <p className="muted">
+                    No field-level security on this field: everyone who can see {sobject} records sees it.
+                  </p>
+                ) : access === null ? (
+                  <p className="muted">Reading field permissions…</p>
+                ) : access.length === 0 ? (
+                  <EmptyHint what="profiles or permission sets" />
+                ) : (
+                  <>
+                    <div className="metrics">
+                      {(['all', 'Read & edit', 'Read only', 'No access'] as const).map((id) => {
+                        const n = access.filter(
+                          (x) => (kind === 'all' || x.kind === kind) && (id === 'all' || x.access === id)
+                        ).length;
+                        return (
+                          <button
+                            key={id}
+                            className={`metric filter ${level === id ? 'active' : ''} ${
+                              id === 'No access' || id === 'all' ? '' : 'good'
+                            }`}
+                            onClick={() => setLevel(id)}
+                          >
+                            <b>{n}</b>
+                            {id === 'all' ? 'All' : id}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="form">
+                      <label>
+                        Show
+                        <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+                          <option value="all">Profiles, permission sets and groups</option>
+                          <option value="Profile">Profiles</option>
+                          <option value="Permission set">Permission sets</option>
+                          <option value="Permission set group">Permission set groups</option>
+                        </select>
+                      </label>
+                    </div>
+                    <DataTable
+                      columns={['access', 'kind', 'name']}
+                      rows={access
+                        .filter((x) => (kind === 'all' || x.kind === kind) && (level === 'all' || x.access === level))
+                        .map((x, i) => ({ ...x, key: i }))}
+                      rowKey="key"
+                      name={`${field.name}-access`}
+                    />
+                  </>
+                ))}
             </>
           )}
         </div>
