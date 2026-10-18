@@ -1,18 +1,32 @@
 import { useContext, useState } from 'react';
 import { StudioContext } from '../context';
+import { aiAssist, aiTaskPrompt, extractCode, type BrowserAiTask } from '@nomadsf/core';
+import { aiUsable, loadExtensionAi } from '../extensionAi';
 import { localAppBase, useProject } from '../project';
+
+const APP_TASKS = new Set(['explain-log', 'explain-test', 'soql']);
 
 export type AiAnswer = { text: string; model: string; provider: string; sentChars: number; soql?: string };
 
 /**
- * Asks the AI connected in the local NomadSF app (keys stay there). The extension uses the
- * local app too; without it, AI help explains how to start it.
+ * Asks the AI: in the extension, its own connection from Settings → AI if there is one; otherwise
+ * the AI connected in the local NomadSF app (keys stay there).
  */
 export async function askAi(
   hostKind: 'app' | 'extension',
   body: Record<string, unknown>,
   route = 'ai/assist'
 ): Promise<AiAnswer> {
+  // The extension's own AI (Settings → AI) answers directly; otherwise the CLI app's AI
+  if (hostKind === 'extension' && route === 'ai/assist') {
+    const own = await loadExtensionAi();
+    if (aiUsable(own)) return aiAssist(own!, String(body.task) as BrowserAiTask, body);
+  }
+  // Tasks the app knows by name; newer ones go as a ready-made prompt
+  if (route === 'ai/assist' && !APP_TASKS.has(String(body.task))) {
+    const { system, message } = aiTaskPrompt(String(body.task) as BrowserAiTask, body);
+    body = { task: 'chat', system, message };
+  }
   let res: Response;
   try {
     res = await fetch(`${localAppBase(hostKind)}/api/${route}`, {
@@ -40,14 +54,20 @@ export async function askAi(
 export function AiExplain({
   task,
   getText,
+  getExtra,
   label = 'Explain with AI',
   what,
+  useCode,
 }: {
   task: string;
   getText: () => string;
+  /** Extra context sent before the text (errors, the class name…). */
+  getExtra?: () => string;
   label?: string;
   /** What gets sent, for the notice (e.g. "the debug log"). */
   what: string;
+  /** Answers with code get a button that hands the code over (e.g. into the editor). */
+  useCode?: { label: string; apply: (code: string) => void };
 }) {
   const hostKind = useContext(StudioContext)?.hostKind ?? 'app';
   const { aiReady } = useProject();
@@ -59,7 +79,7 @@ export function AiExplain({
     setBusy(true);
     setError('');
     try {
-      setAnswer(await askAi(hostKind, { task, text: getText() }));
+      setAnswer(await askAi(hostKind, { task, text: getText(), extra: getExtra?.() ?? '' }));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -76,12 +96,85 @@ export function AiExplain({
         {busy ? 'Asking AI…' : `✦ ${label}`}
       </button>
       {error && <div className="error">{error}</div>}
-      {answer && <AiAnswerView answer={answer} what={what} onClose={() => setAnswer(null)} />}
+      {answer && <AiAnswerView answer={answer} what={what} onClose={() => setAnswer(null)} useCode={useCode} />}
     </div>
   );
 }
 
-export function AiAnswerView({ answer, what, onClose }: { answer: AiAnswer; what: string; onClose: () => void }) {
+/**
+ * A request in plain words for the AI (✦ Write Apex, ✦ Build the request…). `build` adds context
+ * (e.g. the org's fields); `onAnswer` puts the result where it belongs (never runs it).
+ */
+export function AiAsk({
+  task,
+  placeholder,
+  button,
+  what,
+  build,
+  onAnswer,
+}: {
+  task: string;
+  placeholder: string;
+  button: string;
+  what: string;
+  build?: (question: string) => Promise<Record<string, unknown>>;
+  onAnswer: (answer: AiAnswer) => void;
+}) {
+  const hostKind = useContext(StudioContext)?.hostKind ?? 'app';
+  const { aiReady } = useProject();
+  const [question, setQuestion] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  if (!aiReady) return null;
+
+  const ask = async () => {
+    if (!question.trim()) return;
+    setBusy(true);
+    setError('');
+    try {
+      const extra = build ? await build(question) : {};
+      onAnswer(await askAi(hostKind, { task, question, ...extra }));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="form ai-ask">
+        <input
+          placeholder={placeholder}
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && void ask()}
+        />
+        <button
+          disabled={!question.trim() || busy}
+          onClick={() => void ask()}
+          title={`Sends ${what} to the AI you connected`}
+        >
+          {busy ? 'Writing…' : `✦ ${button}`}
+        </button>
+      </div>
+      {error && <div className="error">{error}</div>}
+    </>
+  );
+}
+
+export function AiAnswerView({
+  answer,
+  what,
+  onClose,
+  useCode,
+}: {
+  answer: AiAnswer;
+  what: string;
+  onClose: () => void;
+  useCode?: { label: string; apply: (code: string) => void };
+}) {
+  const hasCode = /```/.test(answer.text);
   return (
     <div className="card ai-answer">
       <div className="toolbar">
@@ -90,10 +183,26 @@ export function AiAnswerView({ answer, what, onClose }: { answer: AiAnswer; what
           {answer.provider} · {answer.model} · sent {what} ({answer.sentChars.toLocaleString()} characters)
         </span>
         <span className="grow" />
+        {useCode && hasCode && (
+          <button className="primary" onClick={() => useCode.apply(extractCode(answer.text))}>
+            {useCode.label}
+          </button>
+        )}
         <button onClick={() => void navigator.clipboard.writeText(answer.text)}>Copy</button>
         <button onClick={onClose}>Close</button>
       </div>
-      <div className="ai-text">{answer.text}</div>
+      <div className="ai-text">
+        {/* Text and fenced code blocks (```lang … ```) */}
+        {answer.text.split(/```[\w-]*\n?/).map((part, i) =>
+          i % 2 === 1 ? (
+            <pre key={i} className="ai-code">
+              {part.replace(/\n$/, '')}
+            </pre>
+          ) : (
+            part.trim() && <span key={i}>{part}</span>
+          )
+        )}
+      </div>
     </div>
   );
 }

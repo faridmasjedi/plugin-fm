@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { restExplorer, type RestAnswer, type RestCall } from '@nomadsf/core';
+import { describeGlobal, parseRestRequest, restExplorer, type RestAnswer, type RestCall } from '@nomadsf/core';
+import { AiAsk, AiExplain } from '../components/AiHelp';
 import { CodeEditor } from '../components/CodeEditor';
 import { storage, useStudio } from '../context';
 
@@ -30,6 +31,7 @@ export function RestPage() {
   const [body, setBody] = useState('');
   const [answer, setAnswer] = useState<RestAnswer | null>(null);
   const [running, setRunning] = useState(false);
+  const [aiNote, setAiNote] = useState('');
 
   const send = async (target = path, verb = method) => {
     if (verb !== 'GET' && !studio.confirmChange(`${verb} ${target}`)) return;
@@ -69,6 +71,30 @@ export function RestPage() {
           {running ? 'Sending…' : 'Send'}
         </button>
       </div>
+      <AiAsk
+        task="rest-request"
+        placeholder="✦ Describe the call, e.g. create a contact Ann Lee for Acme, or the last 10 cases with their owner"
+        button="Build the request"
+        what="your request and this org's object names"
+        build={async () => ({
+          schema: `Objects: ${(await describeGlobal(studio.client).catch(() => []))
+            .map((o) => o.name)
+            .join(', ')
+            .slice(0, 20_000)}`,
+        })}
+        onAnswer={(reply) => {
+          const draft = parseRestRequest(reply.text);
+          setMethod(draft.method);
+          setPath(draft.path);
+          setBody(draft.body);
+          setAiNote(`✦ Filled in by AI (${reply.model}). Check it, then press Send.`);
+        }}
+      />
+      {aiNote && (
+        <p className="muted" style={{ margin: 0 }}>
+          {aiNote}
+        </p>
+      )}
       {method !== 'GET' && (
         <div className="editor-box small">
           <CodeEditor language="json" value={body} onChange={setBody} />
@@ -103,6 +129,15 @@ export function RestPage() {
               })}
             </div>
           )}
+          <div className="chips">
+            <AiExplain
+              task="explain-response"
+              label="Explain this response"
+              what="the request and the response"
+              getText={() => answer.body.slice(0, 60_000)}
+              getExtra={() => `${method} ${path}\nStatus ${answer.status}`}
+            />
+          </div>
           <pre className="rest-body">{pretty(answer.body)}</pre>
         </div>
       )}

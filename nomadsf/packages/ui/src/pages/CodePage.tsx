@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import {
+  createApexClass,
   createCode,
+  extractCode,
   isBundle,
   listCode,
   openCode,
@@ -12,6 +14,7 @@ import {
   type CodeKind,
   type CompileProblem,
 } from '@nomadsf/core';
+import { AiAsk, AiExplain } from '../components/AiHelp';
 import { CodeEditor } from '../components/CodeEditor';
 import { storage, useStudio } from '../context';
 import { monaco } from '../monaco';
@@ -184,6 +187,27 @@ export function CodePage() {
     }
   };
 
+  // A class the AI wrote from a description: shown (editable) before it is created
+  const [aiDraft, setAiDraft] = useState<{ code: string; model: string } | null>(null);
+
+  /** Creates a class the AI wrote (asks first, like every change). */
+  const createAiClass = async (body: string) => {
+    const name = /\bclass\s+(\w+)/i.exec(body)?.[1] ?? 'the test class';
+    if (!studio.confirmChange(`Create the Apex class ${name} (written by AI) in ${studio.org.label}`)) return;
+    setStatus(`Creating ${name}…`);
+    try {
+      const id = await createApexClass(client, body);
+      studio.logActivity('create code', { kind: 'ApexClass', name, by: 'AI' });
+      setKind('ApexClass');
+      await load();
+      await openItem({ id, name, kind: 'ApexClass' });
+      setStatus(/@isTest/i.test(body) ? `✓ Created ${name}. Run it on the Apex tests page.` : `✓ Created ${name}.`);
+      setAiDraft(null);
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    }
+  };
+
   const file = files[fileIndex];
   const shown = (items ?? []).filter((i) => i.name.toLowerCase().includes(filter.toLowerCase()));
 
@@ -233,6 +257,31 @@ export function CodePage() {
         </p>
       )}
       {status && <p className="muted">{status}</p>}
+      {kind === 'ApexClass' && !apexLocked && (
+        <AiAsk
+          task="write-class"
+          placeholder="✦ Describe a new class, e.g. AccountService with a method that closes opportunities older than a year"
+          button="Write the class"
+          what="your description"
+          onAnswer={(answer) => setAiDraft({ code: `${extractCode(answer.text)}\n`, model: answer.model })}
+        />
+      )}
+      {aiDraft && (
+        <div className="card section ai-answer">
+          <div className="toolbar">
+            <b>✦ New class written by AI</b>
+            <span className="muted">{aiDraft.model} · read and change it, nothing is created yet</span>
+            <span className="grow" />
+            <button className="primary" onClick={() => void createAiClass(aiDraft.code)}>
+              Create this class…
+            </button>
+            <button onClick={() => setAiDraft(null)}>Discard</button>
+          </div>
+          <div className="editor-box">
+            <CodeEditor language="apex" value={aiDraft.code} onChange={(code) => setAiDraft({ ...aiDraft, code })} />
+          </div>
+        </div>
+      )}
       <div className="code-layout">
         <div className="card code-list">
           <input
@@ -277,6 +326,36 @@ export function CodePage() {
                   ))}
                 </div>
               )}
+              <div className="chips ai-tools">
+                <AiExplain
+                  task="explain-code"
+                  label="Explain"
+                  what="this file"
+                  getText={() => drafts[file.id] ?? file.source}
+                  getExtra={() => `File: ${file.path}`}
+                />
+                <AiExplain
+                  task="review-code"
+                  label="Review"
+                  what="this file"
+                  getText={() => drafts[file.id] ?? file.source}
+                  getExtra={() => `File: ${file.path}`}
+                />
+                {item?.kind === 'ApexClass' && !/@isTest/i.test(file.source) && (
+                  <AiExplain
+                    task="write-test"
+                    label="Write test class"
+                    what="this class"
+                    getText={() => drafts[file.id] ?? file.source}
+                    getExtra={() => `Class: ${item.name}`}
+                    useCode={
+                      apexLocked
+                        ? undefined
+                        : { label: 'Create this test class…', apply: (code) => void createAiClass(code) }
+                    }
+                  />
+                )}
+              </div>
               <div className="editor-box tall">
                 <CodeEditor
                   key={file.id}
@@ -288,6 +367,23 @@ export function CodePage() {
                   }}
                 />
               </div>
+              {problems.length > 0 && (
+                <div className="chips">
+                  <AiExplain
+                    task="explain-compile"
+                    label="Explain these errors"
+                    what="this file and its errors"
+                    getText={() => drafts[file.id] ?? file.source}
+                    getExtra={() =>
+                      `Errors:\n${problems.map((p) => `${p.line ? `line ${p.line}: ` : ''}${p.problem}`).join('\n')}`
+                    }
+                    useCode={{
+                      label: 'Use the fixed code',
+                      apply: (code) => setDrafts((d) => ({ ...d, [file.id]: `${code}\n` })),
+                    }}
+                  />
+                </div>
+              )}
               {problems.length > 0 && (
                 <ul className="problems">
                   {problems.map((p, i) => (

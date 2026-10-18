@@ -105,6 +105,20 @@ describe('AI assist', () => {
       expect(error).to.include('No AI connected');
     });
 
+    it('relays a prompt built by the Studio (chat)', async () => {
+      const answer = await assist(tmpdir(), 'chat', {
+        system: 'You write anonymous Apex.',
+        message: 'Request: count accounts',
+      });
+      expect(answer.model).to.equal('fake-1');
+      const messages = seen.messages as Array<{ role: string; content: string }>;
+      expect(messages[0].content).to.equal('You write anonymous Apex.');
+      expect(messages[1].content).to.equal('Request: count accounts');
+      let error = '';
+      await assist(tmpdir(), 'chat', { system: ' ', message: 'x' }).catch((e: Error) => (error = e.message));
+      expect(error).to.include('Nothing to ask');
+    });
+
     it('refuses unknown tasks and empty input', async () => {
       let error = '';
       await assist(tmpdir(), 'nope' as 'soql', {}).catch((e: Error) => (error = e.message));

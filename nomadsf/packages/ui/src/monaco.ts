@@ -14,6 +14,12 @@ import { loader } from '@monaco-editor/react';
 };
 loader.config({ monaco });
 
+// Monaco rejects pending work with "Canceled" when an editor closes mid-task (e.g. switching pages); harmless
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason as { name?: string; message?: string } | undefined;
+  if (reason?.name === 'Canceled' || reason?.message === 'Canceled') event.preventDefault();
+});
+
 const APEX_KEYWORDS = [
   'abstract',
   'after',

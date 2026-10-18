@@ -315,6 +315,20 @@ Read-only items can run on any org; everything marked ✎ only on a sandbox.
 | L115  | Users & access → Object, field & system permissions: System Administrator → three sub-tabs                   | objects with C/R/E/D/View all/Modify all; fields per object; system permissions, granted only toggle            |
 | L116  | Query an object the user cannot see / a field hidden by field-level security (low-access user)               | Salesforce error plus "your user may not have access…"                                                          |
 | L117  | Query that returns nothing; empty login history / object access for a holder                                 | "No rows / entries. If you expected some, your user may not be able to see them…"                               |
+| L118  | Extension → Settings → AI: Anthropic / OpenAI key → Connect and test                                         | Chrome asks for that provider's site once; "✓ Connected · <model> answered OK"; ✦ buttons appear                |
+| L119  | Settings → AI: OpenRouter → Sign in with OpenRouter                                                          | sign-in window; key saved without copying it; test passes                                                       |
+| L120  | Settings → AI: Ollama (`OLLAMA_ORIGINS=chrome-extension://* ollama serve`) / Custom endpoint                 | connects without a key (or with one); Write SOQL and Explain work                                               |
+| L121  | Wrong key; Disconnect                                                                                        | "refused the key (401)…"; after Disconnect the key is gone and ✦ buttons hide (unless the CLI app has an AI)    |
+| L122  | Execute Apex → ✦ Write Apex; run code with an error → ✦ Explain this error → Use the fixed code              | Apex in the editor with an AI note, not run; fixed code replaces it                                             |
+| L123  | REST Explorer → ✦ Build the request "create a contact Ann Lee"; send a GET → ✦ Explain this response         | method / path / body filled, not sent; plain summary of the response                                            |
+| L124  | Code → open a class → ✦ Explain, ✦ Review, ✦ Write test class → Create this test class (sandbox) ✎           | answers under the buttons, code shown as code; test class created after the org name; off in production         |
+| L125  | Code → Check with an error → ✦ Explain these errors → Use the fixed code                                     | explanation and corrected code put in the editor (unsaved)                                                      |
+| L126  | Code → Classes → ✦ Describe a new class → edit the draft → Create this class (sandbox) ✎                     | class written into an editable draft, nothing created until Create (org name); then opened; off in production   |
+| L127  | Org compare: two orgs logged in, types ApexClass + Flow → Compare                                            | only in source / only in target / in both with tiles; installed packages left out                               |
+| L128  | Check content                                                                                                | in both → different / same; identical classes with different line endings are "same"                            |
+| L129  | Select the difference, tick an "only in target" row + also delete → Build package; download all three        | zip has only the chosen components + package.xml (exactly those) + destructiveChangesPost.xml                   |
+| L130  | Validate on the target (sandbox) ✎, then Quick deploy ✎; production target                                   | validation result and failures; quick deploy; "No tests" disabled for production                                |
+| L131  | Deploy the downloaded zip later: `sf project deploy start --metadata-dir <unzipped> -o <org> --dry-run`      | accepted by the CLI                                                                                             |
 
 ## Before a demo
 
