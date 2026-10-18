@@ -22,6 +22,7 @@ import { CodePage } from './pages/CodePage';
 import { EventsPage } from './pages/EventsPage';
 import { FieldUsagePage } from './pages/FieldUsagePage';
 import { LookupPage } from './pages/LookupPage';
+import { OrgComparePage } from './pages/OrgComparePage';
 import { ProjectStateContext, useProjectState } from './project';
 
 const PAGES = [
@@ -36,6 +37,7 @@ const PAGES = [
   { id: 'lookup', label: 'Lookup', icon: '⌖' },
   { id: 'access', label: 'Users & access', icon: '⚿' },
   { id: 'metadata', label: 'Metadata', icon: '◫' },
+  { id: 'orgdiff', label: 'Org compare', icon: '⇋' },
   { id: 'fields', label: 'Field usage', icon: '▦' },
   { id: 'events', label: 'Events', icon: '⚡' },
   { id: 'limits', label: 'Org limits', icon: '▤' },
@@ -297,6 +299,7 @@ export function App() {
                 {page === 'events' && <EventsPage />}
                 {page === 'fields' && <FieldUsagePage />}
                 {page === 'lookup' && <LookupPage />}
+                {page === 'orgdiff' && <OrgComparePage orgs={orgs} />}
                 {page === 'apextests' && <ApexTestsPage />}
               </InspectContext.Provider>
             </StudioContext.Provider>

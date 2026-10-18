@@ -865,3 +865,22 @@ table.org-list tr.current {
   flex-direction: column;
   gap: 12px;
 }
+.ai-tools {
+  margin-bottom: 8px;
+}
+/* AI answers sit under their row of buttons, not between them */
+.chips .ai-answer,
+.chips > .ai-help > .error {
+  order: 1;
+  flex-basis: 100%;
+}
+.ai-code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--panel-2);
+  padding: 10px;
+  border-radius: 6px;
+  overflow: auto;
+  white-space: pre;
+  margin: 6px 0;
+}

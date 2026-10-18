@@ -9,14 +9,17 @@ import { createChat } from './index.js';
  * the input is trimmed to what the task needs before it is sent.
  */
 
-export type AssistTask = 'explain-log' | 'explain-test' | 'explain-deploy' | 'soql' | 'release-notes';
+export type AssistTask = 'explain-log' | 'explain-test' | 'explain-deploy' | 'soql' | 'release-notes' | 'chat';
+
+/** The Studio builds the prompt for its newer tasks (write Apex, review code…) and the app relays it. */
+const MAX_CHAT_SYSTEM = 4000;
 export type AssistAnswer = { text: string; model: string; provider: string; sentChars: number };
 
 const MAX_INPUT = 60_000;
 /** git's empty tree, to diff a whole short history. */
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 
-const SYSTEM: Record<AssistTask, string> = {
+const SYSTEM: Record<Exclude<AssistTask, 'chat'>, string> = {
   'explain-log':
     'You are a senior Salesforce developer. Explain this Apex debug log to a colleague: what ran, what failed and why (exceptions, governor limits, validation or DML errors), and the most likely fix with the class and line. Be concise; use short sections: Summary, Problem, Fix. If nothing failed, say so and point out anything risky (limits near maximum, many SOQL or DML in loops).',
   'explain-test':
@@ -91,7 +94,9 @@ function prompt(task: AssistTask, input: Record<string, unknown>): string {
 }
 
 export async function assist(cwd: string, task: AssistTask, input: Record<string, unknown>): Promise<AssistAnswer> {
-  if (!SYSTEM[task]) throw new Error('Unknown AI task.');
+  if (task !== 'chat' && !SYSTEM[task as Exclude<AssistTask, 'chat'>]) throw new Error('Unknown AI task.');
+  const system = task === 'chat' ? String(input.system ?? '').slice(0, MAX_CHAT_SYSTEM) : SYSTEM[task];
+  if (!system.trim()) throw new Error('Nothing to ask.');
   const config = loadAiConfig(cwd);
   // Only an AI the person connected themselves (key in their environment or the app); nothing is borrowed
   if (!describeAiConfig(config).apiKeySet) {
@@ -99,8 +104,9 @@ export async function assist(cwd: string, task: AssistTask, input: Record<string
       'No AI connected. Open AI settings, connect a provider with your own account or key, and press Use.'
     );
   }
-  const message = prompt(task, input);
-  const chat = createChat({ ...config, maxTokens: Math.min(config.maxTokens ?? 8000, 8000) }, SYSTEM[task], []);
+  const message = task === 'chat' ? String(input.message ?? '').slice(0, MAX_INPUT) : prompt(task, input);
+  if (!message.trim()) throw new Error('Nothing to send.');
+  const chat = createChat({ ...config, maxTokens: Math.min(config.maxTokens ?? 8000, 8000) }, system, []);
   const turn = await chat.send(message);
   if (turn.stop === 'refusal') throw new Error('The model declined this request.');
   return { text: turn.text, model: turn.model, provider: describeAiConfig(config).label, sentChars: message.length };

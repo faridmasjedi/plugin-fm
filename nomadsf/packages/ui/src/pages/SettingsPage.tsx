@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { GitHubCard } from '../components/GitHubCard';
 import { OrgSettings } from '../components/OrgSettings';
+import { AiSettingsCard } from '../components/AiSettingsCard';
 import type { OrgChoice } from '../host';
 import { storage } from '../context';
 import { localAppEnabled, useProject } from '../project';
@@ -42,6 +43,8 @@ export function SettingsPage({
         onSwitchOrg={onSwitchOrg}
         onRefreshOrgs={onRefreshOrgs}
       />
+
+      {hostKind === 'extension' && <AiSettingsCard />}
 
       <div className="card section">
         <h3>Project</h3>

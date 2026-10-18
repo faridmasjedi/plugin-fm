@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { OnMount } from '@monaco-editor/react';
-import { DEFAULT_LOG_LEVELS, executeAnonymous, type ExecuteAnonymousResult, type LogLevels } from '@nomadsf/core';
+import {
+  DEFAULT_LOG_LEVELS,
+  executeAnonymous,
+  extractCode,
+  type ExecuteAnonymousResult,
+  type LogLevels,
+} from '@nomadsf/core';
+import { AiAsk, AiExplain } from '../components/AiHelp';
 import { CodeEditor } from '../components/CodeEditor';
 import { LogViewer } from '../components/LogViewer';
 import { storage, useStudio } from '../context';
@@ -140,6 +147,19 @@ export function ExecutePage() {
           {running ? 'Running…' : 'Execute ⌘⏎'}
         </button>
       </div>
+      <AiAsk
+        task="write-apex"
+        placeholder="✦ Describe the Apex you need, e.g. deactivate users who have not logged in for 90 days"
+        button="Write Apex"
+        what="your request"
+        onAnswer={(answer) =>
+          setCode(
+            `// ✦ Written by AI (${
+              answer.model
+            }). Read it before you run it: nothing runs until you press Execute.\n${extractCode(answer.text)}\n`
+          )
+        }
+      />
       <div className="editor-box">
         <CodeEditor language="apex" value={code} onChange={setCode} onMount={onMount} />
       </div>
@@ -163,6 +183,22 @@ export function ExecutePage() {
             <div className="error">
               {result.exceptionMessage}
               {result.exceptionStackTrace && <pre>{result.exceptionStackTrace}</pre>}
+            </div>
+          )}
+          {(!result.compiled || !result.success) && (
+            <div className="chips">
+              <AiExplain
+                task="explain-apex-error"
+                label="Explain this error"
+                what="the code and the error"
+                getText={() => code}
+                getExtra={() =>
+                  `Error: ${result.compileProblem ?? result.exceptionMessage ?? ''}${
+                    result.line ? ` (line ${result.line})` : ''
+                  }\n${result.exceptionStackTrace ?? ''}`
+                }
+                useCode={{ label: 'Use the fixed code', apply: (fixed) => setCode(`${fixed}\n`) }}
+              />
             </div>
           )}
           {result.compiled && <LogViewer log={result.log} name="execute-anonymous" />}

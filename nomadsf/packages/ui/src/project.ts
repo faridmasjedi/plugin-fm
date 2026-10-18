@@ -10,6 +10,7 @@ import {
 } from '@nomadsf/core';
 import { storage } from './context';
 import { currentGitHub, lastRepo } from './github';
+import { aiUsable, loadExtensionAi, onExtensionAiChange } from './extensionAi';
 
 /**
  * The Salesforce project (repository) the Studio works with:
@@ -154,6 +155,13 @@ export function useProjectState(hostKind: 'app' | 'extension', describeFolders?:
   const [localAvailable, setLocalAvailable] = useState(false);
   const [localChecked, setLocalChecked] = useState(false);
   const [aiReady, setAiReady] = useState(false);
+  // The extension's own AI (Settings → AI) also makes the ✦ buttons available
+  const [ownAi, setOwnAi] = useState(false);
+  useEffect(() => {
+    if (hostKind !== 'extension') return undefined;
+    void loadExtensionAi().then((s) => setOwnAi(aiUsable(s)));
+    return onExtensionAiChange((s) => setOwnAi(aiUsable(s)));
+  }, [hostKind]);
   const [pendingPackage, setPendingPackage] = useState<PendingPackage>();
   const base = localAppBase(hostKind);
 
@@ -321,7 +329,7 @@ export function useProjectState(hostKind: 'app' | 'extension', describeFolders?:
     canPickFolder: supportsFolders(),
     localAvailable,
     localAppReady: hostKind === 'app' || localAvailable,
-    aiReady,
+    aiReady: aiReady || ownAi,
     localChecked: hostKind === 'app' || localChecked,
     pickFolder,
     reconnectFolder,
