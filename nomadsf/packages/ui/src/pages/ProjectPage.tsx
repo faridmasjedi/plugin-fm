@@ -10,10 +10,12 @@ export function ProjectPage({
   studio,
   onOpenMetadata,
   onOpenSettings,
+  onOpenCode,
 }: {
   studio: Studio | null;
   onOpenMetadata: () => void;
   onOpenSettings: () => void;
+  onOpenCode?: () => void;
 }) {
   const project = useProject();
   const [type, setType] = useState<ProjectTypeSummary | null>(null);
@@ -119,7 +121,7 @@ export function ProjectPage({
 
           {tab === 'compare' &&
             (studio ? (
-              <ProjectCompare studio={studio} info={info} />
+              <ProjectCompare studio={studio} info={info} onOpenCode={onOpenCode} />
             ) : (
               <p className="muted">Connect an org to compare the project with it.</p>
             ))}

@@ -639,6 +639,87 @@ table.record td select {
   background: var(--accent-soft);
   color: var(--accent);
 }
+.code-list li button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.code-list li button.project-only {
+  color: var(--muted);
+  font-style: italic;
+}
+.code-project {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.code-project > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.code-project .form {
+  margin-top: 4px;
+  flex-wrap: nowrap;
+}
+.code-project select {
+  min-width: 0;
+  flex: 1;
+}
+.code-tag {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-style: normal;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.code-tag.different {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+.code-tag.same {
+  background: var(--good-soft);
+  color: var(--good);
+}
+.code-tag.only-in-project,
+.code-tag.only-in-org {
+  color: var(--warn);
+}
+.code-views {
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.code-views .code-tag {
+  margin-left: 0;
+  font-size: 11px;
+}
+.diff-bar {
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.diff-label {
+  font-family: var(--mono);
+}
+.diff-side {
+  display: inline-block;
+  width: 16px;
+  text-align: center;
+  border-radius: 4px;
+  font-weight: 700;
+}
+.diff-side.old {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+.diff-side.new {
+  background: var(--good-soft);
+  color: var(--good);
+}
 .problems {
   margin: 8px 0 0;
   padding-left: 18px;

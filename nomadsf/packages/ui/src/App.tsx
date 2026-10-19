@@ -259,6 +259,7 @@ export function App() {
               studio={studio}
               onOpenMetadata={() => setPage('metadata')}
               onOpenSettings={() => setPage('settings')}
+              onOpenCode={() => setPage('code')}
             />
           )}
           {page === 'settings' && (

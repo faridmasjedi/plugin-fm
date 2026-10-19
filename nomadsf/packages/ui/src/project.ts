@@ -3,6 +3,7 @@ import {
   analyzeProject,
   githubProjectFs,
   httpProjectFs,
+  type CodeKind,
   type GitHubTransport,
   type ProjectEntry,
   type ProjectFs,
@@ -133,7 +134,12 @@ export type ProjectState = {
   /** Components waiting to be loaded into the Metadata page's package (from a manifest or a type). */
   pendingPackage?: PendingPackage;
   openPackage(pending: PendingPackage | undefined): void;
+  /** A component to open on the Code page next to its project version (from Project → Compare). */
+  pendingCode?: PendingCode;
+  openCodeItem(pending: PendingCode | undefined): void;
 };
+
+export type PendingCode = { kind: CodeKind; name: string };
 
 export type PendingPackage = { label: string; types: Array<{ type: string; members: string[] }> };
 
@@ -163,6 +169,7 @@ export function useProjectState(hostKind: 'app' | 'extension', describeFolders?:
     return onExtensionAiChange((s) => setOwnAi(aiUsable(s)));
   }, [hostKind]);
   const [pendingPackage, setPendingPackage] = useState<PendingPackage>();
+  const [pendingCode, setPendingCode] = useState<PendingCode>();
   const base = localAppBase(hostKind);
 
   const load = useCallback(
@@ -339,5 +346,7 @@ export function useProjectState(hostKind: 'app' | 'extension', describeFolders?:
     refresh,
     pendingPackage,
     openPackage: setPendingPackage,
+    pendingCode,
+    openCodeItem: setPendingCode,
   };
 }

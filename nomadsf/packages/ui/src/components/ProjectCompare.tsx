@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  checkCodeContent,
+  codeKindOf,
   deleteFromOrg,
+  deployZip,
+  listCode,
   listMetadata,
+  projectCodeIndex,
+  projectCodePackage,
   quickDeploy,
   retrieveZip,
   type DeployOutcome,
@@ -12,11 +18,20 @@ import { DataTable } from './DataTable';
 import type { Studio } from '../context';
 import { localAppBase, useProject } from '../project';
 
-type Where = 'only in org' | 'only in project' | 'both';
+type Where = 'only in org' | 'only in project' | 'both' | 'different' | 'same';
 type CompareRow = { key: string; type: string; name: string; where: Where };
 type Action = 'delete' | 'deploy';
 
 const FOLDER_BASED = new Set(['Report', 'Dashboard', 'Document', 'EmailTemplate']);
+const CODE_TYPE = {
+  ApexClass: 'ApexClass',
+  ApexTrigger: 'ApexTrigger',
+  ApexPage: 'ApexPage',
+  ApexComponent: 'ApexComponent',
+  LWC: 'LightningComponentBundle',
+  Aura: 'AuraDefinitionBundle',
+} as const;
+const inBoth = (where: Where): boolean => where === 'both' || where === 'different' || where === 'same';
 const LEVELS: Array<{ id: TestLevel; label: string }> = [
   { id: 'NoTestRun', label: 'No tests (sandboxes only)' },
   { id: 'RunSpecifiedTests', label: 'Specific test classes' },
@@ -54,7 +69,16 @@ async function cliOrgFor(studio: Studio, base: string): Promise<string> {
  * Compare many metadata types of the project with the org, select rows, then restore them into
  * the project, download, delete from the org, or deploy them, with the test level you choose.
  */
-export function ProjectCompare({ studio, info }: { studio: Studio; info: ProjectInfo }) {
+export function ProjectCompare({
+  studio,
+  info,
+  onOpenCode,
+}: {
+  studio: Studio;
+  info: ProjectInfo;
+  /** Opens the Code page (after project.openCodeItem). */
+  onOpenCode?: () => void;
+}) {
   const project = useProject();
   const base = localAppBase(studio.hostKind);
   const types = useMemo(() => {
@@ -128,10 +152,61 @@ export function ProjectCompare({ studio, info }: { studio: Studio; info: Project
     }
   };
 
+  /** Code in both places: same or different (other types need the source format converter). */
+  const checkContent = async () => {
+    if (!rows || !project.source) return;
+    setBusy(true);
+    try {
+      const result = new Map<string, 'same' | 'different'>();
+      const kinds = [...new Set(rows.filter((r) => inBoth(r.where)).map((r) => r.type))]
+        .map((t) => codeKindOf(t))
+        .filter((k) => k !== undefined);
+      for (const kind of kinds) {
+        setStatus(`Comparing ${kind} with the project…`);
+        /* eslint-disable no-await-in-loop */
+        const items = await listCode(studio.client, kind);
+        const checked = await checkCodeContent(
+          studio.client,
+          project.source.fs,
+          kind,
+          items,
+          projectCodeIndex(info, kind),
+          (d, t) => setStatus(`Comparing ${kind} with the project… ${d}/${t}`)
+        );
+        /* eslint-enable no-await-in-loop */
+        for (const [name, v] of checked) result.set(`${CODE_TYPE[kind]}:${name}`, v);
+      }
+      setRows(rows.map((r) => (result.has(r.key) && inBoth(r.where) ? { ...r, where: result.get(r.key)! } : r)));
+      const different = [...result.values()].filter((v) => v === 'different').length;
+      const notCode = rows.filter((r) => r.where === 'both' && !codeKindOf(r.type)).length;
+      setStatus(
+        `✓ ${result.size} code component(s) compared: ${different} different.${
+          notCode ? ` ${notCode} other component(s) are not compared yet (only code for now).` : ''
+        }`
+      );
+      if (different) setShow('different');
+      setSelected(new Set());
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openInCode = (row: CompareRow) => {
+    const kind = codeKindOf(row.type);
+    if (!kind || !onOpenCode) return;
+    project.openCodeItem({ kind, name: row.name });
+    onOpenCode();
+  };
+
   const picked = (rows ?? []).filter((r) => selected.has(r.key));
   const onlyOrg = picked.filter((r) => r.where === 'only in org');
   const inProject = picked.filter((r) => r.where !== 'only in org');
   const inOrg = picked.filter((r) => r.where !== 'only in project');
+  // Code deploys straight from the project in the browser; other types still need the CLI app
+  const codeOnly = inProject.length > 0 && inProject.every((r) => codeKindOf(r.type));
+  const canDeploy = codeOnly || project.localAppReady;
   const count = (where: Where): number => (rows ?? []).filter((r) => r.where === where).length;
 
   const restore = async () => {
@@ -212,6 +287,20 @@ export function ProjectCompare({ studio, info }: { studio: Studio; info: Project
             onProgress: (s, d, t) => setStatus(`${s} · ${d}/${t}`),
           }
         );
+      } else if (codeOnly && project.source) {
+        setStatus('Building the package from the project…');
+        const pkg = await projectCodePackage(
+          project.source.fs,
+          info,
+          items.map((r) => ({ type: r.type, name: r.name })),
+          await studio.client.version()
+        );
+        result = await deployZip(studio.client, pkg.zipBase64, {
+          checkOnly: validateOnly,
+          testLevel: level,
+          runTests,
+          onProgress: (s, d, t) => setStatus(`${validateOnly ? 'Validation' : 'Deploy'} · ${s} · ${d}/${t}`),
+        });
       } else {
         setStatus(`${validateOnly ? 'Validating' : 'Deploying'} with the Salesforce CLI… (this can take minutes)`);
         result = await post<DeployOutcome>(`${base}/api/org/deploy`, {
@@ -237,7 +326,7 @@ export function ProjectCompare({ studio, info }: { studio: Studio; info: Project
           id: result.id,
         }
       );
-      setOutcome({ ...result, via: action === 'delete' ? 'studio' : 'cli', action });
+      setOutcome({ ...result, via: action === 'delete' || codeOnly ? 'studio' : 'cli', action });
       setStatus('');
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
@@ -305,24 +394,40 @@ export function ProjectCompare({ studio, info }: { studio: Studio; info: Project
             {(
               [
                 ['all', 'All', rows.length],
-                ['both', 'in both', count('both')],
+                ['both', 'in both, not checked', count('both')],
+                ['different', 'different', count('different')],
+                ['same', 'same', count('same')],
                 ['only in org', 'only in org', count('only in org')],
                 ['only in project', 'only in project', count('only in project')],
               ] as Array<['all' | Where, string, number]>
-            ).map(([id, label, n]) => (
-              <button
-                key={id}
-                className={`metric filter ${show === id ? 'active' : ''} ${id.startsWith('only') && n ? 'bad' : ''}`}
-                onClick={() => {
-                  setShow(id);
-                  // Nothing hidden stays selected
-                  setSelected(new Set());
-                }}
-              >
-                <b>{n}</b>
-                {label}
-              </button>
-            ))}
+            )
+              .filter(([id, , n]) => n > 0 || id === 'all' || id === 'both' || id.startsWith('only'))
+              .map(([id, label, n]) => (
+                <button
+                  key={id}
+                  className={`metric filter ${show === id ? 'active' : ''} ${
+                    (id.startsWith('only') || id === 'different') && n ? 'bad' : ''
+                  }`}
+                  onClick={() => {
+                    setShow(id);
+                    // Nothing hidden stays selected
+                    setSelected(new Set());
+                  }}
+                >
+                  <b>{n}</b>
+                  {label}
+                </button>
+              ))}
+          </div>
+          <div className="form">
+            <button
+              disabled={busy || !rows.some((r) => inBoth(r.where) && codeKindOf(r.type))}
+              title="Compare the content of code (Apex, Visualforce, LWC, Aura) that is in both"
+              onClick={() => void checkContent()}
+            >
+              Check content
+            </button>
+            <span className="muted">Code only for now: Apex, Visualforce, LWC and Aura.</span>
           </div>
           <DataTable
             columns={['type', 'name', 'where']}
@@ -340,6 +445,11 @@ export function ProjectCompare({ studio, info }: { studio: Studio; info: Project
                 {picked.length} selected · {onlyOrg.length} only in org · {inProject.length} in the project
               </span>
               <div className="form">
+                {onOpenCode && picked.length === 1 && codeKindOf(picked[0].type) && (
+                  <button className="primary" onClick={() => openInCode(picked[0])}>
+                    Open in Code
+                  </button>
+                )}
                 <button
                   disabled={busy || !onlyOrg.length || !project.localAppReady}
                   title={
@@ -365,11 +475,13 @@ export function ProjectCompare({ studio, info }: { studio: Studio; info: Project
                   Delete from org ({onlyOrg.length})…
                 </button>
                 <button
-                  disabled={busy || !inProject.length || !project.localAppReady}
+                  disabled={busy || !inProject.length || !canDeploy}
                   title={
-                    project.localAppReady
+                    codeOnly
+                      ? 'Deploy the code from the project, straight from the browser'
+                      : project.localAppReady
                       ? 'Deploy from the project with the Salesforce CLI'
-                      : 'Needs the NomadSF CLI app (sf fm dashboard)'
+                      : 'Code deploys from here; other metadata needs the NomadSF CLI app (sf fm dashboard)'
                   }
                   onClick={() => {
                     setAction('deploy');
@@ -381,7 +493,8 @@ export function ProjectCompare({ studio, info }: { studio: Studio; info: Project
               </div>
               {!project.localAppReady && (
                 <p className="muted" style={{ margin: 0 }}>
-                  Restore and Deploy need the NomadSF CLI app on this computer; Download and Delete work here.
+                  Deploying code (Apex, Visualforce, LWC, Aura), Download and Delete work here; Restore, and deploying
+                  other metadata, need the NomadSF CLI app on this computer.
                 </p>
               )}
             </div>

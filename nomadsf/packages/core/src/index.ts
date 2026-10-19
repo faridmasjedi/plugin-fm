@@ -23,3 +23,4 @@ export * from './deploy.js';
 export * from './ingestCheck.js';
 export * from './ai.js';
 export * from './orgDiff.js';
+export * from './projectCode.js';
