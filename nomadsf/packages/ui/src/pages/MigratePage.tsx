@@ -36,6 +36,7 @@ import {
   type SourceRow,
 } from '@nomadsf/core';
 import { AiExplain } from '../components/AiHelp';
+import { ChildObjects } from '../components/ChildObjects';
 import { DataTable } from '../components/DataTable';
 import { ObjectPicker } from '../components/ObjectPicker';
 import { storage, useStudio } from '../context';
@@ -79,6 +80,7 @@ export function MigratePage({
   const [targetId, setTargetId] = useState<string>(() => storage.get('migrate.target', ''));
   const [facts, setFacts] = useState<{ source?: OrgFacts; target?: OrgFacts }>({});
   const [candidates, setCandidates] = useState<DataObject[] | null>(null);
+  const [sourceClient, setSourceClient] = useState<SalesforceClient>();
   const [state, setState] = useState<BackupState>();
   const [backupRuns, setBackupRuns] = useState<string[]>([]);
   const [chosen, setChosen] = useState<MigrateObject[]>([]);
@@ -150,6 +152,7 @@ export function MigratePage({
         if (source.kind === 'org') {
           storage.set('migrate.source', source.org);
           const client = await clientFor(source.org);
+          setSourceClient(client);
           const [list, f] = await Promise.all([
             client.rest<{ sobjects: DataObject[] }>('GET', '/sobjects'),
             orgFacts(client),
@@ -213,6 +216,23 @@ export function MigratePage({
   }, [sourceProduction, targetProduction, maskTouched]);
 
   const isChosen = (name: string) => chosen.some((c) => c.name === name);
+  // For the child objects panel: where the rows come from, and which objects can be copied
+  const childSource = useMemo<(RowSource & { schema?: Record<string, DataField[]> }) | undefined>(
+    () =>
+      source.kind === 'org'
+        ? sourceClient && { kind: 'org', client: sourceClient }
+        : state && { kind: 'backup', rows: state.rows, schema: state.schema },
+    [source.kind, sourceClient, state]
+  );
+  const allowed = useMemo(() => new Set((candidates ?? []).map((c) => c.name)), [candidates]);
+  const addChildren = (names: string[]) => {
+    setChosen((list) => [
+      ...list,
+      ...names.filter((n) => !list.some((c) => c.name === n)).map((name) => ({ name, relatedOnly: true })),
+    ]);
+    setOpen('');
+    setStatus(`✓ Added ${names.join(', ')} as Related only: only records linked to the copied records come along.`);
+  };
   const settingsOf = (name: string): MigrateObject => chosen.find((c) => c.name === name) ?? { name };
   const setSettings = (name: string, patch: Partial<MigrateObject>) =>
     setChosen((list) => list.map((c) => (c.name === name ? { ...c, ...patch } : c)));
@@ -492,7 +512,7 @@ export function MigratePage({
   );
 
   return (
-    <div className="page data-page">
+    <div className="page data-page migrate-page">
       <div className="toolbar">
         <h2>Migrate</h2>
         <span className="muted">Copy records between orgs, or from a backup, with their relationships</span>
@@ -637,6 +657,12 @@ export function MigratePage({
                   <option value="related">Related only</option>
                   <option value="referenced">Only those pointed to</option>
                 </select>
+                <button
+                  className="link"
+                  onClick={() => setOpen(open === `children:${o.name}` ? '' : `children:${o.name}`)}
+                >
+                  Children…
+                </button>
                 <button className="link" onClick={() => void openSettings(o.name)}>
                   {open === o.name ? 'Close' : 'Settings'}
                 </button>
@@ -645,16 +671,28 @@ export function MigratePage({
           }
           renderSettings={(o) =>
             isChosen(o.name) &&
-            open === o.name && (
-              <ObjectSettings
-                settings={settingsOf(o.name)}
-                fields={fields[o.name]}
-                filter={fieldFilter}
-                onFilter={setFieldFilter}
-                onChange={(patch) => setSettings(o.name, patch)}
-                noCondition={source.kind === 'backup'}
-              />
-            )
+            (open === `children:${o.name}`
+              ? childSource && (
+                  <ChildObjects
+                    parent={o.name}
+                    parentWhere={source.kind === 'org' ? settingsOf(o.name).where : undefined}
+                    source={childSource}
+                    allowed={allowed}
+                    isChosen={isChosen}
+                    onAdd={addChildren}
+                    onClose={() => setOpen('')}
+                  />
+                )
+              : open === o.name && (
+                  <ObjectSettings
+                    settings={settingsOf(o.name)}
+                    fields={fields[o.name]}
+                    filter={fieldFilter}
+                    onFilter={setFieldFilter}
+                    onChange={(patch) => setSettings(o.name, patch)}
+                    noCondition={source.kind === 'backup'}
+                  />
+                ))
           }
         />
       </div>

@@ -426,3 +426,84 @@ export async function matchInTarget(
   }
   return { ids, stats };
 }
+
+// ---------- child objects of a parent ----------
+
+export type ChildObject = {
+  object: string;
+  /** Lookups of the child that point to the parent (Case.AccountId; a child can have several). */
+  fields: string[];
+};
+
+type ChildRelationship = { childSObject: string; field: string; deprecatedAndHidden?: boolean };
+
+/** Objects that point to `parent` (from the org's describe), limited to the objects offered for copying. */
+export async function childObjectsOf(
+  client: SalesforceClient,
+  parent: string,
+  allowed: Set<string>
+): Promise<ChildObject[]> {
+  if (!/^\w+$/.test(parent)) throw new Error('Invalid object name.');
+  const describe = await client.rest<{ childRelationships?: ChildRelationship[] }>(
+    'GET',
+    `/sobjects/${parent}/describe`
+  );
+  const byObject = new Map<string, string[]>();
+  for (const r of describe.childRelationships ?? []) {
+    if (
+      r.deprecatedAndHidden ||
+      r.childSObject === parent ||
+      !allowed.has(r.childSObject) ||
+      SYSTEM_FIELDS.has(r.field)
+    )
+      continue;
+    byObject.set(r.childSObject, [...new Set([...(byObject.get(r.childSObject) ?? []), r.field])]);
+  }
+  return [...byObject].map(([object, fields]) => ({ object, fields })).sort((a, b) => a.object.localeCompare(b.object));
+}
+
+/** The same from a backup's field definitions (objects of the backup whose lookups point to `parent`). */
+export function childObjectsInSchema(schema: Record<string, DataField[]>, parent: string): ChildObject[] {
+  return Object.entries(schema)
+    .filter(([object]) => object !== parent)
+    .map(([object, fields]) => ({
+      object,
+      fields: fields
+        .filter((f) => f.type === 'reference' && f.referenceTo.includes(parent) && !SYSTEM_FIELDS.has(f.name))
+        .map((f) => f.name),
+    }))
+    .filter((c) => c.fields.length)
+    .sort((a, b) => a.object.localeCompare(b.object));
+}
+
+/**
+ * Records of a child object linked to the parent's records (those matching the parent's
+ * condition), per lookup field. SOQL does not allow semi-joins with OR, so each lookup is
+ * counted on its own.
+ */
+export async function countChildren(
+  source: RowSource,
+  parent: string,
+  child: ChildObject,
+  parentWhere?: string
+): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  if (source.kind === 'backup') {
+    const parents = new Set([...(source.rows[parent]?.keys() ?? [])].map((id) => id.slice(0, 15)));
+    for (const field of child.fields)
+      out[field] = [...(source.rows[child.object]?.values() ?? [])].filter(
+        (r) => r[field] && parents.has(r[field].slice(0, 15))
+      ).length;
+    return out;
+  }
+  const condition = (parentWhere ?? '').trim().replace(/^where\s+/i, '');
+  for (const field of child.fields) {
+    if (!/^\w+$/.test(field) || !/^\w+$/.test(child.object)) continue;
+    const soql = `SELECT COUNT() FROM ${child.object} WHERE ${field} IN (SELECT Id FROM ${parent}${
+      condition ? ` WHERE ${condition}` : ''
+    })`;
+    // eslint-disable-next-line no-await-in-loop
+    out[field] = (await query(source.client, soql)).totalSize;
+  }
+  return out;
+}

@@ -5,7 +5,10 @@ import {
   baseUsername,
   defaultMasking,
   fieldPlan,
+  childObjectsInSchema,
+  childObjectsOf,
   completeParents,
+  countChildren,
   gatherRows,
   linkReport,
   loadOrder,
@@ -702,5 +705,64 @@ describe('restoring with links', () => {
     org.recycle.set('001A00000000001AAA', { Id: '001A00000000001AAA', Name: 'Group HQ', type: 'Account' });
     const result = await restoreRecords(org.client, state, { Account: ['001A00000000002AAA'] });
     expect(result).toMatchObject({ undeleted: 2, created: 0, parentsAdded: { Account: 1 }, repointed: 0 });
+  });
+});
+
+describe('child objects', () => {
+  it('lists the objects pointing to a parent and counts the related records', async () => {
+    const asked: string[] = [];
+    const client = new SalesforceClient(async (r: HttpRequest) => {
+      const path = decodeURIComponent(r.path).replace(/\+/g, ' ');
+      asked.push(path);
+      if (path.endsWith('/sobjects/Account/describe'))
+        return {
+          status: 200,
+          headers: {},
+          body: JSON.stringify({
+            childRelationships: [
+              { childSObject: 'Contact', field: 'AccountId' },
+              { childSObject: 'Case', field: 'AccountId' },
+              { childSObject: 'Opportunity', field: 'AccountId' },
+              { childSObject: 'Opportunity', field: 'Partner_Account__c' },
+              { childSObject: 'Account', field: 'ParentId' },
+              { childSObject: 'AccountHistory', field: 'AccountId' },
+              { childSObject: 'Contact', field: 'CreatedById' },
+            ],
+          }),
+        };
+      const total = path.includes('FROM Case WHERE AccountId IN (SELECT Id FROM Account WHERE Type = ') ? 7 : 3;
+      return { status: 200, headers: {}, body: JSON.stringify({ totalSize: total, done: true, records: [] }) };
+    }, '62.0');
+    const children = await childObjectsOf(client, 'Account', new Set(['Account', 'Contact', 'Case', 'Opportunity']));
+    expect(children).toEqual([
+      { object: 'Case', fields: ['AccountId'] },
+      { object: 'Contact', fields: ['AccountId'] },
+      { object: 'Opportunity', fields: ['AccountId', 'Partner_Account__c'] },
+    ]);
+    expect(await countChildren({ kind: 'org', client }, 'Account', children[0], "Type = 'Customer'")).toEqual({
+      AccountId: 7,
+    });
+    expect(await countChildren({ kind: 'org', client }, 'Account', children[2])).toEqual({
+      AccountId: 3,
+      Partner_Account__c: 3,
+    });
+    expect(asked.at(-1)).toBe(
+      '/services/data/v62.0/query?q=SELECT COUNT() FROM Opportunity WHERE Partner_Account__c IN (SELECT Id FROM Account)'
+    );
+
+    // From a backup: the field definitions and the rows
+    const backupChildren = childObjectsInSchema(schemas, 'Account');
+    expect(backupChildren).toEqual([
+      { object: 'Contact', fields: ['AccountId'] },
+      { object: 'Opportunity', fields: ['AccountId'] },
+    ]);
+    const rows = {
+      Account: new Map([['001S00000000001AAA', { Id: '001S00000000001AAA' }]]),
+      Contact: new Map([
+        ['003S00000000001AAA', { Id: '003S00000000001AAA', AccountId: '001S00000000001AAA' }],
+        ['003S00000000002AAA', { Id: '003S00000000002AAA', AccountId: '001S00000000009AAA' }],
+      ]),
+    };
+    expect(await countChildren({ kind: 'backup', rows }, 'Account', backupChildren[0])).toEqual({ AccountId: 1 });
   });
 });
