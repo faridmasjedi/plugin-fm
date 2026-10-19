@@ -23,7 +23,8 @@ import {
   type SalesforceClient,
 } from '@nomadsf/core';
 import { DataTable } from '../components/DataTable';
-import { useStudio } from '../context';
+import { RestorePanel } from '../components/RestorePanel';
+import { storage, useStudio } from '../context';
 import type { OrgChoice } from '../host';
 import {
   backupFolder,
@@ -68,9 +69,12 @@ const fresh = (org: string): JobRecord => ({ ...newBackupJob(org, 'Backup'), cre
 export function BackupPage({
   orgs,
   clientFor,
+  onOpenMigrate,
 }: {
   orgs: OrgChoice[];
   clientFor: (org: string) => Promise<SalesforceClient>;
+  /** Opens Migrate with a backup run as the source (set in storage first). */
+  onOpenMigrate?: () => void;
 }) {
   const studio = useStudio();
   const [jobs, setJobs] = useState<JobRecord[]>(() => backupJobs.list());
@@ -274,6 +278,7 @@ export function BackupPage({
         })()
       : undefined;
   const kind = nextKind(draft, index);
+  const runOfManifest = manifest ? index?.runs.find((r) => r.finishedAt === manifest.finishedAt)?.folder : undefined;
 
   return (
     <div className="page">
@@ -562,24 +567,41 @@ export function BackupPage({
               )}
             </div>
           )}
+          {manifest && runOfManifest && (
+            <RestorePanel
+              job={draft}
+              run={runOfManifest}
+              manifest={manifest}
+              onCopyElsewhere={
+                onOpenMigrate &&
+                (() => {
+                  storage.set('migrate.from', { jobId: draft.id, folder: runOfManifest });
+                  onOpenMigrate();
+                })
+              }
+            />
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function ObjectSettings({
+export function ObjectSettings({
   settings,
   fields,
   filter,
   onFilter,
   onChange,
+  noCondition = false,
 }: {
   settings: BackupObject;
   fields?: DataField[];
   filter: string;
   onFilter: (v: string) => void;
   onChange: (patch: Partial<BackupObject>) => void;
+  /** Rows from a backup: no SOQL condition. */
+  noCondition?: boolean;
 }) {
   const choice = settings.fields ?? { mode: 'all' as const };
   const listed = choice.mode === 'all' ? [] : choice.fields;
@@ -592,15 +614,17 @@ function ObjectSettings({
   const shown = (fields ?? []).filter((f) => `${f.label} ${f.name}`.toLowerCase().includes(filter.toLowerCase()));
   return (
     <div className="backup-settings">
-      <label>
-        Which records (SOQL condition, empty = all)
-        <input
-          className="mono"
-          placeholder="e.g. CreatedDate = LAST_N_YEARS:2 AND Status__c != 'Draft'"
-          value={settings.where ?? ''}
-          onChange={(e) => onChange({ where: e.target.value })}
-        />
-      </label>
+      {!noCondition && (
+        <label>
+          Which records (SOQL condition, empty = all)
+          <input
+            className="mono"
+            placeholder="e.g. CreatedDate = LAST_N_YEARS:2 AND Status__c != 'Draft'"
+            value={settings.where ?? ''}
+            onChange={(e) => onChange({ where: e.target.value })}
+          />
+        </label>
+      )}
       <div className="form">
         <span className="muted">Fields:</span>
         {(['all', 'only', 'except'] as const).map((m) => (

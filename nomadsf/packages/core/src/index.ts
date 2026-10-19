@@ -25,3 +25,6 @@ export * from './ai.js';
 export * from './orgDiff.js';
 export * from './projectCode.js';
 export * from './backup.js';
+export * from './dataLoad.js';
+export * from './restore.js';
+export * from './migrate.js';

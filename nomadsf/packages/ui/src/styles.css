@@ -1063,3 +1063,10 @@ table.org-list tr.current {
     grid-template-columns: 1fr;
   }
 }
+.arrow {
+  font-size: 18px;
+  color: var(--muted);
+}
+.restore-panel h3 {
+  margin-top: 12px;
+}

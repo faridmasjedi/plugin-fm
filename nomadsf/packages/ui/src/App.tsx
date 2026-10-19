@@ -24,6 +24,7 @@ import { FieldUsagePage } from './pages/FieldUsagePage';
 import { LookupPage } from './pages/LookupPage';
 import { OrgComparePage } from './pages/OrgComparePage';
 import { BackupPage } from './pages/BackupPage';
+import { MigratePage } from './pages/MigratePage';
 import { useBackupRun, useBackupScheduler } from './backups';
 import { ProjectStateContext, useProjectState } from './project';
 
@@ -41,6 +42,7 @@ const PAGES = [
   { id: 'metadata', label: 'Metadata', icon: '◫' },
   { id: 'orgdiff', label: 'Org compare', icon: '⇋' },
   { id: 'backup', label: 'Backup', icon: '⛁' },
+  { id: 'migrate', label: 'Migrate', icon: '⇶' },
   { id: 'fields', label: 'Field usage', icon: '▦' },
   { id: 'events', label: 'Events', icon: '⚡' },
   { id: 'limits', label: 'Org limits', icon: '▤' },
@@ -316,7 +318,10 @@ export function App() {
                 {page === 'limits' && <LimitsPage />}
                 {page === 'rest' && <RestPage />}
                 {page === 'code' && <CodePage />}
-                {page === 'backup' && <BackupPage orgs={orgs} clientFor={clientFor} />}
+                {page === 'backup' && (
+                  <BackupPage orgs={orgs} clientFor={clientFor} onOpenMigrate={() => setPage('migrate')} />
+                )}
+                {page === 'migrate' && <MigratePage orgs={orgs} clientFor={clientFor} />}
                 {page === 'events' && <EventsPage />}
                 {page === 'fields' && <FieldUsagePage />}
                 {page === 'lookup' && <LookupPage />}

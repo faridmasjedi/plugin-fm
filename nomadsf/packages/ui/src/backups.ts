@@ -285,3 +285,12 @@ export function useBackupScheduler(clientFor: (org: string) => Promise<Salesforc
     };
   }, [clientFor]);
 }
+
+/** Larger values of this profile (Id maps of migrations): IndexedDB, next to the folder handles. */
+export const bigStore = {
+  get: <T>(key: string): Promise<T | undefined> =>
+    idb<T | undefined>('readonly', (s) => s.get(`kv:${key}`) as IDBRequest<T | undefined>).catch(() => undefined),
+  set: (key: string, value: unknown): Promise<void> =>
+    idb('readwrite', (s) => s.put(value, `kv:${key}`)).then(() => undefined),
+  remove: (key: string): Promise<void> => idb('readwrite', (s) => s.delete(`kv:${key}`)).then(() => undefined),
+};
