@@ -305,39 +305,46 @@ const errorText = (r: SaveResult): string =>
     .map((e) => `${e.statusCode}: ${e.message}${e.fields?.length ? ` (${e.fields.join(', ')})` : ''}`)
     .join('; ') || 'Failed';
 
-export async function createRecords(
+/** Batches of 200 sent a few at a time; results keep the order of the records. */
+async function inChunks(
   client: SalesforceClient,
+  method: 'POST' | 'PATCH',
   object: string,
-  records: Array<Record<string, unknown>>
+  records: Array<Record<string, unknown>>,
+  options: { concurrency?: number; onChunk?: (offset: number, results: SaveResult[]) => void } = {}
 ): Promise<SaveResult[]> {
-  const out: SaveResult[] = [];
-  for (let i = 0; i < records.length; i += CHUNK) {
-    // eslint-disable-next-line no-await-in-loop
-    const results = await client.rest<SaveResult[]>('POST', '/composite/sobjects', {
-      allOrNone: false,
-      records: records.slice(i, i + CHUNK).map((r) => ({ attributes: { type: object }, ...r })),
-    });
-    out.push(...results);
-  }
+  const out: SaveResult[] = new Array(records.length);
+  const starts: number[] = [];
+  for (let i = 0; i < records.length; i += CHUNK) starts.push(i);
+  const next = async (): Promise<void> => {
+    for (let start = starts.shift(); start !== undefined; start = starts.shift()) {
+      // eslint-disable-next-line no-await-in-loop
+      const results = await client.rest<SaveResult[]>(method, '/composite/sobjects', {
+        allOrNone: false,
+        records: records.slice(start, start + CHUNK).map((r) => ({ attributes: { type: object }, ...r })),
+      });
+      results.forEach((r, k) => (out[start + k] = r));
+      options.onChunk?.(start, results);
+    }
+  };
+  // Salesforce allows many parallel API calls; 4 keeps the browser and the org comfortable
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(options.concurrency ?? 4, starts.length)) }, next));
   return out;
 }
 
-export async function updateRecords(
+export const createRecords = (
   client: SalesforceClient,
   object: string,
-  records: Array<Record<string, unknown> & { Id: string }>
-): Promise<SaveResult[]> {
-  const out: SaveResult[] = [];
-  for (let i = 0; i < records.length; i += CHUNK) {
-    // eslint-disable-next-line no-await-in-loop
-    const results = await client.rest<SaveResult[]>('PATCH', '/composite/sobjects', {
-      allOrNone: false,
-      records: records.slice(i, i + CHUNK).map((r) => ({ attributes: { type: object }, ...r })),
-    });
-    out.push(...results);
-  }
-  return out;
-}
+  records: Array<Record<string, unknown>>,
+  options?: { concurrency?: number; onChunk?: (offset: number, results: SaveResult[]) => void }
+): Promise<SaveResult[]> => inChunks(client, 'POST', object, records, options);
+
+export const updateRecords = (
+  client: SalesforceClient,
+  object: string,
+  records: Array<Record<string, unknown> & { Id: string }>,
+  options?: { concurrency?: number; onChunk?: (offset: number, results: SaveResult[]) => void }
+): Promise<SaveResult[]> => inChunks(client, 'PATCH', object, records, options);
 
 export async function deleteRecords(client: SalesforceClient, ids: string[]): Promise<SaveResult[]> {
   const out: SaveResult[] = [];
@@ -425,6 +432,9 @@ export async function loadRecords(
     known?: Record<string, string>;
     onProgress?: LoadProgress;
     signal?: AbortSignal;
+    /** Called with the Id map as records are created (every few thousand), to save it: an interrupted load resumes. */
+    onIds?: (ids: Record<string, string>) => void | Promise<void>;
+    concurrency?: number;
   }
 ): Promise<LoadResult> {
   const schemas = Object.fromEntries(loads.map((l) => [l.name, l.source]));
@@ -459,10 +469,26 @@ export async function loadRecords(
     }
     step(0, 'creating');
     /* eslint-disable no-await-in-loop */
+    let sinceSave = 0;
     const made = await createRecords(
       target,
       name,
-      fresh.map((f) => f.t.record)
+      fresh.map((f) => f.t.record),
+      {
+        concurrency: options.concurrency,
+        // New Ids are kept as each batch lands, and saved every few thousand
+        onChunk: (offset, results) => {
+          results.forEach((r, k) => {
+            if (r.success && r.id) ids.set(fresh[offset + k].row.Id, r.id);
+          });
+          sinceSave += results.length;
+          step(offset + results.length, 'creating');
+          if (options.onIds && sinceSave >= 5000) {
+            sinceSave = 0;
+            void options.onIds(Object.fromEntries(ids));
+          }
+        },
+      }
     );
     const newIds: string[] = [];
     made.forEach((r, k) => {
@@ -497,6 +523,7 @@ export async function loadRecords(
       });
     }
     step(list.length, 'done');
+    await options.onIds?.(Object.fromEntries(ids));
   }
 
   // Second pass: lookups to the same object or across a circle, now that every record exists

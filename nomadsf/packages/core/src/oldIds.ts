@@ -223,6 +223,9 @@ export async function readOldIds(target: SalesforceClient, object: string): Prom
   return new Map(parseCsv(result.csv).rows.map((r) => [r[OLD_ID_FIELD], r.Id]));
 }
 
+/** Rows per Bulk API job (keeps each upload far below the 150 MB limit). */
+const BULK_ROWS = 10_000;
+
 const csvValue = (v: unknown): string =>
   typeof v === 'boolean' ? String(v) : v === null || v === undefined ? '' : String(v);
 
@@ -242,6 +245,7 @@ export async function loadWithOldIds(
     withoutField?: string[];
     onProgress?: LoadProgress;
     pollMs?: number;
+    onIds?: (ids: Record<string, string>) => void | Promise<void>;
   }
 ): Promise<LoadResult> {
   const { order, deferred } = loadOrder(
@@ -307,31 +311,38 @@ export async function loadWithOldIds(
 
     step(0, 'upserting');
     const columns = [OLD_ID_FIELD, ...new Set(records.flatMap((r) => Object.keys(r.record)))];
-    const csv = toCsv(
-      columns,
-      records.map((r) =>
-        Object.fromEntries([[OLD_ID_FIELD, r.row.Id], ...Object.entries(r.record).map(([k, v]) => [k, csvValue(v)])])
-      )
-    );
-    const job = await bulkIngest(
-      target,
-      { object: name, operation: 'upsert', csv, externalIdField: OLD_ID_FIELD },
-      {
-        pollMs: options.pollMs,
-        onProgress: (state, processed) => step(processed, state),
+    // One Bulk job per 10,000 rows: Salesforce takes at most 150 MB per upload
+    const newIds: string[] = [];
+    for (let at = 0; at < records.length; at += BULK_ROWS) {
+      const part = records.slice(at, at + BULK_ROWS);
+      const csv = toCsv(
+        columns,
+        part.map((r) =>
+          Object.fromEntries([[OLD_ID_FIELD, r.row.Id], ...Object.entries(r.record).map(([k, v]) => [k, csvValue(v)])])
+        )
+      );
+      const job = await bulkIngest(
+        target,
+        { object: name, operation: 'upsert', csv, externalIdField: OLD_ID_FIELD },
+        {
+          pollMs: options.pollMs,
+          onProgress: (state, processed) => step(at + processed, state),
+        }
+      );
+      const ok = parseCsv(job.successfulCsv || '').rows;
+      const made = ok.filter((r) => r.sf__Created === 'true').map((r) => r.sf__Id);
+      newIds.push(...made);
+      result.created += made.length;
+      result.updated += ok.length - made.length;
+      for (const f of parseCsv(job.failedCsv || '').rows) {
+        result.failed++;
+        failures.push({ object: name, sourceId: f[OLD_ID_FIELD] ?? '', error: f.sf__Error ?? 'Failed' });
       }
-    );
-    const ok = parseCsv(job.successfulCsv || '').rows;
-    const newIds = ok.filter((r) => r.sf__Created === 'true').map((r) => r.sf__Id);
-    result.created = newIds.length;
-    result.updated = ok.length - newIds.length;
-    for (const f of parseCsv(job.failedCsv || '').rows) {
-      result.failed++;
-      failures.push({ object: name, sourceId: f[OLD_ID_FIELD] ?? '', error: f.sf__Error ?? 'Failed' });
     }
     if (newIds.length) created.unshift({ object: name, ids: newIds });
     for (const [oldId, newId] of await readOldIds(target, name)) ids.set(oldId, newId);
     step(list.length, 'done');
+    await options.onIds?.(Object.fromEntries(ids));
   }
 
   // Second pass: lookups to the same object or across a circle

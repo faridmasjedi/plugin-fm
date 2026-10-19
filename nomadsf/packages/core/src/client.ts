@@ -5,6 +5,8 @@
  * or an IDE host.
  */
 
+import { fromBase64, toBase64 } from './zip.js';
+
 export type HttpRequest = {
   method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   /** Path from the instance root, e.g. /services/data/v62.0/query?q=... */
@@ -12,9 +14,11 @@ export type HttpRequest = {
   headers?: Record<string, string>;
   /** Request body; `{{SESSION_ID}}` is replaced with the session by the transport (needed for SOAP). */
   body?: string;
+  /** The response is binary (a file): the transport returns it base64-encoded in `bodyBase64`. */
+  binary?: boolean;
 };
 
-export type HttpResponse = { status: number; headers: Record<string, string>; body: string };
+export type HttpResponse = { status: number; headers: Record<string, string>; body: string; bodyBase64?: string };
 
 export type Transport = (request: HttpRequest) => Promise<HttpResponse>;
 
@@ -44,6 +48,13 @@ export function fetchTransport(instanceUrl: string, accessToken: string, fetchIm
     response.headers.forEach((value, key) => {
       headers[key.toLowerCase()] = value;
     });
+    if (request.binary && response.ok)
+      return {
+        status: response.status,
+        headers,
+        body: '',
+        bodyBase64: toBase64(new Uint8Array(await response.arrayBuffer())),
+      };
     return { status: response.status, headers, body: await response.text() };
   };
 }
@@ -151,6 +162,15 @@ export class SalesforceClient {
   /** Same as rest(), for the Tooling API. */
   public tooling<T>(method: HttpRequest['method'], path: string, body?: unknown): Promise<T> {
     return this.rest<T>(method, `/tooling${path}`, body);
+  }
+
+  /** A file (ContentVersion.VersionData, Attachment.Body…) relative to /services/data/vXX.X, as bytes. */
+  public async blob(path: string): Promise<Uint8Array> {
+    const version = await this.version();
+    const response = await this.raw({ method: 'GET', path: `/services/data/v${version}${path}`, binary: true });
+    if (response.bodyBase64 !== undefined) return fromBase64(response.bodyBase64);
+    // A transport without binary support: the body is text
+    return new TextEncoder().encode(response.body);
   }
 
   /** Plain-text resource (e.g. an ApexLog body). */

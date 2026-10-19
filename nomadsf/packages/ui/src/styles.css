@@ -1445,3 +1445,98 @@ table.org-list tr.current {
 .child-row.chosen {
   opacity: 0.7;
 }
+.unlock-backup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.unlock-backup input[type='password'] {
+  min-width: 220px;
+}
+.encrypt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0;
+  max-width: 340px;
+}
+.capacity-warnings {
+  margin: 6px 0;
+  padding-left: 18px;
+  color: var(--warn);
+  font-size: 12.5px;
+}
+
+/* Lifecycle: steps and the approval question */
+.new-job {
+  font-size: 12.5px;
+  max-width: 130px;
+}
+.steps {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.step-card {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+.step-card.changes {
+  border-left-color: var(--bad);
+}
+.step-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.step-body {
+  margin-top: 8px;
+  align-items: flex-end;
+}
+.step-body .grow-field {
+  flex: 1;
+  min-width: 260px;
+}
+.step-body .grow-field input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.anonymize-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 8px;
+  font-size: 12.5px;
+}
+.anonymize-fields select {
+  margin-left: 4px;
+  font-size: 11.5px;
+  padding: 0 2px;
+}
+.approval {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--bad);
+  border-radius: 10px;
+  background: var(--bad-soft);
+  font-size: 13px;
+}
+.approval p {
+  margin: 6px 0;
+}
+.approval ul {
+  margin: 4px 0 8px;
+  padding-left: 18px;
+}

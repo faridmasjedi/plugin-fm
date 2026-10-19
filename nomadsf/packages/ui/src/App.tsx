@@ -25,6 +25,8 @@ import { LookupPage } from './pages/LookupPage';
 import { OrgComparePage } from './pages/OrgComparePage';
 import { BackupPage } from './pages/BackupPage';
 import { MigratePage } from './pages/MigratePage';
+import { LifecyclePage } from './pages/LifecyclePage';
+import { useLifecycleRun, useLifecycleScheduler } from './lifecycle';
 import { useBackupRun, useBackupScheduler } from './backups';
 import { ProjectStateContext, useProjectState } from './project';
 
@@ -43,6 +45,7 @@ const PAGES = [
   { id: 'orgdiff', label: 'Org compare', icon: '⇋' },
   { id: 'backup', label: 'Backup', icon: '⛁' },
   { id: 'migrate', label: 'Migrate', icon: '⇶' },
+  { id: 'lifecycle', label: 'Lifecycle', icon: '◷' },
   { id: 'fields', label: 'Field usage', icon: '▦' },
   { id: 'events', label: 'Events', icon: '⚡' },
   { id: 'limits', label: 'Org limits', icon: '▤' },
@@ -197,7 +200,9 @@ export function App() {
     [client, org, orgs]
   );
   useBackupScheduler(clientFor);
+  useLifecycleScheduler(clientFor);
   const backupRun = useBackupRun();
+  const lifecycleRun = useLifecycleRun();
   // E2E tests and the Local app pages need the NomadSF CLI app; the extension hides them without it
   const needsLocal = (id: string): boolean => id === 'tests' || LOCAL.some((p) => p.id === id);
   const shownPages = PAGES.filter((p) => !needsLocal(p.id) || project.localAppReady);
@@ -239,6 +244,16 @@ export function App() {
           {backupRun && !backupRun.done && !backupRun.error && (
             <button className="link backup-pill" onClick={() => setPage('backup')} title="Backup running">
               ⛁ {backupRun.jobName} · {backupRun.index + 1}/{backupRun.total || '?'}
+            </button>
+          )}
+          {lifecycleRun && (lifecycleRun.run.status === 'running' || lifecycleRun.run.status === 'waiting') && (
+            <button
+              className={`link backup-pill ${lifecycleRun.run.status === 'waiting' ? 'bad' : ''}`}
+              onClick={() => setPage('lifecycle')}
+              title={lifecycleRun.text}
+            >
+              ◷ {lifecycleRun.run.jobName} ·{' '}
+              {lifecycleRun.run.status === 'waiting' ? 'waiting for your approval' : 'running'}
             </button>
           )}
           {host.kind === 'app' && (
@@ -322,6 +337,7 @@ export function App() {
                   <BackupPage orgs={orgs} clientFor={clientFor} onOpenMigrate={() => setPage('migrate')} />
                 )}
                 {page === 'migrate' && <MigratePage orgs={orgs} clientFor={clientFor} />}
+                {page === 'lifecycle' && <LifecyclePage orgs={orgs} clientFor={clientFor} />}
                 {page === 'events' && <EventsPage />}
                 {page === 'fields' && <FieldUsagePage />}
                 {page === 'lookup' && <LookupPage />}

@@ -1,5 +1,8 @@
 import { bulkQuery } from './bulk.js';
 import type { SalesforceClient } from './client.js';
+import type { EncryptionInfo } from './crypto.js';
+import { parseCsv } from './csv.js';
+import { backupFiles, type FilesChoice, type FilesResult } from './files.js';
 import { query } from './query.js';
 
 /**
@@ -37,6 +40,10 @@ export type BackupJob = {
   /** A full run again after this many days of incremental runs (0 = never). */
   fullEveryDays: number;
   schedule: BackupSchedule;
+  /** Salesforce Files and attachments of the records backed up. */
+  files?: FilesChoice;
+  /** Set when the backup is encrypted (salt and check value; never the key). */
+  encryption?: EncryptionInfo;
 };
 
 export const newBackupJob = (org: string, name = 'Backup'): BackupJob => ({
@@ -57,6 +64,7 @@ export type DataObject = {
   name: string;
   label: string;
   custom: boolean;
+  keyPrefix?: string | null;
   queryable: boolean;
   createable?: boolean;
   replicateable?: boolean;
@@ -176,6 +184,9 @@ export type BackupSink = {
   write(path: string, content: string): Promise<void>;
   read(path: string): Promise<string | undefined>;
   list(dir: string): Promise<string[]>;
+  /** Binary files (Salesforce Files, attachment bodies). */
+  writeBytes(path: string, content: Uint8Array): Promise<void>;
+  readBytes(path: string): Promise<Uint8Array | undefined>;
 };
 
 export type BackupObjectResult = {
@@ -203,6 +214,11 @@ export type BackupManifest = {
   objects: BackupObjectResult[];
   /** Field definitions at backup time, for restoring into a changed org later. */
   schema: Record<string, DataField[]>;
+  /** Files and attachments of the records (when the job includes them). */
+  files?: FilesResult;
+  filesError?: string;
+  /** The data files are encrypted (".enc"). */
+  encrypted?: boolean;
 };
 
 /** The last run of a job (written next to the runs), for incremental runs and the list of backups. */
@@ -265,6 +281,9 @@ export async function runBackup(
   if (!objects.length) throw new Error('This backup has no objects to back up.');
 
   const results: BackupObjectResult[] = [];
+  // Ids of the records backed up, for their files and attachments
+  const withFiles = Boolean(job.files && (job.files.files || job.files.attachments));
+  const recordIds: string[] = [];
   const schema: Record<string, DataField[]> = {};
   for (const [i, o] of objects.entries()) {
     if (options.signal?.aborted) throw new Error('Backup stopped.');
@@ -285,6 +304,7 @@ export async function runBackup(
         onFile: async (csv, n, rows) => {
           const file = `${o.name}/part-${String(n + 1).padStart(4, '0')}.csv`;
           await sink.write(`${root}/${folder}/${file}`, csv);
+          if (withFiles) for (const r of parseCsv(csv).rows) recordIds.push(r.Id);
           result.files.push(file);
           result.rows += rows;
           step('saving');
@@ -306,6 +326,25 @@ export async function runBackup(
     }
   }
 
+  let files: FilesResult | undefined;
+  let filesError: string | undefined;
+  if (withFiles) {
+    const prefixes = new Set(
+      candidates.filter((c) => objects.some((o) => o.name === c.name) && c.keyPrefix).map((c) => String(c.keyPrefix))
+    );
+    try {
+      files = await backupFiles(client, sink, `${root}/${folder}`, recordIds, {
+        choice: job.files!,
+        since,
+        prefixes,
+        onProgress: (state) =>
+          options.onProgress?.({ object: 'Files', index: objects.length - 1, total: objects.length, rows: 0, state }),
+      });
+    } catch (e) {
+      filesError = (e as Error).message;
+    }
+  }
+
   const manifest: BackupManifest = {
     format: 1,
     job: { id: job.id, name: job.name },
@@ -319,6 +358,9 @@ export async function runBackup(
     apiVersion,
     objects: results,
     schema,
+    ...(files ? { files } : {}),
+    ...(filesError ? { filesError } : {}),
+    ...(job.encryption ? { encrypted: true } : {}),
   };
   await sink.write(`${root}/${folder}/manifest.json`, JSON.stringify(manifest, null, 2));
   const runs = [
@@ -415,14 +457,24 @@ export function describeSchedule(schedule: BackupSchedule): string {
 }
 
 /** A sink in memory (tests, zip downloads). */
-export function memorySink(files: Map<string, string> = new Map()): BackupSink & { files: Map<string, string> } {
+export function memorySink(
+  files: Map<string, string | Uint8Array> = new Map()
+): BackupSink & { files: Map<string, string | Uint8Array> } {
   return {
     files,
     async write(path, content) {
       files.set(path, content);
     },
     async read(path) {
-      return files.get(path);
+      const value = files.get(path);
+      return value instanceof Uint8Array ? new TextDecoder().decode(value) : value;
+    },
+    async writeBytes(path, content) {
+      files.set(path, content);
+    },
+    async readBytes(path) {
+      const value = files.get(path);
+      return typeof value === 'string' ? new TextEncoder().encode(value) : value;
     },
     async list(dir) {
       const prefix = dir ? `${dir.replace(/\/$/, '')}/` : '';
