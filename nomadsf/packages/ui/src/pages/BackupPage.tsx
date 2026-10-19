@@ -386,17 +386,19 @@ export function BackupPage({
                 </span>
               )}
               <span className="grow" />
-              <button disabled={busy || isRunning || !included.size} onClick={() => void runNow(true)}>
-                Download as zip
-              </button>
-              <button
-                className="primary"
-                disabled={busy || isRunning || !included.size || !folder.name}
-                title={folder.name ? '' : 'Choose a folder under Schedule & folder'}
-                onClick={() => void runNow(false)}
-              >
-                Back up now
-              </button>
+              <span className="job-actions">
+                <button disabled={busy || isRunning || !included.size} onClick={() => void runNow(true)}>
+                  Download as zip
+                </button>
+                <button
+                  className="primary"
+                  disabled={busy || isRunning || !included.size || !folder.name}
+                  title={folder.name ? '' : 'Choose a folder under Schedule & folder'}
+                  onClick={() => void runNow(false)}
+                >
+                  Back up now
+                </button>
+              </span>
             </div>
             {running && (
               <div className="run-progress">

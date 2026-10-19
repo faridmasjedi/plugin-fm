@@ -28,3 +28,4 @@ export * from './backup.js';
 export * from './dataLoad.js';
 export * from './restore.js';
 export * from './migrate.js';
+export * from './oldIds.js';

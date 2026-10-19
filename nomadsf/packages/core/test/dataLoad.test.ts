@@ -17,6 +17,8 @@ import {
   planMigration,
   previewRestore,
   restoreDeleted,
+  restoreRecords,
+  translator,
   restoreValues,
   runMigration,
   sameValue,
@@ -602,5 +604,103 @@ describe('keeping every link', () => {
       known: byName.ids,
     });
     expect(other.records.get(result.ids['500A00000000001AAA'])!.AccountId).toBe('001T00000000001AAA');
+  });
+});
+
+describe('restoring with links', () => {
+  const accountSchema = [f('Id', 'id'), f('Name'), ref('ParentId', ['Account']), ref('OwnerId', ['User'])];
+  const caseSchema = [f('Id', 'id'), f('Subject'), ref('AccountId', ['Account']), ref('ParentId', ['Case'])];
+  const state = {
+    manifest: {} as never,
+    runs: ['r1'],
+    schema: { Account: accountSchema, Case: caseSchema },
+    rows: {
+      Account: new Map([
+        [
+          '001A00000000001AAA',
+          { Id: '001A00000000001AAA', Name: 'Group HQ', ParentId: '', OwnerId: '005A00000000001AAA' },
+        ],
+        [
+          '001A00000000002AAA',
+          { Id: '001A00000000002AAA', Name: 'Branch', ParentId: '001A00000000001AAA', OwnerId: '005A00000000001AAA' },
+        ],
+      ]),
+      Case: new Map([
+        [
+          '500A00000000001AAA',
+          { Id: '500A00000000001AAA', Subject: 'Deleted case', AccountId: '001A00000000002AAA', ParentId: '' },
+        ],
+        [
+          '500A00000000002AAA',
+          {
+            Id: '500A00000000002AAA',
+            Subject: 'Still here',
+            AccountId: '001A00000000002AAA',
+            ParentId: '500A00000000001AAA',
+          },
+        ],
+        [
+          '500A00000000003AAA',
+          { Id: '500A00000000003AAA', Subject: 'Moved since', AccountId: '001A00000000002AAA', ParentId: '' },
+        ],
+      ]),
+    },
+  };
+
+  it('brings deleted parents back, recreates with links, and points the remaining children to the new records', async () => {
+    // Now: both Accounts and the first Case are gone for good (not in the bin); the other Cases lost their links
+    const org = fakeOrg('T', {
+      Case: [
+        { Id: '500A00000000002AAA', Subject: 'Still here', AccountId: null, ParentId: null },
+        { Id: '500A00000000003AAA', Subject: 'Moved since', AccountId: '001Z00000000009AAA', ParentId: null },
+      ],
+      Account: [{ Id: '001Z00000000009AAA', Name: 'Someone else' }],
+    });
+    // Describe for the objects created again
+    const describe = org.client.raw.bind(org.client);
+    org.client.raw = async (req) =>
+      /\/sobjects\/(Account|Case)\/describe/.test(req.path)
+        ? {
+            status: 200,
+            headers: {},
+            body: JSON.stringify({ fields: req.path.includes('Account') ? accountSchema : caseSchema }),
+          }
+        : describe(req);
+    const steps: string[] = [];
+    const result = await restoreRecords(
+      org.client,
+      state,
+      { Case: ['500A00000000001AAA'] },
+      { onProgress: (t) => steps.push(t) }
+    );
+    expect(result.parentsAdded).toEqual({ Account: 2 });
+    expect(result.created).toBe(3);
+    expect(result.failures).toEqual([]);
+    const t = (id: string) => org.records.get(result.ids[id])!;
+    expect(t('500A00000000001AAA').AccountId).toBe(result.ids['001A00000000002AAA']);
+    expect(t('001A00000000002AAA').ParentId).toBe(result.ids['001A00000000001AAA']);
+    // The Case still in the org lost its Account and parent Case: both pointed to the new records
+    expect(org.records.get('500A00000000002AAA')).toMatchObject({
+      AccountId: result.ids['001A00000000002AAA'],
+      ParentId: result.ids['500A00000000001AAA'],
+    });
+    // A link changed since the backup is left alone
+    expect(org.records.get('500A00000000003AAA')!.AccountId).toBe('001Z00000000009AAA');
+    expect(result.repointed).toBe(1);
+    expect(steps.some((x) => x.startsWith('Pointing'))).toBe(true);
+
+    // Later "put back": a value pointing to a record created again uses its new Id
+    const move = translator(result.ids);
+    expect(move('001A00000000002AAA')).toBe(result.ids['001A00000000002AAA']);
+    expect(move('001A00000000002')).toBe(result.ids['001A00000000002AAA']);
+    expect(move('Acme')).toBe('Acme');
+  });
+
+  it('undeletes from the recycle bin instead of creating again', async () => {
+    const org = fakeOrg('T');
+    org.recycle.set('001A00000000002AAA', { Id: '001A00000000002AAA', Name: 'Branch', type: 'Account' });
+    org.recycle.set('001A00000000001AAA', { Id: '001A00000000001AAA', Name: 'Group HQ', type: 'Account' });
+    const result = await restoreRecords(org.client, state, { Account: ['001A00000000002AAA'] });
+    expect(result).toMatchObject({ undeleted: 2, created: 0, parentsAdded: { Account: 1 }, repointed: 0 });
   });
 });

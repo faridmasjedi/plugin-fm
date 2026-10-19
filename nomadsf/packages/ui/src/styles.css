@@ -1381,3 +1381,28 @@ table.org-list tr.current {
 .link-fix select {
   font-size: 12px;
 }
+.restore-objects {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.restore-objects label.check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.restore-options {
+  align-items: center;
+  margin-top: 8px;
+}
+.old-ids {
+  font-size: 12.5px;
+}
+.job-actions {
+  display: inline-flex;
+  gap: 8px;
+  flex: none;
+}

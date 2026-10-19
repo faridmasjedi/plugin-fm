@@ -13,7 +13,8 @@ export type TestLevel = 'NoTestRun' | 'RunSpecifiedTests' | 'RunLocalTests' | 'R
 
 export type DeployOptions = {
   checkOnly?: boolean;
-  testLevel?: TestLevel;
+  /** 'Default': Salesforce decides (no tests unless the package holds Apex; works in production too). */
+  testLevel?: TestLevel | 'Default';
   runTests?: string[];
   pollMs?: number;
   timeoutMs?: number;
@@ -107,7 +108,9 @@ export async function deployZip(
     metadataEnvelope(
       `<met:deploy><met:ZipFile>${zipBase64}</met:ZipFile><met:DeployOptions><met:checkOnly>${Boolean(
         options.checkOnly
-      )}</met:checkOnly><met:rollbackOnError>true</met:rollbackOnError><met:singlePackage>true</met:singlePackage>${tests}<met:testLevel>${level}</met:testLevel></met:DeployOptions></met:deploy>`
+      )}</met:checkOnly><met:rollbackOnError>true</met:rollbackOnError><met:singlePackage>true</met:singlePackage>${tests}${
+        level === 'Default' ? '' : `<met:testLevel>${level}</met:testLevel>`
+      }</met:DeployOptions></met:deploy>`
     )
   );
   const id = xmlValue(xml, 'id');

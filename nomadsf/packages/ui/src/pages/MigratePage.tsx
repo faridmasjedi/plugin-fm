@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   backupCandidates,
+  OLD_ID_FIELD,
   backupStateAt,
   completeParents,
+  ensureOldIdFields,
+  loadWithOldIds,
+  oldIdFieldStatus,
+  removeOldIdFields,
   describeBoth,
   describeData,
   gatherRows,
@@ -20,6 +25,7 @@ import {
   type DataField,
   type DataObject,
   type LinkStatus,
+  type OldIdStatus,
   type LoadResult,
   type MaskRule,
   type MigrateObject,
@@ -94,6 +100,14 @@ export function MigratePage({
   const [broughtParents, setBroughtParents] = useState<Record<string, number>>({});
   // Id maps are kept per source org (whichever way it was chosen) and target
   const [idsKey, setIdsKey] = useState('');
+  // Keeping the old Ids in the target org (NomadSF_Old_Id__c, Bulk API upserts)
+  const [oldIds, setOldIds] = useState(() => storage.get('migrate.oldIds', false));
+  const [fieldStatus, setFieldStatus] = useState<OldIdStatus[]>([]);
+  const [fieldsUsed, setFieldsUsed] = useState<string[]>([]);
+  useEffect(
+    () => setFieldsUsed(targetId ? storage.get<string[]>(`migrate.oldIdObjects.${targetId}`, []) : []),
+    [targetId]
+  );
   const [rows, setRows] = useState<Record<string, SourceRow[]>>();
   const [result, setResult] = useState<LoadResult>();
   const [last, setLast] = useState<LastCopy>();
@@ -122,7 +136,7 @@ export function MigratePage({
   const [stale, setStale] = useState(false);
   useEffect(() => {
     if (plan) setStale(true);
-  }, [withParents, matchRules]);
+  }, [withParents, matchRules, oldIds]);
 
   // What can be copied: the source org's objects, or the objects of the backup
   useEffect(() => {
@@ -301,6 +315,7 @@ export function MigratePage({
       setLinks(report);
       setBroughtParents(added);
       setIdsKey(key);
+      setFieldStatus(oldIds ? await oldIdFieldStatus(targetClient, p.order) : []);
       setPlan(p);
       setStale(false);
       setMaps(m);
@@ -320,19 +335,62 @@ export function MigratePage({
       if (!plan || !rows || !maps || !target) return;
       const total = Object.values(rows).reduce((n, r) => n + r.length, 0);
       const warn = targetProduction ? `\n\n⚠ ${target.label} is a PRODUCTION org.` : '';
+      const toCreate = fieldStatus.filter((f) => f.status === 'create').map((f) => f.object);
+      const setup =
+        oldIds && toCreate.length
+          ? `\n\nThis first creates the field ${OLD_ID_FIELD} (text, External ID, unique) on ${toCreate.join(
+              ', '
+            )} and the permission set NomadSF_Old_Ids (assigned to you) in ${target.label}.`
+          : '';
       const answer = prompt(
         `Copy ${total} record(s) of ${plan.order.length} object(s) into ${target.label}${
           mask ? ' (masked)' : ''
-        }.${warn}\n\nType the target org name "${target.label}" to confirm:`
+        }.${setup}${warn}\n\nType the target org name "${target.label}" to confirm:`
       );
       if (answer !== target.label) return;
+      const targetClient = await clientFor(target.id);
       const known = { ...((await bigStore.get<Record<string, string>>(idsKey)) ?? {}), ...matched };
-      const out = await runMigration(await clientFor(target.id), plan, rows, {
-        maps,
-        known,
-        keepUnmapped: keepIds,
-        onProgress: (s) => setStatus(`${s.object} (${s.index + 1}/${s.total}) · ${s.phase} · ${s.done}/${s.rows}`),
-      });
+      const progress = (s: {
+        object: string;
+        index: number;
+        total: number;
+        phase: string;
+        done: number;
+        rows: number;
+      }) => setStatus(`${s.object} (${s.index + 1}/${s.total}) · ${s.phase} · ${s.done}/${s.rows}`);
+      let out: LoadResult;
+      if (oldIds) {
+        const ready = await ensureOldIdFields(targetClient, plan.order, setStatus);
+        const used = ready.filter((f) => f.status === 'ready').map((f) => f.object);
+        const all = [...new Set([...fieldsUsed, ...used])];
+        setFieldsUsed(all);
+        storage.set(`migrate.oldIdObjects.${target.id}`, all);
+        setFieldStatus(ready);
+        out = await loadWithOldIds(
+          targetClient,
+          plan.objects.map((o) => ({
+            name: o.name,
+            source: plan.schemas[o.name].source,
+            target: plan.schemas[o.name].target,
+            mask: o.mask,
+          })),
+          rows,
+          {
+            maps,
+            known,
+            keepUnmapped: keepIds,
+            withoutField: ready.filter((f) => f.status === 'unsupported').map((f) => f.object),
+            onProgress: progress,
+          }
+        );
+      } else {
+        out = await runMigration(targetClient, plan, rows, {
+          maps,
+          known,
+          keepUnmapped: keepIds,
+          onProgress: progress,
+        });
+      }
       await bigStore.set(idsKey, out.ids);
       const created = out.objects.reduce((n, o) => n + o.created, 0);
       // Undo removes what a copy created; a copy that only updated keeps the earlier one
@@ -361,6 +419,27 @@ export function MigratePage({
           0
         )} updated${out.failures.length ? `, ${out.failures.length} failed (see below)` : ''}.`
       );
+    });
+
+  const removeFields = () =>
+    act('', async () => {
+      if (!target) return;
+      const answer = prompt(
+        `Remove ${OLD_ID_FIELD} (and its values) from ${fieldsUsed.join(
+          ', '
+        )} and the permission set NomadSF_Old_Ids in ${
+          target.label
+        }? Re-runs then create new records instead of updating.\n\nType the target org name "${
+          target.label
+        }" to confirm:`
+      );
+      if (answer !== target.label) return;
+      const done = await removeOldIdFields(await clientFor(target.id), fieldsUsed, setStatus);
+      setFieldsUsed([]);
+      storage.set(`migrate.oldIdObjects.${target.id}`, []);
+      setFieldStatus([]);
+      studio.logActivity('remove old-id fields', { target: target.label, objects: done.removed });
+      setStatus(`✓ Removed ${OLD_ID_FIELD} from ${done.removed.join(', ') || 'no object'} and the permission set.`);
     });
 
   const undo = () =>
@@ -610,6 +689,20 @@ export function MigratePage({
             />{' '}
             Bring the records they point to (keeps every link)
           </label>
+          <label
+            className="check"
+            title={`Creates ${OLD_ID_FIELD} (External ID) on the objects in the target and upserts on it with the Bulk API: for large volumes, safe re-runs, and to see where each record came from`}
+          >
+            <input
+              type="checkbox"
+              checked={oldIds}
+              onChange={(e) => {
+                setOldIds(e.target.checked);
+                storage.set('migrate.oldIds', e.target.checked);
+              }}
+            />{' '}
+            Keep the old Ids in the target org
+          </label>
           {sourceProduction && !mask && <span className="bad">Production data unmasked</span>}
           <span className="grow" />
           <button
@@ -643,6 +736,33 @@ export function MigratePage({
           )}
         </div>
         {status && <p className="muted">{status}</p>}
+        {oldIds && fieldStatus.length > 0 && (
+          <p className="muted old-ids">
+            <b>{OLD_ID_FIELD}</b>:{' '}
+            {(['ready', 'create', 'unsupported'] as const)
+              .map((k) => [k, fieldStatus.filter((f) => f.status === k).map((f) => f.object)] as const)
+              .filter(([, list]) => list.length)
+              .map(([k, list]) =>
+                k === 'ready'
+                  ? `ready on ${list.join(', ')}`
+                  : k === 'create'
+                  ? `will be created on ${list.join(', ')} (with the permission set NomadSF_Old_Ids for you)`
+                  : `not possible on ${list.join(', ')} (custom fields not allowed; the in-browser Id map is used)`
+              )
+              .join(' · ')}
+          </p>
+        )}
+        {fieldsUsed.length > 0 && target && (
+          <div className="form">
+            <span className="muted">
+              {OLD_ID_FIELD} is on {fieldsUsed.join(', ')} in a target: keep it for re-runs, or remove it when the data
+              is final.
+            </span>
+            <button className="danger" disabled={busy} onClick={() => void removeFields()}>
+              Remove the old-Id fields…
+            </button>
+          </div>
+        )}
         {plan && (
           <>
             {plan.missingObjects.length > 0 && (
