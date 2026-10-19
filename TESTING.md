@@ -338,6 +338,14 @@ Read-only items can run on any org; everything marked ✎ only on a sandbox.
 | L138  | ✦ Explain the difference (extension AI or CLI app AI)                                                        | explains the diff; only the diff of the file is sent                                                                       |
 | L139  | Project → Compare: Check content; tick one class → Open in Code                                              | tiles different / same; Code page opens that class in Compare                                                              |
 | L140  | Project → Compare without the CLI app: tick code rows → Deploy to org → Validate ✎                           | deploy button enabled; validation runs from the browser; Quick deploy offered after success                                |
+| L141  | Backup: New backup; Objects I pick; tick two objects; Settings: condition + All except one field; Count records | object list has no Share / History / \_\_mdt; counts per object and total; the row shows "where" and "all but 1"  |
+| L142  | All custom / All standard / All objects; untick one                                                             | included count follows the choice; the unticked one is left out                                                   |
+| L143  | Choose folder… (allow writing), Back up now                                                                     | full backup message; folder has <job>/<time>/<Object>/part-0001.csv, manifest.json, backups.json                  |
+| L144  | Click the run, then an object                                                                                   | objects with rows / fields / files / errors; first 500 records shown                                              |
+| L145  | Back up now again                                                                                               | incremental: only records changed since the last run (minus 5 minutes) and deleted.csv where records were deleted |
+| L146  | Schedule daily at a time a minute ahead, keep the Studio open; then close Chrome past the time and reopen       | runs on its own (header shows ⛁ while running); badge on the extension icon when due and no Studio is open        |
+| L147  | An object the bulk API refuses (e.g. a big object) in the job                                                   | that object shows its error; the others are backed up; the run is not a base for incremental runs                 |
+| L148  | Download as zip                                                                                                 | zip with the same layout                                                                                          |
 
 ## Before a demo
 

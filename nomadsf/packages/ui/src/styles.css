@@ -965,3 +965,101 @@ table.org-list tr.current {
   white-space: pre;
   margin: 6px 0;
 }
+.backup-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.backup-jobs ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.backup-jobs li button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 6px 8px;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+.backup-jobs li button.active {
+  background: var(--accent-soft);
+}
+.backup-jobs .good {
+  color: var(--good);
+}
+.backup-jobs .bad {
+  color: var(--bad);
+}
+.backup-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.backup-main .card.section {
+  margin: 0;
+}
+.backup-objects {
+  max-height: 52vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.backup-object {
+  border-bottom: 1px solid var(--border);
+  padding: 4px 8px;
+  font-size: 13px;
+}
+.backup-object:last-child {
+  border-bottom: 0;
+}
+.backup-object.on {
+  background: var(--panel-2);
+}
+.backup-object .row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.backup-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.backup-object.on .backup-tag {
+  background: var(--panel);
+}
+.backup-settings {
+  padding: 8px 0 8px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.backup-settings > label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.backup-settings input.mono {
+  width: 100%;
+  box-sizing: border-box;
+}
+.backup-pill {
+  font-size: 12px;
+}
+@media (max-width: 900px) {
+  .backup-layout {
+    grid-template-columns: 1fr;
+  }
+}
