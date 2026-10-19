@@ -921,7 +921,13 @@ export function ObjectSettings({
   );
 }
 
-function ScheduleEditor({ schedule, onChange }: { schedule: BackupSchedule; onChange: (s: BackupSchedule) => void }) {
+export function ScheduleEditor({
+  schedule,
+  onChange,
+}: {
+  schedule: BackupSchedule;
+  onChange: (s: BackupSchedule) => void;
+}) {
   const time = schedule.every === 'off' ? '02:00' : schedule.time;
   const weekday = schedule.every === 'weekly' ? schedule.weekday : 1;
   return (
