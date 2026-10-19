@@ -1,12 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import {
+  CODE_LAYOUT,
+  checkCodeContent,
   createApexClass,
   createCode,
+  deployZip,
   extractCode,
   isBundle,
   listCode,
   openCode,
+  pairCodeFiles,
+  pairsSame,
+  projectCodeIndex,
+  projectCodePackage,
+  readProjectCode,
   saveApex,
   saveBundleFile,
   type CodeFile,
@@ -16,8 +24,10 @@ import {
 } from '@nomadsf/core';
 import { AiAsk, AiExplain } from '../components/AiHelp';
 import { CodeEditor } from '../components/CodeEditor';
+import { ProjectCodeView, shownPair } from '../components/ProjectCodeView';
 import { storage, useStudio } from '../context';
 import { monaco } from '../monaco';
+import { useProject } from '../project';
 
 const KINDS: Array<{ id: CodeKind; label: string; one: string }> = [
   { id: 'ApexClass', label: 'Classes', one: 'Apex class' },
@@ -28,6 +38,27 @@ const KINDS: Array<{ id: CodeKind; label: string; one: string }> = [
   { id: 'Aura', label: 'Aura', one: 'Aura component' },
 ];
 const kindInfo = (id: CodeKind): (typeof KINDS)[number] => KINDS.find((k) => k.id === id) ?? KINDS[0];
+
+/** Where a component is, once a project is open: both (same / different when checked), or one side only. */
+type CodeStatus = 'same' | 'different' | 'in both' | 'only in org' | 'only in project';
+type Show = 'all' | CodeStatus;
+type View = 'org' | 'project' | 'compare';
+const SHOW: Array<{ id: Show; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'different', label: 'Different' },
+  { id: 'same', label: 'Same' },
+  { id: 'in both', label: 'Not checked' },
+  { id: 'only in org', label: 'Only in org' },
+  { id: 'only in project', label: 'Only in project' },
+];
+const TAG: Record<CodeStatus, string> = {
+  same: '=',
+  different: '≠',
+  'in both': '',
+  'only in org': 'org',
+  'only in project': 'project',
+};
+const projectOnlyId = (name: string): string => `project:${name}`;
 
 /** Developer Console's editor: open, compile and save Apex, Visualforce, LWC and Aura source. */
 export function CodePage() {
@@ -44,6 +75,21 @@ export function CodePage() {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const editor = useRef<Parameters<OnMount>[0] | null>(null);
+  // The project (folder, GitHub branch or the local app's) next to the org
+  const project = useProject();
+  const source = project.source;
+  const index = useMemo(() => projectCodeIndex(project.info, kind), [project.info, kind]);
+  const projectOpen = Boolean(project.info && source);
+  const [checked, setChecked] = useState<Record<string, 'same' | 'different'>>({});
+  const [show, setShow] = useState<Show>('all');
+  const [projectFiles, setProjectFiles] = useState<CodeFile[] | null>(null);
+  const [view, setView] = useState<View>('org');
+  const [pairPath, setPairPath] = useState('');
+  const projectLabel = source
+    ? source.kind === 'github'
+      ? `${source.repo ?? source.name} @ ${source.ref ?? ''}`
+      : source.name
+    : '';
   // Salesforce blocks Apex changes in production; Developer Edition orgs allow them
   const apexLocked = facts ? !facts.isSandbox && !/developer/i.test(facts.organizationType) : false;
 
@@ -61,6 +107,12 @@ export function CodePage() {
     void load();
   }, [load]);
 
+  // Content checks belong to one kind, project and org
+  useEffect(() => {
+    setChecked({});
+    setShow('all');
+  }, [kind, project.info, client]);
+
   const dirty = files.filter((f) => drafts[f.id] !== undefined && drafts[f.id] !== f.source);
 
   const switchKind = (next: CodeKind) => {
@@ -71,20 +123,56 @@ export function CodePage() {
     setDrafts({});
     setProblems([]);
     setStatus('');
+    setProjectFiles(null);
+    setView('org');
   };
 
-  const openItem = async (next: CodeItem) => {
+  /** Opens a component from the org, its project version too when the project has it. */
+  const openItem = async (next: CodeItem, prefer?: View) => {
     if (dirty.length && !confirm('Discard unsaved changes?')) return;
     setStatus(`Opening ${next.name}…`);
     try {
-      setFiles(await openCode(client, next));
+      const inOrg = next.id !== projectOnlyId(next.name);
+      const folders = index.get(next.name);
+      const [orgFiles, fromProject] = await Promise.all([
+        inOrg ? openCode(client, next) : Promise.resolve<CodeFile[]>([]),
+        folders && source ? readProjectCode(source.fs, next.kind, next.name, folders) : Promise.resolve<CodeFile[]>([]),
+      ]);
+      const projectVersion = fromProject.length ? fromProject : null;
+      setFiles(orgFiles);
       setItem(next);
       setFileIndex(0);
       setDrafts({});
       setProblems([]);
       setStatus('');
+      setProjectFiles(projectVersion);
+      setPairPath('');
+      if (inOrg && projectVersion) {
+        const same = pairsSame(pairCodeFiles(orgFiles, projectVersion));
+        setChecked((c) => ({ ...c, [next.name]: same ? 'same' : 'different' }));
+      }
+      setView((current) => (!inOrg ? 'project' : !projectVersion ? 'org' : prefer ?? current));
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
+    }
+  };
+
+  /** Same or different for every component in both the org and the project. */
+  const checkContent = async () => {
+    if (!source || !items) return;
+    setBusy(true);
+    try {
+      const result = await checkCodeContent(client, source.fs, kind, items, index, (done, total) =>
+        setStatus(`Comparing with the project… ${done}/${total}`)
+      );
+      setChecked(Object.fromEntries(result));
+      const different = [...result.values()].filter((v) => v === 'different').length;
+      setStatus(`✓ ${result.size} compared: ${different} different, ${result.size - different} the same.`);
+      if (different) setShow('different');
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -208,8 +296,129 @@ export function CodePage() {
     }
   };
 
+  // The org side shows unsaved edits too, so "Use project version" ends in "no differences"
+  const pairs = useMemo(
+    () =>
+      projectFiles
+        ? pairCodeFiles(
+            files.map((f) => ({ ...f, source: drafts[f.id] ?? f.source })),
+            projectFiles
+          )
+        : [],
+    [files, drafts, projectFiles]
+  );
+  const inOrg = Boolean(item && item.id !== projectOnlyId(item.name));
+  const projectExtra = pairs.filter((p) => p.status === 'only in project').length;
+
+  /** Loads the project's version into the org editor as unsaved changes. */
+  const useProjectVersion = () => {
+    if (!projectFiles) return;
+    const next = { ...drafts };
+    let changed = 0;
+    for (const p of pairCodeFiles(files, projectFiles)) {
+      if (p.org && p.project && p.status === 'different') {
+        next[p.org.id] = p.project.source;
+        changed++;
+      }
+    }
+    setDrafts(next);
+    setView('org');
+    setStatus(
+      `Project version loaded into ${changed} file(s), not saved yet. ${
+        item && isBundle(item.kind) ? 'Save' : 'Check, then Save'
+      } to apply it to ${studio.org.label}.${
+        projectExtra ? ` ${projectExtra} file(s) only in the project need "Deploy from project".` : ''
+      }`
+    );
+  };
+
+  /** Deploys the component from the project (new components, or bundles with new files). */
+  const deployFromProject = async () => {
+    if (!item || !source || !project.info) return;
+    if (!studio.confirmChange(`Deploy ${item.name} from the project (${projectLabel}) to ${studio.org.label}`)) return;
+    setBusy(true);
+    setProblems([]);
+    setStatus(`Deploying ${item.name} from the project…`);
+    try {
+      const pkg = await projectCodePackage(
+        source.fs,
+        project.info,
+        [{ type: CODE_LAYOUT[item.kind].type, name: item.name }],
+        await client.version()
+      );
+      const result = await deployZip(client, pkg.zipBase64, {
+        testLevel: 'NoTestRun',
+        onProgress: (s, done, total) => setStatus(`Deploying ${item.name}… ${s} ${done}/${total}`),
+      });
+      studio.logActivity('deploy from project', {
+        kind: item.kind,
+        name: item.name,
+        id: result.id,
+        success: result.success,
+      });
+      if (!result.success) {
+        const failures: CompileProblem[] = result.componentFailures.map((f) => ({
+          line: f.line,
+          problem: `${f.name}: ${f.problem}`,
+        }));
+        setProblems(result.errorMessage ? [...failures, { problem: result.errorMessage }] : failures);
+        setStatus(`❌ Deploy ${result.status}.`);
+        return;
+      }
+      const list = await listCode(client, item.kind);
+      setItems(list);
+      const deployed = list.find((i) => i.name === item.name);
+      if (deployed) await openItem(deployed, 'compare');
+      setStatus(`✓ Deployed ${item.name} from the project.`);
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // "Open in Code" from Project → Compare: switch to the kind, then open the component
+  useEffect(() => {
+    const pending = project.pendingCode;
+    if (!pending) return;
+    if (pending.kind !== kind) {
+      switchKind(pending.kind);
+      return;
+    }
+    // Wait for this kind's list (the previous kind's stays until the new one loads)
+    if (!items || items.some((i) => i.kind !== kind)) return;
+    project.openCodeItem(undefined);
+    const found = items.find((i) => i.name === pending.name);
+    void openItem(found ?? { id: projectOnlyId(pending.name), name: pending.name, kind }, 'compare');
+    // openItem and switchKind change every render; the pending request drives this
+  }, [project.pendingCode, kind, items]);
+
+  const statusOf = (i: CodeItem): CodeStatus | undefined =>
+    !projectOpen
+      ? undefined
+      : i.id === projectOnlyId(i.name)
+      ? 'only in project'
+      : index.has(i.name)
+      ? checked[i.name] ?? 'in both'
+      : 'only in org';
+  const orgNames = new Set((items ?? []).map((i) => i.name));
+  const entries: CodeItem[] = [
+    ...(items ?? []),
+    ...(projectOpen && items
+      ? [...index.keys()].filter((n) => !orgNames.has(n)).map((n) => ({ id: projectOnlyId(n), name: n, kind }))
+      : []),
+  ].sort((a, b) => a.name.localeCompare(b.name));
+  const counts = new Map<Show, number>([['all', entries.length]]);
+  for (const e of entries) {
+    const st = statusOf(e);
+    if (st) counts.set(st, (counts.get(st) ?? 0) + 1);
+  }
+
   const file = files[fileIndex];
-  const shown = (items ?? []).filter((i) => i.name.toLowerCase().includes(filter.toLowerCase()));
+  const shown = entries.filter(
+    (i) => i.name.toLowerCase().includes(filter.toLowerCase()) && (show === 'all' || statusOf(i) === show)
+  );
+  const itemStatus = item ? statusOf(item) : undefined;
 
   return (
     <div className="page">
@@ -230,7 +439,7 @@ export function CodePage() {
         >
           New {kindInfo(kind).one}
         </button>
-        {item && !isBundle(item.kind) && (
+        {item && inOrg && !isBundle(item.kind) && (
           <>
             <button disabled={busy} onClick={() => void compile(true)}>
               Check
@@ -244,7 +453,7 @@ export function CodePage() {
             </button>
           </>
         )}
-        {item && isBundle(item.kind) && (
+        {item && inOrg && isBundle(item.kind) && (
           <button className="primary" disabled={busy || !dirty.length} onClick={() => void saveBundle()}>
             Save {dirty.length || ''}
           </button>
@@ -285,27 +494,104 @@ export function CodePage() {
       <div className="code-layout">
         <div className="card code-list">
           <input
-            placeholder={`Filter ${items?.length ?? ''}`}
+            placeholder={`Filter ${entries.length || ''}`}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
+          {projectOpen && (
+            <div className="code-project">
+              <span className="muted" title={projectLabel}>
+                vs project <b>{projectLabel}</b>
+              </span>
+              <div className="form">
+                <select value={show} onChange={(e) => setShow(e.target.value as Show)}>
+                  {SHOW.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label} ({counts.get(o.id) ?? 0})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  disabled={busy || !items || !index.size}
+                  title="Compare the content of every component in both the org and the project"
+                  onClick={() => void checkContent()}
+                >
+                  Check content
+                </button>
+              </div>
+            </div>
+          )}
           {items === null && <p className="muted">Loading…</p>}
           <ul>
-            {shown.map((i) => (
-              <li key={i.id}>
-                <button
-                  className={item?.id === i.id ? 'active' : ''}
-                  onClick={() => void openItem(i)}
-                  title={i.lastModified}
-                >
-                  {i.name}
-                </button>
-              </li>
-            ))}
+            {shown.map((i) => {
+              const st = statusOf(i);
+              return (
+                <li key={i.id}>
+                  <button
+                    className={`${item?.id === i.id ? 'active' : ''} ${st === 'only in project' ? 'project-only' : ''}`}
+                    onClick={() => void openItem(i)}
+                    title={st ? `${st}${i.lastModified ? ` · ${i.lastModified}` : ''}` : i.lastModified}
+                  >
+                    {i.name}
+                    {st && TAG[st] && <span className={`code-tag ${st.replace(/ /g, '-')}`}>{TAG[st]}</span>}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
         <div className="card section">
-          {!file ? (
+          {item && projectFiles && (
+            <div className="toolbar code-views">
+              <div className="tabs">
+                {(['org', 'project', 'compare'] as View[]).map((v) => (
+                  <button
+                    key={v}
+                    className={`tab ${view === v ? 'active' : ''}`}
+                    disabled={v !== 'project' && !inOrg}
+                    onClick={() => setView(v)}
+                  >
+                    {v === 'org' ? `Org · ${studio.org.label}` : v === 'project' ? 'Project' : 'Compare'}
+                  </button>
+                ))}
+              </div>
+              {itemStatus && itemStatus !== 'in both' && (
+                <span className={`code-tag ${itemStatus.replace(/ /g, '-')}`}>{itemStatus}</span>
+              )}
+              <span className="grow" />
+              {inOrg && pairs.some((p) => p.org && p.project && p.status === 'different') && (
+                <button
+                  title="Put the project's code into the editor as unsaved changes; Save applies it"
+                  onClick={useProjectVersion}
+                >
+                  Use project version
+                </button>
+              )}
+              {(!inOrg || projectExtra > 0) && (
+                <button
+                  className="primary"
+                  disabled={busy || apexLocked}
+                  title={
+                    apexLocked
+                      ? 'Production: deploy with tests from Project → Compare'
+                      : 'Deploy this component from the project (no tests run; sandboxes and developer orgs)'
+                  }
+                  onClick={() => void deployFromProject()}
+                >
+                  Deploy from project…
+                </button>
+              )}
+            </div>
+          )}
+          {item && projectFiles && view !== 'org' ? (
+            <ProjectCodeView
+              pairs={pairs}
+              view={view}
+              labels={[studio.org.label, projectLabel]}
+              path={shownPair(pairs, pairPath)?.path ?? ''}
+              onPath={setPairPath}
+            />
+          ) : !file ? (
             <p className="muted">
               Open {/^[AEIOU]/.test(kindInfo(kind).one) ? 'an' : 'a'} {kindInfo(kind).one} on the left, or create a new
               one.
@@ -406,6 +692,16 @@ export function CodePage() {
                 </ul>
               )}
             </>
+          )}
+          {(view !== 'org' || !file) && problems.length > 0 && (
+            <ul className="problems">
+              {problems.map((p, i) => (
+                <li key={i}>
+                  {p.line ? `${p.line}: ` : ''}
+                  {p.problem}
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </div>

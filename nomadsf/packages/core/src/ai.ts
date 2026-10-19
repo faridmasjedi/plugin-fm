@@ -197,7 +197,8 @@ export type BrowserAiTask =
   | 'review-code'
   | 'write-test'
   | 'explain-compile'
-  | 'write-class';
+  | 'write-class'
+  | 'explain-diff';
 const MAX_INPUT = 60_000;
 
 const SYSTEM: Record<BrowserAiTask, string> = {
@@ -223,6 +224,8 @@ const SYSTEM: Record<BrowserAiTask, string> = {
     'You write Salesforce Apex classes. Answer with one ```apex code block holding one complete class and nothing else (short comments inside are fine). Use with sharing unless the request says otherwise; bulk-safe (no SOQL or DML in loops); enforce CRUD/FLS for user-facing code (WITH USER_MODE or Security.stripInaccessible); no hard-coded Ids; clear method names; ApexDoc on public methods. Use the class name the request gives, otherwise a fitting one.',
   'explain-compile':
     'You are a senior Salesforce developer. Explain these compile errors and how to fix each, briefly. Then give the corrected code in one ```apex (or the right language) code block.',
+  'explain-diff':
+    'You are a senior Salesforce developer. A unified diff of one file follows: lines starting with - are the version in the org, lines starting with + the version in the project (repository). Explain what changed in plain words, grouped by purpose (behaviour, queries, security, tests, formatting only). Then say which side looks newer, and anything risky about deploying the project version (removed logic, changed signatures other code may call, missing tests). Be concise.',
   soql: 'You write Salesforce SOQL. Answer with exactly one SOQL query in a ```sql code block and nothing else. Use only the objects and fields given; use relationship names for lookups; add LIMIT 200 unless the question asks for everything or for a count.',
 };
 
