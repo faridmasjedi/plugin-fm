@@ -434,3 +434,64 @@ export function memorySink(files: Map<string, string> = new Map()): BackupSink &
     },
   };
 }
+
+// ---------- choosing objects by name, or from an AI answer ----------
+
+export type ObjectPick = { name: string; where?: string; fields?: FieldChoice; relatedOnly?: boolean };
+
+/** Matches a name typed by a person (API name or label, any case) to an object of the list. */
+function matchObject(text: string, objects: Array<{ name: string; label: string }>): string | undefined {
+  const t = text.trim().toLowerCase();
+  return (objects.find((o) => o.name.toLowerCase() === t) ?? objects.find((o) => o.label.toLowerCase() === t))?.name;
+}
+
+/** "Account, Contact; Invoice__c" (commas, semicolons, new lines) -> the objects found and the names not found. */
+export function parseObjectList(
+  text: string,
+  objects: Array<{ name: string; label: string }>
+): { found: string[]; unknown: string[] } {
+  const found: string[] = [];
+  const unknown: string[] = [];
+  for (const part of text
+    .split(/[,;\n\t]+/)
+    .map((p) => p.trim())
+    .filter(Boolean)) {
+    const name = matchObject(part, objects);
+    if (name) {
+      if (!found.includes(name)) found.push(name);
+    } else unknown.push(part);
+  }
+  return { found, unknown };
+}
+
+/** The objects an AI chose ({"objects": [...], "note"}), kept only when they exist in the list. */
+export function parseDataPicks(
+  answer: string,
+  objects: Array<{ name: string; label: string }>
+): { picks: ObjectPick[]; unknown: string[]; note: string } {
+  const code = (/```(?:json)?\s*([\s\S]*?)```/.exec(answer)?.[1] ?? answer).trim();
+  let parsed: { objects?: Array<Record<string, unknown>>; note?: unknown };
+  try {
+    parsed = JSON.parse(code) as typeof parsed;
+  } catch {
+    throw new Error('The AI did not answer with a list of objects; try rephrasing.');
+  }
+  const picks: ObjectPick[] = [];
+  const unknown: string[] = [];
+  for (const o of parsed.objects ?? []) {
+    const name = matchObject(String(o.name ?? ''), objects);
+    if (!name) {
+      unknown.push(String(o.name ?? '?'));
+      continue;
+    }
+    const pick: ObjectPick = { name };
+    const where = String(o.where ?? '').trim();
+    if (where && !/;|\blimit\b/i.test(where)) pick.where = where.replace(/^where\s+/i, '');
+    const f = o.fields as { mode?: string; fields?: unknown } | undefined;
+    const list = Array.isArray(f?.fields) ? (f.fields as unknown[]).map(String).filter((x) => /^\w+$/.test(x)) : [];
+    if ((f?.mode === 'only' || f?.mode === 'except') && list.length) pick.fields = { mode: f.mode, fields: list };
+    if (o.relatedOnly === true) pick.relatedOnly = true;
+    if (!picks.some((p) => p.name === name)) picks.push(pick);
+  }
+  return { picks, unknown, note: String(parsed.note ?? '') };
+}

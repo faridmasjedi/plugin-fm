@@ -186,6 +186,8 @@ export async function aiChat(
 // ---------- the Studio's AI tasks ----------
 
 export type BrowserAiTask =
+  | 'pick-data'
+  | 'explain-load-failures'
   | 'explain-log'
   | 'explain-test'
   | 'soql'
@@ -202,6 +204,10 @@ export type BrowserAiTask =
 const MAX_INPUT = 60_000;
 
 const SYSTEM: Record<BrowserAiTask, string> = {
+  'pick-data':
+    'You choose Salesforce objects for a data backup or a data copy between orgs. Answer with one ```json code block and nothing else, holding {"objects": [{"name": "<API name>", "where": "<SOQL condition without WHERE, or empty>", "fields": {"mode": "all" | "only" | "except", "fields": ["<field API names>"]}, "relatedOnly": true | false}], "note": "<one short sentence on what you chose>"}. Use only object API names from the list given. Conditions use standard fields (CreatedDate, LastModifiedDate, Name, IsClosed, StageName…) or fields the request names, with SOQL date literals (LAST_N_DAYS:n, LAST_N_YEARS:n, THIS_YEAR). Keep fields {"mode": "all"} unless the request asks to include or leave out fields. For a copy, set relatedOnly true on objects that should only bring records linked to the objects before them (children such as Contacts of the chosen Accounts); the first, root objects get relatedOnly false. Do not add objects the request does not need.',
+  'explain-load-failures':
+    'You are a Salesforce data migration expert. These records failed to load into the target org. Group the failures by cause (validation rules, required fields, duplicates or duplicate rules, picklist values, field permissions or read-only fields, invalid lookups, record types, triggers or flows), say what each cause means and how to fix it (map or fill a field, add the picklist value, bypass or adjust the rule for the load, give the user access, load the parent first…). Be concise; most frequent cause first.',
   'explain-log':
     'You are a senior Salesforce developer. Explain this Apex debug log to a colleague: what ran, what failed and why (exceptions, governor limits, validation or DML errors), and the most likely fix with the class and line. Be concise; use short sections: Summary, Problem, Fix. If nothing failed, say so and point out anything risky (limits near maximum, many SOQL or DML in loops).',
   'explain-test':
@@ -282,7 +288,7 @@ export function aiTaskPrompt(task: BrowserAiTask, input: Record<string, unknown>
       )}\n\nQuestion: ${question}`,
     };
   }
-  if (task === 'write-apex' || task === 'rest-request' || task === 'write-class') {
+  if (task === 'write-apex' || task === 'rest-request' || task === 'write-class' || task === 'pick-data') {
     const request = String(input.question ?? '').trim();
     if (!request) throw new Error('Say what you want.');
     const schema = String(input.schema ?? '').trim();

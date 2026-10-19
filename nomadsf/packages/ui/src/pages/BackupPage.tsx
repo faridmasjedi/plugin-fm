@@ -20,9 +20,11 @@ import {
   type DataField,
   type DataObject,
   type FieldChoice,
+  type ObjectPick,
   type SalesforceClient,
 } from '@nomadsf/core';
 import { DataTable } from '../components/DataTable';
+import { ObjectPicker, type PickerObject } from '../components/ObjectPicker';
 import { RestorePanel } from '../components/RestorePanel';
 import { storage, useStudio } from '../context';
 import type { OrgChoice } from '../host';
@@ -47,6 +49,7 @@ const SCOPES: Array<{ id: BackupScope; label: string }> = [
 ];
 /** Compound and file-body fields: the bulk API cannot return them. */
 const NOT_IN_BULK = new Set(['address', 'location', 'base64']);
+type Tab = 'what' | 'when' | 'runs';
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const inScope = (scope: BackupScope, o: DataObject): boolean =>
@@ -81,8 +84,6 @@ export function BackupPage({
   const [draft, setDraft] = useState<JobRecord>(() => jobs[0] ?? fresh(studio.org.id));
   const [saved, setSaved] = useState(() => JSON.stringify(jobs[0] ?? null));
   const [candidates, setCandidates] = useState<DataObject[] | null>(null);
-  const [filter, setFilter] = useState('');
-  const [onlyIncluded, setOnlyIncluded] = useState(false);
   const [open, setOpen] = useState('');
   const [fields, setFields] = useState<Record<string, DataField[]>>({});
   const [fieldFilter, setFieldFilter] = useState('');
@@ -96,6 +97,11 @@ export function BackupPage({
   const [preview, setPreview] = useState<{ title: string; columns: string[]; rows: Array<Record<string, string>> }>();
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const [tab, setTabState] = useState<Tab>(() => storage.get<Tab>('backup.tab', 'what'));
+  const setTab = (t: Tab) => {
+    setTabState(t);
+    storage.set('backup.tab', t);
+  };
   const run = useBackupRun();
   const running = run && run.jobId === draft.id && !run.done && !run.error ? run : null;
   const dirty = JSON.stringify(draft) !== saved;
@@ -218,6 +224,7 @@ export function BackupPage({
         }`
       );
       setManifest(result);
+      setTab('runs');
       studio.logActivity('backup', { job: job.name, kind: result.kind, objects: result.objects.length, failed, zip });
     });
 
@@ -255,6 +262,14 @@ export function BackupPage({
       setStatus(table.rows.length > 500 ? `Showing 500 of ${table.rows.length} rows.` : '');
     });
 
+  /** Objects chosen by typed names or by the AI: the job becomes "Objects I pick". */
+  const applyPicks = (picks: ObjectPick[], replace: boolean) =>
+    setDraft((d) => {
+      const clean = picks.map(({ relatedOnly: _related, ...o }) => o);
+      const merged = replace ? clean : [...d.objects.filter((o) => !clean.some((p) => p.name === o.name)), ...clean];
+      return { ...d, scope: 'picked', exclude: [], objects: merged.sort((a, b) => a.name.localeCompare(b.name)) };
+    });
+
   const switchJob = (job: JobRecord) => {
     if (dirty && !confirm('Discard unsaved changes to this backup?')) return;
     setDraft(job);
@@ -263,10 +278,6 @@ export function BackupPage({
     setStatus('');
   };
 
-  const shown = (candidates ?? []).filter(
-    (o) =>
-      (!onlyIncluded || included.has(o.name)) && `${o.label} ${o.name}`.toLowerCase().includes(filter.toLowerCase())
-  );
   const next =
     draft.schedule.every !== 'off'
       ? (() => {
@@ -280,42 +291,49 @@ export function BackupPage({
   const kind = nextKind(draft, index);
   const runOfManifest = manifest ? index?.runs.find((r) => r.finishedAt === manifest.finishedAt)?.folder : undefined;
 
+  const isRunning = Boolean(run && !run.done && !run.error);
+  const progress = running && running.total ? Math.round(((running.index + 0.5) / running.total) * 100) : 0;
+  const objectRows: PickerObject[] = candidates ?? [];
+
   return (
-    <div className="page">
+    <div className="page data-page">
       <div className="toolbar">
         <h2>Backup</h2>
         <span className="muted">Data backups to a folder on this computer, now or on a schedule</span>
       </div>
       <div className="backup-layout">
-        <div className="card backup-jobs">
-          <button className="primary" onClick={() => switchJob(fresh(studio.org.id))}>
-            New backup
-          </button>
+        <aside className="card backup-jobs">
+          <div className="jobs-head">
+            <b>Backups</b>
+            <button className="primary" onClick={() => switchJob(fresh(studio.org.id))}>
+              + New
+            </button>
+          </div>
           <ul>
             {jobs.map((j) => {
               const l = lastRuns()[j.id];
               return (
                 <li key={j.id}>
                   <button className={j.id === draft.id ? 'active' : ''} onClick={() => switchJob(j)}>
-                    <b>{j.name}</b>
-                    <span className="muted">
-                      {orgs.find((o) => o.id === j.org)?.label ?? j.org} · {describeSchedule(j.schedule)}
+                    <span className="job-name">
+                      <span className={`dot ${!l ? '' : l.ok ? 'good' : 'bad'}`} />
+                      {j.name}
                     </span>
-                    {l && (
-                      <span className={l.ok ? 'good' : 'bad'}>
-                        {l.ok ? '✓' : '❌'} {new Date(l.at).toLocaleString()}
-                      </span>
-                    )}
+                    <span className="muted">{orgs.find((o) => o.id === j.org)?.label ?? j.org}</span>
+                    <span className="muted">
+                      {describeSchedule(j.schedule)}
+                      {l ? ` · last ${new Date(l.at).toLocaleDateString()}` : ''}
+                    </span>
                   </button>
                 </li>
               );
             })}
           </ul>
-          {!jobs.length && <p className="muted">No backups yet.</p>}
-        </div>
+          {!jobs.length && <p className="muted">No backups yet. Start with + New.</p>}
+        </aside>
 
         <div className="backup-main">
-          <div className="card section">
+          <div className="card section job-head">
             <div className="form">
               <label>
                 Name
@@ -335,7 +353,7 @@ export function BackupPage({
               </label>
               <span className="grow" />
               <button disabled={!dirty} onClick={() => void act('', async () => (save(), setStatus('✓ Saved.')))}>
-                Save
+                {dirty ? 'Save' : 'Saved'}
               </button>
               {jobs.some((j) => j.id === draft.id) && (
                 <button
@@ -354,232 +372,280 @@ export function BackupPage({
                 </button>
               )}
             </div>
-          </div>
-
-          <div className="card section">
-            <h3>What to back up</h3>
-            <div className="tabs">
-              {SCOPES.map((s) => (
-                <button
-                  key={s.id}
-                  className={`tab ${draft.scope === s.id ? 'active' : ''}`}
-                  onClick={() => update({ scope: s.id, exclude: [] })}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-            <p className="muted" style={{ margin: '6px 0' }}>
-              {draft.scope === 'picked'
-                ? 'Tick the objects to back up.'
-                : 'New objects of this kind are included automatically; untick any to leave out.'}{' '}
-              Each object can have a condition (which records) and a field choice (which fields). Sharing rows, history,
-              feeds, events and custom metadata are not listed.
-            </p>
-            <div className="form">
-              <input
-                placeholder={`Filter ${candidates?.length ?? ''} objects`}
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-              />
-              <label className="check">
-                <input type="checkbox" checked={onlyIncluded} onChange={(e) => setOnlyIncluded(e.target.checked)} />{' '}
-                Only included ({included.size})
-              </label>
-              <span className="grow" />
-              <button disabled={busy || !included.size} onClick={() => void estimate()}>
-                Count records
-              </button>
-            </div>
-            {candidates === null && <p className="muted">Loading objects…</p>}
-            <div className="backup-objects">
-              {shown.map((o) => {
-                const on = included.has(o.name);
-                const settings = settingsOf(o.name);
-                const count = counts.get(o.name);
-                const disabled = draft.scope !== 'picked' && !inScope(draft.scope, o);
-                return (
-                  <div key={o.name} className={`backup-object ${on ? 'on' : ''}`}>
-                    <div className="row">
-                      <label className="check" title={disabled ? 'Not part of this choice' : o.name}>
-                        <input
-                          type="checkbox"
-                          checked={on}
-                          disabled={disabled}
-                          onChange={(e) => toggle(o, e.target.checked)}
-                        />{' '}
-                        {o.label} {o.label !== o.name && <span className="muted mono">{o.name}</span>}
-                      </label>
-                      {o.custom && <span className="backup-tag">custom</span>}
-                      <span className="grow" />
-                      {on && settings.where && (
-                        <span className="backup-tag" title={settings.where}>
-                          where
-                        </span>
-                      )}
-                      {on && <span className="muted">{fieldsSummary(settings.fields)}</span>}
-                      {count !== undefined && (
-                        <span className={typeof count === 'number' ? 'muted' : 'bad'} title={String(count)}>
-                          {typeof count === 'number' ? `${count.toLocaleString()} rec.` : 'error'}
-                        </span>
-                      )}
-                      {on && (
-                        <button className="link" onClick={() => void openSettings(o.name)}>
-                          {open === o.name ? 'Close' : 'Settings'}
-                        </button>
-                      )}
-                    </div>
-                    {on && open === o.name && (
-                      <ObjectSettings
-                        settings={settings}
-                        fields={fields[o.name]}
-                        filter={fieldFilter}
-                        onFilter={setFieldFilter}
-                        onChange={(patch) => setSettings(o.name, patch)}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="card section">
-            <h3>When and where</h3>
-            <div className="form">
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={draft.incremental}
-                  onChange={(e) => update({ incremental: e.target.checked })}
-                />{' '}
-                Incremental after the first full backup
-              </label>
-              {draft.incremental && (
-                <label className="check">
-                  Full backup again every{' '}
-                  <input
-                    type="number"
-                    min={0}
-                    style={{ width: 64 }}
-                    value={draft.fullEveryDays}
-                    onChange={(e) => update({ fullEveryDays: Math.max(0, Number(e.target.value) || 0) })}
-                  />{' '}
-                  days (0 = never)
-                </label>
-              )}
-            </div>
-            <ScheduleEditor schedule={draft.schedule} onChange={(schedule) => update({ schedule })} />
-            <p className="muted" style={{ margin: '6px 0' }}>
-              {draft.schedule.every === 'off'
-                ? 'Runs only when you press Back up now.'
-                : `Next: ${
-                    next ? next.toLocaleString() : '—'
-                  }. Scheduled backups run while NomadSF is open in Chrome (the extension shows a badge when one is due); the folder must allow writing.`}{' '}
-              Next run: <b>{kind}</b>.
-            </p>
-            <div className="form">
-              <span>
-                Folder: <b>{folder.name || 'none'}</b>
-                {folder.name && folder.access !== 'granted' && <span className="muted"> (needs your OK once)</span>}
+            <div className="job-summary">
+              <span className="chip">
+                {included.size} object{included.size === 1 ? '' : 's'}
               </span>
-              <button disabled={!canPickFolder() || busy} onClick={() => void chooseFolder()}>
-                {folder.name ? 'Change folder…' : 'Choose folder…'}
-              </button>
-              {folder.name && folder.access !== 'granted' && (
-                <button onClick={() => void act('', () => loadFolder(true))}>Allow writing</button>
+              <span className="chip">{describeSchedule(draft.schedule)}</span>
+              {next && <span className="chip">next {next.toLocaleString()}</span>}
+              <span className="chip">next run: {kind}</span>
+              <span className={`chip ${folder.name ? '' : 'warn'}`}>folder: {folder.name || 'not chosen'}</span>
+              {last && (
+                <span className={`chip ${last.ok ? 'good' : 'bad'}`}>
+                  last: {last.ok ? '✓' : '❌'} {new Date(last.at).toLocaleString()}
+                </span>
               )}
               <span className="grow" />
-              <button
-                disabled={busy || Boolean(run && !run.done && !run.error) || !included.size}
-                onClick={() => void runNow(true)}
-              >
+              <button disabled={busy || isRunning || !included.size} onClick={() => void runNow(true)}>
                 Download as zip
               </button>
               <button
                 className="primary"
-                disabled={busy || Boolean(run && !run.done && !run.error) || !included.size || !folder.name}
+                disabled={busy || isRunning || !included.size || !folder.name}
+                title={folder.name ? '' : 'Choose a folder under Schedule & folder'}
                 onClick={() => void runNow(false)}
               >
                 Back up now
               </button>
             </div>
             {running && (
-              <p className="muted">
-                {running.scheduled ? 'Scheduled backup' : 'Backing up'} · {running.object || '…'} ({running.index + 1}/
-                {running.total || '?'}) · {running.state} · {running.rows.toLocaleString()} rows
-              </p>
+              <div className="run-progress">
+                <div className="progress">
+                  <span style={{ width: `${progress}%` }} />
+                </div>
+                <span className="muted">
+                  {running.scheduled ? 'Scheduled backup' : 'Backing up'} · {running.object || '…'} ({running.index + 1}
+                  /{running.total || '?'}) · {running.state} · {running.rows.toLocaleString()} rows
+                </span>
+              </div>
             )}
-            {status && <p className="muted">{status}</p>}
-            {last && !last.ok && last.message && <p className="bad">Last run failed: {last.message}</p>}
+            {status && <p className="muted status-line">{status}</p>}
+            {last && !last.ok && last.message && <p className="bad status-line">Last run failed: {last.message}</p>}
           </div>
 
-          {(index?.runs.length || manifest) && (
+          <div className="tabs page-tabs">
+            {(
+              [
+                ['what', 'What to back up'],
+                ['when', 'Schedule & folder'],
+                ['runs', `Backups & restore${index?.runs.length ? ` (${index.runs.length})` : ''}`],
+              ] as Array<[Tab, string]>
+            ).map(([id, label]) => (
+              <button key={id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'what' && (
             <div className="card section">
-              <h3>Backups in the folder</h3>
-              {index && (
-                <DataTable
-                  columns={['finishedAt', 'kind', 'rows', 'failed', 'folder']}
-                  rows={[...index.runs].reverse()}
-                  rowKey="folder"
-                  name={`${draft.name}-runs`}
-                  onRowClick={(r) => void openRun(String(r.folder))}
-                  note={<span>· click a run to see what it holds</span>}
-                />
-              )}
-              {manifest && (
-                <>
-                  <h3>
-                    {manifest.kind === 'full' ? 'Full' : 'Incremental'} backup of {manifest.org.name} ·{' '}
-                    {new Date(manifest.finishedAt).toLocaleString()}
-                    {manifest.since && (
-                      <span className="muted"> · changes since {new Date(manifest.since).toLocaleString()}</span>
-                    )}
-                  </h3>
-                  <DataTable
-                    columns={['name', 'rows', 'deleted', 'fields', 'files', 'error']}
-                    rows={manifest.objects.map((o) => ({
-                      ...o,
-                      fields: o.fields.length,
-                      files: o.files.length,
-                      error: o.error ?? '',
-                    }))}
-                    rowKey="name"
-                    name={`${draft.name}-objects`}
-                    onRowClick={(r) => {
-                      const o = manifest.objects.find((x) => x.name === r.name);
-                      if (o?.files[0]) void previewFile(o.name, o.files[0]);
-                    }}
-                    note={<span>· click an object to see its records</span>}
-                  />
-                </>
-              )}
-              {preview && (
-                <>
-                  <h3>{preview.title}</h3>
-                  <DataTable
-                    columns={preview.columns}
-                    rows={preview.rows}
-                    rowKey="Id"
-                    name={preview.title.replace(/\W+/g, '-')}
-                  />
-                </>
-              )}
+              <div className="segmented">
+                {SCOPES.map((sc) => (
+                  <button
+                    key={sc.id}
+                    className={draft.scope === sc.id ? 'active' : ''}
+                    onClick={() => update({ scope: sc.id, exclude: [] })}
+                  >
+                    {sc.label}
+                  </button>
+                ))}
+              </div>
+              <p className="muted help">
+                {draft.scope === 'picked'
+                  ? 'Tick objects, type their names, or describe what you need.'
+                  : 'New objects of this kind join automatically; untick any to leave out.'}{' '}
+                Each object can have a condition (which records) and a field choice (which fields). Sharing rows,
+                history, feeds, events and custom metadata are not listed.
+              </p>
+              <ObjectPicker
+                objects={objectRows}
+                purpose="backup"
+                chosenCount={included.size}
+                isChosen={(name) => included.has(name)}
+                disabledReason={(o) =>
+                  draft.scope !== 'picked' && !inScope(draft.scope, o as DataObject)
+                    ? 'Not part of this choice'
+                    : undefined
+                }
+                onToggle={(name, on) => {
+                  const o = objectRows.find((x) => x.name === name);
+                  if (o) toggle(o as DataObject, on);
+                }}
+                onApply={applyPicks}
+                toolbar={
+                  <button disabled={busy || !included.size} onClick={() => void estimate()}>
+                    Count records
+                  </button>
+                }
+                renderTags={(o) => {
+                  if (!included.has(o.name)) return null;
+                  const settings = settingsOf(o.name);
+                  const count = counts.get(o.name);
+                  return (
+                    <>
+                      {settings.where && (
+                        <span className="backup-tag" title={settings.where}>
+                          where
+                        </span>
+                      )}
+                      <span className="backup-tag">{fieldsSummary(settings.fields)}</span>
+                      {count !== undefined && (
+                        <span className={`backup-tag ${typeof count === 'number' ? '' : 'bad'}`} title={String(count)}>
+                          {typeof count === 'number' ? `${count.toLocaleString()} rec.` : 'error'}
+                        </span>
+                      )}
+                    </>
+                  );
+                }}
+                renderActions={(o) =>
+                  included.has(o.name) && (
+                    <button className="link" onClick={() => void openSettings(o.name)}>
+                      {open === o.name ? 'Close' : 'Settings'}
+                    </button>
+                  )
+                }
+                renderSettings={(o) =>
+                  included.has(o.name) &&
+                  open === o.name && (
+                    <ObjectSettings
+                      settings={settingsOf(o.name)}
+                      fields={fields[o.name]}
+                      filter={fieldFilter}
+                      onFilter={setFieldFilter}
+                      onChange={(patch) => setSettings(o.name, patch)}
+                    />
+                  )
+                }
+              />
             </div>
           )}
-          {manifest && runOfManifest && (
-            <RestorePanel
-              job={draft}
-              run={runOfManifest}
-              manifest={manifest}
-              onCopyElsewhere={
-                onOpenMigrate &&
-                (() => {
-                  storage.set('migrate.from', { jobId: draft.id, folder: runOfManifest });
-                  onOpenMigrate();
-                })
-              }
-            />
+
+          {tab === 'when' && (
+            <div className="card section settings-grid">
+              <div className="setting">
+                <h4>Kind of backup</h4>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={draft.incremental}
+                    onChange={(e) => update({ incremental: e.target.checked })}
+                  />{' '}
+                  Incremental after the first full backup
+                </label>
+                {draft.incremental && (
+                  <label className="check">
+                    Full backup again every{' '}
+                    <input
+                      type="number"
+                      min={0}
+                      style={{ width: 64 }}
+                      value={draft.fullEveryDays}
+                      onChange={(e) => update({ fullEveryDays: Math.max(0, Number(e.target.value) || 0) })}
+                    />{' '}
+                    days (0 = never)
+                  </label>
+                )}
+                <p className="muted">
+                  Incremental runs take only records changed since the last run, plus the Ids deleted since.
+                </p>
+              </div>
+              <div className="setting">
+                <h4>Schedule</h4>
+                <ScheduleEditor schedule={draft.schedule} onChange={(schedule) => update({ schedule })} />
+                <p className="muted">
+                  {draft.schedule.every === 'off'
+                    ? 'Runs only when you press Back up now.'
+                    : 'Scheduled backups run while NomadSF is open in Chrome; a missed one runs once when you open it, and the extension icon shows a badge when one is due.'}
+                </p>
+              </div>
+              <div className="setting">
+                <h4>Folder</h4>
+                <div className="form">
+                  <b>{folder.name || 'No folder yet'}</b>
+                  <button disabled={!canPickFolder() || busy} onClick={() => void chooseFolder()}>
+                    {folder.name ? 'Change folder…' : 'Choose folder…'}
+                  </button>
+                  {folder.name && folder.access !== 'granted' && (
+                    <button onClick={() => void act('', () => loadFolder(true))}>Allow writing</button>
+                  )}
+                </div>
+                <p className="muted">
+                  A folder on this computer (Chrome asks once to allow writing). Each run becomes a folder with one CSV
+                  folder per object and a manifest.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {tab === 'runs' && (
+            <>
+              {!index?.runs.length && !manifest && (
+                <div className="card section">
+                  <p className="muted">
+                    {folder.name
+                      ? 'No backups in the folder yet. Press Back up now.'
+                      : 'Choose a folder under Schedule & folder.'}
+                  </p>
+                </div>
+              )}
+              {(index?.runs.length || manifest) && (
+                <div className="card section">
+                  <h3>Backups in the folder</h3>
+                  {index && (
+                    <DataTable
+                      columns={['finishedAt', 'kind', 'rows', 'failed', 'folder']}
+                      rows={[...index.runs].reverse()}
+                      rowKey="folder"
+                      name={`${draft.name}-runs`}
+                      onRowClick={(r) => void openRun(String(r.folder))}
+                      note={<span>· click a run to see what it holds and restore from it</span>}
+                    />
+                  )}
+                  {manifest && (
+                    <>
+                      <h3>
+                        {manifest.kind === 'full' ? 'Full' : 'Incremental'} backup of {manifest.org.name} ·{' '}
+                        {new Date(manifest.finishedAt).toLocaleString()}
+                        {manifest.since && (
+                          <span className="muted"> · changes since {new Date(manifest.since).toLocaleString()}</span>
+                        )}
+                      </h3>
+                      <DataTable
+                        columns={['name', 'rows', 'deleted', 'fields', 'files', 'error']}
+                        rows={manifest.objects.map((o) => ({
+                          ...o,
+                          fields: o.fields.length,
+                          files: o.files.length,
+                          error: o.error ?? '',
+                        }))}
+                        rowKey="name"
+                        name={`${draft.name}-objects`}
+                        onRowClick={(r) => {
+                          const o = manifest.objects.find((x) => x.name === r.name);
+                          if (o?.files[0]) void previewFile(o.name, o.files[0]);
+                        }}
+                        note={<span>· click an object to see its records</span>}
+                      />
+                    </>
+                  )}
+                  {preview && (
+                    <>
+                      <h3>{preview.title}</h3>
+                      <DataTable
+                        columns={preview.columns}
+                        rows={preview.rows}
+                        rowKey="Id"
+                        name={preview.title.replace(/\W+/g, '-')}
+                      />
+                    </>
+                  )}
+                </div>
+              )}
+              {manifest && runOfManifest && (
+                <RestorePanel
+                  job={draft}
+                  run={runOfManifest}
+                  manifest={manifest}
+                  onCopyElsewhere={
+                    onOpenMigrate &&
+                    (() => {
+                      storage.set('migrate.from', { jobId: draft.id, folder: runOfManifest });
+                      onOpenMigrate();
+                    })
+                  }
+                />
+              )}
+            </>
           )}
         </div>
       </div>

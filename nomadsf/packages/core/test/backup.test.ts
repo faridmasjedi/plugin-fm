@@ -11,6 +11,8 @@ import {
   newBackupJob,
   nextKind,
   nextRun,
+  parseDataPicks,
+  parseObjectList,
   readIndex,
   resolveObjects,
   runBackup,
@@ -263,5 +265,57 @@ describe('running a backup', () => {
     const counts = await estimateBackup(client, [{ name: 'Account' }, { name: 'Invoice__c' }]);
     expect(counts.get('Account')).toBe(42);
     expect(String(counts.get('Invoice__c'))).toContain('No such column');
+  });
+});
+
+describe('choosing objects by name or with AI', () => {
+  const list = [
+    { name: 'Account', label: 'Account' },
+    { name: 'Invoice__c', label: 'Invoice' },
+    { name: 'Opportunity', label: 'Opportunity' },
+  ];
+
+  it('reads a typed list: API names or labels, any case, commas / semicolons / new lines', () => {
+    expect(parseObjectList('account, Invoice;\nOPPORTUNITY,  Nope__c, account', list)).toEqual({
+      found: ['Account', 'Invoice__c', 'Opportunity'],
+      unknown: ['Nope__c'],
+    });
+  });
+
+  it('keeps only existing objects from an AI answer, with safe conditions and field choices', () => {
+    const answer = [
+      'Here you go:',
+      '```json',
+      JSON.stringify({
+        objects: [
+          { name: 'Account', where: "WHERE Type = 'Customer'", fields: { mode: 'all' } },
+          {
+            name: 'opportunity',
+            where: 'CreatedDate = LAST_N_YEARS:2',
+            relatedOnly: true,
+            fields: { mode: 'except', fields: ['Description', 'bad field'] },
+          },
+          { name: 'Ghost__c' },
+          { name: 'Invoice__c', where: 'Amount__c > 0 LIMIT 5' },
+        ],
+        note: 'Customers and their recent deals.',
+      }),
+      '```',
+    ].join('\n');
+    expect(parseDataPicks(answer, list)).toEqual({
+      picks: [
+        { name: 'Account', where: "Type = 'Customer'" },
+        {
+          name: 'Opportunity',
+          where: 'CreatedDate = LAST_N_YEARS:2',
+          relatedOnly: true,
+          fields: { mode: 'except', fields: ['Description'] },
+        },
+        { name: 'Invoice__c' },
+      ],
+      unknown: ['Ghost__c'],
+      note: 'Customers and their recent deals.',
+    });
+    expect(() => parseDataPicks('no json here', list)).toThrow('did not answer');
   });
 });

@@ -357,6 +357,10 @@ Read-only items can run on any org; everything marked ✎ only on a sandbox.
 | L157  | Migrate from a backup (Backup → Copy into another org…, or From: A backup…)                                                           | rows from the backup run; no condition field; same plan / copy / undo                                                              |
 | L158  | Target is production                                                                                                                  | red pill, Copy button red, prompt warns PRODUCTION                                                                                 |
 | L159  | Object missing in the target / required field missing                                                                                 | "Not in the target, left out"; failures listed with the Salesforce error and downloadable                                          |
+| L160  | Backup / Migrate → Type names: "account; Contact, Nope\_\_c" → Add to the choice / Replace the choice                                 | Account and Contact chosen (labels or API names, any case); "Not found: Nope\_\_c"; list shows only chosen                         |
+| L161  | ✦ Describe (AI connected): "50 customer accounts with their contacts and open opportunities"                                          | objects, conditions and related only filled in; unknown names listed; nothing runs; conditions visible in Settings                 |
+| L162  | Migrate with a failing record → ✦ Explain these failures                                                                              | answer groups the failures by cause with fixes; only the failures (object, Id, message) are sent                                   |
+| L163  | Layout: Backup tabs, job header summary chips, progress bar while running; Migrate numbered steps; dark theme                         | columns of the object table line up; chips readable in light and dark; phone width stacks the job list on top                      |
 
 ## Before a demo
 

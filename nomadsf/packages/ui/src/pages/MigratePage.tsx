@@ -25,7 +25,9 @@ import {
   type SalesforceClient,
   type SourceRow,
 } from '@nomadsf/core';
+import { AiExplain } from '../components/AiHelp';
 import { DataTable } from '../components/DataTable';
+import { ObjectPicker } from '../components/ObjectPicker';
 import { storage, useStudio } from '../context';
 import { orgFacts, type OrgChoice, type OrgFacts } from '../host';
 import { backupFolder, backupJobs, bigStore, folderSink } from '../backups';
@@ -73,7 +75,6 @@ export function MigratePage({
   const [open, setOpen] = useState('');
   const [fields, setFields] = useState<Record<string, DataField[]>>({});
   const [fieldFilter, setFieldFilter] = useState('');
-  const [filter, setFilter] = useState('');
   const [mask, setMask] = useState(false);
   const [maskTouched, setMaskTouched] = useState(false);
   const [overrides, setOverrides] = useState<Record<string, Record<string, MaskRule | 'none'>>>({});
@@ -317,7 +318,6 @@ export function MigratePage({
       );
     });
 
-  const shown = (candidates ?? []).filter((o) => `${o.label} ${o.name}`.toLowerCase().includes(filter.toLowerCase()));
   const planRows = useMemo(
     () =>
       plan?.objects.map((o, i) => ({
@@ -336,12 +336,15 @@ export function MigratePage({
   );
 
   return (
-    <div className="page">
+    <div className="page data-page">
       <div className="toolbar">
         <h2>Migrate</h2>
         <span className="muted">Copy records between orgs, or from a backup, with their relationships</span>
       </div>
       <div className="card section">
+        <h3 className="step-title">
+          <span className="step">1</span> From and into
+        </h3>
         <div className="form">
           <label>
             From
@@ -420,67 +423,77 @@ export function MigratePage({
       </div>
 
       <div className="card section">
-        <h3>What to copy</h3>
-        <p className="muted" style={{ margin: '0 0 6px' }}>
+        <h3 className="step-title">
+          <span className="step">2</span> What to copy
+        </h3>
+        <p className="muted help">
           Tick objects in any order; NomadSF loads parents first. <b>Related only</b> takes just the records that point
           to records of the objects before it (e.g. 100 Accounts, then their Contacts and Opportunities).
         </p>
-        <div className="form">
-          <input
-            placeholder={`Filter ${candidates?.length ?? ''} objects`}
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
-          <span className="muted">{chosen.length} chosen</span>
-        </div>
-        {candidates === null && <p className="muted">Loading…</p>}
-        <div className="backup-objects">
-          {shown.map((o) => {
-            const on = isChosen(o.name);
+        <ObjectPicker
+          objects={candidates}
+          purpose="copy"
+          chosenCount={chosen.length}
+          isChosen={isChosen}
+          onToggle={toggle}
+          onApply={(picks, replace) =>
+            setChosen((list) => {
+              const merged = replace ? picks : [...list.filter((c) => !picks.some((p) => p.name === c.name)), ...picks];
+              // A backup has no SOQL: conditions are dropped
+              return merged.map((p) => (source.kind === 'backup' ? { ...p, where: undefined } : p));
+            })
+          }
+          renderTags={(o) => {
+            if (!isChosen(o.name)) return null;
             const settings = settingsOf(o.name);
             return (
-              <div key={o.name} className={`backup-object ${on ? 'on' : ''}`}>
-                <div className="row">
-                  <label className="check">
-                    <input type="checkbox" checked={on} onChange={(e) => toggle(o.name, e.target.checked)} /> {o.label}{' '}
-                    {o.label !== o.name && <span className="muted mono">{o.name}</span>}
-                  </label>
-                  <span className="grow" />
-                  {on && (
-                    <label className="check">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(settings.relatedOnly)}
-                        onChange={(e) => setSettings(o.name, { relatedOnly: e.target.checked })}
-                      />{' '}
-                      related only
-                    </label>
-                  )}
-                  {on && settings.where && <span className="backup-tag">where</span>}
-                  {on && (
-                    <button className="link" onClick={() => void openSettings(o.name)}>
-                      {open === o.name ? 'Close' : 'Settings'}
-                    </button>
-                  )}
-                </div>
-                {on && open === o.name && (
-                  <ObjectSettings
-                    settings={settings}
-                    fields={fields[o.name]}
-                    filter={fieldFilter}
-                    onFilter={setFieldFilter}
-                    onChange={(patch) => setSettings(o.name, patch)}
-                    noCondition={source.kind === 'backup'}
-                  />
+              <>
+                {settings.where && (
+                  <span className="backup-tag" title={settings.where}>
+                    where
+                  </span>
                 )}
-              </div>
+                {settings.fields && settings.fields.mode !== 'all' && <span className="backup-tag">fields</span>}
+              </>
             );
-          })}
-        </div>
+          }}
+          renderActions={(o) =>
+            isChosen(o.name) && (
+              <>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(settingsOf(o.name).relatedOnly)}
+                    onChange={(e) => setSettings(o.name, { relatedOnly: e.target.checked })}
+                  />{' '}
+                  related only
+                </label>
+                <button className="link" onClick={() => void openSettings(o.name)}>
+                  {open === o.name ? 'Close' : 'Settings'}
+                </button>
+              </>
+            )
+          }
+          renderSettings={(o) =>
+            isChosen(o.name) &&
+            open === o.name && (
+              <ObjectSettings
+                settings={settingsOf(o.name)}
+                fields={fields[o.name]}
+                filter={fieldFilter}
+                onFilter={setFieldFilter}
+                onChange={(patch) => setSettings(o.name, patch)}
+                noCondition={source.kind === 'backup'}
+              />
+            )
+          }
+        />
       </div>
 
       <div className="card section">
-        <h3>Check and copy</h3>
+        <h3 className="step-title">
+          <span className="step">3</span> Check and copy
+        </h3>
         <div className="form">
           <label className="check">
             <input
@@ -581,8 +594,15 @@ export function MigratePage({
             />
             {result.failures.length > 0 && (
               <>
-                <div className="form">
+                <div className="form chips">
                   <b>{result.failures.length} failed</b>
+                  <AiExplain
+                    task="explain-load-failures"
+                    label="Explain these failures"
+                    what="the failed records' errors (object, source Id, message)"
+                    getText={() => toCsv(['object', 'sourceId', 'error'], result.failures.slice(0, 300))}
+                    getExtra={() => `Target org: ${target?.label ?? ''}. ${result.failures.length} failures in total.`}
+                  />
                   <button
                     onClick={() =>
                       download('migration-failures.csv', toCsv(['object', 'sourceId', 'error'], result.failures))
