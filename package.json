@@ -1,7 +1,7 @@
 {
   "name": "@salesforce/plugin-fm",
   "description": "Plugin for Salesforce DevOps",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "author": "Salesforce",
   "bugs": "https://github.com/forcedotcom/cli/issues",
   "dependencies": {
