@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   CHANGES_DATA,
   backupCandidates,
@@ -34,6 +34,55 @@ import {
 import { ScheduleEditor } from './BackupPage';
 
 type Tab = 'steps' | 'settings' | 'runs';
+type Template = 'blank' | 'retention' | 'sandbox' | 'backup-archive';
+const TEMPLATES: Array<{ id: Template; label: string; hint: string }> = [
+  { id: 'blank', label: 'Empty job', hint: 'add your own steps' },
+  { id: 'retention', label: 'Retention', hint: 'archive cases closed more than 7 years ago, weekly' },
+  { id: 'sandbox', label: 'Sandbox refresh', hint: 'anonymize Contacts and Leads' },
+  { id: 'backup-archive', label: 'Backup, then archive', hint: 'back up, then archive tasks older than 3 years' },
+];
+
+/** "+ New" with a small menu: an empty job or a template. */
+function NewJobMenu({ onPick }: { onPick: (kind: Template) => void }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !box.current?.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener('mousedown', close);
+    window.addEventListener('keydown', close);
+    return () => {
+      window.removeEventListener('mousedown', close);
+      window.removeEventListener('keydown', close);
+    };
+  }, [open]);
+  return (
+    <div className="menu-wrap" ref={box}>
+      <button className="primary" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+        + New
+      </button>
+      {open && (
+        <div className="menu" role="menu">
+          {TEMPLATES.map((t) => (
+            <button
+              key={t.id}
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onPick(t.id);
+              }}
+            >
+              <b>{t.label}</b>
+              <span className="muted">{t.hint}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 const STEP_TYPES: Array<{ id: LifecycleStep['type']; label: string; hint: string }> = [
   { id: 'backup', label: 'Back up', hint: 'run one of your backup jobs (a safety net before changes)' },
   { id: 'check', label: 'Check', hint: 'count records; stop the run when there are more than a limit' },
@@ -327,23 +376,11 @@ export function LifecyclePage({
         <aside className="card backup-jobs">
           <div className="jobs-head">
             <b>Jobs</b>
-            <select
-              className="new-job"
-              value=""
-              onChange={(e) => {
-                const v = e.target.value;
-                if (!v) return;
-                switchJob(
-                  v === 'blank' ? newLifecycleJob(studio.org.id) : lifecycleTemplate(v as 'retention', studio.org.id)
-                );
-              }}
-            >
-              <option value="">+ New…</option>
-              <option value="blank">Empty job</option>
-              <option value="retention">Retention: archive closed cases</option>
-              <option value="sandbox">Sandbox refresh: anonymize</option>
-              <option value="backup-archive">Backup, then archive old tasks</option>
-            </select>
+            <NewJobMenu
+              onPick={(kind) =>
+                switchJob(kind === 'blank' ? newLifecycleJob(studio.org.id) : lifecycleTemplate(kind, studio.org.id))
+              }
+            />
           </div>
           <ul>
             {jobs.map((j) => {
