@@ -141,6 +141,7 @@ export async function runMigration(
     keepUnmapped?: boolean;
     onProgress?: LoadProgress;
     signal?: AbortSignal;
+    onIds?: (ids: Record<string, string>) => void | Promise<void>;
   }
 ): Promise<LoadResult> {
   return loadRecords(
@@ -505,5 +506,61 @@ export async function countChildren(
     // eslint-disable-next-line no-await-in-loop
     out[field] = (await query(source.client, soql)).totalSize;
   }
+  return out;
+}
+
+// ---------- will it fit? ----------
+
+export type OrgCapacity = {
+  api?: { max: number; remaining: number };
+  dataMB?: { max: number; remaining: number };
+  fileMB?: { max: number; remaining: number };
+};
+
+export async function orgCapacity(client: SalesforceClient): Promise<OrgCapacity> {
+  const limits = await client.rest<Record<string, { Max: number; Remaining: number }>>('GET', '/limits');
+  const pick = (key: string): { max: number; remaining: number } | undefined =>
+    limits[key] ? { max: limits[key].Max, remaining: limits[key].Remaining } : undefined;
+  return { api: pick('DailyApiRequests'), dataMB: pick('DataStorageMB'), fileMB: pick('FileStorageMB') };
+}
+
+/** Salesforce counts most records as 2 KB of data storage. */
+const RECORD_KB = 2;
+
+/**
+ * Warnings before a copy: data and file storage left in the target, daily API calls, and a
+ * hint to use the Bulk API (old-Id field) for large copies.
+ */
+export function capacityWarnings(
+  capacity: OrgCapacity,
+  need: { records: number; fileBytes: number; bulk: boolean; files?: number }
+): string[] {
+  const out: string[] = [];
+  const dataMB = (need.records * RECORD_KB) / 1024;
+  if (capacity.dataMB && dataMB > capacity.dataMB.remaining)
+    out.push(
+      `Data storage: the copy needs about ${Math.ceil(dataMB)} MB, the target has ${
+        capacity.dataMB.remaining
+      } MB left of ${capacity.dataMB.max} MB. It will stop when the storage is full.`
+    );
+  else if (capacity.dataMB && dataMB > capacity.dataMB.remaining * 0.8)
+    out.push(
+      `Data storage: the copy uses most of what is left (${Math.ceil(dataMB)} of ${capacity.dataMB.remaining} MB).`
+    );
+  const fileMB = need.fileBytes / (1024 * 1024);
+  if (capacity.fileMB && fileMB > capacity.fileMB.remaining)
+    out.push(
+      `File storage: the files need about ${Math.ceil(fileMB)} MB, the target has ${capacity.fileMB.remaining} MB left.`
+    );
+  // REST collections: one call per 200 records (plus linking); Bulk: a few calls per 10,000; files: two calls each
+  const calls = Math.ceil(need.bulk ? (need.records / 10_000) * 8 : (need.records / 200) * 1.3) + (need.files ?? 0) * 2;
+  if (capacity.api && calls > capacity.api.remaining * 0.8)
+    out.push(
+      `API calls: about ${calls.toLocaleString()} needed, ${capacity.api.remaining.toLocaleString()} left today in the target.`
+    );
+  if (!need.bulk && need.records > 50_000)
+    out.push(
+      `Large copy (${need.records.toLocaleString()} records): "Keep the old Ids in the target org" loads with the Bulk API, uses far fewer API calls and can be run again safely if it stops.`
+    );
   return out;
 }

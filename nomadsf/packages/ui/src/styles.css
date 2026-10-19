@@ -1445,3 +1445,30 @@ table.org-list tr.current {
 .child-row.chosen {
   opacity: 0.7;
 }
+.unlock-backup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.unlock-backup input[type='password'] {
+  min-width: 220px;
+}
+.encrypt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0;
+  max-width: 340px;
+}
+.capacity-warnings {
+  margin: 6px 0;
+  padding-left: 18px;
+  color: var(--warn);
+  font-size: 12.5px;
+}

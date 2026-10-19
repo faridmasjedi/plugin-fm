@@ -19,6 +19,7 @@ import {
   type LoadResult,
   type SourceRow,
 } from './dataLoad.js';
+import { copyFiles, type CopyFilesResult, type FileSource, type FilesChoice } from './files.js';
 import { loadWithOldIds } from './oldIds.js';
 import { query } from './query.js';
 
@@ -347,6 +348,8 @@ export type RestoreRecordsResult = {
   ids: Record<string, string>;
   /** Created records per object (for undo), children first. */
   createdIds: LoadResult['created'];
+  /** Files and attachments uploaded again for the records created again. */
+  files?: CopyFilesResult;
 };
 
 /**
@@ -368,6 +371,8 @@ export async function restoreRecords(
     withoutField?: string[];
     /** With oldIdField: called with the objects to create again (parents included) to set up the field; returns those that cannot have it. */
     prepareOldIds?: (objects: string[]) => Promise<string[]>;
+    /** Files and attachments of the records created again, from the backup. */
+    files?: { choice: FilesChoice; source: FileSource };
     onProgress?: (text: string) => void;
   } = {}
 ): Promise<RestoreRecordsResult> {
@@ -481,7 +486,44 @@ export async function restoreRecords(
   const repointed = Object.keys(ids).length
     ? await repointChildren(client, state, ids, recreated, options.restoredIds ?? {}, progress, failures)
     : 0;
-  return { undeleted, created, parentsAdded, repointed, failures, ids, createdIds: load?.created ?? [] };
+  // 5. Their files and attachments, from the backup, linked to the new records
+  let files: CopyFilesResult | undefined;
+  if (options.files && Object.keys(ids).length) {
+    // Files still in the org (also linked to records that were not deleted) are linked again, not uploaded twice
+    const docs = [...new Set((await options.files.source.links(Object.keys(ids))).map((l) => l.ContentDocumentId))];
+    const stillThere: Record<string, string> = {};
+    for (let i = 0; i < docs.length; i += 200) {
+      const list = docs
+        .slice(i, i + 200)
+        .filter((d) => RECORD_ID.test(d))
+        .map((d) => `'${d}'`)
+        .join(',');
+      if (!list) continue;
+      // eslint-disable-next-line no-await-in-loop
+      const found = await query(client, `SELECT Id FROM ContentDocument WHERE Id IN (${list})`, { maxRows: 200 }).catch(
+        () => ({
+          rows: [] as Array<Record<string, unknown>>,
+        })
+      );
+      for (const r of found.rows) stillThere[String(r.Id)] = String(r.Id);
+    }
+    files = await copyFiles(options.files.source, client, ids, {
+      choice: options.files.choice,
+      known: { ...(options.restoredIds ?? {}), ...stillThere },
+      onProgress: progress,
+    });
+    for (const f of files.failures) failures.push({ object: 'File', id: f.id, error: `${f.name}: ${f.error}` });
+  }
+  return {
+    undeleted,
+    created,
+    parentsAdded,
+    repointed,
+    failures,
+    ids: { ...ids, ...(files?.ids ?? {}) },
+    createdIds: [...(files?.created ?? []), ...(load?.created ?? [])],
+    files,
+  };
 }
 
 /** Sets lookups that pointed (in the backup) to records now created again, where the org left them empty. */

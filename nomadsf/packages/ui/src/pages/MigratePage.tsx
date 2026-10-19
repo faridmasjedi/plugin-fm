@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   backupCandidates,
+  MAX_UPLOAD_MB,
   OLD_ID_FIELD,
+  backupFileSource,
+  backupFilesAt,
   backupStateAt,
+  capacityWarnings,
+  copyFiles,
+  countFiles,
+  jobFolder,
+  orgCapacity,
+  orgFileSource,
   completeParents,
   ensureOldIdFields,
   loadWithOldIds,
@@ -24,6 +33,7 @@ import {
   type BackupState,
   type DataField,
   type DataObject,
+  type FileSource,
   type LinkStatus,
   type OldIdStatus,
   type LoadResult,
@@ -37,11 +47,12 @@ import {
 } from '@nomadsf/core';
 import { AiExplain } from '../components/AiHelp';
 import { ChildObjects } from '../components/ChildObjects';
+import { UnlockBackup } from '../components/UnlockBackup';
 import { DataTable } from '../components/DataTable';
 import { ObjectPicker } from '../components/ObjectPicker';
 import { storage, useStudio } from '../context';
 import { orgFacts, type OrgChoice, type OrgFacts } from '../host';
-import { backupFolder, backupJobs, bigStore, folderSink } from '../backups';
+import { backupFolder, backupJobs, bigStore, isLocked, jobSink, type JobRecord } from '../backups';
 import { ObjectSettings } from './BackupPage';
 
 type SourceChoice = { kind: 'org'; org: string } | { kind: 'backup'; jobId: string; folder: string };
@@ -93,6 +104,13 @@ export function MigratePage({
   const [plan, setPlan] = useState<MigratePlan>();
   const [maps, setMaps] = useState<OrgMaps>();
   const [keepIds, setKeepIds] = useState(false);
+  const [lockedJob, setLockedJob] = useState<JobRecord>();
+  const [unlockedAt, setUnlockedAt] = useState(0);
+  // Files and attachments of the copied records
+  const [withFiles, setWithFiles] = useState(() => storage.get('migrate.files', false));
+  const [maxMB, setMaxMB] = useState(() => storage.get('migrate.filesMB', 25));
+  const [fileCount, setFileCount] = useState<{ files: number; attachments: number; bytes: number; tooLarge: number }>();
+  const [warnings, setWarnings] = useState<string[]>([]);
   // Keeping every link: parents brought along, links to records already in the target
   const [withParents, setWithParents] = useState(() => storage.get('migrate.parents', true));
   const [matchRules, setMatchRules] = useState<Record<string, string>>({});
@@ -138,7 +156,7 @@ export function MigratePage({
   const [stale, setStale] = useState(false);
   useEffect(() => {
     if (plan) setStale(true);
-  }, [withParents, matchRules, oldIds]);
+  }, [withParents, matchRules, oldIds, withFiles, maxMB]);
 
   // What can be copied: the source org's objects, or the objects of the backup
   useEffect(() => {
@@ -164,7 +182,12 @@ export function MigratePage({
           const handle = await backupFolder(source.jobId);
           const theJob = backupJobs.list().find((j) => j.id === source.jobId);
           if (!handle || !theJob) throw new Error('The folder of this backup is not available on this computer.');
-          const sink = folderSink(handle);
+          if (await isLocked(theJob)) {
+            setLockedJob(theJob);
+            return;
+          }
+          setLockedJob(undefined);
+          const sink = await jobSink(theJob);
           const index = await readIndex(sink, theJob);
           if (canceled) return;
           setBackupRuns((index?.runs ?? []).map((r) => r.folder));
@@ -186,7 +209,7 @@ export function MigratePage({
     return () => {
       canceled = true;
     };
-  }, [JSON.stringify(source), clientFor]);
+  }, [JSON.stringify(source), clientFor, unlockedAt]);
 
   // The target: production or not, and its last copy (for undo)
   useEffect(() => {
@@ -336,6 +359,26 @@ export function MigratePage({
       setBroughtParents(added);
       setIdsKey(key);
       setFieldStatus(oldIds ? await oldIdFieldStatus(targetClient, p.order) : []);
+      // Files of the records to copy, and whether the target has room for everything
+      const recordCount = Object.values(gathered).reduce((n, r) => n + r.length, 0);
+      let counted: typeof fileCount;
+      if (withFiles) {
+        setStatus('Counting the files and attachments of the records…');
+        counted = await countFiles(
+          await filesSource(),
+          Object.values(gathered).flatMap((list) => list.map((r) => r.Id)),
+          { files: true, attachments: true, maxMB }
+        );
+      }
+      setFileCount(counted);
+      setWarnings(
+        capacityWarnings(await orgCapacity(targetClient).catch(() => ({})), {
+          records: recordCount,
+          fileBytes: counted?.bytes ?? 0,
+          files: (counted?.files ?? 0) + (counted?.attachments ?? 0),
+          bulk: oldIds,
+        })
+      );
       setPlan(p);
       setStale(false);
       setMaps(m);
@@ -378,6 +421,9 @@ export function MigratePage({
         done: number;
         rows: number;
       }) => setStatus(`${s.object} (${s.index + 1}/${s.total}) · ${s.phase} · ${s.done}/${s.rows}`);
+      // The Id map is saved as the copy goes: an interrupted copy, run again, updates instead of duplicating
+      const saveIds = (ids: Record<string, string>) =>
+        bigStore.set(idsKey, { ...known, ...ids }).catch(() => undefined);
       let out: LoadResult;
       if (oldIds) {
         const ready = await ensureOldIdFields(targetClient, plan.order, setStatus);
@@ -401,6 +447,7 @@ export function MigratePage({
             keepUnmapped: keepIds,
             withoutField: ready.filter((f) => f.status === 'unsupported').map((f) => f.object),
             onProgress: progress,
+            onIds: saveIds,
           }
         );
       } else {
@@ -409,7 +456,31 @@ export function MigratePage({
           known,
           keepUnmapped: keepIds,
           onProgress: progress,
+          onIds: saveIds,
         });
+      }
+      // Then the files and attachments of the copied records
+      let filesNote = '';
+      if (withFiles) {
+        const loaded = new Set(Object.values(rows).flatMap((list) => list.map((r) => r.Id)));
+        const recordIds = Object.fromEntries(Object.entries(out.ids).filter(([oldId]) => loaded.has(oldId)));
+        const copied = await copyFiles(await filesSource(), targetClient, recordIds, {
+          choice: { files: true, attachments: true, maxMB },
+          known,
+          onProgress: setStatus,
+        });
+        out = {
+          ...out,
+          ids: { ...out.ids, ...copied.ids },
+          created: [...copied.created, ...out.created],
+          failures: [
+            ...out.failures,
+            ...copied.failures.map((f) => ({ object: 'File', sourceId: f.id, error: `${f.name}: ${f.error}` })),
+          ],
+        };
+        filesNote = ` · ${copied.files} file(s), ${copied.links} extra link(s), ${copied.attachments} attachment(s)${
+          copied.skipped.length ? `, ${copied.skipped.length} skipped (too large)` : ''
+        }`;
       }
       await bigStore.set(idsKey, out.ids);
       const created = out.objects.reduce((n, o) => n + o.created, 0);
@@ -437,9 +508,17 @@ export function MigratePage({
         `${out.failures.length ? '⚠' : '✓'} ${created} created, ${out.objects.reduce(
           (n, o) => n + o.updated,
           0
-        )} updated${out.failures.length ? `, ${out.failures.length} failed (see below)` : ''}.`
+        )} updated${filesNote}${out.failures.length ? `, ${out.failures.length} failed (see below)` : ''}.`
       );
     });
+
+  /** Where the files come from: the source org, or the backup run. */
+  const filesSource = async (): Promise<FileSource> => {
+    if (source.kind === 'org') return orgFileSource(await clientFor(source.org));
+    const theJob = backupJobs.list().find((j) => j.id === source.jobId)!;
+    const sink = await jobSink(theJob);
+    return backupFileSource(sink, jobFolder(theJob), await backupFilesAt(sink, jobFolder(theJob), state?.runs ?? []));
+  };
 
   const removeFields = () =>
     act('', async () => {
@@ -596,6 +675,7 @@ export function MigratePage({
           </p>
         )}
         {sameOrg && <p className="bad">Choose two different orgs.</p>}
+        {lockedJob && <UnlockBackup job={lockedJob} onUnlocked={() => setUnlockedAt(Date.now())} />}
       </div>
 
       <div className="card section">
@@ -741,6 +821,33 @@ export function MigratePage({
             />{' '}
             Keep the old Ids in the target org
           </label>
+          <label
+            className="check"
+            title="Salesforce Files (with who they are shared with) and attachments of the copied records"
+          >
+            <input
+              type="checkbox"
+              checked={withFiles}
+              onChange={(e) => {
+                setWithFiles(e.target.checked);
+                storage.set('migrate.files', e.target.checked);
+              }}
+            />{' '}
+            Copy files and attachments, up to
+            <input
+              type="number"
+              min={1}
+              max={MAX_UPLOAD_MB}
+              style={{ width: 56, margin: '0 4px' }}
+              value={maxMB}
+              onChange={(e) => {
+                const v = Math.min(MAX_UPLOAD_MB, Math.max(1, Number(e.target.value) || 1));
+                setMaxMB(v);
+                storage.set('migrate.filesMB', v);
+              }}
+            />
+            MB each
+          </label>
           {sourceProduction && !mask && <span className="bad">Production data unmasked</span>}
           <span className="grow" />
           <button
@@ -803,6 +910,20 @@ export function MigratePage({
         )}
         {plan && (
           <>
+            {fileCount && (
+              <p className="muted">
+                Files: {fileCount.files} file(s) and {fileCount.attachments} attachment(s),{' '}
+                {(fileCount.bytes / (1024 * 1024)).toFixed(1)} MB
+                {fileCount.tooLarge ? ` · ${fileCount.tooLarge} larger than ${maxMB} MB are skipped` : ''}.
+              </p>
+            )}
+            {warnings.length > 0 && (
+              <ul className="capacity-warnings">
+                {warnings.map((w) => (
+                  <li key={w}>⚠ {w}</li>
+                ))}
+              </ul>
+            )}
             {plan.missingObjects.length > 0 && (
               <p className="bad">Not in the target, left out: {plan.missingObjects.join(', ')}</p>
             )}

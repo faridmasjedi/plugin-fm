@@ -56,7 +56,13 @@ export function serveStudio(res: ServerResponse, pathname: string): boolean {
   return true;
 }
 
-type ProxyRequest = { method?: string; path?: string; headers?: Record<string, string>; body?: string };
+type ProxyRequest = {
+  method?: string;
+  path?: string;
+  headers?: Record<string, string>;
+  body?: string;
+  binary?: boolean;
+};
 
 const METHODS = new Set(['GET', 'POST', 'PATCH', 'PUT', 'DELETE']);
 const FORWARDED_HEADERS = new Set([
@@ -97,7 +103,7 @@ function keepCookies(org: string, response: Response): void {
 export async function proxySalesforce(
   org: string,
   body: Record<string, unknown>
-): Promise<{ status: number; headers: Record<string, string>; body: string }> {
+): Promise<{ status: number; headers: Record<string, string>; body: string; bodyBase64?: string }> {
   const request = body as ProxyRequest;
   const method = String(request.method ?? 'GET').toUpperCase();
   const path = String(request.path ?? '');
@@ -134,6 +140,14 @@ export async function proxySalesforce(
     if (['content-type', 'sforce-limit-info', 'sforce-locator', 'sforce-numberofrecords'].includes(key))
       responseHeaders[key] = value;
   });
+  // Files (ContentVersion data, attachment bodies) travel base64-encoded in the JSON answer
+  if (request.binary && response.ok)
+    return {
+      status: response.status,
+      headers: responseHeaders,
+      body: '',
+      bodyBase64: Buffer.from(await response.arrayBuffer()).toString('base64'),
+    };
   return { status: response.status, headers: responseHeaders, body: await response.text() };
 }
 

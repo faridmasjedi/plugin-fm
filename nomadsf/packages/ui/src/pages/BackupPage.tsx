@@ -20,12 +20,14 @@ import {
   type DataField,
   type DataObject,
   type FieldChoice,
+  type FilesChoice,
   type ObjectPick,
   type SalesforceClient,
 } from '@nomadsf/core';
 import { DataTable } from '../components/DataTable';
 import { ObjectPicker, type PickerObject } from '../components/ObjectPicker';
 import { RestorePanel } from '../components/RestorePanel';
+import { UnlockBackup } from '../components/UnlockBackup';
 import { storage, useStudio } from '../context';
 import type { OrgChoice } from '../host';
 import {
@@ -33,7 +35,11 @@ import {
   backupJobs,
   canPickFolder,
   folderAccess,
+  encryptJob,
   folderSink,
+  forgetJobKey,
+  isLocked,
+  jobSink,
   lastRuns,
   pickBackupFolder,
   runJob,
@@ -50,6 +56,8 @@ const SCOPES: Array<{ id: BackupScope; label: string }> = [
 /** Compound and file-body fields: the bulk API cannot return them. */
 const NOT_IN_BULK = new Set(['address', 'location', 'base64']);
 type Tab = 'what' | 'when' | 'runs';
+const filesOf = (job: { files?: FilesChoice }): FilesChoice =>
+  job.files ?? { files: false, attachments: false, maxMB: 25 };
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const inScope = (scope: BackupScope, o: DataObject): boolean =>
@@ -97,6 +105,8 @@ export function BackupPage({
   const [preview, setPreview] = useState<{ title: string; columns: string[]; rows: Array<Record<string, string>> }>();
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [encrypting, setEncrypting] = useState({ open: false, pass: '', repeat: '', remember: true });
   const [tab, setTabState] = useState<Tab>(() => storage.get<Tab>('backup.tab', 'what'));
   const setTab = (t: Tab) => {
     setTabState(t);
@@ -131,7 +141,9 @@ export function BackupPage({
     const handle = await backupFolder(draft.id);
     const access = await folderAccess(draft.id, ask);
     setFolder({ name: handle?.name ?? '', access });
+    // The list of runs is never encrypted
     setIndex(access === 'granted' && handle ? await readIndex(folderSink(handle), draft) : undefined);
+    setLocked(await isLocked(draft));
   };
   useEffect(() => {
     setManifest(undefined);
@@ -246,7 +258,7 @@ export function BackupPage({
       const handle = await backupFolder(draft.id);
       if (!handle) return;
       setPreview(undefined);
-      setManifest(await readManifest(folderSink(handle), `${jobFolder(draft)}/${folderName}`));
+      setManifest(await readManifest(await jobSink(draft), `${jobFolder(draft)}/${folderName}`));
       setStatus('');
     });
 
@@ -255,7 +267,7 @@ export function BackupPage({
       const handle = await backupFolder(draft.id);
       if (!handle || !manifest) return;
       const run = index?.runs.find((r) => r.finishedAt === manifest.finishedAt)?.folder;
-      const text = await folderSink(handle).read(`${jobFolder(draft)}/${run ?? ''}/${file}`);
+      const text = await (await jobSink(draft)).read(`${jobFolder(draft)}/${run ?? ''}/${file}`);
       if (text === undefined) throw new Error('File not found in the folder.');
       const table = parseCsv(text);
       setPreview({ title: `${object} · ${file}`, columns: table.columns, rows: table.rows.slice(0, 500) });
@@ -380,6 +392,15 @@ export function BackupPage({
               {next && <span className="chip">next {next.toLocaleString()}</span>}
               <span className="chip">next run: {kind}</span>
               <span className={`chip ${folder.name ? '' : 'warn'}`}>folder: {folder.name || 'not chosen'}</span>
+              {(draft.files?.files || draft.files?.attachments) && (
+                <span className="chip">
+                  {[draft.files.files && 'files', draft.files.attachments && 'attachments'].filter(Boolean).join(' + ')}{' '}
+                  ≤ {draft.files.maxMB} MB
+                </span>
+              )}
+              {draft.encryption && (
+                <span className={`chip ${locked ? 'warn' : 'good'}`}>🔒 {locked ? 'locked' : 'encrypted'}</span>
+              )}
               {last && (
                 <span className={`chip ${last.ok ? 'good' : 'bad'}`}>
                   last: {last.ok ? '✓' : '❌'} {new Date(last.at).toLocaleString()}
@@ -411,6 +432,16 @@ export function BackupPage({
                 </span>
               </div>
             )}
+            {draft.encryption && locked && (
+              <UnlockBackup
+                job={draft}
+                onUnlocked={() => {
+                  setLocked(false);
+                  setStatus('✓ Unlocked.');
+                  void loadFolder();
+                }}
+              />
+            )}
             {status && <p className="muted status-line">{status}</p>}
             {last && !last.ok && last.message && <p className="bad status-line">Last run failed: {last.message}</p>}
           </div>
@@ -419,7 +450,7 @@ export function BackupPage({
             {(
               [
                 ['what', 'What to back up'],
-                ['when', 'Schedule & folder'],
+                ['when', 'Settings'],
                 ['runs', `Backups & restore${index?.runs.length ? ` (${index.runs.length})` : ''}`],
               ] as Array<[Tab, string]>
             ).map(([id, label]) => (
@@ -566,6 +597,138 @@ export function BackupPage({
                   folder per object and a manifest.
                 </p>
               </div>
+              <div className="setting">
+                <h4>Files and attachments</h4>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(draft.files?.files)}
+                    onChange={(e) => update({ files: { ...filesOf(draft), files: e.target.checked } })}
+                  />{' '}
+                  Salesforce Files of the records
+                </label>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(draft.files?.attachments)}
+                    onChange={(e) => update({ files: { ...filesOf(draft), attachments: e.target.checked } })}
+                  />{' '}
+                  Attachments of the records
+                </label>
+                <label className="check">
+                  Up to{' '}
+                  <input
+                    type="number"
+                    min={1}
+                    max={2000}
+                    style={{ width: 70 }}
+                    value={filesOf(draft).maxMB}
+                    onChange={(e) =>
+                      update({ files: { ...filesOf(draft), maxMB: Math.max(1, Number(e.target.value) || 1) } })
+                    }
+                  />{' '}
+                  MB per file
+                </label>
+                <p className="muted">
+                  The latest version of each file linked to the backed-up records (and who it is shared with) is saved
+                  in the run's _files folder; larger ones are listed as skipped. Incremental runs add files changed
+                  since.
+                </p>
+              </div>
+              <div className="setting">
+                <h4>Encryption</h4>
+                {draft.encryption ? (
+                  <>
+                    <p>
+                      🔒 Encrypted with a passphrase (AES-256-GCM).{' '}
+                      {locked ? 'Locked: unlock it in the header.' : 'Unlocked.'}
+                    </p>
+                    {!locked && (
+                      <button
+                        onClick={() =>
+                          void act('', async () => {
+                            await forgetJobKey(draft.id);
+                            setLocked(true);
+                            setStatus(
+                              'The key is no longer kept on this computer; scheduled runs wait until you unlock.'
+                            );
+                          })
+                        }
+                      >
+                        Forget the key on this computer
+                      </button>
+                    )}
+                    <p className="muted">
+                      The passphrase cannot be changed or removed: without it these backups cannot be read, not even by
+                      NomadSF. For another passphrase, start a new backup job.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={encrypting.open}
+                        onChange={(e) => setEncrypting({ ...encrypting, open: e.target.checked })}
+                      />{' '}
+                      Encrypt this backup
+                    </label>
+                    {encrypting.open && (
+                      <div className="encrypt-form">
+                        <input
+                          type="password"
+                          autoComplete="new-password"
+                          placeholder="Passphrase (at least 8 characters)"
+                          value={encrypting.pass}
+                          onChange={(e) => setEncrypting({ ...encrypting, pass: e.target.value })}
+                        />
+                        <input
+                          type="password"
+                          autoComplete="new-password"
+                          placeholder="Repeat the passphrase"
+                          value={encrypting.repeat}
+                          onChange={(e) => setEncrypting({ ...encrypting, repeat: e.target.value })}
+                        />
+                        <label className="check">
+                          <input
+                            type="checkbox"
+                            checked={encrypting.remember}
+                            onChange={(e) => setEncrypting({ ...encrypting, remember: e.target.checked })}
+                          />{' '}
+                          Keep the key on this computer (needed for scheduled runs)
+                        </label>
+                        <button
+                          className="primary"
+                          disabled={encrypting.pass.length < 8 || encrypting.pass !== encrypting.repeat || busy}
+                          onClick={() =>
+                            void act('', async () => {
+                              const job = await encryptJob(draft, encrypting.pass, encrypting.remember);
+                              backupJobs.save(job);
+                              setJobs(backupJobs.list());
+                              setDraft(job);
+                              setSaved(JSON.stringify(job));
+                              setEncrypting({ open: false, pass: '', repeat: '', remember: true });
+                              setLocked(false);
+                              setStatus(
+                                '✓ Encrypted from the next run on. Keep the passphrase safe: it cannot be recovered.'
+                              );
+                            })
+                          }
+                        >
+                          Encrypt from the next run on
+                        </button>
+                        {encrypting.repeat && encrypting.pass !== encrypting.repeat && (
+                          <span className="bad">The two passphrases differ.</span>
+                        )}
+                      </div>
+                    )}
+                    <p className="muted">
+                      Every data file and file of the backup is encrypted in the browser before it is written; only the
+                      list of runs stays readable. Without the passphrase nobody can read the data, not even NomadSF.
+                    </p>
+                  </>
+                )}
+              </div>
             </div>
           )}
 
@@ -602,6 +765,21 @@ export function BackupPage({
                           <span className="muted"> · changes since {new Date(manifest.since).toLocaleString()}</span>
                         )}
                       </h3>
+                      {(manifest.files || manifest.filesError) && (
+                        <p className={manifest.filesError ? 'bad' : 'muted'}>
+                          {manifest.files
+                            ? `Files: ${manifest.files.versions} file(s), ${
+                                manifest.files.attachments
+                              } attachment(s), ${(manifest.files.bytes / (1024 * 1024)).toFixed(1)} MB${
+                                manifest.files.skipped.length
+                                  ? ` · ${manifest.files.skipped.length} skipped (too large)`
+                                  : ''
+                              }`
+                            : ''}
+                          {manifest.filesError ? `Files failed: ${manifest.filesError}` : ''}
+                          {manifest.encrypted ? ' · 🔒 encrypted' : ''}
+                        </p>
+                      )}
                       <DataTable
                         columns={['name', 'rows', 'deleted', 'fields', 'files', 'error']}
                         rows={manifest.objects.map((o) => ({

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
   OLD_ID_FIELD,
+  backupFileSource,
+  backupFilesAt,
   backupStateAt,
   describeData,
   ensureOldIdFields,
@@ -18,7 +20,8 @@ import {
 } from '@nomadsf/core';
 import { DataTable } from './DataTable';
 import { storage, useStudio } from '../context';
-import { backupFolder, folderSink, type JobRecord } from '../backups';
+import { isLocked, jobSink, type JobRecord } from '../backups';
+import { UnlockBackup } from './UnlockBackup';
 
 const download = (name: string, text: string) => {
   const a = document.createElement('a');
@@ -59,6 +62,13 @@ export function RestorePanel({
   const [pickDeleted, setPickDeleted] = useState<Set<string>>(new Set());
   const [withParents, setWithParents] = useState(true);
   const [oldIds, setOldIds] = useState(false);
+  // Files and attachments of the records brought back, when the backup has them
+  const hasFiles = Boolean(manifest.files || job.files?.files || job.files?.attachments);
+  const [withFiles, setWithFiles] = useState(hasFiles);
+  const [locked, setLocked] = useState(false);
+  useEffect(() => {
+    void isLocked(job).then(setLocked);
+  }, [job.id, job.encryption]);
   const [fieldsUsed, setFieldsUsed] = useState<string[]>(() =>
     storage.get<string[]>(`restore.oldIdObjects.${job.org}`, [])
   );
@@ -88,11 +98,7 @@ export function RestorePanel({
     }
   };
 
-  const sink = async () => {
-    const handle = await backupFolder(job.id);
-    if (!handle) throw new Error('The folder of this backup is not available.');
-    return folderSink(handle);
-  };
+  const sink = () => jobSink(job);
   const readRestored = async (): Promise<Record<string, string>> => {
     const text = await (await sink()).read(`${jobFolder(job)}/${RESTORED}`);
     return text ? (JSON.parse(text) as Record<string, string>) : {};
@@ -227,6 +233,17 @@ export function RestorePanel({
         withParents,
         restoredIds: restored,
         oldIdField: oldIds,
+        files:
+          withFiles && hasFiles
+            ? {
+                choice: job.files ?? { files: true, attachments: true, maxMB: 25 },
+                source: backupFileSource(
+                  await sink(),
+                  jobFolder(job),
+                  await backupFilesAt(await sink(), jobFolder(job), state.runs)
+                ),
+              }
+            : undefined,
         prepareOldIds: async (list) => {
           const ready = await ensureOldIdFields(studio.client, list, setStatus);
           const used = ready.filter((f) => f.status === 'ready').map((f) => f.object);
@@ -257,6 +274,8 @@ export function RestorePanel({
         `${result.failures.length ? '⚠' : '✓'} ${result.undeleted} undeleted, ${result.created} created again${
           parents ? ` (with the deleted records they point to: ${parents})` : ''
         }, ${result.repointed} record(s) in the org pointed to them again${
+          result.files ? `, ${result.files.files} file(s) and ${result.files.attachments} attachment(s) uploaded` : ''
+        }${
           result.failures.length ? `, ${result.failures.length} failed: ${result.failures[0].error}` : ''
         }. Compare again to check.`
       );
@@ -294,6 +313,7 @@ export function RestorePanel({
   return (
     <div className="card section restore-panel">
       <h3>Restore from this backup</h3>
+      {locked && <UnlockBackup job={job} onUnlocked={() => setLocked(false)} />}
       {!sameOrg ? (
         <p className="muted">
           This backup is of <b>{job.org}</b>. Switch the Studio to that org to restore into it
@@ -324,7 +344,11 @@ export function RestorePanel({
         ))}
       </div>
       <div className="form">
-        <button className="primary" disabled={busy || !sameOrg || !chosen.size} onClick={() => void compare()}>
+        <button
+          className="primary"
+          disabled={busy || !sameOrg || !chosen.size || locked}
+          onClick={() => void compare()}
+        >
           Compare with the org
         </button>
         {onCopyElsewhere && <button onClick={onCopyElsewhere}>Copy into another org…</button>}
@@ -373,6 +397,12 @@ export function RestorePanel({
               <input type="checkbox" checked={oldIds} onChange={(e) => setOldIds(e.target.checked)} /> Keep the old Ids
               in the org
             </label>
+            {hasFiles && (
+              <label className="check" title="Files and attachments in the backup of the records created again">
+                <input type="checkbox" checked={withFiles} onChange={(e) => setWithFiles(e.target.checked)} /> With
+                their files and attachments
+              </label>
+            )}
             <span className="grow" />
             <button className="danger" disabled={busy || !pickDeleted.size} onClick={() => void bringBack()}>
               Bring back {pickDeleted.size || ''} record{pickDeleted.size === 1 ? '' : 's'}…

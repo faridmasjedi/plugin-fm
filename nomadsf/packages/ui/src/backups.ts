@@ -5,6 +5,9 @@ import {
   memorySink,
   runBackup,
   type BackupJob,
+  encryptedSink,
+  newEncryption,
+  unlockEncryption,
   type BackupManifest,
   type BackupSink,
   type SalesforceClient,
@@ -141,6 +144,23 @@ export function folderSink(root: DirHandle): BackupSink {
         return undefined;
       }
     },
+    async writeBytes(path, content) {
+      const parts = path.split('/').filter(Boolean);
+      const dir = await dirAt(parts.slice(0, -1), true);
+      const file = await dir.getFileHandle(parts[parts.length - 1], { create: true });
+      const writable = await file.createWritable();
+      await writable.write(content);
+      await writable.close();
+    },
+    async readBytes(path) {
+      try {
+        const parts = path.split('/').filter(Boolean);
+        const dir = await dirAt(parts.slice(0, -1), false);
+        return new Uint8Array(await (await (await dir.getFileHandle(parts[parts.length - 1])).getFile()).arrayBuffer());
+      } catch {
+        return undefined;
+      }
+    },
     async list(path) {
       try {
         const dir = await dirAt(path.split('/').filter(Boolean), false);
@@ -152,6 +172,64 @@ export function folderSink(root: DirHandle): BackupSink {
       }
     },
   };
+}
+
+// ---------- encrypted backups: the key of a job ----------
+
+/** Keys unlocked in this session; a key kept on this computer lives in IndexedDB (not extractable). */
+const sessionKeys = new Map<string, CryptoKey>();
+
+export async function jobKey(job: Pick<BackupJob, 'id' | 'encryption'>): Promise<CryptoKey | undefined> {
+  if (!job.encryption) return undefined;
+  const inSession = sessionKeys.get(job.id);
+  if (inSession) return inSession;
+  const kept = await idb<CryptoKey | undefined>(
+    'readonly',
+    (s) => s.get(`crypto:${job.id}`) as IDBRequest<CryptoKey | undefined>
+  ).catch(() => undefined);
+  if (kept) sessionKeys.set(job.id, kept);
+  return kept;
+}
+
+export async function isLocked(job: Pick<BackupJob, 'id' | 'encryption'>): Promise<boolean> {
+  return Boolean(job.encryption) && !(await jobKey(job));
+}
+
+/** Checks the passphrase and keeps the key for this session, and on this computer when `remember`. */
+export async function unlockJob(
+  job: Pick<BackupJob, 'id' | 'encryption'>,
+  passphrase: string,
+  remember: boolean
+): Promise<void> {
+  if (!job.encryption) return;
+  const key = await unlockEncryption(job.encryption, passphrase);
+  sessionKeys.set(job.id, key);
+  if (remember) await idb('readwrite', (s) => s.put(key, `crypto:${job.id}`));
+  else await idb('readwrite', (s) => s.delete(`crypto:${job.id}`)).catch(() => undefined);
+}
+
+/** A new passphrase for a job: returns the job with its encryption info (the key is kept like unlockJob). */
+export async function encryptJob<T extends BackupJob>(job: T, passphrase: string, remember: boolean): Promise<T> {
+  const { info, key } = await newEncryption(passphrase);
+  sessionKeys.set(job.id, key);
+  if (remember) await idb('readwrite', (s) => s.put(key, `crypto:${job.id}`));
+  return { ...job, encryption: info };
+}
+
+export async function forgetJobKey(jobId: string): Promise<void> {
+  sessionKeys.delete(jobId);
+  await idb('readwrite', (s) => s.delete(`crypto:${jobId}`)).catch(() => undefined);
+}
+
+/** The sink of a job's folder, decrypting / encrypting when the job is encrypted. */
+export async function jobSink(job: Pick<BackupJob, 'id' | 'encryption'>): Promise<BackupSink> {
+  const handle = await backupFolder(job.id);
+  if (!handle) throw new Error('Choose the folder this backup writes to.');
+  const plain = folderSink(handle);
+  if (!job.encryption) return plain;
+  const key = await jobKey(job);
+  if (!key) throw new Error('This backup is encrypted: unlock it with its passphrase first.');
+  return encryptedSink(plain, key);
 }
 
 // ---------- the run going on (one at a time) ----------
@@ -212,11 +290,11 @@ export async function runJob(
     let memory: ReturnType<typeof memorySink> | undefined;
     if (options.zip) {
       memory = memorySink();
-      sink = memory;
+      const key = await jobKey(job);
+      if (job.encryption && !key) throw new Error('This backup is encrypted: unlock it with its passphrase first.');
+      sink = key ? encryptedSink(memory, key) : memory;
     } else {
-      const handle = await backupFolder(job.id);
-      if (!handle) throw new Error('Choose the folder this backup writes to.');
-      sink = folderSink(handle);
+      sink = await jobSink(job);
     }
     const manifest = await runBackup(client, job, sink, {
       onProgress: (s) => {
@@ -269,6 +347,9 @@ export function useBackupScheduler(clientFor: (org: string) => Promise<Salesforc
         if (!isDue(job.schedule, lastAt ? new Date(lastAt) : undefined, new Date(), new Date(job.created))) continue;
         // eslint-disable-next-line no-await-in-loop
         if ((await folderAccess(job.id)) !== 'granted') continue;
+        // Encrypted and not unlocked (key not kept on this computer): waits for the person
+        // eslint-disable-next-line no-await-in-loop
+        if (await isLocked(job)) continue;
         try {
           // eslint-disable-next-line no-await-in-loop
           await runJob(job, await clientFor(job.org), { scheduled: true });
