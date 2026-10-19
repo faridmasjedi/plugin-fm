@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { getUserInfo, type SalesforceClient, type UserInfo } from '@nomadsf/core';
 import { detectHost, orgFacts, type OrgChoice, type OrgFacts } from './host';
 import { InspectContext, StudioContext, activityLog, storage, type Studio } from './context';
@@ -29,36 +29,11 @@ import { LifecyclePage } from './pages/LifecyclePage';
 import { useLifecycleRun, useLifecycleScheduler } from './lifecycle';
 import { useBackupRun, useBackupScheduler } from './backups';
 import { ProjectStateContext, useProjectState } from './project';
+import { HubNav, Panes, QuickJump, isTool, useWorkspace, type ToolId } from './workspace';
 
-const PAGES = [
-  { id: 'project', label: 'Project', icon: '⌂' },
-  { id: 'apex', label: 'Execute Apex', icon: '▶' },
-  { id: 'code', label: 'Code', icon: '{}' },
-  { id: 'apextests', label: 'Apex tests', icon: '◎' },
-  { id: 'logs', label: 'Debug Logs', icon: '☰' },
-  { id: 'query', label: 'Query', icon: '⌕' },
-  { id: 'record', label: 'Record', icon: 'ⓘ' },
-  { id: 'data', label: 'Data', icon: '⇅' },
-  { id: 'lookup', label: 'Lookup', icon: '⌖' },
-  { id: 'access', label: 'Users & access', icon: '⚿' },
-  { id: 'metadata', label: 'Metadata', icon: '◫' },
-  { id: 'orgdiff', label: 'Org compare', icon: '⇋' },
-  { id: 'backup', label: 'Backup', icon: '⛁' },
-  { id: 'migrate', label: 'Migrate', icon: '⇶' },
-  { id: 'lifecycle', label: 'Lifecycle', icon: '◷' },
-  { id: 'fields', label: 'Field usage', icon: '▦' },
-  { id: 'events', label: 'Events', icon: '⚡' },
-  { id: 'limits', label: 'Org limits', icon: '▤' },
-  { id: 'rest', label: 'REST Explorer', icon: '⇄' },
-  { id: 'tests', label: 'E2E tests', icon: '✓' },
-  { id: 'activity', label: 'Activity', icon: '⏱' },
-  { id: 'settings', label: 'Settings', icon: '⚙' },
-] as const;
 const host = detectHost();
 // Pages of the NomadSF CLI app (CLI orgs, AI settings) only make sense inside the extension
 const LOCAL = host.kind === 'extension' ? LOCAL_PAGES : [];
-type PageId = (typeof PAGES)[number]['id'] | (typeof LOCAL_PAGES)[number]['id'];
-const isPage = (id: string): id is PageId => PAGES.some((p) => p.id === id) || LOCAL.some((p) => p.id === id);
 
 export function App() {
   const [orgs, setOrgs] = useState<OrgChoice[]>([]);
@@ -67,14 +42,19 @@ export function App() {
     () =>
       (host.kind === 'extension' && new URLSearchParams(location.search).get('host')) || storage.get('studio.org', '')
   );
-  // #apex / #logs / #query (links from the extension popup) win over the last page used
-  const [page, setPage] = useState<PageId>(() => {
-    const [fromHash, value] = location.hash.slice(1).split(/=(.*)/s);
-    // #query=<SOQL> (VS Code "Run SOQL") prefills the Query page
-    if (fromHash === 'query' && value) storage.set('query.soql', decodeURIComponent(value));
-    const stored = storage.get<string>('studio.page', 'apex');
-    return isPage(fromHash) ? fromHash : isPage(stored) ? stored : 'apex';
-  });
+  // #apex / #logs / #query (links from the extension popup) open that tool; else the last layout
+  const ws = useWorkspace(
+    ((): ToolId => {
+      const [fromHash, value] = location.hash.slice(1).split(/=(.*)/s);
+      // #query=<SOQL> (VS Code "Run SOQL") prefills the Query page
+      if (fromHash === 'query' && value) storage.set('query.soql', decodeURIComponent(value));
+      if (fromHash === 'record') return 'record';
+      const stored = storage.get<string>('studio.page', 'apex');
+      return isTool(fromHash) ? fromHash : isTool(stored) ? stored : 'apex';
+    })()
+  );
+  const page = ws.panes[ws.active]?.tool ?? 'apex';
+  const setPage = ws.show;
   const [client, setClient] = useState<SalesforceClient | null>(null);
   const [facts, setFacts] = useState<OrgFacts | undefined>();
   const [user, setUser] = useState<UserInfo | undefined>();
@@ -152,6 +132,11 @@ export function App() {
   }, [org]);
 
   useEffect(() => storage.set('studio.page', page), [page]);
+  // The address follows the active pane (a reload, or a copied link, opens the same tool)
+  useEffect(() => {
+    if (location.hash.slice(1).split('=')[0] !== page)
+      history.replaceState(null, '', `${location.pathname}${location.search}#${page}`);
+  }, [page]);
 
   const production = facts ? !facts.isSandbox : org?.type === 'Production' || org?.type === 'Dev Hub';
   const confirmRisky = useCallback(
@@ -203,14 +188,78 @@ export function App() {
   useLifecycleScheduler(clientFor);
   const backupRun = useBackupRun();
   const lifecycleRun = useLifecycleRun();
-  // E2E tests and the Local app pages need the NomadSF CLI app; the extension hides them without it
-  const needsLocal = (id: string): boolean => id === 'tests' || LOCAL.some((p) => p.id === id);
-  const shownPages = PAGES.filter((p) => !needsLocal(p.id) || project.localAppReady);
-  const shownLocal = project.localAppReady ? LOCAL : [];
-  const localPage = shownLocal.find((p) => p.id === page);
-  useEffect(() => {
-    if (project.localChecked && !project.localAppReady && needsLocal(page)) setPage('project');
-  }, [project.localChecked, project.localAppReady, page]);
+  // E2E tests and the Local app tools need the NomadSF CLI app; the extension hides them without it
+  const available = useCallback(
+    (tool: ToolId): boolean =>
+      tool === 'tests'
+        ? project.localAppReady
+        : tool === 'local-orgs' || tool === 'local-ai'
+        ? project.localAppReady && LOCAL.length > 0
+        : true,
+    [project.localAppReady]
+  );
+
+  /** One tool in a pane. Tools that need the org wait for it. */
+  const render = (tool: ToolId): ReactNode => {
+    const local = LOCAL.find((p) => p.id === tool);
+    if (local) return <LocalAppPage page={local.page} />;
+    if (tool === 'project')
+      return (
+        <ProjectPage
+          studio={studio}
+          onOpenMetadata={() => setPage('metadata')}
+          onOpenSettings={() => setPage('settings')}
+          onOpenCode={() => setPage('code')}
+        />
+      );
+    if (tool === 'settings')
+      return (
+        <SettingsPage
+          hostKind={host.kind}
+          onOpenProject={() => setPage('project')}
+          orgs={orgs}
+          orgId={orgId}
+          onSwitchOrg={switchOrg}
+          onRefreshOrgs={loadOrgs}
+        />
+      );
+    if (tool === 'tests')
+      return <TestsPage hostKind={host.kind} defaultOrg={host.kind === 'app' ? org?.id : undefined} />;
+    if (error) return <div className="error">{error}</div>;
+    if (!studio)
+      return (
+        <p className="muted">
+          {orgs.length || host.kind === 'extension' ? 'Connecting…' : 'No orgs. Connect one in NomadSF → Orgs.'}
+        </p>
+      );
+    return (
+      <StudioContext.Provider value={studio}>
+        <InspectContext.Provider value={inspect}>
+          {tool === 'apex' && <ExecutePage />}
+          {tool === 'logs' && <LogsPage />}
+          {tool === 'query' && <QueryPage />}
+          {tool === 'data' && <DataPage />}
+          {tool === 'access' && <AccessPage />}
+          {tool === 'metadata' && <MetadataPage />}
+          {tool === 'activity' && <ActivityPage />}
+          {tool === 'record' && <RecordPage initialId={inspectId} />}
+          {tool === 'limits' && <LimitsPage />}
+          {tool === 'rest' && <RestPage />}
+          {tool === 'code' && <CodePage />}
+          {tool === 'backup' && (
+            <BackupPage orgs={orgs} clientFor={clientFor} onOpenMigrate={() => setPage('migrate')} />
+          )}
+          {tool === 'migrate' && <MigratePage orgs={orgs} clientFor={clientFor} />}
+          {tool === 'lifecycle' && <LifecyclePage orgs={orgs} clientFor={clientFor} />}
+          {tool === 'events' && <EventsPage />}
+          {tool === 'fields' && <FieldUsagePage />}
+          {tool === 'lookup' && <LookupPage />}
+          {tool === 'orgdiff' && <OrgComparePage orgs={orgs} />}
+          {tool === 'apextests' && <ApexTestsPage />}
+        </InspectContext.Provider>
+      </StudioContext.Provider>
+    );
+  };
 
   return (
     <ProjectStateContext.Provider value={project}>
@@ -266,87 +315,12 @@ export function App() {
           </button>
         </header>
         <nav className="side">
-          {shownPages
-            .filter((p) => p.id !== 'settings')
-            .map((p) => (
-              <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)}>
-                <span className="icon">{p.icon}</span>
-                {p.label}
-              </button>
-            ))}
-          {shownLocal.length > 0 && <div className="nav-section">Local app</div>}
-          {shownLocal.map((p) => (
-            <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)}>
-              <span className="icon">{p.icon}</span>
-              {p.label}
-            </button>
-          ))}
-          {/* Settings last, under everything else */}
-          <div className="nav-spacer" />
-          <button className={page === 'settings' ? 'active' : ''} onClick={() => setPage('settings')}>
-            <span className="icon">⚙</span>
-            Settings
-          </button>
+          <HubNav ws={ws} available={available} hasLocal={LOCAL.length > 0 && project.localAppReady} />
         </nav>
-        <main className={localPage ? 'local' : ''}>
-          {localPage && <LocalAppPage page={localPage.page} />}
-          {page === 'project' && (
-            <ProjectPage
-              studio={studio}
-              onOpenMetadata={() => setPage('metadata')}
-              onOpenSettings={() => setPage('settings')}
-              onOpenCode={() => setPage('code')}
-            />
-          )}
-          {page === 'settings' && (
-            <SettingsPage
-              hostKind={host.kind}
-              onOpenProject={() => setPage('project')}
-              orgs={orgs}
-              orgId={orgId}
-              onSwitchOrg={switchOrg}
-              onRefreshOrgs={loadOrgs}
-            />
-          )}
-          {page === 'tests' && project.localAppReady && (
-            <TestsPage hostKind={host.kind} defaultOrg={host.kind === 'app' ? org?.id : undefined} />
-          )}
-          {!localPage && !['project', 'tests', 'settings'].includes(page) && error && (
-            <div className="error">{error}</div>
-          )}
-          {!localPage && !['project', 'tests', 'settings'].includes(page) && !error && !studio && (
-            <p className="muted">
-              {orgs.length || host.kind === 'extension' ? 'Connecting…' : 'No orgs. Connect one in NomadSF → Orgs.'}
-            </p>
-          )}
-          {!localPage && !['project', 'tests', 'settings'].includes(page) && studio && (
-            <StudioContext.Provider value={studio}>
-              <InspectContext.Provider value={inspect}>
-                {page === 'apex' && <ExecutePage />}
-                {page === 'logs' && <LogsPage />}
-                {page === 'query' && <QueryPage />}
-                {page === 'data' && <DataPage />}
-                {page === 'access' && <AccessPage />}
-                {page === 'metadata' && <MetadataPage />}
-                {page === 'activity' && <ActivityPage />}
-                {page === 'record' && <RecordPage initialId={inspectId} />}
-                {page === 'limits' && <LimitsPage />}
-                {page === 'rest' && <RestPage />}
-                {page === 'code' && <CodePage />}
-                {page === 'backup' && (
-                  <BackupPage orgs={orgs} clientFor={clientFor} onOpenMigrate={() => setPage('migrate')} />
-                )}
-                {page === 'migrate' && <MigratePage orgs={orgs} clientFor={clientFor} />}
-                {page === 'lifecycle' && <LifecyclePage orgs={orgs} clientFor={clientFor} />}
-                {page === 'events' && <EventsPage />}
-                {page === 'fields' && <FieldUsagePage />}
-                {page === 'lookup' && <LookupPage />}
-                {page === 'orgdiff' && <OrgComparePage orgs={orgs} />}
-                {page === 'apextests' && <ApexTestsPage />}
-              </InspectContext.Provider>
-            </StudioContext.Provider>
-          )}
+        <main>
+          <Panes ws={ws} available={available} render={render} />
         </main>
+        <QuickJump ws={ws} available={available} />
       </div>
     </ProjectStateContext.Provider>
   );

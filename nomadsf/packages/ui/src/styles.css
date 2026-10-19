@@ -86,7 +86,7 @@ a {
 
 .studio {
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr);
+  grid-template-columns: 224px minmax(0, 1fr);
   grid-template-rows: auto 1fr;
   height: 100%;
 }
@@ -375,6 +375,9 @@ table.limits .bar div.hot {
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }
+}
+/* Page layouts follow the width of their pane (a pane can be half the window) */
+@container pane (max-width: 900px) {
   .split {
     grid-template-columns: 1fr;
   }
@@ -458,7 +461,7 @@ textarea {
   width: 100%;
   resize: vertical;
 }
-@media (max-width: 900px) {
+@container pane (max-width: 900px) {
   .grid2 {
     grid-template-columns: 1fr;
   }
@@ -738,7 +741,7 @@ table.record td select {
 .cov-miss-gutter {
   border-left: 3px solid #da3633;
 }
-@media (max-width: 900px) {
+@container pane (max-width: 900px) {
   .code-layout {
     grid-template-columns: 1fr;
   }
@@ -1313,7 +1316,7 @@ table.org-list tr.current {
   margin-top: 12px;
 }
 
-@media (max-width: 900px) {
+@container pane (max-width: 900px) {
   .backup-layout {
     grid-template-columns: 1fr;
   }
@@ -1539,4 +1542,378 @@ table.org-list tr.current {
 .approval ul {
   margin: 4px 0 8px;
   padding-left: 18px;
+}
+
+/* ---------- Shell: hubs, panes side by side, quick jump ---------- */
+
+nav.side {
+  gap: 3px;
+  padding: 12px 10px;
+}
+nav.side .hub {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 10px;
+  color: var(--text);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+nav.side .hub:hover {
+  background: var(--panel-2);
+}
+nav.side .hub .icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--panel-2);
+  font-size: 13px;
+  transition: background 0.12s, color 0.12s;
+}
+nav.side .hub.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+nav.side .hub.active .icon {
+  background: var(--accent);
+  color: #fff;
+}
+nav.side .hub.open:not(.active)::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  width: 3px;
+  height: 18px;
+  border-radius: 3px;
+  background: var(--accent);
+  opacity: 0.55;
+}
+nav.side .hub-count {
+  font-size: 10.5px;
+  color: var(--muted);
+  background: var(--panel-2);
+  border-radius: 999px;
+  padding: 0 7px;
+  line-height: 18px;
+}
+nav.side .hub.active .hub-count {
+  background: var(--panel);
+  color: var(--accent);
+}
+nav.side .hub-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nav-hint {
+  margin: 0 6px 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.studio > main {
+  padding: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+.panes {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+.panes.split {
+  padding: 10px;
+  gap: 0;
+}
+.pane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  container-type: inline-size;
+  container-name: pane;
+}
+.panes.split .pane {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.panes.split .pane.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.pane-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  min-height: 44px;
+  box-sizing: border-box;
+}
+.pane-hub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  padding-right: 10px;
+  border-right: 1px solid var(--border);
+}
+.pane-hub .icon {
+  color: var(--accent);
+}
+.hub-tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  min-width: 0;
+}
+.hub-tabs::-webkit-scrollbar {
+  display: none;
+}
+.hub-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 11px;
+  border-radius: 8px;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.hub-tab .icon {
+  font-size: 12px;
+  opacity: 0.8;
+}
+.hub-tab:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+.hub-tab.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.hub-tab.active .icon {
+  opacity: 1;
+}
+.pane-action {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  padding: 0;
+  font-size: 15px;
+  cursor: pointer;
+}
+.pane-action:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+.pane-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 20px 40px;
+}
+.panes.split .pane-body {
+  padding: 14px 16px 32px;
+}
+/* The hub tab names the tool: the page's own title is not repeated */
+.pane-body > .page > .toolbar:first-child > h2 {
+  display: none;
+}
+.pane-body > .page > .toolbar:first-child:empty {
+  display: none;
+}
+.pane-divider {
+  flex: 0 0 12px;
+  cursor: col-resize;
+  display: grid;
+  place-items: center;
+}
+.pane-divider span {
+  width: 4px;
+  height: 44px;
+  border-radius: 4px;
+  background: var(--border);
+  transition: background 0.12s, height 0.12s;
+}
+.pane-divider:hover span,
+body.resizing .pane-divider span {
+  background: var(--accent);
+  height: 72px;
+}
+body.resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+body.resizing iframe {
+  pointer-events: none;
+}
+.drop-zone {
+  position: absolute;
+  top: 44px;
+  bottom: 0;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  pointer-events: none;
+  z-index: 5;
+  animation: drop-in 0.12s ease-out;
+}
+.drop-zone.here {
+  left: 8px;
+  right: 8px;
+}
+.drop-zone.beside {
+  left: 50%;
+  right: 8px;
+}
+.drop-zone span {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 999px;
+}
+@keyframes drop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+.quick-jump-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(15, 23, 42, 0.35);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+}
+.quick-jump {
+  width: min(560px, calc(100vw - 32px));
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+  overflow: hidden;
+}
+.quick-jump input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  padding: 14px 16px;
+  font-size: 15px;
+  background: var(--panel);
+}
+.quick-jump input:focus {
+  outline: none;
+}
+.quick-jump ul {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  max-height: 50vh;
+  overflow: auto;
+}
+.quick-jump li button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 24px auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.quick-jump li button.active {
+  background: var(--accent-soft);
+}
+.quick-jump .qj-label {
+  font-weight: 600;
+}
+.quick-jump .muted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.quick-jump .qj-hub {
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--panel-2);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.qj-none {
+  padding: 12px;
+}
+@media (max-width: 900px) {
+  nav.side .hub {
+    grid-template-columns: 24px auto;
+  }
+  nav.side .hub-count,
+  .nav-hint {
+    display: none;
+  }
+  /* Small screens: one pane at a time */
+  .panes.split {
+    padding: 0;
+  }
+  .panes.split .pane:not(.active),
+  .pane-divider {
+    display: none;
+  }
+}
+
+/* Narrow panes: the hub's icon only, so the tabs have room */
+@container pane (max-width: 640px) {
+  .pane-hub .hub-name {
+    display: none;
+  }
+  .pane-hub {
+    padding-right: 6px;
+  }
+  .hub-tab {
+    padding: 6px 8px;
+  }
+}
+/* Controls never wider than their pane */
+.pane-body select,
+.pane-body input:not([type='checkbox']):not([type='radio']),
+.pane-body textarea {
+  max-width: 100%;
+}
+.hub-tabs {
+  mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
 }

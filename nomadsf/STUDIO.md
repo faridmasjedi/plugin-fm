@@ -9,6 +9,21 @@ A Salesforce developer workbench in the spirit of the Developer Console and Sale
 | **VS Code extension**                            | webview, CLI login through the extension host                                              | planned |
 | **Desktop app** (Electron)                       | CLI login through the main process                                                         | planned |
 
+## Layout
+
+The tools are grouped into **hubs** in the sidebar, each a page with its tools as tabs:
+
+| Hub                 | Tabs                                                             |
+| ------------------- | ---------------------------------------------------------------- |
+| **Develop**         | Execute Apex · Code · Apex tests · Debug Logs                    |
+| **Data**            | Query · Record · Import / Update / Delete · Lookup · Field usage |
+| **Data protection** | Backup (with Restore) · Migrate · Lifecycle                      |
+| **Release**         | Project · Metadata · Org compare · E2E tests (with the CLI app)  |
+| **Org**             | Users & access · Limits · Events · REST Explorer · Activity      |
+| **Settings**        | org, project, AI                                                 |
+
+A hub opens on the tab used last. **Side by side**: drag a hub from the sidebar, or a tab, to the right half of a pane to open it beside (up to three panes); drag it onto the left of a pane to open it there; drag the divider between panes to resize; **⧉** opens the same hub beside, **✕** closes a pane. The active pane is outlined; pages adapt to the width of their pane. The layout is remembered. **⌘/Ctrl + K** jumps to any tool (Enter opens it, Shift+Enter opens it beside). Links such as `#code` or `#query=…` (popup, VS Code) still open that tool. Small screens show one pane at a time.
+
 ## Features
 
 - **Settings** — **AI** (extension): connect your own AI without the CLI app — Anthropic Claude, OpenAI, Gemini, Mistral, Groq, OpenRouter (key or **Sign in with OpenRouter**), GitHub Models, Ollama on this computer, or any OpenAI-format endpoint (your model or a company gateway); choose the model, **Connect and test**, **Disconnect**. The key is kept in the extension's own storage (`chrome.storage.local`; websites cannot read it) and sent only to that provider; Chrome is asked for access to that provider's address only when you connect it. The ✦ buttons then use it: Query (Write SOQL), Execute Apex (Write Apex; Explain this error → Use the fixed code), REST Explorer (Build the request; Explain this response), Code (✦ Describe a new class → editable draft → Create this class; Explain, Review, Write test class → Create this test class; Explain compile errors → Use the fixed code), Debug Logs and Apex tests (Explain). AI only fills editors or shows text: nothing runs or saves until you press the usual button (with the usual org-name check); without it they use the CLI app's AI when that runs. **Org**: in the extension, every org you are logged in to in this browser (its own Salesforce login: no CLI, nothing stored), with name, type (production, developer, sandbox, scratch) and whether the login still works; **Use** switches the Studio, **Log in to … ↗** opens the Salesforce login to add one (it appears when you come back). The header becomes an org dropdown when there are several. In the app: the Salesforce CLI's orgs. **Project**: choose the Salesforce project once and every page uses it: the NomadSF app's own project (in the app), a folder on this computer (read-only, nothing uploaded) or any GitHub repository and branch. In the extension, also **Use the NomadSF CLI app on this computer** (off by default, so the extension never contacts it) and its port.
