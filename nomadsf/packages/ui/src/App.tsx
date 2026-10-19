@@ -23,6 +23,9 @@ import { EventsPage } from './pages/EventsPage';
 import { FieldUsagePage } from './pages/FieldUsagePage';
 import { LookupPage } from './pages/LookupPage';
 import { OrgComparePage } from './pages/OrgComparePage';
+import { BackupPage } from './pages/BackupPage';
+import { MigratePage } from './pages/MigratePage';
+import { useBackupRun, useBackupScheduler } from './backups';
 import { ProjectStateContext, useProjectState } from './project';
 
 const PAGES = [
@@ -38,6 +41,8 @@ const PAGES = [
   { id: 'access', label: 'Users & access', icon: '⚿' },
   { id: 'metadata', label: 'Metadata', icon: '◫' },
   { id: 'orgdiff', label: 'Org compare', icon: '⇋' },
+  { id: 'backup', label: 'Backup', icon: '⛁' },
+  { id: 'migrate', label: 'Migrate', icon: '⇶' },
   { id: 'fields', label: 'Field usage', icon: '▦' },
   { id: 'events', label: 'Events', icon: '⚡' },
   { id: 'limits', label: 'Org limits', icon: '▤' },
@@ -182,6 +187,17 @@ export function App() {
     client && org ? { hostKind: host.kind, client, org, facts, user, confirmRisky, confirmChange, logActivity } : null;
 
   const project = useProjectState(host.kind);
+
+  // Backups can run against any org of the list (scheduled ones too, from any page)
+  const clientFor = useCallback(
+    async (id: string): Promise<SalesforceClient> => {
+      if (client && org?.id === id) return client;
+      return host.client(orgs.find((o) => o.id === id) ?? { id, label: id });
+    },
+    [client, org, orgs]
+  );
+  useBackupScheduler(clientFor);
+  const backupRun = useBackupRun();
   // E2E tests and the Local app pages need the NomadSF CLI app; the extension hides them without it
   const needsLocal = (id: string): boolean => id === 'tests' || LOCAL.some((p) => p.id === id);
   const shownPages = PAGES.filter((p) => !needsLocal(p.id) || project.localAppReady);
@@ -220,6 +236,11 @@ export function App() {
             </span>
           )}
           <span className="grow" />
+          {backupRun && !backupRun.done && !backupRun.error && (
+            <button className="link backup-pill" onClick={() => setPage('backup')} title="Backup running">
+              ⛁ {backupRun.jobName} · {backupRun.index + 1}/{backupRun.total || '?'}
+            </button>
+          )}
           {host.kind === 'app' && (
             <a className="muted" href="/">
               ← NomadSF
@@ -297,6 +318,10 @@ export function App() {
                 {page === 'limits' && <LimitsPage />}
                 {page === 'rest' && <RestPage />}
                 {page === 'code' && <CodePage />}
+                {page === 'backup' && (
+                  <BackupPage orgs={orgs} clientFor={clientFor} onOpenMigrate={() => setPage('migrate')} />
+                )}
+                {page === 'migrate' && <MigratePage orgs={orgs} clientFor={clientFor} />}
                 {page === 'events' && <EventsPage />}
                 {page === 'fields' && <FieldUsagePage />}
                 {page === 'lookup' && <LookupPage />}

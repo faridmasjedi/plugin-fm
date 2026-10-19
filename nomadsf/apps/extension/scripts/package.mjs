@@ -41,7 +41,8 @@ const manifest = {
   icons,
   action: { default_popup: 'popup.html', default_title: 'NomadSF', default_icon: icons },
   background: { service_worker: 'background.js', type: 'module' },
-  permissions: ['cookies', 'activeTab', 'storage'],
+  // alarms: a badge when a scheduled backup is due
+  permissions: ['cookies', 'activeTab', 'storage', 'alarms'],
   // Asked for only when the person connects an AI: the provider's address, and the sign-in window
   optional_permissions: ['identity'],
   optional_host_permissions: ['https://*/*', 'http://localhost/*', 'http://127.0.0.1/*'],
