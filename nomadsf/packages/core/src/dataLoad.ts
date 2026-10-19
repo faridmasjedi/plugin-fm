@@ -19,7 +19,7 @@ export type SourceRow = Record<string, string>;
 // ---------- order ----------
 
 /** Lookups that are not data to copy: who created or changed it, and system links. */
-const SYSTEM_FIELDS = new Set([
+export const SYSTEM_FIELDS = new Set([
   'Id',
   'IsDeleted',
   'CreatedById',

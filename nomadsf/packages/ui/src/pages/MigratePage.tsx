@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   backupCandidates,
   backupStateAt,
+  completeParents,
   describeBoth,
   describeData,
   gatherRows,
   getUserInfo,
+  linkReport,
+  matchInTarget,
   orgMaps,
   planMigration,
   readIndex,
@@ -16,6 +19,7 @@ import {
   type BackupState,
   type DataField,
   type DataObject,
+  type LinkStatus,
   type LoadResult,
   type MaskRule,
   type MigrateObject,
@@ -81,6 +85,15 @@ export function MigratePage({
   const [plan, setPlan] = useState<MigratePlan>();
   const [maps, setMaps] = useState<OrgMaps>();
   const [keepIds, setKeepIds] = useState(false);
+  // Keeping every link: parents brought along, links to records already in the target
+  const [withParents, setWithParents] = useState(() => storage.get('migrate.parents', true));
+  const [matchRules, setMatchRules] = useState<Record<string, string>>({});
+  const [matchOptions, setMatchOptions] = useState<Record<string, string[]>>({});
+  const [matched, setMatched] = useState<Record<string, string>>({});
+  const [links, setLinks] = useState<LinkStatus[]>([]);
+  const [broughtParents, setBroughtParents] = useState<Record<string, number>>({});
+  // Id maps are kept per source org (whichever way it was chosen) and target
+  const [idsKey, setIdsKey] = useState('');
   const [rows, setRows] = useState<Record<string, SourceRow[]>>();
   const [result, setResult] = useState<LoadResult>();
   const [last, setLast] = useState<LastCopy>();
@@ -105,6 +118,11 @@ export function MigratePage({
     setPlan(undefined);
     setRows(undefined);
   }, [source, targetId, chosen, mask, overrides]);
+  // How links are kept changed: the plan stays visible but must be checked again before copying
+  const [stale, setStale] = useState(false);
+  useEffect(() => {
+    if (plan) setStale(true);
+  }, [withParents, matchRules]);
 
   // What can be copied: the source org's objects, or the objects of the backup
   useEffect(() => {
@@ -186,6 +204,13 @@ export function MigratePage({
     setChosen((list) => list.map((c) => (c.name === name ? { ...c, ...patch } : c)));
   const toggle = (name: string, on: boolean) =>
     setChosen((list) => (on ? [...list, { name, relatedOnly: list.length > 0 }] : list.filter((c) => c.name !== name)));
+  /** Adds an object whose records are copied only when other copied records point to them. */
+  const addReferenced = (name: string) =>
+    setChosen((list) =>
+      list.some((c) => c.name === name)
+        ? list.map((c) => (c.name === name ? { ...c, onlyReferenced: true, relatedOnly: false } : c))
+        : [...list, { name, onlyReferenced: true }]
+    );
 
   const openSettings = async (name: string) => {
     setOpen(open === name ? '' : name);
@@ -236,11 +261,58 @@ export function MigratePage({
         ? { kind: 'org', client: sourceClient }
         : { kind: 'backup', rows: state!.rows };
       const gathered = await gatherRows(rowSource, p, (object, n) => setStatus(`Records to copy: ${object} ${n}`));
+      // Key prefixes (001 = Account…) tell which object a polymorphic lookup points to
+      const prefixes = Object.fromEntries(
+        (
+          await targetClient.rest<{ sobjects: Array<{ name: string; keyPrefix?: string | null }> }>('GET', '/sobjects')
+        ).sobjects
+          .filter((o) => o.keyPrefix)
+          .map((o) => [o.keyPrefix!, o.name])
+      );
+      const added = withParents
+        ? await completeParents(rowSource, p, gathered, {
+            prefixes,
+            onProgress: (object, n) => setStatus(`Bringing the records they point to: ${object} +${n}`),
+          })
+        : {};
+      const sourceOrgId = sourceClient ? (await getUserInfo(sourceClient)).organizationId : state!.manifest.org.id;
+      const key = `migrate.ids.${sourceOrgId.slice(0, 15)}.${target.id}`;
+      const stored = (await bigStore.get<Record<string, string>>(key)) ?? {};
+      const rules = Object.entries(matchRules)
+        .filter(([, by]) => by && by !== 'none')
+        .map(([object, by]) => ({ object, by }));
+      if (rules.length) setStatus('Looking for the linked records in the target…');
+      const found = rules.length
+        ? await matchInTarget(rowSource, targetClient, p, gathered, rules, prefixes)
+        : { ids: {}, stats: {} };
+      const report = linkReport(p, gathered, { ...stored, ...found.ids }, prefixes);
+      // Fields to match records that are not copied: Name, external Ids, unique fields
+      const outside = [...new Set(report.filter((l) => !l.inCopy && !l.to.includes(' / ')).map((l) => l.to))];
+      const options: Record<string, string[]> = {};
+      for (const object of outside) {
+        // eslint-disable-next-line no-await-in-loop
+        const fieldsOf = await describeData(targetClient, object).catch(() => [] as DataField[]);
+        options[object] = fieldsOf
+          .filter((x) => (x.externalId || x.unique || x.name === 'Name') && x.type !== 'reference' && x.type !== 'id')
+          .map((x) => x.name);
+      }
+      setMatchOptions(options);
+      setMatched(found.ids);
+      setLinks(report);
+      setBroughtParents(added);
+      setIdsKey(key);
       setPlan(p);
+      setStale(false);
       setMaps(m);
       setRows(gathered);
       const total = Object.values(gathered).reduce((n, r) => n + r.length, 0);
-      setStatus(`${total.toLocaleString()} record(s) ready to copy. Check the plan below.`);
+      const lost = report.reduce((n, l) => n + l.empty, 0);
+      const brought = Object.values(added).reduce((n, x) => n + x, 0);
+      setStatus(
+        `${total.toLocaleString()} record(s) ready to copy${
+          brought ? ` (${brought} added because copied records point to them)` : ''
+        }. ${lost ? `⚠ ${lost} link(s) would be empty: see Links below.` : '✓ Every link between records is kept.'}`
+      );
     });
 
   const copy = () =>
@@ -254,20 +326,20 @@ export function MigratePage({
         }.${warn}\n\nType the target org name "${target.label}" to confirm:`
       );
       if (answer !== target.label) return;
-      const known = (await bigStore.get<Record<string, string>>(`migrate.ids.${sourceKey}.${target.id}`)) ?? {};
+      const known = { ...((await bigStore.get<Record<string, string>>(idsKey)) ?? {}), ...matched };
       const out = await runMigration(await clientFor(target.id), plan, rows, {
         maps,
         known,
         keepUnmapped: keepIds,
         onProgress: (s) => setStatus(`${s.object} (${s.index + 1}/${s.total}) · ${s.phase} · ${s.done}/${s.rows}`),
       });
-      await bigStore.set(`migrate.ids.${sourceKey}.${target.id}`, out.ids);
+      await bigStore.set(idsKey, out.ids);
       const created = out.objects.reduce((n, o) => n + o.created, 0);
       // Undo removes what a copy created; a copy that only updated keeps the earlier one
       if (created > 0) {
         const copyRecord: LastCopy = {
           at: new Date().toISOString(),
-          source: sourceKey,
+          source: idsKey,
           created: out.created,
           records: created,
         };
@@ -303,12 +375,10 @@ export function MigratePage({
       const out = await undoLoad(await clientFor(target.id), last.created, (o) => setStatus(`Deleting ${o}…`));
       await bigStore.remove(`migrate.last.${target.id}`);
       // Records deleted: the next copy creates them again
-      const ids = (await bigStore.get<Record<string, string>>(`migrate.ids.${last.source}.${target.id}`)) ?? {};
+      const key = last.source.startsWith('migrate.ids.') ? last.source : `migrate.ids.${last.source}.${target.id}`;
+      const ids = (await bigStore.get<Record<string, string>>(key)) ?? {};
       const gone = new Set(last.created.flatMap((c) => c.ids));
-      await bigStore.set(
-        `migrate.ids.${last.source}.${target.id}`,
-        Object.fromEntries(Object.entries(ids).filter(([, t]) => !gone.has(t)))
-      );
+      await bigStore.set(key, Object.fromEntries(Object.entries(ids).filter(([, t]) => !gone.has(t))));
       setLast(undefined);
       studio.logActivity('undo migrate', { target: target.label, deleted: out.deleted, failed: out.failed.length });
       setStatus(
@@ -330,9 +400,16 @@ export function MigratePage({
         masked: Object.entries(o.mask)
           .map(([f, r]) => `${f} (${r})`)
           .join(', '),
-        'related only': o.relatedOnly ? `yes (via ${o.links.map((l) => l.field).join(', ') || '—'})` : '',
+        'which records': o.onlyReferenced
+          ? 'pointed to by copied records'
+          : o.relatedOnly
+          ? `related (via ${o.links.map((l) => l.field).join(', ') || '—'})`
+          : o.where
+          ? 'condition'
+          : 'all',
+        added: broughtParents[o.name] ?? 0,
       })) ?? [],
-    [plan, rows]
+    [plan, rows, broughtParents]
   );
 
   return (
@@ -460,14 +537,27 @@ export function MigratePage({
           renderActions={(o) =>
             isChosen(o.name) && (
               <>
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(settingsOf(o.name).relatedOnly)}
-                    onChange={(e) => setSettings(o.name, { relatedOnly: e.target.checked })}
-                  />{' '}
-                  related only
-                </label>
+                <select
+                  className="records-choice"
+                  title="Which records of this object are copied"
+                  value={
+                    settingsOf(o.name).onlyReferenced
+                      ? 'referenced'
+                      : settingsOf(o.name).relatedOnly
+                      ? 'related'
+                      : 'all'
+                  }
+                  onChange={(e) =>
+                    setSettings(o.name, {
+                      relatedOnly: e.target.value === 'related',
+                      onlyReferenced: e.target.value === 'referenced',
+                    })
+                  }
+                >
+                  <option value="all">All{source.kind === 'org' ? ' (or condition)' : ''}</option>
+                  <option value="related">Related only</option>
+                  <option value="referenced">Only those pointed to</option>
+                </select>
                 <button className="link" onClick={() => void openSettings(o.name)}>
                   {open === o.name ? 'Close' : 'Settings'}
                 </button>
@@ -506,6 +596,20 @@ export function MigratePage({
             />{' '}
             Mask personal data (e-mails, phones, people's names, streets)
           </label>
+          <label
+            className="check"
+            title="A Case's Account, an Account's parent… are copied too, so every lookup between copied objects keeps its record"
+          >
+            <input
+              type="checkbox"
+              checked={withParents}
+              onChange={(e) => {
+                setWithParents(e.target.checked);
+                storage.set('migrate.parents', e.target.checked);
+              }}
+            />{' '}
+            Bring the records they point to (keeps every link)
+          </label>
           {sourceProduction && !mask && <span className="bad">Production data unmasked</span>}
           <span className="grow" />
           <button
@@ -516,7 +620,7 @@ export function MigratePage({
           </button>
           <button
             className={targetProduction ? 'danger' : 'primary'}
-            disabled={busy || !plan || !rows}
+            disabled={busy || !plan || !rows || stale}
             onClick={() => void copy()}
           >
             Copy{' '}
@@ -550,15 +654,97 @@ export function MigratePage({
                 record type(s) and {maps.queues.size} queue(s) matched by name.{' '}
                 {keepIds
                   ? 'The backup is of this org: lookups and owners outside the copy keep their Ids.'
-                  : 'Lookups to records outside the copy stay empty.'}
+                  : 'See Links below for every lookup between records.'}
               </p>
             )}
             <DataTable
-              columns={['step', 'object', 'records', 'fields', 'not in target', 'set after', 'masked', 'related only']}
+              columns={[
+                'step',
+                'object',
+                'records',
+                'which records',
+                'added',
+                'fields',
+                'not in target',
+                'set after',
+                'masked',
+              ]}
               rows={planRows}
               rowKey="object"
               name="migration-plan"
             />
+            {links.length > 0 && (
+              <div className="links-panel">
+                <h4>
+                  Links between records{' '}
+                  <span className={links.some((l) => l.empty) ? 'bad' : 'good'}>
+                    {links.reduce((n, l) => n + l.linked + l.matched, 0)} kept ·{' '}
+                    {links.reduce((n, l) => n + l.empty, 0)} would be empty
+                  </span>
+                </h4>
+                <table className="links-table">
+                  <thead>
+                    <tr>
+                      <th>Lookup</th>
+                      <th>Points to</th>
+                      <th>With a value</th>
+                      <th>To a copied record</th>
+                      <th>To a record in the target</th>
+                      <th>Empty</th>
+                      <th>Keep them by</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {links.map((l) => (
+                      <tr key={`${l.object}.${l.field}.${l.to}`} className={l.empty ? 'lost' : ''}>
+                        <td className="mono">
+                          {l.object}.{l.field}
+                        </td>
+                        <td>{l.to}</td>
+                        <td>{l.withValue}</td>
+                        <td>{l.linked}</td>
+                        <td>{l.matched}</td>
+                        <td>{l.empty || '—'}</td>
+                        <td>
+                          {!l.empty ? (
+                            <span className="good">✓ kept</span>
+                          ) : l.inCopy ? (
+                            withParents ? (
+                              <span className="muted">not in the source any more (deleted?)</span>
+                            ) : (
+                              <button className="link" onClick={() => setWithParents(true)}>
+                                Bring the records they point to
+                              </button>
+                            )
+                          ) : l.to.includes(' / ') ? (
+                            <span className="muted">copy the objects it points to</span>
+                          ) : (
+                            <span className="link-fix">
+                              <select
+                                value={matchRules[l.to] ?? 'none'}
+                                onChange={(e) => setMatchRules((x) => ({ ...x, [l.to]: e.target.value }))}
+                              >
+                                <option value="none">Leave empty</option>
+                                <option value="id">Same Id in the target</option>
+                                {(matchOptions[l.to] ?? []).map((field) => (
+                                  <option key={field} value={field}>
+                                    Same {field} in the target
+                                  </option>
+                                ))}
+                              </select>
+                              <button className="link" onClick={() => addReferenced(l.to)}>
+                                or copy these {l.to} records
+                              </button>
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {stale && <p className="bad">Changed how links are kept: press Check plan again before copying.</p>}
+              </div>
+            )}
             {plan.objects.some((o) => Object.keys(o.mask).length) && (
               <div className="form">
                 <span className="muted">Unmask a field:</span>

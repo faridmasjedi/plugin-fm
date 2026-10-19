@@ -5,8 +5,11 @@ import {
   baseUsername,
   defaultMasking,
   fieldPlan,
+  completeParents,
   gatherRows,
+  linkReport,
   loadOrder,
+  matchInTarget,
   loadRecords,
   maskValue,
   memorySink,
@@ -238,10 +241,18 @@ function fakeOrg(prefix: string, seed: Record<string, Array<Record<string, unkno
       if (soql.startsWith('SELECT Id, Username')) return json({ totalSize: 2, done: true, records: seed.User ?? [] });
       if (soql.includes('FROM RecordType')) return json({ totalSize: 0, done: true, records: seed.RecordType ?? [] });
       if (soql.includes("FROM Group WHERE Type = 'Queue'")) return json({ totalSize: 0, done: true, records: [] });
-      const ids = [...soql.matchAll(/'(\w+)'/g)].map((m) => m[1]);
       const fields = /SELECT (.+?) FROM/.exec(soql)![1].split(', ');
+      const type = /FROM (\w+)/.exec(soql)![1];
       const pool = soql.includes('IsDeleted = true') ? recycle : records;
-      const found = ids.map((id) => pool.get(id)).filter(Boolean) as Array<Record<string, unknown>>;
+      const byField = /(\w+) IN \((.*)\)/.exec(soql);
+      const values = byField
+        ? [...byField[2].matchAll(/'((?:[^'\\]|\\.)*)'/g)].map((m) => m[1].replace(/\\'/g, "'"))
+        : [];
+      const found = (
+        byField && byField[1] !== 'Id'
+          ? [...pool.values()].filter((r) => r.type === type && values.includes(String(r[byField[1]])))
+          : values.map((id) => pool.get(id)).filter(Boolean)
+      ) as Array<Record<string, unknown>>;
       return json({
         totalSize: found.length,
         done: true,
@@ -471,5 +482,125 @@ describe('restore', () => {
     expect(back.load!.objects[0]).toMatchObject({ created: 1 });
     const newId = back.load!.ids['001A00000000003'];
     expect(org.records.get(newId)).toMatchObject({ Name: 'Initech', Phone: '333' });
+  });
+});
+
+describe('keeping every link', () => {
+  const caseSchema = [
+    f('Id', 'id'),
+    f('Subject'),
+    ref('AccountId', ['Account']),
+    ref('ContactId', ['Contact']),
+    ref('ParentId', ['Case']),
+    ref('OwnerId', ['User', 'Group']),
+  ];
+  const acc = schemas.Account.filter((x) => x.name !== 'Primary_Contact__c');
+  const both = { Account: { source: acc, target: acc }, Case: { source: caseSchema, target: caseSchema } };
+  const backupRows = () => ({
+    Account: new Map([
+      ['001A00000000001AAA', { Id: '001A00000000001AAA', Name: 'Top', ParentId: '' }],
+      ['001A00000000002AAA', { Id: '001A00000000002AAA', Name: 'Mid', ParentId: '001A00000000001AAA' }],
+      ['001A00000000003AAA', { Id: '001A00000000003AAA', Name: 'Leaf', ParentId: '001A00000000002AAA' }],
+    ]),
+    Case: new Map([
+      [
+        '500A00000000001AAA',
+        {
+          Id: '500A00000000001AAA',
+          Subject: 'S1',
+          AccountId: '001A00000000003AAA',
+          ContactId: '003A00000000001AAA',
+          ParentId: '',
+        },
+      ],
+      [
+        '500A00000000002AAA',
+        {
+          Id: '500A00000000002AAA',
+          Subject: 'S2',
+          AccountId: '001A00000000009AAA',
+          ContactId: '',
+          ParentId: '500A00000000001AAA',
+        },
+      ],
+    ]),
+  });
+
+  it('reports lost links, then brings the parents along up the chain', async () => {
+    // Accounts filtered to none of these: every Case.AccountId would be lost
+    const plan = planMigration([{ name: 'Account', where: "Name = 'Other'" }, { name: 'Case' }], both, { mask: false });
+    const source = { kind: 'backup' as const, rows: backupRows() };
+    const rows = { Account: [] as Array<Record<string, string>>, Case: [...source.rows.Case.values()] };
+    const before = linkReport(plan, rows);
+    expect(before.find((l) => l.field === 'AccountId')).toMatchObject({
+      to: 'Account',
+      withValue: 2,
+      linked: 0,
+      empty: 2,
+      inCopy: true,
+    });
+    expect(before.find((l) => l.field === 'ContactId')).toMatchObject({ to: 'Contact', empty: 1, inCopy: false });
+    expect(before.find((l) => l.object === 'Case' && l.field === 'ParentId')).toMatchObject({ linked: 1 });
+
+    const added = await completeParents(source, plan, rows);
+    // Leaf, then Mid (Leaf's parent), then Top; 001…9 is not in the source
+    expect(added).toEqual({ Account: 3 });
+    const after = linkReport(plan, rows);
+    expect(after.find((l) => l.field === 'AccountId')).toMatchObject({ linked: 1, empty: 1 });
+    expect(after.find((l) => l.object === 'Account' && l.field === 'ParentId')).toMatchObject({
+      withValue: 2,
+      linked: 2,
+      empty: 0,
+    });
+
+    const target = fakeOrg('T');
+    const result = await runMigration(target.client, plan, rows, {
+      maps: { users: new Map(), recordTypes: new Map(), queues: new Map() },
+    });
+    const t = (id: string) => target.records.get(result.ids[id])!;
+    expect(t('500A00000000001AAA').AccountId).toBe(result.ids['001A00000000003AAA']);
+    expect(t('001A00000000003AAA').ParentId).toBe(result.ids['001A00000000002AAA']);
+    expect(t('500A00000000002AAA').ParentId).toBe(result.ids['500A00000000001AAA']);
+  });
+
+  it('links to records already in the target, by Id or by a field', async () => {
+    const plan = planMigration([{ name: 'Case' }], both, { mask: false });
+    const source = fakeOrg('S', {
+      Account: [
+        { Id: '001A00000000003AAA', Name: 'Leaf' },
+        { Id: '001A00000000009AAA', Name: "O'Brien Ltd" },
+      ],
+    });
+    const rows = { Case: [...backupRows().Case.values()] };
+    // Same Id: the target is a sandbox that already holds 001…3
+    const sameId = fakeOrg('T', { Account: [{ Id: '001A00000000003AAA', Name: 'Leaf' }] });
+    const byId = await matchInTarget({ kind: 'org', client: source.client }, sameId.client, plan, rows, [
+      { object: 'Account', by: 'id' },
+    ]);
+    expect(byId.ids).toEqual({ '001A00000000003AAA': '001A00000000003AAA' });
+    expect(byId.stats.Account).toEqual({ looked: 2, matched: 1, ambiguous: 0 });
+    // By Name: different Ids in the target
+    const other = fakeOrg('T', {
+      Account: [
+        { Id: '001T00000000001AAA', Name: 'Leaf' },
+        { Id: '001T00000000002AAA', Name: "O'Brien Ltd" },
+      ],
+    });
+    const byName = await matchInTarget({ kind: 'org', client: source.client }, other.client, plan, rows, [
+      { object: 'Account', by: 'Name' },
+    ]);
+    expect(byName.ids).toEqual({
+      '001A00000000003AAA': '001T00000000001AAA',
+      '001A00000000009AAA': '001T00000000002AAA',
+    });
+    expect(linkReport(plan, rows, byName.ids).find((l) => l.field === 'AccountId')).toMatchObject({
+      matched: 2,
+      empty: 0,
+    });
+    const result = await runMigration(other.client, plan, rows, {
+      maps: { users: new Map(), recordTypes: new Map(), queues: new Map() },
+      known: byName.ids,
+    });
+    expect(other.records.get(result.ids['500A00000000001AAA'])!.AccountId).toBe('001T00000000001AAA');
   });
 });

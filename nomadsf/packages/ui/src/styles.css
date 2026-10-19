@@ -1328,3 +1328,56 @@ table.org-list tr.current {
     display: none;
   }
 }
+
+/* Migrate: which records of an object, and the links between records */
+.records-choice {
+  font-size: 12px;
+  padding: 2px 4px;
+  max-width: 150px;
+}
+.links-panel {
+  margin-top: 12px;
+}
+.links-panel h4 .good,
+.links-panel h4 .bad {
+  font-weight: 500;
+  font-size: 12px;
+  margin-left: 8px;
+}
+.links-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.links-table th {
+  text-align: left;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 11.5px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.links-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.links-table tr:last-child td {
+  border-bottom: 0;
+}
+.links-table tr.lost td {
+  background: var(--bad-soft);
+}
+.link-fix {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.link-fix select {
+  font-size: 12px;
+}

@@ -13,7 +13,9 @@ import {
   type MaskRule,
   type OrgMaps,
   type SourceRow,
+  SYSTEM_FIELDS,
 } from './dataLoad.js';
+import { query } from './query.js';
 
 /**
  * Moving data between orgs (or from a backup into an org): which objects and records, which
@@ -29,6 +31,8 @@ export type MigrateObject = {
   fields?: FieldChoice;
   /** Only records whose lookups point to records of the objects loaded before it. */
   relatedOnly?: boolean;
+  /** Only the records other copied records point to (brought by completeParents). */
+  onlyReferenced?: boolean;
 };
 
 export type MigrateObjectPlan = {
@@ -40,6 +44,7 @@ export type MigrateObjectPlan = {
   /** Lookups to objects of the plan (for "related only" and the order). */
   links: Array<{ field: string; to: string }>;
   relatedOnly: boolean;
+  onlyReferenced: boolean;
   where?: string;
 };
 
@@ -78,7 +83,16 @@ export function planMigration(
       .flatMap((f) =>
         f.referenceTo.filter((to) => names.includes(to) && to !== name).map((to) => ({ field: f.name, to }))
       );
-    return { name, fields, read, mask, links, relatedOnly: Boolean(o.relatedOnly), where: o.where };
+    return {
+      name,
+      fields,
+      read,
+      mask,
+      links,
+      relatedOnly: Boolean(o.relatedOnly),
+      onlyReferenced: Boolean(o.onlyReferenced),
+      where: o.where,
+    };
   });
   return { order, deferred, objects, schemas, missingObjects };
 }
@@ -97,7 +111,9 @@ export async function gatherRows(
   for (const o of plan.objects) {
     const links = o.links.filter((l) => out[l.to]).map((l) => ({ field: l.field, ids: out[l.to].map((r) => r.Id) }));
     let rows: SourceRow[];
-    if (source.kind === 'org') {
+    if (o.onlyReferenced) {
+      rows = [];
+    } else if (source.kind === 'org') {
       /* eslint-disable no-await-in-loop */
       rows =
         o.relatedOnly && links.length
@@ -138,4 +154,275 @@ export async function runMigration(
     rows,
     options
   );
+}
+
+// ---------- keeping every link ----------
+
+/** Users, queues and record types are matched by name, not copied. */
+const MAPPED_BY_NAME = new Set(['User', 'Group', 'RecordType']);
+const ID = /^[a-zA-Z0-9]{15,18}$/;
+const k15 = (id: string): string => id.slice(0, 15);
+
+export type LookupLink = { object: string; field: string; to: string[] };
+
+/** The lookups copied with the records (to other records; users, queues and record types aside). */
+export function lookupsOf(plan: MigratePlan): LookupLink[] {
+  const out: LookupLink[] = [];
+  for (const o of plan.objects) {
+    for (const f of plan.schemas[o.name].source) {
+      if (f.type !== 'reference' || SYSTEM_FIELDS.has(f.name) || !o.fields.write.includes(f.name)) continue;
+      const to = f.referenceTo.filter((t) => !MAPPED_BY_NAME.has(t));
+      if (to.length) out.push({ object: o.name, field: f.name, to });
+    }
+  }
+  return out;
+}
+
+/** Which object an Id belongs to: the only target of the lookup, else by its key prefix. */
+function objectOf(id: string, to: string[], prefixes: Map<string, string>): string | undefined {
+  if (to.length === 1) return to[0];
+  const byPrefix = prefixes.get(id.slice(0, 3));
+  return byPrefix && to.includes(byPrefix) ? byPrefix : undefined;
+}
+
+function prefixMap(
+  plan: MigratePlan,
+  rows: Record<string, SourceRow[]>,
+  known?: Record<string, string>
+): Map<string, string> {
+  const map = new Map(Object.entries(known ?? {}));
+  for (const o of plan.order) {
+    const first = rows[o]?.[0]?.Id;
+    if (first && !map.has(first.slice(0, 3))) map.set(first.slice(0, 3), o);
+  }
+  return map;
+}
+
+const asRow = (r: Record<string, unknown>): SourceRow =>
+  Object.fromEntries(
+    Object.entries(r)
+      .filter(([k]) => k !== 'attributes')
+      .map(([k, v]) => [k, v === null || v === undefined ? '' : String(v)])
+  );
+
+/** Records of an object by Id: from the backup, or the org (200 Ids per query). */
+async function rowsById(source: RowSource, object: string, fields: string[], ids: string[]): Promise<SourceRow[]> {
+  if (source.kind === 'backup') {
+    const all = source.rows[object];
+    if (!all) return [];
+    const by15 = new Map([...all.values()].map((r) => [k15(r.Id), r]));
+    return ids.map((id) => all.get(id) ?? by15.get(k15(id))).filter((r): r is SourceRow => Boolean(r));
+  }
+  const out: SourceRow[] = [];
+  const valid = ids.filter((id) => ID.test(id));
+  for (let i = 0; i < valid.length; i += 200) {
+    const list = valid
+      .slice(i, i + 200)
+      .map((id) => `'${id}'`)
+      .join(',');
+    // eslint-disable-next-line no-await-in-loop
+    const result = await query(source.client, `SELECT ${fields.join(', ')} FROM ${object} WHERE Id IN (${list})`, {
+      maxRows: 200,
+    });
+    out.push(...result.rows.map(asRow));
+  }
+  return out;
+}
+
+/**
+ * Adds the records the chosen ones point to (Case -> its Account, Account -> its parent
+ * Account…), up the whole chain, so no lookup between copied objects ends up empty.
+ */
+export async function completeParents(
+  source: RowSource,
+  plan: MigratePlan,
+  rows: Record<string, SourceRow[]>,
+  options: { prefixes?: Record<string, string>; onProgress?: (object: string, added: number) => void } = {}
+): Promise<Record<string, number>> {
+  const inPlan = new Set(plan.order);
+  const links = lookupsOf(plan);
+  const prefixes = prefixMap(plan, rows, options.prefixes);
+  const added: Record<string, number> = {};
+  for (let round = 0; round < 10; round++) {
+    const have = new Map(plan.order.map((o) => [o, new Set((rows[o] ?? []).map((r) => k15(r.Id)))]));
+    const want = new Map<string, Set<string>>();
+    for (const link of links) {
+      for (const r of rows[link.object] ?? []) {
+        const value = r[link.field];
+        if (!value || !ID.test(value)) continue;
+        const object = objectOf(
+          value,
+          link.to.filter((t) => inPlan.has(t)),
+          prefixes
+        );
+        if (!object || have.get(object)!.has(k15(value))) continue;
+        if (!want.has(object)) want.set(object, new Set());
+        want.get(object)!.add(value);
+      }
+    }
+    if (!want.size) break;
+    let fetched = 0;
+    for (const [object, ids] of want) {
+      const read = plan.objects.find((o) => o.name === object)!.read;
+      /* eslint-disable no-await-in-loop */
+      const more = await rowsById(source, object, read, [...ids]);
+      /* eslint-enable no-await-in-loop */
+      rows[object] = [...(rows[object] ?? []), ...more];
+      added[object] = (added[object] ?? 0) + more.length;
+      fetched += more.length;
+      options.onProgress?.(object, added[object]);
+    }
+    // Ids that are not in the source any more (deleted) cannot be brought
+    if (!fetched) break;
+  }
+  return added;
+}
+
+export type LinkStatus = {
+  object: string;
+  field: string;
+  /** The object the lookup points to. */
+  to: string;
+  /** Records with a value in this lookup. */
+  withValue: number;
+  /** Will point to a record of the copy. */
+  linked: number;
+  /** Will point to a record already in the target (an earlier copy, or matched). */
+  matched: number;
+  /** Will be empty: the record is not in the copy (its object is), or its object is not copied. */
+  empty: number;
+  /** The object pointed to is part of the copy. */
+  inCopy: boolean;
+};
+
+/** For every lookup: how many records keep their link, before anything is copied. */
+export function linkReport(
+  plan: MigratePlan,
+  rows: Record<string, SourceRow[]>,
+  known: Record<string, string> = {},
+  prefixes?: Record<string, string>
+): LinkStatus[] {
+  const inPlan = new Set(plan.order);
+  const map = prefixMap(plan, rows, prefixes);
+  const have = new Map(plan.order.map((o) => [o, new Set((rows[o] ?? []).map((r) => k15(r.Id)))]));
+  const knownBy15 = new Set(Object.keys(known).map(k15));
+  const out = new Map<string, LinkStatus>();
+  for (const link of lookupsOf(plan)) {
+    for (const r of rows[link.object] ?? []) {
+      const value = r[link.field];
+      if (!value || !ID.test(value)) continue;
+      const to = objectOf(value, link.to, map) ?? link.to.join(' / ');
+      const key = `${link.object}.${link.field}.${to}`;
+      const status = out.get(key) ?? {
+        object: link.object,
+        field: link.field,
+        to,
+        withValue: 0,
+        linked: 0,
+        matched: 0,
+        empty: 0,
+        inCopy: inPlan.has(to),
+      };
+      out.set(key, status);
+      status.withValue++;
+      if (have.get(to)?.has(k15(value))) status.linked++;
+      else if (knownBy15.has(k15(value))) status.matched++;
+      else status.empty++;
+    }
+  }
+  return [...out.values()];
+}
+
+export type MatchRule = { object: string; by: 'id' | string };
+export type MatchResult = {
+  ids: Record<string, string>;
+  stats: Record<string, { looked: number; matched: number; ambiguous: number }>;
+};
+
+const soqlText = (v: string): string => `'${v.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+
+/**
+ * Links to records that are not copied but already exist in the target: the same Id (a sandbox
+ * refreshed from the same production keeps the Ids of records that existed then), or the same
+ * value of a field (Name, an external Id…). Returns source Id -> target Id.
+ */
+export async function matchInTarget(
+  source: RowSource,
+  target: SalesforceClient,
+  plan: MigratePlan,
+  rows: Record<string, SourceRow[]>,
+  rules: MatchRule[],
+  prefixes?: Record<string, string>
+): Promise<MatchResult> {
+  const map = prefixMap(plan, rows, prefixes);
+  const inPlan = new Set(plan.order);
+  const ids: Record<string, string> = {};
+  const stats: MatchResult['stats'] = {};
+  for (const rule of rules) {
+    if (!/^\w+$/.test(rule.object) || (rule.by !== 'id' && !/^\w+$/.test(rule.by)))
+      throw new Error('Invalid match rule.');
+    const have = new Set((rows[rule.object] ?? []).map((r) => k15(r.Id)));
+    const wanted = new Set<string>();
+    for (const link of lookupsOf(plan)) {
+      if (!link.to.includes(rule.object)) continue;
+      for (const r of rows[link.object] ?? []) {
+        const value = r[link.field];
+        if (
+          value &&
+          ID.test(value) &&
+          objectOf(value, link.to, map) === rule.object &&
+          !(inPlan.has(rule.object) && have.has(k15(value)))
+        )
+          wanted.add(value);
+      }
+    }
+    const list = [...wanted];
+    const stat = { looked: list.length, matched: 0, ambiguous: 0 };
+    stats[rule.object] = stat;
+    for (let i = 0; i < list.length; i += 200) {
+      const chunk = list.slice(i, i + 200);
+      /* eslint-disable no-await-in-loop */
+      if (rule.by === 'id') {
+        const found = await query(
+          target,
+          `SELECT Id FROM ${rule.object} WHERE Id IN (${chunk.map((id) => `'${id}'`).join(',')})`,
+          { maxRows: 200 }
+        );
+        const exists = new Map(found.rows.map((r) => [k15(String(r.Id)), String(r.Id)]));
+        for (const id of chunk) {
+          const t = exists.get(k15(id));
+          if (t) {
+            ids[id] = t;
+            stat.matched++;
+          }
+        }
+      } else {
+        // The field's value in the source, then the record with that value in the target
+        const sourceRows = await rowsById(source, rule.object, ['Id', rule.by], chunk);
+        const values = new Map(sourceRows.filter((r) => r[rule.by]).map((r) => [k15(r.Id), r[rule.by]]));
+        const distinct = [...new Set(values.values())];
+        if (!distinct.length) continue;
+        const found = await query(
+          target,
+          `SELECT Id, ${rule.by} FROM ${rule.object} WHERE ${rule.by} IN (${distinct.map(soqlText).join(',')})`,
+          { maxRows: 50_000 }
+        );
+        const byValue = new Map<string, string[]>();
+        for (const r of found.rows) {
+          const v = String(r[rule.by] ?? '');
+          byValue.set(v, [...(byValue.get(v) ?? []), String(r.Id)]);
+        }
+        for (const id of chunk) {
+          const v = values.get(k15(id));
+          const hits = v === undefined ? [] : byValue.get(v) ?? [];
+          if (hits.length === 1) {
+            ids[id] = hits[0];
+            stat.matched++;
+          } else if (hits.length > 1) stat.ambiguous++;
+        }
+      }
+      /* eslint-enable no-await-in-loop */
+    }
+  }
+  return { ids, stats };
 }
