@@ -34,7 +34,7 @@ export function RestPage() {
   const [aiNote, setAiNote] = useState('');
 
   const send = async (target = path, verb = method) => {
-    if (verb !== 'GET' && !studio.confirmChange(`${verb} ${target}`)) return;
+    if (verb !== 'GET' && !(await studio.confirmChange(`${verb} ${target}`))) return;
     setRunning(true);
     storage.set('rest.path', target);
     const result = await restExplorer(studio.client, { method: verb, path: target, body });

@@ -46,6 +46,7 @@ import {
   useBackupRun,
   type JobRecord,
 } from '../backups';
+import { askConfirm } from '../components/Dialogs';
 
 const SCOPES: Array<{ id: BackupScope; label: string }> = [
   { id: 'picked', label: 'Objects I pick' },
@@ -282,8 +283,8 @@ export function BackupPage({
       return { ...d, scope: 'picked', exclude: [], objects: merged.sort((a, b) => a.name.localeCompare(b.name)) };
     });
 
-  const switchJob = (job: JobRecord) => {
-    if (dirty && !confirm('Discard unsaved changes to this backup?')) return;
+  const switchJob = async (job: JobRecord) => {
+    if (dirty && !(await askConfirm('Discard unsaved changes to this backup?', { ok: 'Discard' }))) return;
     setDraft(job);
     setSaved(JSON.stringify(job));
     setOpen('');
@@ -370,8 +371,14 @@ export function BackupPage({
               {jobs.some((j) => j.id === draft.id) && (
                 <button
                   className="danger"
-                  onClick={() => {
-                    if (!confirm(`Delete the backup job "${draft.name}"? Backups already in the folder stay.`)) return;
+                  onClick={async () => {
+                    if (
+                      !(await askConfirm(`Delete the backup job "${draft.name}"? Backups already in the folder stay.`, {
+                        ok: 'Delete',
+                        danger: true,
+                      }))
+                    )
+                      return;
                     backupJobs.remove(draft.id);
                     const rest = backupJobs.list();
                     setJobs(rest);

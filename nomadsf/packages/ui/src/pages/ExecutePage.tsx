@@ -70,7 +70,7 @@ export function ExecutePage() {
         selectionOnly && selection && !selection.isEmpty()
           ? editor?.getModel()?.getValueInRange(selection) ?? code
           : code;
-      if (!source.trim() || !confirmRisky('Run anonymous Apex')) return;
+      if (!source.trim() || !(await confirmRisky('Run anonymous Apex'))) return;
       setRunning(true);
       setError('');
       const model = editor?.getModel();

@@ -12,6 +12,7 @@ import {
 import { DataTable } from '../components/DataTable';
 import { LogViewer } from '../components/LogViewer';
 import { storage, useStudio } from '../context';
+import { askConfirm } from '../components/Dialogs';
 
 const fmtTime = (iso: string): string =>
   new Date(iso).toLocaleString([], {
@@ -79,10 +80,10 @@ export function LogsPage() {
     }
   };
 
-  const traceOn = (minutes: number) =>
-    user &&
-    confirmRisky(`Turn on debug logs for ${user.userName}`) &&
+  const traceOn = async (minutes: number) => {
+    if (!user || !(await confirmRisky(`Turn on debug logs for ${user.userName}`))) return;
     void act(() => ensureTraceFlag(client, user.userId, minutes));
+  };
 
   return (
     <div className="page">
@@ -99,8 +100,8 @@ export function LogsPage() {
         <button
           className="danger"
           disabled={busy || logs.length === 0}
-          onClick={() =>
-            confirm(`Delete ${logs.length} log(s)?`) &&
+          onClick={async () =>
+            (await askConfirm(`Delete ${logs.length} log(s)?`, { ok: 'Delete', danger: true })) &&
             void act(() =>
               deleteLogs(
                 client,

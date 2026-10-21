@@ -180,7 +180,9 @@ export function RestorePanel({
         records.set(r.Id, { ...(records.get(r.Id) ?? {}), [r.field]: r.backup });
       }
       const recordCount = [...byObject.values()].reduce((n, m) => n + m.size, 0);
-      if (!studio.confirmChange(`Put back ${picked.length} value(s) on ${recordCount} record(s) from the backup`))
+      if (
+        !(await studio.confirmChange(`Put back ${picked.length} value(s) on ${recordCount} record(s) from the backup`))
+      )
         return;
       let updated = 0;
       const failures: Array<{ id: string; error: string }> = [];
@@ -227,7 +229,11 @@ export function RestorePanel({
       ]
         .filter(Boolean)
         .join('; ');
-      if (!studio.confirmChange(`Bring back ${count} deleted record(s) from the backup${extra ? ` (${extra})` : ''}`))
+      if (
+        !(await studio.confirmChange(
+          `Bring back ${count} deleted record(s) from the backup${extra ? ` (${extra})` : ''}`
+        ))
+      )
         return;
       const result = await restoreRecords(studio.client, state, picked, {
         withParents,
@@ -293,9 +299,9 @@ export function RestorePanel({
   const removeFields = () =>
     act('', async () => {
       if (
-        !studio.confirmChange(
+        !(await studio.confirmChange(
           `Remove ${OLD_ID_FIELD} from ${fieldsUsed.join(', ')} and the permission set NomadSF_Old_Ids`
-        )
+        ))
       )
         return;
       const status = await oldIdFieldStatus(studio.client, fieldsUsed);

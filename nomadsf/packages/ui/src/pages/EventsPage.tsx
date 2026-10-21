@@ -64,7 +64,7 @@ export function EventsPage() {
       setStatus('❌ The event fields must be JSON.');
       return;
     }
-    if (!studio.confirmChange(`Publish ${eventName} to ${studio.org.label}`)) return;
+    if (!(await studio.confirmChange(`Publish ${eventName} to ${studio.org.label}`))) return;
     try {
       const id = await publishEvent(client, eventName, fields);
       studio.logActivity('publish event', { event: eventName, id });

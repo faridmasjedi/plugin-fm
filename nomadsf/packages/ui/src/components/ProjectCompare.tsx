@@ -211,9 +211,9 @@ export function ProjectCompare({
 
   const restore = async () => {
     if (
-      !studio.confirmChange(
+      !(await studio.confirmChange(
         `Restore ${onlyOrg.length} component(s) from ${studio.org.label} into the project on this computer`
-      )
+      ))
     )
       return;
     setBusy(true);
@@ -265,9 +265,9 @@ export function ProjectCompare({
       ? 'DELETE'
       : 'Deploy';
     if (
-      !studio.confirmChange(
+      !(await studio.confirmChange(
         `${verb} ${items.length} component(s) ${action === 'delete' ? 'from' : 'to'} ${studio.org.label} (${level})`
-      )
+      ))
     )
       return;
     setBusy(true);
@@ -337,7 +337,7 @@ export function ProjectCompare({
 
   const runQuickDeploy = async () => {
     if (!outcome) return;
-    if (!studio.confirmChange(`Quick deploy validation ${outcome.id} to ${studio.org.label}`)) return;
+    if (!(await studio.confirmChange(`Quick deploy validation ${outcome.id} to ${studio.org.label}`))) return;
     setBusy(true);
     setStatus('Quick deploy…');
     try {

@@ -180,14 +180,14 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
       'package'
     );
 
-  const deploy = () => {
+  const deploy = async () => {
     if (!pkg || !clients.target || !target) return;
     if (
       !checkOnly &&
-      !studio.confirmChange(`Deploy ${pkg.components} component(s) from ${source?.label} to ${target.label}`)
+      !(await studio.confirmChange(`Deploy ${pkg.components} component(s) from ${source?.label} to ${target.label}`))
     )
       return;
-    if (checkOnly && production && !studio.confirmRisky(`Validate a package against ${target.label}`)) return;
+    if (checkOnly && production && !(await studio.confirmRisky(`Validate a package against ${target.label}`))) return;
     void run(
       checkOnly ? 'Validating…' : 'Deploying…',
       async () => {
@@ -209,9 +209,9 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
     );
   };
 
-  const quick = () => {
+  const quick = async () => {
     if (!outcome || !clients.target || !target) return;
-    if (!studio.confirmChange(`Quick deploy validation ${outcome.id} to ${target.label}`)) return;
+    if (!(await studio.confirmChange(`Quick deploy validation ${outcome.id} to ${target.label}`))) return;
     void run(
       'Quick deploy…',
       async () => {

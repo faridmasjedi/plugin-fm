@@ -28,6 +28,7 @@ import { ProjectCodeView, shownPair } from '../components/ProjectCodeView';
 import { storage, useStudio } from '../context';
 import { monaco } from '../monaco';
 import { useProject } from '../project';
+import { askConfirm, askText } from '../components/Dialogs';
 
 const KINDS: Array<{ id: CodeKind; label: string; one: string }> = [
   { id: 'ApexClass', label: 'Classes', one: 'Apex class' },
@@ -115,8 +116,8 @@ export function CodePage() {
 
   const dirty = files.filter((f) => drafts[f.id] !== undefined && drafts[f.id] !== f.source);
 
-  const switchKind = (next: CodeKind) => {
-    if (next === kind || (dirty.length && !confirm('Discard unsaved changes?'))) return;
+  const switchKind = async (next: CodeKind) => {
+    if (next === kind || (dirty.length && !(await askConfirm('Discard unsaved changes?', { ok: 'Discard' })))) return;
     setKind(next);
     setItem(null);
     setFiles([]);
@@ -129,7 +130,7 @@ export function CodePage() {
 
   /** Opens a component from the org, its project version too when the project has it. */
   const openItem = async (next: CodeItem, prefer?: View) => {
-    if (dirty.length && !confirm('Discard unsaved changes?')) return;
+    if (dirty.length && !(await askConfirm('Discard unsaved changes?', { ok: 'Discard' }))) return;
     setStatus(`Opening ${next.name}…`);
     try {
       const inOrg = next.id !== projectOnlyId(next.name);
@@ -200,7 +201,7 @@ export function CodePage() {
     if (!item) return;
     const file = files[0];
     const body = drafts[file.id] ?? file.source;
-    if (!checkOnly && !studio.confirmChange(`Save ${item.name} to ${studio.org.label}`)) return;
+    if (!checkOnly && !(await studio.confirmChange(`Save ${item.name} to ${studio.org.label}`))) return;
     setBusy(true);
     setStatus(checkOnly ? 'Compiling…' : 'Saving…');
     try {
@@ -228,7 +229,7 @@ export function CodePage() {
 
   const saveBundle = async () => {
     if (!item || !dirty.length) return;
-    if (!studio.confirmChange(`Save ${dirty.length} file(s) of ${item.name} to ${studio.org.label}`)) return;
+    if (!(await studio.confirmChange(`Save ${dirty.length} file(s) of ${item.name} to ${studio.org.label}`))) return;
     setBusy(true);
     setStatus('Saving…');
     try {
@@ -253,16 +254,18 @@ export function CodePage() {
   /** Creates a new item of the current kind from a starter template and opens it. */
   const createNew = async () => {
     const info = kindInfo(kind);
-    const name = prompt(
-      kind === 'LWC' ? `Name of the new ${info.one} (camelCase, e.g. accountCard):` : `Name of the new ${info.one}:`
+    const name = (
+      await askText(
+        kind === 'LWC' ? `Name of the new ${info.one} (camelCase, e.g. accountCard):` : `Name of the new ${info.one}:`
+      )
     )?.trim();
     if (!name) return;
     let sobject: string | undefined;
     if (kind === 'ApexTrigger') {
-      sobject = prompt(`Object the trigger ${name} runs on (API name, e.g. Account or Invoice__c):`)?.trim();
+      sobject = (await askText(`Object the trigger ${name} runs on (API name, e.g. Account or Invoice__c):`))?.trim();
       if (!sobject) return;
     }
-    if (!studio.confirmChange(`Create the ${info.one} ${name} in ${studio.org.label}`)) return;
+    if (!(await studio.confirmChange(`Create the ${info.one} ${name} in ${studio.org.label}`))) return;
     setStatus(`Creating ${name}…`);
     try {
       const created = await createCode(client, { kind, name, sobject });
@@ -281,7 +284,7 @@ export function CodePage() {
   /** Creates a class the AI wrote (asks first, like every change). */
   const createAiClass = async (body: string) => {
     const name = /\bclass\s+(\w+)/i.exec(body)?.[1] ?? 'the test class';
-    if (!studio.confirmChange(`Create the Apex class ${name} (written by AI) in ${studio.org.label}`)) return;
+    if (!(await studio.confirmChange(`Create the Apex class ${name} (written by AI) in ${studio.org.label}`))) return;
     setStatus(`Creating ${name}…`);
     try {
       const id = await createApexClass(client, body);
@@ -335,7 +338,8 @@ export function CodePage() {
   /** Deploys the component from the project (new components, or bundles with new files). */
   const deployFromProject = async () => {
     if (!item || !source || !project.info) return;
-    if (!studio.confirmChange(`Deploy ${item.name} from the project (${projectLabel}) to ${studio.org.label}`)) return;
+    if (!(await studio.confirmChange(`Deploy ${item.name} from the project (${projectLabel}) to ${studio.org.label}`)))
+      return;
     setBusy(true);
     setProblems([]);
     setStatus(`Deploying ${item.name} from the project…`);

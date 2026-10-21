@@ -27,6 +27,7 @@ import { BackupPage } from './pages/BackupPage';
 import { MigratePage } from './pages/MigratePage';
 import { LifecyclePage } from './pages/LifecyclePage';
 import { useLifecycleRun, useLifecycleScheduler } from './lifecycle';
+import { askConfirm, askTyped } from './components/Dialogs';
 import { useBackupRun, useBackupScheduler } from './backups';
 import { ProjectStateContext, useProjectState } from './project';
 import { HubNav, Panes, QuickJump, isTool, useWorkspace, type ToolId } from './workspace';
@@ -140,14 +141,18 @@ export function App() {
 
   const production = facts ? !facts.isSandbox : org?.type === 'Production' || org?.type === 'Dev Hub';
   const confirmRisky = useCallback(
-    (what: string) =>
-      !production || confirm(`${what} in ${org?.label} — a PRODUCTION org (${facts?.name ?? ''}).\n\nContinue?`),
+    async (what: string) =>
+      !production ||
+      askConfirm(`${what} in ${org?.label} — a PRODUCTION org (${facts?.name ?? ''}).`, {
+        ok: 'Continue',
+        danger: true,
+      }),
     [production, org, facts]
   );
   const confirmChange = useCallback(
-    (what: string) => {
+    async (what: string) => {
       const warn = production ? `\n\n⚠ ${org?.label} is a PRODUCTION org.` : '';
-      return prompt(`${what}${warn}\n\nType the org name "${org?.label}" to confirm:`) === org?.label;
+      return Boolean(org) && askTyped(`${what}${warn}`, org!.label, { ok: 'Confirm', danger: production });
     },
     [production, org]
   );
