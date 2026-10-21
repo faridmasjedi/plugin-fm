@@ -46,8 +46,13 @@ jobs:
             elif echo "$LOG" | grep -qE '^feat(\([^)]*\))?:'; then BUMP=minor
             else BUMP=patch; fi
           fi
-          BASE=${LAST#v}; BASE=${BASE:-0.0.0}
-          NEXT=$(node -e "const [a,b,c]=process.argv[1].split('.').map(Number);const k=process.argv[2];console.log(k==='major'?\`\${a+1}.0.0\`:k==='minor'?\`\${a}.\${b+1}.0\`:\`\${a}.\${b}.\${c+1}\`)" "$BASE" "$BUMP")
+          BASE=${LAST#v}
+          if [ -z "$LAST" ]; then
+            # No release yet: the first one is 1.0.0 (unless a bump was chosen by hand)
+            [ "${{ inputs.bump || 'auto' }}" = auto ] && BUMP=first
+            BASE=0.0.0
+          fi
+          NEXT=$(node -e "const [a,b,c]=process.argv[1].split('.').map(Number);const k=process.argv[2];console.log(k==='first'?'1.0.0':k==='major'?\`\${a+1}.0.0\`:k==='minor'?\`\${a}.\${b+1}.0\`:\`\${a}.\${b}.\${c+1}\`)" "$BASE" "$BUMP")
           echo "Last release ${LAST:-none}, $BUMP → v$NEXT"
           echo "last=$LAST" >> "$GITHUB_OUTPUT"
           echo "version=$NEXT" >> "$GITHUB_OUTPUT"

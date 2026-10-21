@@ -1,21 +1,41 @@
 {
   "name": "nomadsf-vscode",
   "displayName": "NomadSF",
-  "description": "NomadSF in VS Code: Salesforce Inspector + Developer Console (Studio), release runs, runbooks and AI help for the workspace's Salesforce project.",
-  "version": "0.1.0",
+  "description": "NomadSF Studio in VS Code: Execute Apex, SOQL, code, debug logs, metadata, org compare, data backup and migration for your Salesforce DX project — with the Salesforce CLI's login.",
+  "version": "1.0.0",
   "publisher": "nomadsf",
   "private": true,
-  "license": "BSD-3-Clause",
+  "license": "Apache-2.0",
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#0f1216",
+    "theme": "dark"
+  },
+  "homepage": "https://faridmasjedi.github.io/plugin-fm/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/faridmasjedi/plugin-fm",
+    "directory": "nomadsf/apps/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/faridmasjedi/plugin-fm/issues"
+  },
   "engines": {
     "vscode": "^1.95.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Testing"
   ],
   "keywords": [
     "salesforce",
     "soql",
     "apex",
+    "lwc",
+    "sfdx",
+    "developer console",
+    "inspector",
+    "backup",
     "devops"
   ],
   "main": "./dist/extension.js",
@@ -93,7 +113,7 @@
   "scripts": {
     "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --outfile=dist/extension.js",
     "typecheck": "tsc -p .",
-    "package": "yarn build && npx --yes @vscode/vsce@3.2.1 package --no-dependencies --allow-missing-repository --skip-license -o nomadsf-vscode.vsix",
+    "package": "yarn build && cp ../../../LICENSE.txt LICENSE.txt && npx --yes @vscode/vsce@3.2.1 package --no-dependencies -o nomadsf-vscode.vsix",
     "test": "vitest run"
   },
   "devDependencies": {

@@ -3,8 +3,8 @@ name: Release
 # Runs when a release is published (publish the draft that "Release draft" keeps up to date).
 # Three steps, each waiting for approval in the "release" environment (Actions → this run →
 # Review deployments); a repository admin can bypass. Nothing is pushed to main: the
-# version comes from the release tag. If the tests or the files fail, the release goes back
-# to a draft.
+# release tag sets one version for the plugin, the browser extension and VS Code
+# (scripts/set-version.mjs). If the tests or the files fail, the release goes back to a draft.
 on:
   release:
     types: [published]
@@ -31,7 +31,8 @@ jobs:
         with:
           node-version: 22
           cache: yarn
-      - run: npm version "${TAG#v}" --no-git-tag-version --allow-same-version --ignore-scripts
+      - name: One version for the plugin and both extensions
+        run: node scripts/set-version.mjs "$TAG"
       - run: yarn install --frozen-lockfile
       - run: yarn build
       - run: yarn test
@@ -52,7 +53,8 @@ jobs:
         with:
           node-version: 22
           cache: yarn
-      - run: npm version "${TAG#v}" --no-git-tag-version --allow-same-version --ignore-scripts
+      - name: One version for the plugin and both extensions
+        run: node scripts/set-version.mjs "$TAG"
       - run: yarn install --frozen-lockfile
       - run: yarn build
       # NomadSF Studio goes into the plugin (dashboard/studio) and the browser extension zip
@@ -62,7 +64,7 @@ jobs:
       - name: Attach to the release
         run: |
           npm pack
-          gh release upload "$TAG" *.tgz nomadsf/apps/extension/nomadsf-extension-*.zip nomadsf/apps/vscode/nomadsf-vscode.vsix --clobber
+          gh release upload "$TAG" *.tgz nomadsf/apps/extension/nomadsf-extension.zip nomadsf/apps/vscode/nomadsf-vscode.vsix --clobber
 
   docker:
     name: 3. Docker image

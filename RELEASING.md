@@ -12,7 +12,7 @@ Local hooks (husky) run lint on commit and the full build + tests on push. They 
 
 ## Making a release
 
-1. **Merge pull requests into `main`.** After each merge, _Release draft_ updates the draft release: the version comes from the commit titles since the last published release — `feat:` → minor, a `!` (e.g. `feat!:`) or `BREAKING CHANGE` → major, anything else → patch — and the notes list the merged pull requests. To choose the version yourself: Actions → _Release draft_ → Run workflow → patch / minor / major.
+1. **Merge pull requests into `main`.** After each merge, _Release draft_ updates the draft release. The first release is **v1.0.0**; after that the version comes from the commit titles since the last published release — `feat:` → minor, a `!` (e.g. `feat!:`) or `BREAKING CHANGE` → major, anything else → patch — and the notes list the merged pull requests. To choose the version yourself: Actions → _Release draft_ → Run workflow → patch / minor / major.
 2. **Publish the draft**: Releases → the draft → Edit → **Publish release**. This creates the tag `vX.Y.Z` on the commit the draft points to.
 3. **Approve each step** of the _Release_ run (Actions → the run → **Review deployments** → `release` → Approve):
 
@@ -22,7 +22,9 @@ Local hooks (husky) run lint on commit and the full build + tests on push. They 
 
    As a repository admin you can also choose **bypass** instead of approving. If the tests or the files fail, the release goes back to a draft.
 
-Nothing is pushed to `main` by a release: the version is set from the tag while building (`package.json` on `main` is not bumped). The website and the README show the latest version from GitHub, so they need no edit per release.
+**One version for everything**: the tag sets the same version on the `sf fm` plugin, the browser extension (its manifest) and the VS Code extension (`scripts/set-version.mjs`), so a release `v1.1.0` ships plugin 1.1.0, extension 1.1.0 and VS Code 1.1.0. The download names stay the same (`nomadsf-extension.zip`, `nomadsf-vscode.vsix`), so "latest" links never change.
+
+Nothing is pushed to `main` by a release: the version is set from the tag while building. To bring `main` in line after a release (optional, in a pull request): `node scripts/set-version.mjs 1.1.0`. The website and the README show the latest version from GitHub, so they need no edit per release.
 
 The approvals come from the `release` environment (Settings → Environments → `release`): required reviewer `@faridmasjedi`, self-review allowed, admins may bypass, only `v*` tags may use it.
 

@@ -85,13 +85,13 @@ cd nomadsf && yarn install && yarn build
 
 - Chrome / Edge → `chrome://extensions` → Developer mode → **Load unpacked** → `nomadsf/apps/extension/dist`.
 - Open any Salesforce page (Lightning, Setup, Classic) and click the NomadSF icon, or the small **N** tab on the right edge of the page (Alt+Shift+N).
-- `nomadsf/apps/extension/nomadsf-extension-<version>.zip` is the package for the Chrome Web Store / Edge Add-ons. Every GitHub release has it attached.
+- `nomadsf/apps/extension/nomadsf-extension.zip` (the version is in its manifest — the same as the release) is the package for the Chrome Web Store / Edge Add-ons. Every GitHub release has it attached.
 
 The extension asks for `cookies`, access to `127.0.0.1` / `localhost` (the local NomadSF app) and to Salesforce domains only (`*.salesforce.com`, `*.force.com`, `*.salesforce-setup.com`, `*.cloudforce.com`, `*.site.com`). It reads the `sid` cookie of the org you are on and calls the Salesforce API with it, like Salesforce Inspector does. Nothing is sent anywhere else.
 
 ### VS Code
 
-`nomadsf-vscode.vsix` (from a release or the `extension-latest` pre-release; or `yarn --cwd nomadsf/apps/vscode package`): **Extensions → … → Install from VSIX**. Needs the Salesforce CLI with plugin-fm.
+`nomadsf-vscode.vsix` (from a release or the `extension-latest` pre-release; or `yarn --cwd nomadsf/apps/vscode package`): **Extensions → … → Install from VSIX**. Needs the Salesforce CLI with plugin-fm. Its page in VS Code shows [its README](apps/vscode/README.md). It has the same version as the browser extension and the plugin.
 
 - Opening a Salesforce DX project starts the local app for that workspace (or switches a running one to it), and **NomadSF** in the status bar opens the Studio in an editor tab. Everything of the app and the Studio is there: runs and approvals, orgs, runbooks, AI, and every Studio page.
 - Commands (⇧⌘P → NomadSF): _Open the app_, _Open Studio_, _Open Studio page…_, _Stop the local app_. In the editor (right-click on a selection): **Show all data of the selected record Id** and **Run the selected SOQL in Studio**.
