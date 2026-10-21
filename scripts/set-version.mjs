@@ -19,6 +19,16 @@ const files = [
   'nomadsf/apps/vscode/package.json',
   'nomadsf/apps/desktop/package.json',
 ];
+// package-lock.json files (npm projects outside the yarn workspaces) carry the version twice
+const locks = ['nomadsf/apps/desktop/package-lock.json'];
+for (const file of locks) {
+  const path = join(root, file);
+  const lock = JSON.parse(readFileSync(path, 'utf8'));
+  lock.version = version;
+  if (lock.packages?.['']) lock.packages[''].version = version;
+  writeFileSync(path, `${JSON.stringify(lock, null, 2)}\n`);
+  console.log(`${file}: ${version}`);
+}
 for (const file of files) {
   const path = join(root, file);
   const text = readFileSync(path, 'utf8');
