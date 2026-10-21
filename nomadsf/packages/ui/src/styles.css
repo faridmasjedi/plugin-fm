@@ -2296,3 +2296,13 @@ label.check,
   font-size: 16px;
   line-height: 1;
 }
+/* Buttons laid out as a column (job lists, menus, quick jump) read from the left */
+.backup-jobs li button,
+.menu button,
+.quick-jump li button {
+  align-items: flex-start;
+  text-align: left;
+}
+.quick-jump li button {
+  align-items: center;
+}
