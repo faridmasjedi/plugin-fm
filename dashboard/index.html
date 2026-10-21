@@ -1071,6 +1071,53 @@
       <main id="main"></main>
     </div>
     <script>
+      // Inside the VS Code extension (a sandboxed webview, ?embed=vscode): links, the clipboard and
+      // ⌘C / ⌘V go through the extension, like the Studio (nomadsf/packages/ui/src/embed.ts).
+      (() => {
+        if (window.parent === window || new URLSearchParams(location.search).get('embed') !== 'vscode') return;
+        let next = 0;
+        const call = (op, ...args) => window.parent.postMessage({ nomadsf: 'call', id: ++next, op, args }, '*');
+        const open = (url) => /^https?:/.test(url) && call('open', url);
+        window.open = (url) => (url && open(new URL(String(url), location.href).href), null);
+        document.addEventListener(
+          'click',
+          (e) => {
+            const a = e.target.closest && e.target.closest('a');
+            if (!a || !a.href || a.download) return;
+            const url = new URL(a.href, location.href);
+            e.preventDefault();
+            if (url.origin === location.origin && !a.target) {
+              // Pages of the app (the Studio) keep the bridge
+              url.searchParams.set('embed', 'vscode');
+              location.href = url.href;
+            } else open(url.href);
+          },
+          true
+        );
+        const selected = () => {
+          const el = document.activeElement;
+          if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'))
+            try {
+              return el.value.slice(el.selectionStart, el.selectionEnd);
+            } catch {
+              return '';
+            }
+          return String(window.getSelection() || '');
+        };
+        window.addEventListener('message', (e) => {
+          const m = e.data;
+          if (e.source !== window.parent || !m || m.nomadsf !== 'exec') return;
+          if (m.cmd === 'copy' || m.cmd === 'cut') {
+            const text = selected();
+            if (text) call('clipboardWrite', text);
+            if (m.cmd === 'cut' && text) document.execCommand('delete');
+          } else if (m.cmd === 'paste') {
+            if (m.text) document.execCommand('insertText', false, m.text);
+          } else if (['selectAll', 'undo', 'redo'].includes(m.cmd)) document.execCommand(m.cmd);
+        });
+      })();
+    </script>
+    <script>
       (() => {
         const STATIC = window.__FM_DATA__ || null;
         const USES = {

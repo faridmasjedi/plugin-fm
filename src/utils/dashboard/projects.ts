@@ -106,7 +106,8 @@ export class ProjectContext {
   }
 
   public readFile(rel: string): string {
-    const file = this.inside(rel);
+    // .git stays closed, except the current branch (the Studio shows it)
+    const file = rel === '.git/HEAD' ? join(realpathSync(this.cwd), '.git', 'HEAD') : this.inside(rel);
     if (!existsSync(file) || !statSync(file).isFile()) throw new Error('File not found.');
     if (statSync(file).size > MAX_FILE) throw new Error('File is larger than 2 MB.');
     return readFileSync(file, 'utf8');

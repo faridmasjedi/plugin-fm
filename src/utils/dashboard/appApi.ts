@@ -87,7 +87,8 @@ export function openOrg(cwd: string, org: string, path?: string): void {
   if (!SAFE_NAME.test(org)) throw new Error('Unknown org.');
   const args = ['org', 'open', '--target-org', org];
   if (path) {
-    if (!/^\/[\w/.?=&%+-]*$/.test(path)) throw new Error('Invalid path.');
+    // Salesforce paths and queries (spawn without a shell: no quoting needed)
+    if (!/^\/[\w/.?=&%+:#~,!-]*$/.test(path)) throw new Error('Invalid path.');
     args.push('--path', path);
   }
   spawn('sf', args, { cwd, detached: true, stdio: 'ignore' }).unref();

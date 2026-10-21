@@ -13,6 +13,7 @@ import {
   type SalesforceClient,
 } from '@nomadsf/core';
 import { storage } from './context';
+import { BridgeFolder, fromStored, isStoredFolder, type StoredFolder } from './embed';
 
 /**
  * Backup jobs of this browser profile: the jobs (with their schedules), the folder each one
@@ -99,15 +100,18 @@ export async function pickBackupFolder(jobId: string): Promise<string> {
   const handle = await (
     window as unknown as { showDirectoryPicker(o: { mode: 'readwrite'; id?: string }): Promise<DirHandle> }
   ).showDirectoryPicker({ mode: 'readwrite', id: 'nomadsf-backups' });
-  await idb('readwrite', (s) => s.put(handle, `backup:${jobId}`));
+  // In VS Code the folder is the extension's (embed.ts): kept as its path
+  const kept = handle instanceof BridgeFolder ? handle.toStored() : handle;
+  await idb('readwrite', (s) => s.put(kept, `backup:${jobId}`));
   return handle.name;
 }
 
 export async function backupFolder(jobId: string): Promise<DirHandle | undefined> {
-  return idb<DirHandle | undefined>(
+  const kept = await idb<DirHandle | StoredFolder | undefined>(
     'readonly',
-    (s) => s.get(`backup:${jobId}`) as IDBRequest<DirHandle | undefined>
+    (s) => s.get(`backup:${jobId}`) as IDBRequest<DirHandle | StoredFolder | undefined>
   ).catch(() => undefined);
+  return isStoredFolder(kept) ? (fromStored(kept) as unknown as DirHandle) : kept;
 }
 
 /** Access to the folder: 'granted', or 'prompt' (needs a click), or 'none' (no folder chosen). */
