@@ -398,3 +398,133 @@ deploy:
 - ⚠️ Fresh environments per step
 
 **Bottom Line**: The plugin works perfectly in CI/CD by using explicit job IDs. Cache extension is a bonus feature for local development, not a requirement!
+
+## CI/CD integration
+
+Perfect for GitHub Actions, GitLab CI, and other automation tools.
+
+### Using Docker (Recommended)
+
+Use `sf fm docker init` to generate a complete Docker setup:
+
+```bash
+sf fm docker init
+```
+
+This creates a Dockerfile with SF CLI and plugin-fm, plus a GitHub Actions workflow. Then use it in your pipelines:
+
+```yaml
+name: Salesforce Deployment
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/your-org/your-repo/sf-fm-cicd:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Authenticate
+        run: |
+          echo "${{ secrets.SF_AUTH_URL }}" > authfile
+          sf org login sfdx-url --sfdx-url-file authfile --alias target-org
+
+      - name: Build Deployment Artifacts
+        run: |
+          sf fm build \
+            --ref-a origin/${{ github.base_ref }} \
+            --ref-b HEAD \
+            --output-dir ./manifest
+
+      - name: Deploy with Validation
+        run: |
+          JOB_ID=$(sf fm deploy \
+            --manifest ./manifest \
+            --target-org target-org \
+            --mode validation \
+            --intelligent-tests \
+            --async \
+            --json | jq -r '.result.jobId')
+
+          sf fm deploy status \
+            --job-id $JOB_ID \
+            --target-org target-org \
+            --watch \
+            --interval 15 \
+            --json
+```
+
+### Without Docker
+
+You can also install SF CLI and plugin-fm directly:
+
+```yaml
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install SF CLI
+        run: npm install -g @salesforce/cli
+
+      - name: Install Plugin
+        run: sf plugins install @salesforce/plugin-fm
+
+      # ... rest of steps same as Docker example
+```
+
+[Full CI/CD Guide →](./CI_CD_USAGE.md)
+
+## Pre/post deployment hooks
+
+Execute custom scripts before and after deployments:
+
+```bash
+# Deploy with hooks
+sf fm deploy --manifest ./manifest --target-org myorg \
+  --pre-steps ./scripts/backup.sh \
+  --post-steps ./scripts/cleanup.sh
+```
+
+**Hook Environment Variables:**
+
+- `FM_HOOK_TYPE` - pre or post
+- `FM_DEPLOY_MODE` - validation, deployment, or quick
+- `FM_TARGET_ORG` - Target org username
+- `FM_MANIFEST_DIR` - Manifest directory path
+- `FM_JOB_ID` - Deployment job ID (post hooks only)
+
+**Hook Specifications:**
+
+- Timeout: 15 minutes per hook
+- Max output: 10MB
+- Pre-hooks: Must succeed or deployment stops
+- Post-hooks: Only run after successful deployment
+- All hook output (stdout/stderr) is displayed in real-time
+
+**Multiple Files in One Hook:**
+
+Since each flag accepts only one file, use a master script to orchestrate multiple steps:
+
+```bash
+# master-pre-deploy.sh
+#!/bin/bash
+set -e
+./steps/01-backup.sh
+./steps/02-validate.sh
+./steps/03-prepare.sh
+```
+
+[Complete Hooks Guide →](messages/hooks-guide.md)

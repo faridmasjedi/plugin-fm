@@ -2,12 +2,14 @@
 
 A Salesforce developer workbench in the spirit of the Developer Console and Salesforce Inspector Reloaded. One UI, several places to run it:
 
-| Where                                            | How it reaches Salesforce                                                                  | Status  |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------ | ------- |
-| **NomadSF app** — `sf fm dashboard` → **Studio** | through the local server with the Salesforce CLI's login; the token never reaches the page | ✅      |
-| **Browser extension** (Chrome, Edge)             | the browser's own Salesforce session (`sid` cookie of the org you are on) — no CLI needed  | ✅      |
-| **VS Code extension**                            | webview, CLI login through the extension host                                              | planned |
-| **Desktop app** (Electron)                       | CLI login through the main process                                                         | planned |
+| Where                                | How it reaches Salesforce                                                                  | Status                     |
+| ------------------------------------ | ------------------------------------------------------------------------------------------ | -------------------------- |
+| **Browser extension** (Chrome, Edge) | the browser's own Salesforce session (`sid` cookie of the org you are on) — no CLI needed  | ✅ released (zip)          |
+| **VS Code extension**                | the local app in an editor tab, with the Salesforce CLI's login                            | ✅ released (.vsix)        |
+| **Local app** — `sf fm dashboard`    | through the local server with the Salesforce CLI's login; the token never reaches the page | ✅ with the `sf fm` plugin |
+| **Desktop app** (Electron)           | the local app in its own window                                                            | build from source (below)  |
+
+Website and guide: <https://faridmasjedi.github.io/plugin-fm/>.
 
 ## Layout
 
