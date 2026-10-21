@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { getUserInfo, type SalesforceClient, type UserInfo } from '@nomadsf/core';
-import { detectHost, orgFacts, type OrgChoice, type OrgFacts } from './host';
+import { detectHost, openInOrg, orgFacts, type OrgChoice, type OrgFacts } from './host';
+import { setLinkHandler } from './embed';
 import { InspectContext, StudioContext, activityLog, storage, type Studio } from './context';
 import { toggleTheme } from './theme';
 import { ExecutePage } from './pages/ExecutePage';
@@ -138,6 +139,21 @@ export function App() {
     if (location.hash.slice(1).split('=')[0] !== page)
       history.replaceState(null, '', `${location.pathname}${location.search}#${page}`);
   }, [page]);
+  // In the app, links to the org's pages open logged in (the CLI's `sf org open`, also from VS Code)
+  useEffect(() => {
+    if (host.kind !== 'app' || !org?.instanceUrl) return undefined;
+    const mine = new URL(org.instanceUrl).hostname.replace(/\.my\.salesforce\.com$/, '');
+    setLinkHandler((url) => {
+      const sameOrg =
+        url.hostname.startsWith(`${mine}.`) && /\.(salesforce|force|salesforce-setup)\.com$/.test(url.hostname);
+      if (!sameOrg) return false;
+      openInOrg('app', org, `${url.pathname}${url.search}${url.hash}`).catch((e: Error) =>
+        console.error(`Open in Salesforce: ${e.message}`)
+      );
+      return true;
+    });
+    return () => setLinkHandler(undefined);
+  }, [org]);
 
   const production = facts ? !facts.isSandbox : org?.type === 'Production' || org?.type === 'Dev Hub';
   const confirmRisky = useCallback(

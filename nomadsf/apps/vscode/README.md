@@ -24,6 +24,7 @@
   - **Run the selected SOQL in Studio** — the query from your Apex or a `.soql` file, with a filterable table.
 - **The NomadSF app** too: release runs and approvals, orgs, runbooks and AI settings.
 - **Remote windows and Codespaces**: the port is forwarded for you.
+- **Works like the browser**: copy and paste, links (Salesforce pages open logged in, through the CLI), downloads with VS Code's Save dialog, and backup folders chosen with VS Code's folder picker.
 
 ![Query with a filterable table](https://faridmasjedi.github.io/plugin-fm/media/query.gif)
 
