@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NomadSF — a Salesforce workbench in your browser</title>
+    <meta
+      name="description"
+      content="NomadSF Studio: Execute Apex, SOQL, code, debug logs, metadata, org compare, data backup, restore, migration and lifecycle jobs — in Chrome, Edge or VS Code, with the login you already have."
+    />
+    <link rel="icon" href="assets/logo.jpg" />
+    <link rel="stylesheet" href="assets/site.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="wrap">
+        <a class="brand" href="./"><img src="assets/logo.jpg" alt="" />NomadSF</a>
+        <nav>
+          <a class="hide-xs" href="#features">Features</a>
+          <a href="#download">Download</a>
+          <a href="guide.html">Guide</a>
+          <a class="hide-sm" href="guide.html#safety">Safety</a>
+          <a href="https://github.com/faridmasjedi/plugin-fm">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="hero wrap">
+        <span class="eyebrow">Free · open source · no CLI needed</span>
+        <h1>Your Salesforce workbench, <span>right in the browser</span></h1>
+        <p class="lead">
+          Execute Apex, SOQL, code, debug logs, metadata and org compare — plus data backup, restore, migration and
+          lifecycle jobs. It uses the Salesforce login you already have in Chrome or Edge. Nothing to install on the
+          org, nothing sent anywhere but Salesforce.
+        </p>
+        <div class="cta">
+          <a class="btn primary" href="#download">Download the extension</a>
+          <a class="btn" href="guide.html">Read the guide</a>
+        </div>
+        <p class="note">Chrome and Edge · VS Code · works with production, sandboxes, developer and scratch orgs</p>
+        <div class="shot">
+          <video src="media/hubs.mp4" poster="media/hubs.jpg" autoplay muted loop playsinline></video>
+        </div>
+      </div>
+
+      <section id="features">
+        <div class="wrap">
+          <div class="section-head">
+            <h2>Everything in one place</h2>
+            <p>
+              Tools are grouped into hubs. Open any two or three side by side: drag a hub or a tab to the right of a
+              pane, resize, and press <kbd>⌘K</kbd> to jump anywhere. Every tab keeps its results until you reset it.
+            </p>
+          </div>
+          <div class="grid">
+            <div class="card">
+              <div class="icon">{}</div>
+              <h3>Develop</h3>
+              <p>
+                Execute Apex, a code editor for Apex, triggers, Visualforce, LWC and Aura, Apex tests with coverage,
+                debug logs.
+              </p>
+            </div>
+            <div class="card">
+              <div class="icon">⇅</div>
+              <h3>Data</h3>
+              <p>
+                SOQL with autocomplete and saved queries, a record inspector, import / update / delete from CSV,
+                lookups, field usage.
+              </p>
+            </div>
+            <div class="card">
+              <div class="icon">⛁</div>
+              <h3>Data protection</h3>
+              <p>
+                Backups to your own folder (encrypted if you like), restore with relationships, org-to-org migration,
+                lifecycle jobs.
+              </p>
+            </div>
+            <div class="card">
+              <div class="icon">⌂</div>
+              <h3>Release</h3>
+              <p>
+                Your repository next to the org, metadata retrieve, org compare with package.xml, validate and deploy.
+              </p>
+            </div>
+            <div class="card">
+              <div class="icon">⚿</div>
+              <h3>Org</h3>
+              <p>
+                Users and access, limits, platform events and change data capture, a REST explorer, an activity log.
+              </p>
+            </div>
+            <div class="card">
+              <div class="icon">✦</div>
+              <h3>Your own AI</h3>
+              <p>
+                Connect Claude, OpenAI, Gemini, OpenRouter, Ollama or your own endpoint to write SOQL and Apex, explain
+                logs and review code.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="wrap">
+          <div class="feature">
+            <div>
+              <span class="tag">Data</span>
+              <h3>Query, filter, export</h3>
+              <p>
+                SOQL with autocomplete, a table you can filter by any column, names for Ids, and exports of millions of
+                rows with the Bulk API.
+              </p>
+              <ul>
+                <li>Saved queries and history</li>
+                <li>Click an Id to inspect and edit the record</li>
+                <li>CSV, JSON, or straight to the clipboard</li>
+              </ul>
+            </div>
+            <div class="shot">
+              <video src="media/query.mp4" poster="media/query.jpg" autoplay muted loop playsinline></video>
+            </div>
+          </div>
+
+          <div class="feature flip">
+            <div>
+              <span class="tag">Data protection</span>
+              <h3>Backups you keep, restores that keep relationships</h3>
+              <p>
+                Choose objects, conditions and fields; back up to a folder on your computer, now or daily. Restore
+                changed values or bring deleted records back — with their parents, their children re-pointed, and their
+                files.
+              </p>
+              <ul>
+                <li>Incremental runs, deleted Ids, files and attachments</li>
+                <li>Optional AES-256 encryption with your passphrase</li>
+                <li>Compare any backup with the org before restoring</li>
+              </ul>
+            </div>
+            <div class="shot">
+              <video src="media/backup.mp4" poster="media/backup.jpg" muted loop playsinline autoplay></video>
+            </div>
+          </div>
+
+          <div class="feature">
+            <div>
+              <span class="tag">Data protection</span>
+              <h3>Copy data between orgs</h3>
+              <p>
+                Seed a sandbox with a consistent slice: pick Accounts, add their child objects in one click, and NomadSF
+                loads parents first and keeps every link. Mask personal data on the way.
+              </p>
+              <ul>
+                <li>A plan before anything is copied: order, counts, links</li>
+                <li>Re-runs update instead of duplicating; undo the last copy</li>
+                <li>Bulk mode for large volumes</li>
+              </ul>
+            </div>
+            <div class="shot">
+              <video src="media/migrate.mp4" poster="media/migrate.jpg" muted loop playsinline autoplay></video>
+            </div>
+          </div>
+
+          <div class="feature flip">
+            <div>
+              <span class="tag">Data protection</span>
+              <h3>Lifecycle jobs with approval</h3>
+              <p>
+                Retention and clean-up in steps: back up, check a limit, archive, anonymize, delete. Dry runs only
+                count; real runs stop for your approval before anything changes, and every run keeps a report.
+              </p>
+            </div>
+            <div class="shot">
+              <video src="media/lifecycle.mp4" poster="media/lifecycle.jpg" muted loop playsinline autoplay></video>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="download">
+        <div class="wrap">
+          <div class="section-head">
+            <h2>Download</h2>
+            <p>Every release has these files attached. The latest is linked here; older versions are listed below.</p>
+          </div>
+          <div class="downloads">
+            <div class="card download">
+              <h3>Browser extension <span class="badge good">recommended</span></h3>
+              <p>Chrome or Edge. Uses your browser's Salesforce login — no CLI, nothing stored.</p>
+              <a
+                class="btn primary"
+                href="https://github.com/faridmasjedi/plugin-fm/releases/latest/download/nomadsf-extension-0.1.0.zip"
+                >Download .zip</a
+              >
+              <ol>
+                <li>Unzip it.</li>
+                <li>
+                  Open <code>chrome://extensions</code> (or <code>edge://extensions</code>) and turn on
+                  <b>Developer mode</b>.
+                </li>
+                <li><b>Load unpacked</b> → choose the unzipped folder.</li>
+              </ol>
+              <p class="note">Chrome Web Store and Edge Add-ons listings are on the way.</p>
+            </div>
+            <div class="card download">
+              <h3>VS Code extension</h3>
+              <p>The Studio in an editor tab, with your Salesforce DX project. Needs the Salesforce CLI.</p>
+              <a
+                class="btn"
+                href="https://github.com/faridmasjedi/plugin-fm/releases/latest/download/nomadsf-vscode.vsix"
+                >Download .vsix</a
+              >
+              <ol>
+                <li>VS Code → Extensions → <b>…</b> → <b>Install from VSIX…</b></li>
+                <li>Open a Salesforce DX project; click <b>NomadSF</b> in the status bar.</li>
+              </ol>
+            </div>
+            <div class="card download">
+              <h3>For developers &amp; CI</h3>
+              <p>
+                The <code>sf fm</code> plugin: delta builds, deploys, release pipeline, quality gate, drift, rollback —
+                and the local app.
+              </p>
+              <a class="btn" href="guide.html#cli">See the CLI section</a>
+              <pre>sf plugins install https://github.com/faridmasjedi/plugin-fm</pre>
+            </div>
+          </div>
+
+          <h3 style="margin: 40px 0 12px">All versions</h3>
+          <div id="versions">
+            <p class="note">
+              Loading the releases… If nothing shows, see
+              <a href="https://github.com/faridmasjedi/plugin-fm/releases">all releases on GitHub</a>.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <span>NomadSF — an independent project, not affiliated with Salesforce.</span>
+        <span
+          ><a href="guide.html">Guide</a> · <a href="https://github.com/faridmasjedi/plugin-fm/releases">Releases</a> ·
+          <a href="https://github.com/faridmasjedi/plugin-fm/issues">Issues</a></span
+        >
+      </div>
+    </footer>
+    <script src="assets/releases.js"></script>
+  </body>
+</html>

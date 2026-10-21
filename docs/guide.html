@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NomadSF Guide</title>
+    <meta
+      name="description"
+      content="How to install and use NomadSF Studio: the hubs, data backup, restore, migration, lifecycle jobs, release tools and the sf fm CLI."
+    />
+    <link rel="icon" href="assets/logo.jpg" />
+    <link rel="stylesheet" href="assets/site.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="wrap">
+        <a class="brand" href="./"><img src="assets/logo.jpg" alt="" />NomadSF</a>
+        <nav>
+          <a class="hide-xs" href="./#features">Features</a>
+          <a href="./#download">Download</a>
+          <a class="active" href="guide.html">Guide</a>
+          <a class="hide-sm" href="#safety">Safety</a>
+          <a href="https://github.com/faridmasjedi/plugin-fm">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="wrap doc">
+      <aside class="toc">
+        <b>Start</b>
+        <a href="#install">Install</a>
+        <a href="#first-steps">First steps</a>
+        <a href="#layout">Hubs and panes</a>
+        <b>Hubs</b>
+        <a href="#develop">Develop</a>
+        <a href="#data">Data</a>
+        <a href="#protect">Data protection</a>
+        <a href="#release">Release</a>
+        <a href="#org">Org</a>
+        <a href="#ai">AI</a>
+        <b>More</b>
+        <a href="#safety">Safety and privacy</a>
+        <a href="#cli">CLI and local app</a>
+        <a href="#faq">Questions</a>
+      </aside>
+
+      <article>
+        <h1>NomadSF Guide</h1>
+        <p class="lead">
+          NomadSF Studio is a Salesforce workbench in the spirit of the Developer Console and Salesforce Inspector, with
+          data protection tools on top. This guide takes you from installing it to backing up, restoring and moving
+          data.
+        </p>
+
+        <h2 id="install">Install</h2>
+        <h3>Chrome or Edge</h3>
+        <ol class="steps">
+          <li>
+            Download
+            <a href="https://github.com/faridmasjedi/plugin-fm/releases/latest/download/nomadsf-extension-0.1.0.zip"
+              ><code>nomadsf-extension.zip</code></a
+            >
+            from the latest release and unzip it.
+          </li>
+          <li>
+            Open <code>chrome://extensions</code> (Edge: <code>edge://extensions</code>) and switch on
+            <b>Developer mode</b>.
+          </li>
+          <li>Click <b>Load unpacked</b> and choose the unzipped folder. Pin NomadSF to the toolbar if you like.</li>
+        </ol>
+        <div class="callout">
+          Store listings for the Chrome Web Store and Edge Add-ons are on the way; until then, updating means loading
+          the new zip the same way (and clicking <b>Reload</b> on the extension).
+        </div>
+
+        <h3>VS Code</h3>
+        <ol class="steps">
+          <li>
+            Download
+            <a href="https://github.com/faridmasjedi/plugin-fm/releases/latest/download/nomadsf-vscode.vsix"
+              ><code>nomadsf-vscode.vsix</code></a
+            >.
+          </li>
+          <li>VS Code → Extensions → <b>…</b> → <b>Install from VSIX…</b></li>
+          <li>
+            Open a Salesforce DX project and click <b>NomadSF</b> in the status bar. The VS Code extension uses the
+            Salesforce CLI's logins, so it needs the <a href="#cli">CLI and the plugin</a>.
+          </li>
+        </ol>
+
+        <h2 id="first-steps">First steps</h2>
+        <ol class="steps">
+          <li>
+            <b>Log in to Salesforce</b> in the same browser as usual. NomadSF uses that login (the session cookie of the
+            org), like Salesforce Inspector does; it stores no password or token.
+          </li>
+          <li>
+            <b>Open the Studio</b> from any Salesforce page: click the NomadSF icon, or the small <b>N</b> tab on the
+            right edge of the page (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd>). It opens for the org of that page.
+          </li>
+          <li>
+            <b>Settings → Org</b> lists every org you are logged in to in this browser; switch between them there or in
+            the header. Log in to another org in a new tab and it appears when you come back.
+          </li>
+          <li>
+            <b>Settings → Project</b> (optional): choose your Salesforce project — a folder on this computer or a GitHub
+            repository and branch — to compare it with the org and deploy code from it.
+          </li>
+          <li><b>Settings → AI</b> (optional): connect your own AI for the ✦ buttons.</li>
+        </ol>
+
+        <h2 id="layout">Hubs and panes</h2>
+        <p>
+          The sidebar has five hubs and Settings. A hub is a page with its tools as tabs, and opens on the tab you used
+          last.
+        </p>
+        <div class="shot">
+          <video src="media/hubs.mp4" poster="media/hubs.jpg" muted loop playsinline autoplay controls></video>
+        </div>
+        <ul>
+          <li>
+            <b>Side by side</b>: drag a hub from the sidebar, or a tab, to the right half of a pane. Up to three panes;
+            drag the divider to resize, <b>⧉</b> opens the hub beside, <b>✕</b> closes a pane.
+          </li>
+          <li>
+            <b>Quick jump</b>: <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>K</kbd>, type a few letters, <kbd>Enter</kbd> (or
+            <kbd>Shift</kbd>+<kbd>Enter</kbd> to open beside).
+          </li>
+          <li>
+            <b>Results are kept</b> when you switch tabs or hubs or close another pane. <b>↻</b> on a pane starts that
+            tab again with a clean page.
+          </li>
+        </ul>
+        <table class="hub-table">
+          <tr>
+            <th>Hub</th>
+            <th>Tabs</th>
+          </tr>
+          <tr>
+            <td><b>Develop</b></td>
+            <td>Execute Apex · Code · Apex tests · Debug Logs</td>
+          </tr>
+          <tr>
+            <td><b>Data</b></td>
+            <td>Query · Record · Import / Update / Delete · Lookup · Field usage</td>
+          </tr>
+          <tr>
+            <td><b>Data protection</b></td>
+            <td>Backup (with Restore) · Migrate · Lifecycle</td>
+          </tr>
+          <tr>
+            <td><b>Release</b></td>
+            <td>Project · Metadata · Org compare</td>
+          </tr>
+          <tr>
+            <td><b>Org</b></td>
+            <td>Users &amp; access · Limits · Events · REST Explorer · Activity</td>
+          </tr>
+        </table>
+
+        <h2 id="develop">Develop</h2>
+        <ul>
+          <li>
+            <b>Execute Apex</b>: an editor with Apex highlighting and snippets, log levels, run all
+            (<kbd>⌘</kbd>+<kbd>Enter</kbd>) or the selection, compile errors on the line, the last 20 snippets.
+          </li>
+          <li>
+            <b>Code</b>: open, check and save Apex classes, triggers, Visualforce pages and components, LWC and Aura;
+            create new ones. With a project chosen, every item is tagged <i>same</i> / <i>different</i> /
+            <i>only in org</i> / <i>only in project</i>, with a side-by-side compare and <b>Use project version</b>.
+          </li>
+          <li><b>Apex tests</b>: run tests, failures with stack traces, and code coverage line by line.</li>
+          <li><b>Debug Logs</b>: trace flags and logs, and ✦ an explanation of a log with an AI connected.</li>
+        </ul>
+        <div class="callout warn">
+          Salesforce only accepts Apex and Visualforce changes in production through a deployment, so saving them is off
+          for production orgs (developer orgs allow it).
+        </div>
+
+        <h2 id="data">Data</h2>
+        <div class="shot">
+          <video src="media/query.mp4" poster="media/query.jpg" muted loop playsinline autoplay controls></video>
+        </div>
+        <ul>
+          <li>
+            <b>Query</b>: SOQL with autocomplete, saved queries and history, a table you can filter by any column,
+            <i>names for Ids</i>, deleted and archived rows, the Tooling API; export with the Bulk API, split into
+            files.
+          </li>
+          <li><b>Record</b>: every field of a record (click any Id in a table), edited in place.</li>
+          <li>
+            <b>Import / Update / Delete</b>: from a CSV file (with checks for required fields, picklists and read-only
+            fields before anything runs) or from a query, edited in a grid where only changed cells are sent.
+          </li>
+          <li>
+            <b>Lookup</b>: find the Ids for a column of names in a CSV. <b>Field usage</b>: how full every field is, and
+            who can see it.
+          </li>
+        </ul>
+
+        <h2 id="protect">Data protection</h2>
+        <h3>Backup</h3>
+        <div class="shot">
+          <video src="media/backup.mp4" poster="media/backup.jpg" muted loop playsinline autoplay controls></video>
+        </div>
+        <ol class="steps">
+          <li><b>+ New</b>, give it a name and choose the org.</li>
+          <li>
+            <b>What to back up</b>: objects you pick (tick them, type their names, or ✦ describe them), or all custom /
+            standard / all objects. Per object, a condition (which records) and the fields (all, only these, all except
+            these). <b>Count records</b> shows the size first.
+          </li>
+          <li>
+            <b>Settings</b>: incremental runs after the first full one, a schedule (daily or weekly), the folder on your
+            computer, files and attachments, and encryption with a passphrase.
+          </li>
+          <li>
+            <b>Back up now</b>. Each run is a folder with a CSV per object and a manifest.
+            <b>Backups &amp; restore</b> lists the runs and their records.
+          </li>
+        </ol>
+        <div class="callout">
+          Scheduled backups run while NomadSF is open in Chrome; a missed one runs when you open it. Encrypted backups
+          can only be read with the passphrase — it cannot be recovered.
+        </div>
+
+        <h3>Restore</h3>
+        <p>Open a run under <b>Backups &amp; restore</b>, tick the objects and <b>Compare with the org</b>:</p>
+        <ul>
+          <li><b>Changed since the backup</b>: tick values and <b>Put back</b>.</li>
+          <li>
+            <b>Deleted since the backup</b>: tick records and <b>Bring back</b>. Records still in the recycle bin are
+            undeleted with their Id; the others are created again, with the deleted records they point to, their files,
+            and the records that pointed to them re-linked.
+          </li>
+        </ul>
+
+        <h3>Migrate</h3>
+        <div class="shot">
+          <video src="media/migrate.mp4" poster="media/migrate.jpg" muted loop playsinline autoplay controls></video>
+        </div>
+        <ol class="steps">
+          <li><b>From</b> an org (or a backup) <b>into</b> another org.</li>
+          <li>
+            <b>What to copy</b>: tick objects; per object choose <i>All</i>, <i>Related only</i> (children of what you
+            copy) or <i>Only those pointed to</i>. <b>Children…</b> adds an object's child objects in one click, with
+            counts.
+          </li>
+          <li>
+            <b>Check plan</b>: the load order, records per object, fields missing in the target, masked fields, and a
+            <b>Links between records</b> table that shows every lookup kept or lost — with a fix for each.
+          </li>
+          <li>
+            <b>Copy</b> (you type the target org name). Running it again updates instead of duplicating;
+            <b>Undo last copy</b> deletes what it created.
+          </li>
+        </ol>
+        <p>
+          Options: mask personal data (on by default from production into a sandbox), copy files and attachments, and
+          <i>Keep the old Ids in the target org</i> — a field <code>NomadSF_Old_Id__c</code> for large copies with the
+          Bulk API, which you can remove afterwards.
+        </p>
+
+        <h3>Lifecycle</h3>
+        <div class="shot">
+          <video
+            src="media/lifecycle.mp4"
+            poster="media/lifecycle.jpg"
+            muted
+            loop
+            playsinline
+            autoplay
+            controls
+          ></video>
+        </div>
+        <p>
+          Jobs in steps on one org: <b>Back up</b>, <b>Check</b> (stop above a limit), <b>Archive</b> (into a backup
+          folder, read back, then delete), <b>Anonymize</b> (personal fields in place), <b>Delete</b>. Start from a
+          template (retention, sandbox refresh, backup then archive) or an empty job.
+        </p>
+        <ul>
+          <li><b>Dry run</b> only counts.</li>
+          <li>
+            <b>Run now</b> stops before the first step that changes data and asks for approval, showing what the steps
+            before it found. You can turn approval off per job; then put a Check step first.
+          </li>
+          <li>Every run keeps a report: matched, changed, failed, who approved.</li>
+        </ul>
+
+        <h2 id="release">Release</h2>
+        <ul>
+          <li>
+            <b>Project</b>: your repository's components, manifests, and a compare with the org — check content,
+            restore, delete from the org, or validate and deploy (code deploys straight from the browser).
+          </li>
+          <li>
+            <b>Metadata</b>: every metadata type of the org, build a package, download a zip or
+            <code>package.xml</code>.
+          </li>
+          <li>
+            <b>Org compare</b>: two orgs (sandbox ↔ sandbox or ↔ production), differences and content, then
+            <code>package.xml</code>, <code>destructiveChangesPost.xml</code> and a deployable zip — or validate, deploy
+            and quick deploy on the target.
+          </li>
+        </ul>
+
+        <h2 id="org">Org</h2>
+        <ul>
+          <li>
+            <b>Users &amp; access</b>: users (find, edit, freeze, activate), login history, setup audit trail,
+            permission sets and groups, object / field / system permissions.
+          </li>
+          <li>
+            <b>Limits</b>, <b>Events</b> (platform events and change data capture, subscribe and publish),
+            <b>REST Explorer</b>, and <b>Activity</b> — everything changed from NomadSF.
+          </li>
+        </ul>
+
+        <h2 id="ai">AI</h2>
+        <p>
+          In <b>Settings → AI</b>, connect your own provider: Anthropic Claude, OpenAI, Gemini, Mistral, Groq,
+          OpenRouter (key or sign-in), GitHub Models, Ollama on your computer, or any OpenAI-format endpoint. The ✦
+          buttons then write SOQL and Apex, explain debug logs, test failures, responses and code differences, review
+          code, write test classes, and choose objects for backups and migrations.
+        </p>
+        <div class="callout">
+          AI only fills editors or shows text. Nothing runs or saves until you press the usual button. The key stays in
+          the extension's own storage and goes only to the provider you chose.
+        </div>
+
+        <h2 id="safety">Safety and privacy</h2>
+        <ul>
+          <li>
+            <b>Your login, not ours</b>: the extension calls Salesforce with your browser session. It stores no password
+            or token and has no server; nothing is sent anywhere else.
+          </li>
+          <li>
+            <b>Permissions</b>: cookies and access to Salesforce domains only. Access to an AI provider's address is
+            asked when you connect one.
+          </li>
+          <li>
+            <b>Every change asks first</b>: saving code, editing records, deploying, deleting, restoring and copying
+            data ask you to type the org name. Production orgs are shown in red.
+          </li>
+          <li>
+            <b>Your data stays with you</b>: backups go to a folder you choose on your own computer, optionally
+            encrypted.
+          </li>
+        </ul>
+
+        <h2 id="cli">CLI and local app (for developers and CI)</h2>
+        <p>
+          The same repository ships the <code>sf fm</code> plugin for the Salesforce CLI. It is what pipelines use, and
+          it runs the local app (<code>sf fm dashboard</code>) that the VS Code extension uses.
+        </p>
+        <pre>
+sf plugins install https://github.com/faridmasjedi/plugin-fm
+sf fm dashboard --open</pre
+        >
+        <table class="hub-table">
+          <tr>
+            <th>Command</th>
+            <th>What it does</th>
+          </tr>
+          <tr>
+            <td><code>sf fm build</code></td>
+            <td>
+              Delta deployment artifacts from Git changes (submodules, bundles, granular labels and sharing rules)
+            </td>
+          </tr>
+          <tr>
+            <td><code>sf fm deploy</code></td>
+            <td>Validate, deploy and quick deploy, with tests chosen for the change; status and cancel</td>
+          </tr>
+          <tr>
+            <td><code>sf fm pipeline</code></td>
+            <td>The optional release train: stages, approvals, scripts, deployment waves</td>
+          </tr>
+          <tr>
+            <td><code>sf fm quality</code></td>
+            <td>Code Analyzer / PMD / ESLint on changed files, SARIF for pull requests</td>
+          </tr>
+          <tr>
+            <td><code>sf fm drift</code></td>
+            <td>What changed directly in the org compared with the repository</td>
+          </tr>
+          <tr>
+            <td><code>sf fm rollback</code></td>
+            <td>Back to an earlier successful deployment</td>
+          </tr>
+          <tr>
+            <td><code>sf fm org create</code></td>
+            <td>A scratch org or sandbox ready in one command</td>
+          </tr>
+          <tr>
+            <td><code>sf fm runbook</code> · <code>sf fm e2e</code></td>
+            <td>AI runbooks with approval for every change · Playwright scenarios against any org</td>
+          </tr>
+        </table>
+        <p>
+          Full reference: <a href="https://github.com/faridmasjedi/plugin-fm/blob/main/COMMANDS.md">COMMANDS.md</a> ·
+          <a href="https://github.com/faridmasjedi/plugin-fm/blob/main/PIPELINE.md">PIPELINE.md</a> ·
+          <a href="https://github.com/faridmasjedi/plugin-fm/blob/main/QUALITY_COMMAND.md">QUALITY_COMMAND.md</a> ·
+          <a href="https://github.com/faridmasjedi/plugin-fm/blob/main/AI_RUNBOOKS.md">AI_RUNBOOKS.md</a> ·
+          <a href="https://github.com/faridmasjedi/plugin-fm/blob/main/CI_CD_USAGE.md">CI_CD_USAGE.md</a>. A Docker
+          image with the CLI, the plugin, Code Analyzer and Java: <code>ghcr.io/faridmasjedi/nomadsf</code>.
+        </p>
+
+        <h2 id="faq">Questions</h2>
+        <h3>The Studio says "Not logged in"</h3>
+        <p>
+          Open the org in a tab and log in, then come back; or choose another org in Settings. Sessions expire like any
+          Salesforce session.
+        </p>
+        <h3>Why is my developer org shown as production?</h3>
+        <p>
+          Salesforce reports Developer Edition orgs as "not a sandbox", so NomadSF applies the production safeguards.
+          Apex saves still work there.
+        </p>
+        <h3>Does it work without the Salesforce CLI?</h3>
+        <p>
+          Yes — the browser extension needs nothing else. The CLI is only for the <code>sf fm</code> commands, the local
+          app and the VS Code extension.
+        </p>
+        <h3>Where do I report a problem?</h3>
+        <p>
+          <a href="https://github.com/faridmasjedi/plugin-fm/issues">GitHub issues</a>. Please leave out org names,
+          record data and session ids.
+        </p>
+      </article>
+    </div>
+
+    <footer>
+      <div class="wrap">
+        <span>NomadSF — an independent project, not affiliated with Salesforce.</span>
+        <span
+          ><a href="./">Home</a> · <a href="https://github.com/faridmasjedi/plugin-fm/releases">Releases</a> ·
+          <a href="https://github.com/faridmasjedi/plugin-fm/issues">Issues</a></span
+        >
+      </div>
+    </footer>
+  </body>
+</html>
