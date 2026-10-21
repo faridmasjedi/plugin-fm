@@ -2,8 +2,8 @@
   "name": "@salesforce/plugin-fm",
   "description": "Plugin for Salesforce DevOps",
   "version": "3.1.1",
-  "author": "Salesforce",
-  "bugs": "https://github.com/forcedotcom/cli/issues",
+  "author": "Farid Masjedi",
+  "bugs": "https://github.com/faridmasjedi/plugin-fm/issues",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
     "@oclif/core": "^4",
@@ -38,7 +38,7 @@
     "/oclif.manifest.json",
     "/schemas"
   ],
-  "homepage": "https://github.com/salesforcecli/plugin-fm",
+  "homepage": "https://faridmasjedi.github.io/plugin-fm/",
   "keywords": [
     "force",
     "salesforce",
@@ -76,7 +76,7 @@
     },
     "flexibleTaxonomy": true
   },
-  "repository": "salesforcecli/plugin-fm",
+  "repository": "faridmasjedi/plugin-fm",
   "scripts": {
     "build": "wireit",
     "build:studio": "yarn --cwd nomadsf install --frozen-lockfile && yarn --cwd nomadsf build && rm -rf dashboard/studio && cp -R nomadsf/packages/ui/dist dashboard/studio",
