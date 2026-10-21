@@ -2220,3 +2220,79 @@ label.check,
   flex: 1;
   min-width: 180px;
 }
+
+/* Settings tabs (Backup, Lifecycle): one row per setting — title and explanation on the left,
+   controls on the right; stacked in a narrow pane */
+.card.settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px 20px;
+}
+.settings-grid > .setting {
+  display: grid;
+  grid-template-columns: minmax(200px, 300px) minmax(0, 1fr);
+  grid-auto-rows: auto;
+  column-gap: 32px;
+  row-gap: 0;
+  align-items: start;
+  padding: 18px 0;
+}
+.settings-grid > .setting + .setting {
+  border-top: 1px solid var(--border);
+}
+.settings-grid > .setting > h4 {
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0;
+  font-size: 14px;
+  line-height: var(--h);
+}
+.settings-grid > .setting > p.muted {
+  grid-column: 1;
+  grid-row: 2 / span 8;
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.settings-grid > .setting > :not(h4):not(p.muted) {
+  grid-column: 2;
+  justify-self: start;
+  margin: 0 0 8px;
+}
+.settings-grid > .setting > :not(h4):not(p.muted):last-child {
+  margin-bottom: 0;
+}
+.settings-grid > .setting > h4 + p.muted {
+  margin-top: 2px;
+}
+.settings-grid > .setting > .form {
+  justify-self: stretch;
+}
+.settings-grid label.check {
+  white-space: normal;
+}
+@container pane (max-width: 760px) {
+  .settings-grid > .setting {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-grid > .setting > h4,
+  .settings-grid > .setting > p.muted,
+  .settings-grid > .setting > :not(h4):not(p.muted) {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+/* "From → Into" arrows sit on the line of the two dropdowns, not between label and box */
+.form > .arrow,
+.form > span.arrow {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--h);
+  min-height: var(--h);
+  width: 20px;
+  font-size: 16px;
+  line-height: 1;
+}
