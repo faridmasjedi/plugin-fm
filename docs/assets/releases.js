@@ -19,6 +19,14 @@
     });
     if (!res.ok) throw new Error(String(res.status));
     const releases = (await res.json()).filter((r) => !r.draft);
+    // The newest published (not pre-release) version, in the hero and on the download cards
+    const latest = releases.find((r) => !r.prerelease);
+    if (latest) {
+      const tag = document.getElementById('latest');
+      if (tag) tag.textContent = `${latest.tag_name} · free · open source · no CLI needed`;
+      const name = document.getElementById('latest-name');
+      if (name) name.textContent = latest.name || latest.tag_name;
+    }
     if (!releases.length) throw new Error('none');
     const rows = releases
       .map((r) => {

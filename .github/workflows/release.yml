@@ -1,70 +1,86 @@
 name: Release
 
-# Run from Actions > Release > Run workflow. Builds and tests main, bumps the version,
-# tags it, publishes a GitHub release with the plugin tarball, and pushes the NomadSF
-# Docker image (Salesforce CLI + plugin-fm + Code Analyzer) to GitHub Container Registry.
+# Runs when a release is published (publish the draft that "Release draft" keeps up to date).
+# Three steps, each waiting for approval in the "release" environment (Actions → this run →
+# Review deployments); a repository admin can bypass. Nothing is pushed to main: the
+# version comes from the release tag. If the tests or the files fail, the release goes back
+# to a draft.
 on:
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: Version bump
-        type: choice
-        options: [patch, minor, major]
-        default: minor
+  release:
+    types: [published]
 
 permissions:
-  contents: write # version commit, tag, release
+  contents: write # release files
   packages: write # container image
 
 concurrency: release
 
+env:
+  TAG: ${{ github.event.release.tag_name }}
+
 jobs:
-  release:
-    if: github.ref == 'refs/heads/main'
+  test:
+    name: 1. Build and test
+    if: startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
+    environment: release
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with: { ref: '${{ env.TAG }}' }
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: yarn
+      - run: npm version "${TAG#v}" --no-git-tag-version --allow-same-version --ignore-scripts
       - run: yarn install --frozen-lockfile
       - run: yarn build
       - run: yarn test
+      - name: Studio tests
+        run: yarn --cwd nomadsf install --frozen-lockfile && yarn --cwd nomadsf test
 
-      - name: Bump version
-        id: version
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          npm version ${{ inputs.bump }} --no-git-tag-version --ignore-scripts
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          git commit -am "chore(release): v$VERSION" --no-verify
-          git tag -a "v$VERSION" -m "NomadSF v$VERSION"
-
+  files:
+    name: 2. Release files
+    needs: test
+    runs-on: ubuntu-latest
+    environment: release
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ env.TAG }}' }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+      - run: npm version "${TAG#v}" --no-git-tag-version --allow-same-version --ignore-scripts
+      - run: yarn install --frozen-lockfile
+      - run: yarn build
       # NomadSF Studio goes into the plugin (dashboard/studio) and the browser extension zip
       - run: yarn build:studio
       - name: VS Code extension
         run: yarn --cwd nomadsf/apps/vscode package
-
-      - name: Pack
-        id: pack
+      - name: Attach to the release
         run: |
           npm pack
-          echo "file=$(ls *.tgz)" >> "$GITHUB_OUTPUT"
+          gh release upload "$TAG" *.tgz nomadsf/apps/extension/nomadsf-extension-*.zip nomadsf/apps/vscode/nomadsf-vscode.vsix --clobber
 
-      - name: Push version and tag
-        run: git push origin HEAD:main "v${{ steps.version.outputs.version }}"
-
-      - name: GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
+  docker:
+    name: 3. Docker image
+    needs: files
+    runs-on: ubuntu-latest
+    environment: release
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ env.TAG }}' }
+      # The plugin tarball attached in step 2 (no Actions artifacts)
+      - name: Plugin tarball
+        id: pack
         run: |
-          gh release create "v${{ steps.version.outputs.version }}" "${{ steps.pack.outputs.file }}" nomadsf/apps/extension/nomadsf-extension-*.zip nomadsf/apps/vscode/nomadsf-vscode.vsix \
-            --title "NomadSF v${{ steps.version.outputs.version }}" --generate-notes
-
+          gh release download "$TAG" --pattern '*.tgz'
+          echo "file=$(ls *.tgz)" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -78,5 +94,15 @@ jobs:
           push: true
           build-args: PLUGIN_TARBALL=${{ steps.pack.outputs.file }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/nomadsf:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/nomadsf:${{ steps.pack.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/nomadsf:latest
+
+  back-to-draft:
+    name: Back to draft (tests or files failed)
+    needs: [test, files]
+    if: failure() && (needs.test.result == 'failure' || needs.files.result == 'failure')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - run: gh release edit "$TAG" --repo "${{ github.repository }}" --draft=true
