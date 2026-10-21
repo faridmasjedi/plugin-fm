@@ -1076,7 +1076,12 @@
       (() => {
         if (window.parent === window || new URLSearchParams(location.search).get('embed') !== 'vscode') return;
         let next = 0;
-        const call = (op, ...args) => window.parent.postMessage({ nomadsf: 'call', id: ++next, op, args }, '*');
+        const waiting = new Map();
+        const call = (op, ...args) =>
+          new Promise((resolve) => {
+            waiting.set(++next, resolve);
+            window.parent.postMessage({ nomadsf: 'call', id: next, op, args }, '*');
+          });
         const open = (url) => /^https?:/.test(url) && call('open', url);
         window.open = (url) => (url && open(new URL(String(url), location.href).href), null);
         document.addEventListener(
@@ -1104,16 +1109,60 @@
             }
           return String(window.getSelection() || '');
         };
+        document.addEventListener('contextmenu', (e) => {
+          if (e.defaultPrevented) return;
+          e.preventDefault();
+          window.parent.postMessage({ nomadsf: 'contextmenu', x: e.clientX, y: e.clientY }, '*');
+        });
+        const run = (cmd, text) => {
+          if (cmd === 'copy' || cmd === 'cut') {
+            const chosen = selected();
+            if (chosen) call('clipboardWrite', chosen);
+            if (cmd === 'cut' && chosen) document.execCommand('delete');
+          } else if (cmd === 'paste') {
+            if (text) document.execCommand('insertText', false, text);
+          } else if (['selectAll', 'undo', 'redo'].includes(cmd)) document.execCommand(cmd);
+        };
+        let lastKey;
+        // ⌘C / ⌘X / ⌘V typed here: VS Code does not see keys inside this frame
+        window.addEventListener(
+          'keydown',
+          (e) => {
+            const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+            if (!(mac ? e.metaKey : e.ctrlKey) || e.altKey) return;
+            const k = e.key.toLowerCase();
+            const el = document.activeElement;
+            const field = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+            const fieldCmd = !field
+              ? undefined
+              : k === 'a' && !e.shiftKey
+              ? 'selectAll'
+              : k === 'z'
+              ? e.shiftKey
+                ? 'redo'
+                : 'undo'
+              : undefined;
+            const cmd = fieldCmd || (e.shiftKey ? undefined : { c: 'copy', x: 'cut', v: 'paste' }[k]);
+            if (!cmd) return;
+            e.preventDefault();
+            e.stopPropagation();
+            lastKey = { cmd, at: Date.now() };
+            if (cmd === 'paste') call('clipboardRead').then((text) => run('paste', text));
+            else run(cmd);
+          },
+          true
+        );
         window.addEventListener('message', (e) => {
           const m = e.data;
-          if (e.source !== window.parent || !m || m.nomadsf !== 'exec') return;
-          if (m.cmd === 'copy' || m.cmd === 'cut') {
-            const text = selected();
-            if (text) call('clipboardWrite', text);
-            if (m.cmd === 'cut' && text) document.execCommand('delete');
-          } else if (m.cmd === 'paste') {
-            if (m.text) document.execCommand('insertText', false, m.text);
-          } else if (['selectAll', 'undo', 'redo'].includes(m.cmd)) document.execCommand(m.cmd);
+          if (e.source !== window.parent || !m) return;
+          if (m.nomadsf === 'reply') {
+            const resolve = waiting.get(m.id);
+            waiting.delete(m.id);
+            if (resolve) resolve(m.result);
+          } else if (m.nomadsf === 'exec') {
+            if (lastKey && lastKey.cmd === m.cmd && Date.now() - lastKey.at < 600) return;
+            run(m.cmd, m.text);
+          }
         });
       })();
     </script>

@@ -40,6 +40,8 @@ export async function handleCall(op: string, args: unknown[], memento: vscode.Me
     }
     case 'clipboardWrite':
       return vscode.env.clipboard.writeText(String(a));
+    case 'clipboardRead':
+      return vscode.env.clipboard.readText();
     case 'save': {
       const folder = vscode.workspace.workspaceFolders?.[0]?.uri ?? vscode.Uri.file(homedir());
       const target = await vscode.window.showSaveDialog({

@@ -48,8 +48,21 @@ function selectedText(): string {
   return window.getSelection()?.toString() ?? '';
 }
 
+/** Text selected on the page (a table cell, an Id), not inside a field or an editor. */
+function pageSelection(): string {
+  const selection = window.getSelection();
+  const node = selection?.anchorNode;
+  const where = node instanceof Element ? node : node?.parentElement;
+  if (!selection || selection.isCollapsed || !where) return '';
+  if (where.closest('.monaco-editor, input, textarea, [contenteditable="true"]')) return '';
+  return selection.toString();
+}
+
 /** The copy event of the focused element (Monaco answers it), else the selection. */
 function copyText(kind: 'copy' | 'cut'): string {
+  // Like the browser: what is highlighted on the page, even while an editor keeps the focus
+  const onPage = pageSelection();
+  if (onPage && kind === 'copy') return onPage;
   const target = document.activeElement ?? document.body;
   const data = new DataTransfer();
   const event = new ClipboardEvent(kind, { clipboardData: data, bubbles: true, cancelable: true });
@@ -68,7 +81,16 @@ function paste(text: string): void {
   if (!event.defaultPrevented) document.execCommand('insertText', false, text);
 }
 
+/** The last edit key handled in the Studio itself (so VS Code's copy of it is not run twice). */
+let lastKey: { cmd: string; at: number } | undefined;
+
+/** Focused when the right-click menu opened (the menu takes the focus from code editors). */
+let menuFocus: HTMLElement | null = null;
+
 function command(cmd: string, text?: string): void {
+  const active = document.activeElement;
+  if ((!active || active === document.body) && menuFocus?.isConnected) menuFocus.focus();
+  menuFocus = null;
   if (cmd === 'copy' || cmd === 'cut') {
     const copied = copyText(cmd);
     if (!copied) return;
@@ -194,6 +216,8 @@ export function installEmbed(): void {
       if (msg.error) wait?.reject(new Error(msg.error));
       else wait?.resolve(msg.result);
     } else if (msg?.nomadsf === 'exec') {
+      // The same key already handled here (keydown below), when VS Code also sends it
+      if (lastKey && lastKey.cmd === msg.cmd && Date.now() - lastKey.at < 600) return;
       command(msg.cmd, msg.text);
     }
   });
@@ -204,6 +228,49 @@ export function installEmbed(): void {
     if (!linkHandler?.(target)) openExternal(target.href);
     return null;
   }) as typeof window.open;
+
+  // ⌘C / ⌘X / ⌘V typed in the Studio: VS Code does not see keys inside this frame
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      if (!(mac ? e.metaKey : e.ctrlKey) || e.altKey) return;
+      const k = e.key.toLowerCase();
+      // Plain fields: select all, undo, redo (the code editors handle these themselves)
+      const el = document.activeElement;
+      const field =
+        (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) && !el.closest('.monaco-editor');
+      const fieldCmd = !field
+        ? undefined
+        : k === 'a' && !e.shiftKey
+        ? 'selectAll'
+        : k === 'z'
+        ? e.shiftKey
+          ? 'redo'
+          : 'undo'
+        : undefined;
+      const cmd =
+        fieldCmd ?? (e.shiftKey ? undefined : ({ c: 'copy', x: 'cut', v: 'paste' } as Record<string, string>)[k]);
+      if (!cmd) return;
+      e.preventDefault();
+      e.stopPropagation();
+      lastKey = { cmd, at: Date.now() };
+      if (cmd === 'paste') void call<string>('clipboardRead').then((text) => command('paste', text));
+      else command(cmd);
+    },
+    true
+  );
+
+  // Right-click: VS Code's own menu for the webview (Cut / Copy / Paste come back as edit commands)
+  document.addEventListener('contextmenu', (e) => {
+    if (e.defaultPrevented) return;
+    e.preventDefault();
+    menuFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // An Id: the whole Id, so Copy has something to copy
+    const id = (e.target as Element | null)?.closest?.('.id-text');
+    if (id && !window.getSelection()?.toString()) window.getSelection()?.selectAllChildren(id);
+    window.parent.postMessage({ nomadsf: 'contextmenu', x: e.clientX, y: e.clientY }, '*');
+  });
 
   // Clipboard buttons (Copy, Copy package.xml…)
   try {

@@ -10,6 +10,7 @@ import {
 } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
 import { openInOrg } from '../host';
+import { CopyId } from '../components/CopyId';
 
 const display = (v: unknown): string =>
   v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
@@ -154,9 +155,17 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
     const text = display(f.value);
     if (f.referenceTo.length && text) {
       return (
-        <button className="link" onClick={() => void open(text)} title={`Open ${f.referenceTo.join(' / ')}`}>
-          {text}
-        </button>
+        <span className="id-cell">
+          <span className="id-text">{text}</span>
+          <CopyId id={text} />
+          <button
+            className="link id-action"
+            onClick={() => void open(text)}
+            title={`Open ${f.referenceTo.join(' / ')}`}
+          >
+            →
+          </button>
+        </span>
       );
     }
     return <span className="mono">{text.length > 500 ? `${text.slice(0, 500)}…` : text}</span>;

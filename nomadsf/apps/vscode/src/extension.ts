@@ -133,6 +133,9 @@ const BRIDGE = `(() => {
     // From the Studio frame: requests. Anything else comes from VS Code (no source window)
     if (e.source === studio()) {
       if (m && m.nomadsf === 'call') vscode.postMessage({ type: 'call', id: m.id, op: m.op, args: m.args });
+      // Right-click in the Studio: VS Code shows the webview menu for a contextmenu on this page
+      if (m && m.nomadsf === 'contextmenu')
+        document.body.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: m.x, clientY: m.y }));
     } else if (m && m.type === 'reply') {
       studio().postMessage({ nomadsf: 'reply', id: m.id, result: m.result, error: m.error }, origin);
     } else if (m && m.type === 'paste') {

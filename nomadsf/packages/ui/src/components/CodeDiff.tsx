@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { DiffEditor, type DiffOnMount } from '@monaco-editor/react';
 import { registerLanguages } from '../monaco';
+import { inVsCode } from '../embed';
 import { useTheme } from '../theme';
 import type { CodeEditorProps } from './CodeEditor';
 
@@ -92,6 +93,7 @@ export function CodeDiff({
           options={{
             readOnly: true,
             originalEditable: false,
+            contextmenu: !inVsCode(),
             renderSideBySide: sideBySide,
             ignoreTrimWhitespace: ignoreSpaces,
             minimap: { enabled: false },
