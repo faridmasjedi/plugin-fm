@@ -98,7 +98,7 @@ export function ApexTestsPage() {
 
   const start = async (all: boolean) => {
     const what = all ? 'all local tests' : `${selected.size} test class(es)`;
-    if (!studio.confirmRisky(`Run ${what}`)) return;
+    if (!(await studio.confirmRisky(`Run ${what}`))) return;
     abort.current?.abort();
     abort.current = new AbortController();
     setResults(null);

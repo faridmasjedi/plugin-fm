@@ -54,6 +54,7 @@ import { storage, useStudio } from '../context';
 import { orgFacts, type OrgChoice, type OrgFacts } from '../host';
 import { backupFolder, backupJobs, bigStore, isLocked, jobSink, type JobRecord } from '../backups';
 import { ObjectSettings } from './BackupPage';
+import { askTyped } from '../components/Dialogs';
 
 type SourceChoice = { kind: 'org'; org: string } | { kind: 'backup'; jobId: string; folder: string };
 type LastCopy = { at: string; source: string; created: LoadResult['created']; records: number };
@@ -405,12 +406,14 @@ export function MigratePage({
               ', '
             )} and the permission set NomadSF_Old_Ids (assigned to you) in ${target.label}.`
           : '';
-      const answer = prompt(
+      const ok = await askTyped(
         `Copy ${total} record(s) of ${plan.order.length} object(s) into ${target.label}${
           mask ? ' (masked)' : ''
-        }.${setup}${warn}\n\nType the target org name "${target.label}" to confirm:`
+        }.${setup}${warn}`,
+        target.label,
+        { ok: 'Copy', danger: targetProduction }
       );
-      if (answer !== target.label) return;
+      if (!ok) return;
       const targetClient = await clientFor(target.id);
       const known = { ...((await bigStore.get<Record<string, string>>(idsKey)) ?? {}), ...matched };
       const progress = (s: {
@@ -523,16 +526,16 @@ export function MigratePage({
   const removeFields = () =>
     act('', async () => {
       if (!target) return;
-      const answer = prompt(
+      const ok = await askTyped(
         `Remove ${OLD_ID_FIELD} (and its values) from ${fieldsUsed.join(
           ', '
         )} and the permission set NomadSF_Old_Ids in ${
           target.label
-        }? Re-runs then create new records instead of updating.\n\nType the target org name "${
-          target.label
-        }" to confirm:`
+        }? Re-runs then create new records instead of updating.`,
+        target.label,
+        { ok: 'Remove', danger: true }
       );
-      if (answer !== target.label) return;
+      if (!ok) return;
       const done = await removeOldIdFields(await clientFor(target.id), fieldsUsed, setStatus);
       setFieldsUsed([]);
       storage.set(`migrate.oldIdObjects.${target.id}`, []);
@@ -544,12 +547,14 @@ export function MigratePage({
   const undo = () =>
     act('', async () => {
       if (!last || !target) return;
-      const answer = prompt(
+      const ok = await askTyped(
         `Delete the ${last.records} record(s) the copy of ${new Date(last.at).toLocaleString()} created in ${
           target.label
-        }?\n\nType the target org name "${target.label}" to confirm:`
+        }?`,
+        target.label,
+        { ok: 'Delete', danger: true }
       );
-      if (answer !== target.label) return;
+      if (!ok) return;
       const out = await undoLoad(await clientFor(target.id), last.created, (o) => setStatus(`Deleting ${o}…`));
       await bigStore.remove(`migrate.last.${target.id}`);
       // Records deleted: the next copy creates them again

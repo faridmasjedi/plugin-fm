@@ -16,6 +16,7 @@ import {
 } from '@nomadsf/core';
 import { DataTable } from '../components/DataTable';
 import { useStudio } from '../context';
+import { askConfirm } from '../components/Dialogs';
 
 /** Field types a file value can be matched on (text-like, Ids and numbers). */
 const MATCHABLE = new Set(['string', 'email', 'id', 'reference', 'phone', 'url', 'picklist', 'int', 'double']);
@@ -120,7 +121,9 @@ export function LookupPage() {
     if (!table || !ready) return;
     if (
       queries > CONFIRM_QUERIES &&
-      !confirm(`This looks up ${values.length.toLocaleString()} values with about ${queries} API calls. Continue?`)
+      !(await askConfirm(
+        `This looks up ${values.length.toLocaleString()} values with about ${queries} API calls. Continue?`
+      ))
     ) {
       return;
     }

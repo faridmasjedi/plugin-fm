@@ -32,6 +32,7 @@ import {
   useLifecycleRun,
 } from '../lifecycle';
 import { ScheduleEditor } from './BackupPage';
+import { askConfirm, askTyped } from '../components/Dialogs';
 
 type Tab = 'steps' | 'settings' | 'runs';
 type Template = 'blank' | 'retention' | 'sandbox' | 'backup-archive';
@@ -184,8 +185,8 @@ export function LifecyclePage({
       return { ...d, steps };
     });
 
-  const switchJob = (job: LifecycleJob) => {
-    if (dirty && !confirm('Discard unsaved changes to this lifecycle job?')) return;
+  const switchJob = async (job: LifecycleJob) => {
+    if (dirty && !(await askConfirm('Discard unsaved changes to this lifecycle job?', { ok: 'Discard' }))) return;
     setDraft(job);
     setSaved(JSON.stringify(job));
     setStatus('');
@@ -218,16 +219,18 @@ export function LifecyclePage({
     const job = save();
     if (!dryRun && changes) {
       const label = orgLabel(job.org);
-      const answer = prompt(
+      const ok = await askTyped(
         `Run "${job.name}" on ${label}: ${job.steps
           .map((s, i) => `\n${i + 1}. ${describeStep(s, backupName)}`)
           .join('')}\n\n${
           job.approval
-            ? 'You approve again before the first step that changes data.\n\n'
-            : '⚠ No approval step: data changes right away.\n\n'
-        }Type the org name "${label}" to confirm:`
+            ? 'You approve again before the first step that changes data.'
+            : '⚠ No approval step: data changes right away.'
+        }`,
+        label,
+        { ok: 'Run', danger: !job.approval }
       );
-      if (answer !== label) return;
+      if (!ok) return;
     }
     setStatus('');
     setTab('runs');
@@ -433,8 +436,14 @@ export function LifecyclePage({
               {jobs.some((j) => j.id === draft.id) && (
                 <button
                   className="danger"
-                  onClick={() => {
-                    if (!confirm(`Delete the lifecycle job "${draft.name}" and its run reports?`)) return;
+                  onClick={async () => {
+                    if (
+                      !(await askConfirm(`Delete the lifecycle job "${draft.name}" and its run reports?`, {
+                        ok: 'Delete',
+                        danger: true,
+                      }))
+                    )
+                      return;
                     lifecycleJobs.remove(draft.id);
                     const rest = lifecycleJobs.list();
                     setJobs(rest);

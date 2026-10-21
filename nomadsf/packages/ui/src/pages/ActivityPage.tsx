@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { DataTable } from '../components/DataTable';
 import { activityLog, useStudio, type ActivityEntry } from '../context';
+import { askConfirm } from '../components/Dialogs';
 
 /** Changes made from this browser with the Studio (imports, deletes, permission changes, exports). */
 export function ActivityPage() {
@@ -33,8 +34,8 @@ export function ActivityPage() {
         <button
           className="danger"
           disabled={entries.length === 0}
-          onClick={() => {
-            if (!confirm('Clear the activity log of this browser?')) return;
+          onClick={async () => {
+            if (!(await askConfirm('Clear the activity log of this browser?', { ok: 'Clear', danger: true }))) return;
             activityLog.clear();
             setEntries([]);
           }}

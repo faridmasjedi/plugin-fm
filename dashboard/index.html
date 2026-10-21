@@ -1021,6 +1021,39 @@
           display: none;
         }
       }
+      /* Questions inside the page: confirm() is blocked in VS Code (a sandboxed webview) */
+      dialog.ask {
+        width: min(460px, calc(100vw - 32px));
+        box-sizing: border-box;
+        border: 1px solid var(--border);
+        border-top: 3px solid var(--accent);
+        border-radius: 12px;
+        background: var(--panel);
+        color: var(--text);
+        padding: 18px 18px 14px;
+        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.3);
+      }
+      dialog.ask.danger {
+        border-top-color: var(--bad);
+      }
+      dialog.ask::backdrop {
+        background: rgba(15, 23, 42, 0.45);
+      }
+      dialog.ask p {
+        margin: 0 0 14px;
+        white-space: pre-wrap;
+        line-height: 1.45;
+      }
+      dialog.ask form {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      dialog.ask button.danger.primary {
+        background: var(--bad);
+        border-color: var(--bad);
+        color: #fff;
+      }
     </style>
   </head>
   <body>
@@ -1109,6 +1142,30 @@
             body: JSON.stringify(body || {}),
           });
           return res.json();
+        }
+
+        /** OK / Cancel inside the page (resolves true for OK). */
+        function ask(message, { ok = 'OK', danger = false } = {}) {
+          return new Promise((resolve) => {
+            const dialog = document.createElement('dialog');
+            dialog.className = `ask${danger ? ' danger' : ''}`;
+            const text = document.createElement('p');
+            text.textContent = message;
+            const form = document.createElement('form');
+            form.method = 'dialog';
+            form.innerHTML = `<button value="cancel">Cancel</button><button value="ok" class="primary${
+              danger ? ' danger' : ''
+            }"></button>`;
+            form.lastElementChild.textContent = ok;
+            dialog.append(text, form);
+            dialog.addEventListener('close', () => {
+              dialog.remove();
+              resolve(dialog.returnValue === 'ok');
+            });
+            document.body.append(dialog);
+            dialog.showModal();
+            form.lastElementChild.focus();
+          });
         }
 
         // ---------- routing ----------
@@ -1489,7 +1546,7 @@
             );
           if ($('cancelBtn'))
             $('cancelBtn').onclick = async () => {
-              if (confirm('Cancel this run after the current step?')) {
+              if (await ask('Cancel this run after the current step?', { ok: 'Cancel run', danger: true })) {
                 await post(`/api/runs/${encodeURIComponent(run.id)}/cancel`);
                 refresh();
               }
@@ -1947,7 +2004,10 @@
             const warning = type === 'Production' || type === 'Dev Hub' ? `\n\n${org} is a ${type} org.` : '';
             if (
               !plan &&
-              !confirm(`Run "${selected.title}" against ${org}? Each change waits for your approval.${warning}`)
+              !(await ask(`Run "${selected.title}" against ${org}? Each change waits for your approval.${warning}`, {
+                ok: 'Run',
+                danger: Boolean(warning),
+              }))
             )
               return;
             const res = await post('/api/runbooks/run', { file: selected.path, org, plan, pr: $('rbPr').checked });

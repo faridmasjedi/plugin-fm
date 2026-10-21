@@ -37,7 +37,7 @@ export function UserEditor() {
   }, [client, chosen, reload]);
 
   const act = async (what: string, change: () => Promise<void>, details: Record<string, unknown>) => {
-    if (!chosen || !confirmChange(`${what} ${chosen.Name} (${chosen.Username}) in ${org.label}`)) return;
+    if (!chosen || !(await confirmChange(`${what} ${chosen.Name} (${chosen.Username}) in ${org.label}`))) return;
     setStatus(`${what}…`);
     try {
       await change();

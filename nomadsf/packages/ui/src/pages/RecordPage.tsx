@@ -92,9 +92,9 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
       return;
     }
     if (
-      !studio.confirmChange(
+      !(await studio.confirmChange(
         `Update ${changed.length} field(s) of ${record.sobject} ${record.id}: ${changed.join(', ')}`
-      )
+      ))
     )
       return;
     setStatus('Saving…');
@@ -110,7 +110,7 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
 
   const loginAs = async () => {
     if (!record || !user) return;
-    if (!studio.confirmRisky(`Log in as ${record.name ?? record.id}`)) return;
+    if (!(await studio.confirmRisky(`Log in as ${record.name ?? record.id}`))) return;
     try {
       await openInOrg(studio.hostKind, org, loginAsPath(user.organizationId, record.id));
       studio.logActivity('login as', { user: record.name, id: record.id });

@@ -10,9 +10,9 @@ export type Studio = {
   facts?: OrgFacts;
   user?: UserInfo;
   /** Asks before running code or changing anything in a production org. */
-  confirmRisky: (what: string) => boolean;
+  confirmRisky: (what: string) => Promise<boolean>;
   /** Data and access changes: the person types the org name to confirm (any org). */
-  confirmChange: (what: string) => boolean;
+  confirmChange: (what: string) => Promise<boolean>;
   /** Records a change in this browser's activity log. */
   logActivity: (action: string, details: Record<string, unknown>) => void;
 };

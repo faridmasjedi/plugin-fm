@@ -100,7 +100,7 @@ export function AccessPage() {
 
   const assign = async () => {
     if (!target || userSel.size === 0) return;
-    if (!confirmChange(`Assign "${target.label}" to ${userSel.size} user(s) in ${org.label}.`)) return;
+    if (!(await confirmChange(`Assign "${target.label}" to ${userSel.size} user(s) in ${org.label}.`))) return;
     try {
       const r = await assignAccess(client, target, [...userSel], expires || undefined);
       setStatus(
@@ -123,7 +123,7 @@ export function AccessPage() {
 
   const remove = async () => {
     if (!target || assignedSel.size === 0) return;
-    if (!confirmChange(`Remove "${target.label}" from ${assignedSel.size} user(s) in ${org.label}.`)) return;
+    if (!(await confirmChange(`Remove "${target.label}" from ${assignedSel.size} user(s) in ${org.label}.`))) return;
     try {
       const r = await removeAccess(client, [...assignedSel]);
       setStatus(`Removed ${r.removed}.${r.errors.length ? ` Errors: ${r.errors.join('; ')}` : ''}`);

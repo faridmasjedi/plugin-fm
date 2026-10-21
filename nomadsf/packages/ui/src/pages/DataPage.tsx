@@ -83,7 +83,8 @@ export function DataPage() {
   const runIngest = async () => {
     if (!file || !object || !toSend.length || report?.problems.length || !columnsToSend.length) return;
     const label = OPERATIONS.find(([op]) => op === operation)?.[1];
-    if (!confirmChange(`${label} ${toSend.length.toLocaleString()} ${object} record(s) in ${org.label}.`)) return;
+    if (!(await confirmChange(`${label} ${toSend.length.toLocaleString()} ${object} record(s) in ${org.label}.`)))
+      return;
     setIngest(null);
     setIngestStatus('Uploading…');
     try {
@@ -136,7 +137,7 @@ export function DataPage() {
     }
   };
   const runDelete = async () => {
-    if (!confirmChange(`${hard ? 'HARD delete' : 'Delete'} every record returned by:\n${deleteSoql}`)) return;
+    if (!(await confirmChange(`${hard ? 'HARD delete' : 'Delete'} every record returned by:\n${deleteSoql}`))) return;
     setDeleteResult(null);
     setDeleteStatus('Finding records…');
     try {

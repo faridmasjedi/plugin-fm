@@ -108,7 +108,7 @@ export function QueryEditTab() {
             changes.cells
           } field change(s): ${changes.columns.slice(1).join(', ')})`
         : `Delete ${payload.rows.length.toLocaleString()} ${sobject} record(s)`;
-    if (!confirmChange(`${what} in ${org.label}.`)) return;
+    if (!(await confirmChange(`${what} in ${org.label}.`))) return;
     setBusy(true);
     setResult(null);
     setStatus(`${operation === 'update' ? 'Updating' : 'Deleting'}…`);
