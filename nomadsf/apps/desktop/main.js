@@ -71,7 +71,7 @@ async function switchProject() {
     return;
   }
   helpers.writeSettings(SETTINGS(), { ...settings, project });
-  win.loadURL(`http://127.0.0.1:${port}/`);
+  win.loadURL(`http://127.0.0.1:${port}/studio/`);
 }
 
 function menu() {
@@ -90,8 +90,8 @@ function menu() {
     {
       label: 'Go',
       submenu: [
-        { label: 'Runs and releases', accelerator: 'CmdOrCtrl+1', click: go('/') },
-        { label: 'Studio', accelerator: 'CmdOrCtrl+2', click: go('/studio/') },
+        { label: 'Studio', accelerator: 'CmdOrCtrl+1', click: go('/studio/') },
+        { label: 'Runs and releases', accelerator: 'CmdOrCtrl+2', click: go('/') },
         { label: 'Orgs', click: go('/#page=orgs') },
         { label: 'AI', click: go('/#page=ai') },
         { type: 'separator' },
@@ -108,6 +108,8 @@ function createWindow() {
     width: 1440,
     height: 940,
     title: 'NomadSF',
+    // The NomadSF icon in the window and taskbar (Windows, Linux); macOS takes it from the app bundle
+    icon: join(__dirname, 'build', 'icon.png'),
     backgroundColor: '#0f1115',
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
@@ -123,7 +125,8 @@ function createWindow() {
       void shell.openExternal(url);
     }
   });
-  win.loadURL(`http://127.0.0.1:${port}/`);
+  // Opens on the Studio, like the browser and VS Code extensions
+  win.loadURL(`http://127.0.0.1:${port}/studio/`);
   if (process.env.NOMADSF_SMOKE) {
     win.webContents.once('did-finish-load', () => {
       console.log(`SMOKE loaded ${win.webContents.getURL()} title=${win.getTitle()}`);
