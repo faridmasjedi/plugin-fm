@@ -1,0 +1,74 @@
+name: Release draft
+
+# Every merge into main keeps one draft release up to date: the next version (from the
+# commit titles since the last published release: "feat" → minor, a "!" or "BREAKING CHANGE"
+# → major, anything else → patch) and its notes. Nothing is pushed to main. Publishing the
+# draft (Releases → Edit → Publish release) starts the Release workflow, step by step with
+# approval.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version of the next release (auto = from the commit titles)
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+
+permissions:
+  contents: write # draft releases only
+
+concurrency: release-draft
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Next version
+        id: next
+        run: |
+          LAST=$(gh release view --repo "$REPO" --json tagName -q .tagName 2>/dev/null || echo "")
+          if [ -n "$LAST" ]; then RANGE="$LAST..HEAD"; else RANGE="HEAD"; fi
+          LOG=$(git log "$RANGE" --format='%s%n%b')
+          if [ -z "$(git log "$RANGE" --format=%H | head -1)" ]; then
+            echo "Nothing new since $LAST."; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          BUMP="${{ inputs.bump || 'auto' }}"
+          if [ "$BUMP" = auto ]; then
+            if echo "$LOG" | grep -qE '^[a-z]+(\([^)]*\))?!:|BREAKING CHANGE'; then BUMP=major
+            elif echo "$LOG" | grep -qE '^feat(\([^)]*\))?:'; then BUMP=minor
+            else BUMP=patch; fi
+          fi
+          BASE=${LAST#v}; BASE=${BASE:-0.0.0}
+          NEXT=$(node -e "const [a,b,c]=process.argv[1].split('.').map(Number);const k=process.argv[2];console.log(k==='major'?\`\${a+1}.0.0\`:k==='minor'?\`\${a}.\${b+1}.0\`:\`\${a}.\${b}.\${c+1}\`)" "$BASE" "$BUMP")
+          echo "Last release ${LAST:-none}, $BUMP → v$NEXT"
+          echo "last=$LAST" >> "$GITHUB_OUTPUT"
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update the draft
+        if: steps.next.outputs.skip != 'true'
+        run: |
+          TAG="v${{ steps.next.outputs.version }}"
+          ARGS=(-f tag_name="$TAG" -f target_commitish="$GITHUB_SHA")
+          [ -n "${{ steps.next.outputs.last }}" ] && ARGS+=(-f previous_tag_name="${{ steps.next.outputs.last }}")
+          gh api "repos/$REPO/releases/generate-notes" "${ARGS[@]}" -q .body > notes.md
+          {
+            echo
+            echo "---"
+            echo "Publishing this draft starts the **Release** workflow: tests, release files (plugin, browser extension, VS Code), then the Docker image — each step waits for approval."
+          } >> notes.md
+          DRAFT=$(gh release list --repo "$REPO" --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName' | head -1)
+          if [ -n "$DRAFT" ]; then
+            gh release edit "$DRAFT" --repo "$REPO" --tag "$TAG" --target "$GITHUB_SHA" --title "NomadSF $TAG" --notes-file notes.md --draft
+            echo "Updated the draft $DRAFT → $TAG" >> "$GITHUB_STEP_SUMMARY"
+          else
+            gh release create "$TAG" --repo "$REPO" --draft --target "$GITHUB_SHA" --title "NomadSF $TAG" --notes-file notes.md
+            echo "Created the draft $TAG" >> "$GITHUB_STEP_SUMMARY"
+          fi

@@ -560,3 +560,7 @@ footer .wrap {
     font-size: 17px;
   }
 }
+a.eyebrow:hover {
+  text-decoration: none;
+  filter: brightness(1.05);
+}
