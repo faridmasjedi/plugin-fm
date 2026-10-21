@@ -55,3 +55,5 @@ nomadsf/**/*.vsix
 nomadsf/apps/desktop/out/
 nomadsf/apps/extension/nomadsf-extension-*/
 !nomadsf/apps/desktop/package-lock.json
+# copied in by "yarn package" (the repository license)
+nomadsf/apps/vscode/LICENSE.txt

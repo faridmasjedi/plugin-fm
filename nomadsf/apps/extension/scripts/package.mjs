@@ -83,11 +83,12 @@ const manifest = {
 writeFileSync(join(dist, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 
 // ---------- store zip ----------
-const zip = join(root, `nomadsf-extension-${version}.zip`);
+// One stable name (the version is in the manifest), so "latest" download links never change
+const zip = join(root, 'nomadsf-extension.zip');
 rmSync(zip, { force: true });
 try {
   execFileSync('zip', ['-qr', zip, '.'], { cwd: dist });
-  console.log(`Extension: ${dist} (load unpacked) · ${zip} (store upload)`);
+  console.log(`Extension ${version}: ${dist} (load unpacked) · ${zip} (store upload)`);
 } catch {
   console.log(`Extension: ${dist} (load unpacked). Install "zip" to also create the store package.`);
 }

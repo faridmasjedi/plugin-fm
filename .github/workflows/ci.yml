@@ -54,7 +54,7 @@ jobs:
       - name: Extension package
         id: zip
         run: |
-          ZIP=$(ls apps/extension/nomadsf-extension-*.zip)
+          ZIP=apps/extension/nomadsf-extension.zip
           VSIX=apps/vscode/nomadsf-vscode.vsix
           echo "file=nomadsf/$ZIP" >> "$GITHUB_OUTPUT"
           echo "vsix=nomadsf/$VSIX" >> "$GITHUB_OUTPUT"

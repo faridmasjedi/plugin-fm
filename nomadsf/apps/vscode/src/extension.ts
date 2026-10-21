@@ -116,8 +116,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('nomadsf.openStudio', () => show({ kind: 'studio' }, 'NomadSF Studio')),
     vscode.commands.registerCommand('nomadsf.openStudioPage', async () => {
       const pick = await vscode.window.showQuickPick(
-        STUDIO_PAGES.map(([id, label]) => ({ label, id })),
-        { placeHolder: 'Studio page' }
+        STUDIO_PAGES.map(([id, label, hub]) => ({ label, description: hub, id })),
+        { placeHolder: 'Studio tool', matchOnDescription: true }
       );
       if (pick) await show({ kind: 'studio', page: pick.id }, `NomadSF · ${pick.label}`);
     }),
