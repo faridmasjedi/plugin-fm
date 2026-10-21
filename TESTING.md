@@ -405,6 +405,8 @@ Read-only items can run on any org; everything marked ✎ only on a sandbox.
 | L205  | Two panes; run a query with many rows in one                                                                                                | the pane scrolls to the last row (the page fits the window)                                                                                                                  |
 | L206  | Switch to another tab and back, to another hub and back, close the other pane                                                               | the query, its results and filters are still there                                                                                                                           |
 | L207  | ↻ on the pane                                                                                                                               | that tab starts again empty; other tabs keep their state                                                                                                                     |
+| L208  | Every hub, light and dark, one pane and side by side                                                                                        | buttons, inputs, selects and tabs one height; checkboxes, links and tags on the same line as the buttons beside them                                                         |
+| L209  | Settings → Project                                                                                                                          | one card: the chosen project, and the folder / GitHub (/ app) choices inside it                                                                                              |
 
 ## Before a demo
 
