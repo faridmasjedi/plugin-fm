@@ -81,6 +81,9 @@ function paste(text: string): void {
   if (!event.defaultPrevented) document.execCommand('insertText', false, text);
 }
 
+/** The last edit key handled in the Studio itself (so VS Code's copy of it is not run twice). */
+let lastKey: { cmd: string; at: number } | undefined;
+
 /** Focused when the right-click menu opened (the menu takes the focus from code editors). */
 let menuFocus: HTMLElement | null = null;
 
@@ -213,6 +216,8 @@ export function installEmbed(): void {
       if (msg.error) wait?.reject(new Error(msg.error));
       else wait?.resolve(msg.result);
     } else if (msg?.nomadsf === 'exec') {
+      // The same key already handled here (keydown below), when VS Code also sends it
+      if (lastKey && lastKey.cmd === msg.cmd && Date.now() - lastKey.at < 600) return;
       command(msg.cmd, msg.text);
     }
   });
@@ -223,6 +228,38 @@ export function installEmbed(): void {
     if (!linkHandler?.(target)) openExternal(target.href);
     return null;
   }) as typeof window.open;
+
+  // ⌘C / ⌘X / ⌘V typed in the Studio: VS Code does not see keys inside this frame
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      if (!(mac ? e.metaKey : e.ctrlKey) || e.altKey) return;
+      const k = e.key.toLowerCase();
+      // Plain fields: select all, undo, redo (the code editors handle these themselves)
+      const el = document.activeElement;
+      const field =
+        (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) && !el.closest('.monaco-editor');
+      const fieldCmd = !field
+        ? undefined
+        : k === 'a' && !e.shiftKey
+        ? 'selectAll'
+        : k === 'z'
+        ? e.shiftKey
+          ? 'redo'
+          : 'undo'
+        : undefined;
+      const cmd =
+        fieldCmd ?? (e.shiftKey ? undefined : ({ c: 'copy', x: 'cut', v: 'paste' } as Record<string, string>)[k]);
+      if (!cmd) return;
+      e.preventDefault();
+      e.stopPropagation();
+      lastKey = { cmd, at: Date.now() };
+      if (cmd === 'paste') void call<string>('clipboardRead').then((text) => command('paste', text));
+      else command(cmd);
+    },
+    true
+  );
 
   // Right-click: VS Code's own menu for the webview (Cut / Copy / Paste come back as edit commands)
   document.addEventListener('contextmenu', (e) => {
