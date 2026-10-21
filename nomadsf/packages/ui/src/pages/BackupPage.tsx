@@ -933,7 +933,7 @@ export function ScheduleEditor({
   return (
     <div className="form">
       <label>
-        Schedule
+        Repeat
         <select
           value={schedule.every}
           onChange={(e) => {

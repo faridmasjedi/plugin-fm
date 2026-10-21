@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { storage } from './context';
 
 /**
@@ -241,6 +241,22 @@ export function Panes({
   render: (tool: ToolId, pane: number) => ReactNode;
 }) {
   const [drag, setDrag] = useState<{ pane: number; side: 'beside' | 'here' } | null>(null);
+  // Tools opened in each pane stay mounted (hidden when not shown), so switching tabs or hubs, or
+  // closing another pane, keeps their results; ↻ resets one to a clean page
+  const [opened, setOpened] = useState<Record<string, ToolId[]>>({});
+  const [resets, setResets] = useState<Record<string, number>>({});
+  useEffect(() => {
+    setOpened((o) => {
+      const next: Record<string, ToolId[]> = {};
+      let changed = Object.keys(o).length !== ws.panes.length;
+      for (const p of ws.panes) {
+        const list = o[p.key] ?? [];
+        next[p.key] = list.includes(p.tool) ? list : [...list, p.tool];
+        if (next[p.key] !== list) changed = true;
+      }
+      return changed ? next : o;
+    });
+  }, [ws.panes]);
   const area = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
@@ -294,72 +310,85 @@ export function Panes({
         const hub = hubOf(pane.tool);
         const tools = hub.tools.filter(available);
         const tool = available(pane.tool) ? pane.tool : tools[0] ?? 'settings';
-        return [
-          i > 0 && (
-            <div
-              key={`divider-${pane.key}`}
-              className="pane-divider"
-              onPointerDown={startResize(i - 1)}
-              title="Drag to resize"
-            >
-              <span />
-            </div>
-          ),
-          <section
-            key={pane.key}
-            className={`pane ${i === ws.active ? 'active' : ''}`}
-            style={{ flexGrow: pane.size, flexBasis: 0 }}
-            onMouseDown={() => ws.focus(i)}
-            onDragOver={onDragOver(i)}
-            onDrop={onDrop(i)}
-          >
-            <div className="pane-bar">
-              <span className="pane-hub" title={hub.label}>
-                <span className="icon">{hub.icon}</span>
-                <span className="hub-name">{hub.label}</span>
-              </span>
-              <div className="hub-tabs" role="tablist">
-                {tools.map((t) => {
-                  const meta = toolOf(t)!;
-                  return (
-                    <button
-                      key={t}
-                      role="tab"
-                      className={`hub-tab ${t === tool ? 'active' : ''}`}
-                      ref={t === tool ? (el) => el?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) : undefined}
-                      title={`${meta.hint} · drag to the right to open beside`}
-                      draggable
-                      onDragStart={dragTool(t)}
-                      onClick={() => ws.show(t, i)}
-                    >
-                      <span className="icon">{meta.icon}</span>
-                      {meta.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <span className="grow" />
-              {!ws.full && (
-                <button className="pane-action" title="Open this hub beside" onClick={() => ws.openBeside(tool, i)}>
-                  ⧉
-                </button>
-              )}
-              {ws.panes.length > 1 && (
-                <button className="pane-action" title="Close this pane" onClick={() => ws.close(i)}>
-                  ✕
-                </button>
-              )}
-            </div>
-            <div className="pane-body">{render(tool, i)}</div>
-            {drag?.pane === i && (
-              <div className={`drop-zone ${drag.side}`}>
-                <span>
-                  {drag.side === 'beside' ? (ws.full ? 'Open here (3 panes at most)' : 'Open beside') : 'Open here'}
-                </span>
+        const kept = [...new Set([...(opened[pane.key] ?? []), tool])].filter(available);
+        const resetKey = `${pane.key}:${tool}`;
+        return (
+          <Fragment key={pane.key}>
+            {i > 0 && (
+              <div className="pane-divider" onPointerDown={startResize(i - 1)} title="Drag to resize">
+                <span />
               </div>
             )}
-          </section>,
-        ];
+            <section
+              className={`pane ${i === ws.active ? 'active' : ''}`}
+              style={{ flexGrow: pane.size, flexBasis: 0 }}
+              onMouseDown={() => ws.focus(i)}
+              onDragOver={onDragOver(i)}
+              onDrop={onDrop(i)}
+            >
+              <div className="pane-bar">
+                <span className="pane-hub" title={hub.label}>
+                  <span className="icon">{hub.icon}</span>
+                  <span className="hub-name">{hub.label}</span>
+                </span>
+                <div className="hub-tabs" role="tablist">
+                  {tools.map((t) => {
+                    const meta = toolOf(t)!;
+                    return (
+                      <button
+                        key={t}
+                        role="tab"
+                        className={`hub-tab ${t === tool ? 'active' : ''}`}
+                        ref={
+                          t === tool ? (el) => el?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) : undefined
+                        }
+                        title={`${meta.hint} · drag to the right to open beside`}
+                        draggable
+                        onDragStart={dragTool(t)}
+                        onClick={() => ws.show(t, i)}
+                      >
+                        <span className="icon">{meta.icon}</span>
+                        {meta.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <span className="grow" />
+                <button
+                  className="pane-action"
+                  title="Start this tab again with a clean page (its current results are cleared)"
+                  onClick={() => setResets((r) => ({ ...r, [resetKey]: (r[resetKey] ?? 0) + 1 }))}
+                >
+                  ↻
+                </button>
+                {!ws.full && (
+                  <button className="pane-action" title="Open this hub beside" onClick={() => ws.openBeside(tool, i)}>
+                    ⧉
+                  </button>
+                )}
+                {ws.panes.length > 1 && (
+                  <button className="pane-action" title="Close this pane" onClick={() => ws.close(i)}>
+                    ✕
+                  </button>
+                )}
+              </div>
+              <div className="pane-body">
+                {kept.map((t) => (
+                  <div key={`${t}:${resets[`${pane.key}:${t}`] ?? 0}`} className="tool-view" hidden={t !== tool}>
+                    {render(t, i)}
+                  </div>
+                ))}
+              </div>
+              {drag?.pane === i && (
+                <div className={`drop-zone ${drag.side}`}>
+                  <span>
+                    {drag.side === 'beside' ? (ws.full ? 'Open here (3 panes at most)' : 'Open beside') : 'Open here'}
+                  </span>
+                </div>
+              )}
+            </section>
+          </Fragment>
+        );
       })}
     </div>
   );

@@ -14,7 +14,7 @@ import { currentGitHub, githubClientId, githubToken, lastRepo, type GitHubConnec
 import { useProject } from '../project';
 
 /** Connect GitHub, then open any repository and branch as the project. */
-export function GitHubCard({ hostKind }: { hostKind: 'app' | 'extension' }) {
+export function GitHubCard({ hostKind, embedded = false }: { hostKind: 'app' | 'extension'; embedded?: boolean }) {
   const project = useProject();
   const [connection, setConnection] = useState<GitHubConnection & { login: string }>();
   const [checking, setChecking] = useState(true);
@@ -110,8 +110,8 @@ export function GitHubCard({ hostKind }: { hostKind: 'app' | 'extension' }) {
   const shown = repos.filter((r) => r.fullName.toLowerCase().includes(filter.toLowerCase())).slice(0, 200);
 
   return (
-    <div className="card section">
-      <h3>From GitHub</h3>
+    <div className={embedded ? 'project-source' : 'card section'}>
+      {embedded ? <h4>From GitHub</h4> : <h3>From GitHub</h3>}
       {checking && <p className="muted">Checking GitHub…</p>}
       {!checking && connection && (
         <>

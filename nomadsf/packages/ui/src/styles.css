@@ -87,8 +87,10 @@ a {
 .studio {
   display: grid;
   grid-template-columns: 224px minmax(0, 1fr);
-  grid-template-rows: auto 1fr;
+  /* minmax: the panes take the window's height, not their content's, so each pane scrolls */
+  grid-template-rows: auto minmax(0, 1fr);
   height: 100%;
+  overflow: hidden;
 }
 header.top {
   grid-column: 1 / -1;
@@ -117,6 +119,8 @@ nav.side {
   background: var(--panel);
   border-right: 1px solid var(--border);
   padding: 10px 8px;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -367,7 +371,7 @@ table.limits .bar div.hot {
 @media (max-width: 900px) {
   .studio {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto 1fr;
+    grid-template-rows: auto auto minmax(0, 1fr);
   }
   nav.side {
     flex-direction: row;
@@ -1657,13 +1661,25 @@ nav.side .hub-label {
 }
 .studio > main {
   padding: 0;
+  min-height: 0;
   overflow: hidden;
+  /* A column with a fixed height: the panes get exactly the room left, and scroll inside it */
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
 }
 .panes {
   display: flex;
-  height: 100%;
+  flex: 1 1 0;
   min-height: 0;
+  box-sizing: border-box;
+}
+.pane {
+  max-height: 100%;
+}
+/* One kept-alive tool per tab; only the shown one is visible */
+.tool-view[hidden] {
+  display: none !important;
 }
 .panes.split {
   padding: 10px;
@@ -1778,10 +1794,10 @@ nav.side .hub-label {
   padding: 14px 16px 32px;
 }
 /* The hub tab names the tool: the page's own title is not repeated */
-.pane-body > .page > .toolbar:first-child > h2 {
+.pane-body > .tool-view > .page > .toolbar:first-child > h2 {
   display: none;
 }
-.pane-body > .page > .toolbar:first-child:empty {
+.pane-body > .tool-view > .page > .toolbar:first-child:empty {
   display: none;
 }
 .pane-divider {
@@ -1954,4 +1970,339 @@ body.resizing iframe {
 }
 .hub-tabs {
   mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+}
+
+/* ======================================================================
+   Sizing system: one height for every control, one size for every kind of
+   tab, one baseline for rows of fields, buttons, checkboxes and links.
+   ====================================================================== */
+:root {
+  --h: 32px; /* buttons, inputs, selects, tabs */
+  --h-sm: 22px; /* chips, tags, pills, counts */
+  --r: 8px;
+  --gap: 8px;
+  --fs: 13.5px;
+  --fs-sm: 12.5px;
+  --fs-xs: 11.5px;
+}
+
+/* Controls */
+button,
+select,
+input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']) {
+  min-height: var(--h);
+  font-size: var(--fs);
+  border-radius: var(--r);
+  line-height: 1.2;
+}
+select,
+input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']) {
+  height: var(--h);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+input[type='file'] {
+  min-height: var(--h);
+  padding: 4px 6px;
+  font-size: var(--fs-sm);
+}
+input[type='checkbox'],
+input[type='radio'] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--accent);
+}
+/* Text buttons, list rows and dense table controls keep their own size */
+button.link {
+  min-height: 0;
+  display: inline;
+  padding: 0;
+  font-size: inherit;
+  white-space: normal;
+}
+.dt table button,
+.code-list li button,
+.backup-jobs li button,
+.menu button,
+.quick-jump li button,
+nav.side button,
+.metric,
+button.metric {
+  min-height: 0;
+}
+.code-list li button,
+.backup-jobs li button,
+.menu button,
+.quick-jump li button {
+  justify-content: flex-start;
+  white-space: normal;
+}
+
+/* Rows of fields: labels above, controls, checkboxes and links on one bottom line */
+.form {
+  align-items: flex-end;
+  gap: var(--gap) 10px;
+}
+.form label:not(.check) {
+  gap: 5px;
+  font-size: var(--fs-sm);
+}
+label.check,
+.form label.check {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  min-height: var(--h);
+  font-size: var(--fs);
+  color: var(--text);
+  white-space: nowrap;
+}
+.form > a,
+.form > span:not(.grow),
+.form > b {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--h);
+}
+.toolbar {
+  align-items: center;
+  gap: var(--gap) 10px;
+  min-height: var(--h);
+}
+/* In a pane the hub tab names the page: no title, and no spacer pushing the controls right */
+.pane-body > .tool-view > .page > .toolbar:first-child > h2 + .grow {
+  display: none;
+}
+
+/* Tabs: hub tabs (pane bar), page tabs (underline), picker tabs, segmented choices */
+.hub-tab,
+.tabs .tab,
+.segmented button {
+  height: var(--h);
+  min-height: var(--h);
+  padding: 0 12px;
+  font-size: var(--fs);
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.tabs {
+  gap: 2px;
+  align-items: flex-end;
+}
+.tabs .tab {
+  border-radius: 0;
+  margin-bottom: -1px;
+}
+.tabs .tab:hover:not(.active) {
+  color: var(--text);
+}
+.segmented {
+  height: var(--h);
+  align-items: stretch;
+}
+.segmented button {
+  height: auto;
+  min-height: 0;
+  border-radius: 0;
+}
+.pane-bar {
+  height: 48px;
+  min-height: 48px;
+  padding: 0 12px 0 14px;
+}
+.pane-action {
+  min-height: 0;
+  width: var(--h);
+  height: var(--h);
+  padding: 0;
+}
+
+/* Chips, tags, pills, counts: one small height */
+.chip,
+.pill,
+.backup-tag,
+.code-tag,
+.hub-count,
+.qj-hub {
+  display: inline-flex;
+  align-items: center;
+  height: var(--h-sm);
+  line-height: 1;
+  padding: 0 9px;
+  font-size: var(--fs-xs);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.hub-count {
+  height: 18px;
+  padding: 0 7px;
+}
+.chips {
+  gap: 6px;
+}
+
+/* Cards and sections: same padding, same heading, same spacing */
+.card {
+  padding: 16px;
+  border-radius: 12px;
+}
+.section {
+  gap: 12px;
+}
+.section h3,
+.card > h3 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.3;
+}
+.data-page h4,
+.setting h4 {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+}
+.page {
+  gap: 14px;
+}
+.page > p.muted,
+.page > .toolbar > span.muted {
+  font-size: var(--fs);
+}
+
+/* Tables: filters and buttons above them on the control height */
+.dt-filter {
+  height: var(--h);
+}
+.dt input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']) {
+  height: 26px;
+  min-height: 0;
+  font-size: var(--fs-sm);
+}
+
+/* A title row with nothing but the (hidden) title takes no space */
+.pane-body > .tool-view > .page > .toolbar:first-child:has(> h2:only-child) {
+  display: none;
+}
+
+/* Settings → Project: the chosen project, and where it can come from, in one card */
+.project-sources {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+}
+.project-source {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.project-source h4 {
+  margin: 0;
+  font-size: 13.5px;
+}
+.project-source .form input:not([type='checkbox']) {
+  flex: 1;
+  min-width: 180px;
+}
+
+/* Settings tabs (Backup, Lifecycle): one row per setting — title and explanation on the left,
+   controls on the right; stacked in a narrow pane */
+.card.settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px 20px;
+}
+.settings-grid > .setting {
+  display: grid;
+  grid-template-columns: minmax(200px, 300px) minmax(0, 1fr);
+  grid-auto-rows: auto;
+  column-gap: 32px;
+  row-gap: 0;
+  align-items: start;
+  padding: 18px 0;
+}
+.settings-grid > .setting + .setting {
+  border-top: 1px solid var(--border);
+}
+.settings-grid > .setting > h4 {
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0;
+  font-size: 14px;
+  line-height: var(--h);
+}
+.settings-grid > .setting > p.muted {
+  grid-column: 1;
+  grid-row: 2 / span 8;
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.settings-grid > .setting > :not(h4):not(p.muted) {
+  grid-column: 2;
+  justify-self: start;
+  margin: 0 0 8px;
+}
+.settings-grid > .setting > :not(h4):not(p.muted):last-child {
+  margin-bottom: 0;
+}
+.settings-grid > .setting > h4 + p.muted {
+  margin-top: 2px;
+}
+.settings-grid > .setting > .form {
+  justify-self: stretch;
+}
+.settings-grid label.check {
+  white-space: normal;
+}
+@container pane (max-width: 760px) {
+  .settings-grid > .setting {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-grid > .setting > h4,
+  .settings-grid > .setting > p.muted,
+  .settings-grid > .setting > :not(h4):not(p.muted) {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+/* "From → Into" arrows sit on the line of the two dropdowns, not between label and box */
+.form > .arrow,
+.form > span.arrow {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--h);
+  min-height: var(--h);
+  width: 20px;
+  font-size: 16px;
+  line-height: 1;
+}
+/* Buttons laid out as a column (job lists, menus, quick jump) read from the left */
+.backup-jobs li button,
+.menu button,
+.quick-jump li button {
+  align-items: flex-start;
+  text-align: left;
+}
+.quick-jump li button {
+  align-items: center;
 }

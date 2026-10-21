@@ -22,7 +22,7 @@ The tools are grouped into **hubs** in the sidebar, each a page with its tools a
 | **Org**             | Users & access · Limits · Events · REST Explorer · Activity      |
 | **Settings**        | org, project, AI                                                 |
 
-A hub opens on the tab used last. **Side by side**: drag a hub from the sidebar, or a tab, to the right half of a pane to open it beside (up to three panes); drag it onto the left of a pane to open it there; drag the divider between panes to resize; **⧉** opens the same hub beside, **✕** closes a pane. The active pane is outlined; pages adapt to the width of their pane. The layout is remembered. **⌘/Ctrl + K** jumps to any tool (Enter opens it, Shift+Enter opens it beside). Links such as `#code` or `#query=…` (popup, VS Code) still open that tool. Small screens show one pane at a time.
+A hub opens on the tab used last. **Side by side**: drag a hub from the sidebar, or a tab, to the right half of a pane to open it beside (up to three panes); drag it onto the left of a pane to open it there; drag the divider between panes to resize; **⧉** opens the same hub beside, **✕** closes a pane. The active pane is outlined; pages adapt to the width of their pane, and each pane scrolls on its own. **Results are kept**: a tab you opened keeps its state (query results, editors, filters, plans) when you switch tabs or hubs or close another pane; **↻** on a pane starts the shown tab again with a clean page. The layout is remembered. **⌘/Ctrl + K** jumps to any tool (Enter opens it, Shift+Enter opens it beside). Links such as `#code` or `#query=…` (popup, VS Code) still open that tool. Small screens show one pane at a time.
 
 ## Features
 

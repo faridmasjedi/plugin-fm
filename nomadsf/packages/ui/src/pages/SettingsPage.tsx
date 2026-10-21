@@ -70,82 +70,85 @@ export function SettingsPage({
           </div>
         ) : (
           <p className="muted" style={{ margin: 0 }}>
-            No project yet. Choose one below; Project, compare, manifests and saved queries all use it.
+            No project yet. Choose where it comes from; Project, compare, manifests and saved queries all use it.
           </p>
         )}
         {project.loading && <p className="muted">Reading the project…</p>}
         {project.error && <div className="error">{project.error}</div>}
-      </div>
 
-      <div className="grid3">
-        {hostKind === 'app' && (
-          <div className="card section">
-            <h3>Projects of this app</h3>
-            {project.localAvailable ? (
+        <div className="project-sources">
+          {hostKind === 'app' && (
+            <div className="project-source">
+              <h4>Projects of this app</h4>
+              {project.localAvailable ? (
+                <>
+                  <p className="muted" style={{ margin: 0 }}>
+                    Your Salesforce project as opened by <code>sf fm dashboard</code> on this computer. Retrieve, deploy
+                    and AI help follow the project you choose here.
+                  </p>
+                  <div className="form">
+                    <button
+                      className={source?.kind === 'local' ? '' : 'primary'}
+                      onClick={() => void project.useLocal()}
+                    >
+                      Use the app's project
+                    </button>
+                    {project.recent.length > 0 && (
+                      <select value="" onChange={(e) => e.target.value && void project.switchLocal(e.target.value)}>
+                        <option value="">Switch to a recent project…</option>
+                        {project.recent.map((r) => (
+                          <option key={r.path} value={r.path}>
+                            {r.name} — {r.path}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <div className="form">
+                    <input
+                      placeholder="/path/to/salesforce-project"
+                      value={switchPath}
+                      onChange={(e) => setSwitchPath(e.target.value)}
+                    />
+                    <button disabled={!switchPath.trim()} onClick={() => void project.switchLocal(switchPath.trim())}>
+                      Open
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="muted" style={{ margin: 0 }}>
+                  Could not reach the app. Is <code>sf fm dashboard</code> still running?
+                </p>
+              )}
+            </div>
+          )}
+          <div className="project-source">
+            <h4>From a folder on this computer</h4>
+            {project.canPickFolder ? (
               <>
                 <p className="muted" style={{ margin: 0 }}>
-                  Your Salesforce project as opened by <code>sf fm dashboard</code> on this computer. Retrieve, deploy
-                  and AI help follow the project you choose here.
+                  Read-only access to a project folder you choose; nothing is uploaded.
                 </p>
                 <div className="form">
-                  <button className={source?.kind === 'local' ? '' : 'primary'} onClick={() => void project.useLocal()}>
-                    Use the app's project
+                  <button
+                    className={source?.kind === 'folder' ? '' : 'primary'}
+                    onClick={() => void project.pickFolder().catch(() => undefined)}
+                  >
+                    Choose project folder…
                   </button>
-                  {project.recent.length > 0 && (
-                    <select value="" onChange={(e) => e.target.value && void project.switchLocal(e.target.value)}>
-                      <option value="">Switch to a recent project…</option>
-                      {project.recent.map((r) => (
-                        <option key={r.path} value={r.path}>
-                          {r.name} — {r.path}
-                        </option>
-                      ))}
-                    </select>
+                  {project.needsPermission && (
+                    <button onClick={() => void project.reconnectFolder()}>Reconnect the last folder</button>
                   )}
-                </div>
-                <div className="form">
-                  <input
-                    placeholder="/path/to/salesforce-project"
-                    value={switchPath}
-                    onChange={(e) => setSwitchPath(e.target.value)}
-                  />
-                  <button disabled={!switchPath.trim()} onClick={() => void project.switchLocal(switchPath.trim())}>
-                    Open
-                  </button>
                 </div>
               </>
             ) : (
               <p className="muted" style={{ margin: 0 }}>
-                Could not reach the app. Is <code>sf fm dashboard</code> still running?
+                This browser cannot open folders (use Chrome or Edge).
               </p>
             )}
           </div>
-        )}
-        <div className="card section">
-          <h3>From a folder on this computer</h3>
-          {project.canPickFolder ? (
-            <>
-              <p className="muted" style={{ margin: 0 }}>
-                Read-only access to a project folder you choose; nothing is uploaded.
-              </p>
-              <div className="form">
-                <button
-                  className={source?.kind === 'folder' ? '' : 'primary'}
-                  onClick={() => void project.pickFolder().catch(() => undefined)}
-                >
-                  Choose project folder…
-                </button>
-                {project.needsPermission && (
-                  <button onClick={() => void project.reconnectFolder()}>Reconnect the last folder</button>
-                )}
-              </div>
-            </>
-          ) : (
-            <p className="muted" style={{ margin: 0 }}>
-              This browser cannot open folders (use Chrome or Edge).
-            </p>
-          )}
+          <GitHubCard hostKind={hostKind} embedded />
         </div>
-        <GitHubCard hostKind={hostKind} />
       </div>
 
       {hostKind === 'extension' && (

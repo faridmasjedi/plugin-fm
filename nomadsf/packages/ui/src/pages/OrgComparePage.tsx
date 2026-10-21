@@ -250,7 +250,7 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
               ))}
             </select>
           </label>
-          <span style={{ alignSelf: 'center' }}>→</span>
+          <span className="arrow">→</span>
           <label>
             Target (compare with)
             <select value={targetId} onChange={(e) => setTargetId(e.target.value)}>
