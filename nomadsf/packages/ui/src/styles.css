@@ -87,8 +87,10 @@ a {
 .studio {
   display: grid;
   grid-template-columns: 224px minmax(0, 1fr);
-  grid-template-rows: auto 1fr;
+  /* minmax: the panes take the window's height, not their content's, so each pane scrolls */
+  grid-template-rows: auto minmax(0, 1fr);
   height: 100%;
+  overflow: hidden;
 }
 header.top {
   grid-column: 1 / -1;
@@ -117,6 +119,8 @@ nav.side {
   background: var(--panel);
   border-right: 1px solid var(--border);
   padding: 10px 8px;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -367,7 +371,7 @@ table.limits .bar div.hot {
 @media (max-width: 900px) {
   .studio {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto 1fr;
+    grid-template-rows: auto auto minmax(0, 1fr);
   }
   nav.side {
     flex-direction: row;
@@ -1657,13 +1661,25 @@ nav.side .hub-label {
 }
 .studio > main {
   padding: 0;
+  min-height: 0;
   overflow: hidden;
+  /* A column with a fixed height: the panes get exactly the room left, and scroll inside it */
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
 }
 .panes {
   display: flex;
-  height: 100%;
+  flex: 1 1 0;
   min-height: 0;
+  box-sizing: border-box;
+}
+.pane {
+  max-height: 100%;
+}
+/* One kept-alive tool per tab; only the shown one is visible */
+.tool-view[hidden] {
+  display: none !important;
 }
 .panes.split {
   padding: 10px;
@@ -1778,10 +1794,10 @@ nav.side .hub-label {
   padding: 14px 16px 32px;
 }
 /* The hub tab names the tool: the page's own title is not repeated */
-.pane-body > .page > .toolbar:first-child > h2 {
+.pane-body > .tool-view > .page > .toolbar:first-child > h2 {
   display: none;
 }
-.pane-body > .page > .toolbar:first-child:empty {
+.pane-body > .tool-view > .page > .toolbar:first-child:empty {
   display: none;
 }
 .pane-divider {
