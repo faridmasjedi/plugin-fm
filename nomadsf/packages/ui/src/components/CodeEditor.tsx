@@ -1,5 +1,6 @@
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { registerLanguages } from '../monaco';
+import { inVsCode } from '../embed';
 import { useTheme } from '../theme';
 
 registerLanguages();
@@ -32,6 +33,8 @@ export function CodeEditor({ language, value, onChange, onMount, height = '100%'
         wordWrap: language === 'plaintext' ? 'on' : 'off',
         tabSize: 4,
         renderLineHighlight: readOnly ? 'none' : 'line',
+        // In VS Code its own menu (Cut / Copy / Paste through the extension) instead of Monaco's
+        contextmenu: !inVsCode(),
       }}
     />
   );

@@ -48,8 +48,21 @@ function selectedText(): string {
   return window.getSelection()?.toString() ?? '';
 }
 
+/** Text selected on the page (a table cell, an Id), not inside a field or an editor. */
+function pageSelection(): string {
+  const selection = window.getSelection();
+  const node = selection?.anchorNode;
+  const where = node instanceof Element ? node : node?.parentElement;
+  if (!selection || selection.isCollapsed || !where) return '';
+  if (where.closest('.monaco-editor, input, textarea, [contenteditable="true"]')) return '';
+  return selection.toString();
+}
+
 /** The copy event of the focused element (Monaco answers it), else the selection. */
 function copyText(kind: 'copy' | 'cut'): string {
+  // Like the browser: what is highlighted on the page, even while an editor keeps the focus
+  const onPage = pageSelection();
+  if (onPage && kind === 'copy') return onPage;
   const target = document.activeElement ?? document.body;
   const data = new DataTransfer();
   const event = new ClipboardEvent(kind, { clipboardData: data, bubbles: true, cancelable: true });
@@ -68,7 +81,13 @@ function paste(text: string): void {
   if (!event.defaultPrevented) document.execCommand('insertText', false, text);
 }
 
+/** Focused when the right-click menu opened (the menu takes the focus from code editors). */
+let menuFocus: HTMLElement | null = null;
+
 function command(cmd: string, text?: string): void {
+  const active = document.activeElement;
+  if ((!active || active === document.body) && menuFocus?.isConnected) menuFocus.focus();
+  menuFocus = null;
   if (cmd === 'copy' || cmd === 'cut') {
     const copied = copyText(cmd);
     if (!copied) return;
@@ -204,6 +223,17 @@ export function installEmbed(): void {
     if (!linkHandler?.(target)) openExternal(target.href);
     return null;
   }) as typeof window.open;
+
+  // Right-click: VS Code's own menu for the webview (Cut / Copy / Paste come back as edit commands)
+  document.addEventListener('contextmenu', (e) => {
+    if (e.defaultPrevented) return;
+    e.preventDefault();
+    menuFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // An Id: the whole Id, so Copy has something to copy
+    const id = (e.target as Element | null)?.closest?.('.id-text');
+    if (id && !window.getSelection()?.toString()) window.getSelection()?.selectAllChildren(id);
+    window.parent.postMessage({ nomadsf: 'contextmenu', x: e.clientX, y: e.clientY }, '*');
+  });
 
   // Clipboard buttons (Copy, Copy package.xml…)
   try {

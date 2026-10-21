@@ -1104,6 +1104,11 @@
             }
           return String(window.getSelection() || '');
         };
+        document.addEventListener('contextmenu', (e) => {
+          if (e.defaultPrevented) return;
+          e.preventDefault();
+          window.parent.postMessage({ nomadsf: 'contextmenu', x: e.clientX, y: e.clientY }, '*');
+        });
         window.addEventListener('message', (e) => {
           const m = e.data;
           if (e.source !== window.parent || !m || m.nomadsf !== 'exec') return;

@@ -1,5 +1,6 @@
 import { useContext, useMemo, useState, type ReactNode } from 'react';
 import { InspectContext } from '../context';
+import { CopyId } from './CopyId';
 
 type Row = Record<string, unknown>;
 
@@ -96,10 +97,20 @@ export function DataTable({
   const cell = (c: string, v: unknown): ReactNode => {
     const s = text(v);
     if (instanceUrl && ID_RE.test(s) && (c === 'Id' || c.endsWith('Id'))) {
+      // The Id is text (one click selects it, ⌘C copies); a link would only drag or open
       return (
-        <>
-          <a href={`${instanceUrl}/${s}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
-            {s}
+        <span className="id-cell">
+          <span className="id-text">{s}</span>
+          <CopyId id={s} />
+          <a
+            className="id-action"
+            href={`${instanceUrl}/${s}`}
+            target="_blank"
+            rel="noreferrer"
+            title="Open in Salesforce"
+            onClick={(e) => e.stopPropagation()}
+          >
+            ↗
           </a>
           {inspect && (
             <button
@@ -113,7 +124,7 @@ export function DataTable({
               ⓘ
             </button>
           )}
-        </>
+        </span>
       );
     }
     return s.length > 300 ? `${s.slice(0, 300)}…` : s;

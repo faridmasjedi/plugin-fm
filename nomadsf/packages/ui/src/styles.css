@@ -551,6 +551,23 @@ table.record td input.changed {
 button.inspect {
   margin-left: 4px;
 }
+/* Ids in tables: the text selects with one click; copy and open beside it */
+.id-cell {
+  white-space: nowrap;
+}
+.id-text {
+  user-select: all;
+  font-family: var(--mono);
+  font-size: 0.95em;
+}
+.id-action {
+  margin-left: 4px;
+  color: var(--muted);
+  text-decoration: none;
+}
+.id-action:hover {
+  color: var(--accent);
+}
 .usage {
   position: relative;
   height: 16px;
