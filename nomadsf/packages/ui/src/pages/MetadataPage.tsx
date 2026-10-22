@@ -3,6 +3,7 @@ import {
   parsePackageXml,
   describeMetadata,
   listMetadata,
+  makeZip,
   packageXml,
   retrieveZip,
   type MetadataComponent,
@@ -14,6 +15,18 @@ import { useStudio } from '../context';
 import { useProject } from '../project';
 
 const keyOf = (c: Pick<MetadataComponent, 'type' | 'fullName'>): string => `${c.type}:${c.fullName}`;
+
+type DeleteFile = 'destructiveChanges.xml' | 'destructiveChangesPre.xml' | 'destructiveChangesPost.xml';
+const DELETE_FILES: Array<[DeleteFile, string]> = [
+  ['destructiveChanges.xml', 'delete'],
+  ['destructiveChangesPre.xml', 'delete before the deploy'],
+  ['destructiveChangesPost.xml', 'delete after the deploy'],
+];
+const DELETE_FLAG: Record<DeleteFile, string> = {
+  'destructiveChanges.xml': '--post-destructive-changes',
+  'destructiveChangesPre.xml': '--pre-destructive-changes',
+  'destructiveChangesPost.xml': '--post-destructive-changes',
+};
 const stamp = (): string => new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
 
 function save(name: string, blob: Blob): void {
@@ -37,6 +50,9 @@ export function MetadataPage() {
   const [components, setComponents] = useState<MetadataComponent[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [basket, setBasket] = useState<Map<string, MetadataComponent>>(new Map());
+  // Components to delete from the org: destructiveChanges*.xml
+  const [toDelete, setToDelete] = useState<Map<string, MetadataComponent>>(new Map());
+  const [deleteFile, setDeleteFile] = useState<DeleteFile>('destructiveChanges.xml');
   const [status, setStatus] = useState('');
   const [retrieved, setRetrieved] = useState<RetrieveResult | null>(null);
   const [version, setVersion] = useState('');
@@ -97,11 +113,30 @@ export function MetadataPage() {
 
   const addToPackage = () => {
     const next = new Map(basket);
-    for (const c of components) if (selected.has(keyOf(c))) next.set(keyOf(c), c);
+    const deletes = new Map(toDelete);
+    for (const c of components)
+      if (selected.has(keyOf(c))) {
+        next.set(keyOf(c), c);
+        deletes.delete(keyOf(c));
+      }
     setBasket(next);
+    setToDelete(deletes);
+    setSelected(new Set());
+  };
+  const addToDelete = () => {
+    const next = new Map(toDelete);
+    const kept = new Map(basket);
+    for (const c of components)
+      if (selected.has(keyOf(c))) {
+        next.set(keyOf(c), c);
+        kept.delete(keyOf(c));
+      }
+    setToDelete(next);
+    setBasket(kept);
     setSelected(new Set());
   };
   const items = [...basket.values()];
+  const deletes = [...toDelete.values()];
 
   const downloadZip = async () => {
     setRetrieved(null);
@@ -140,7 +175,16 @@ export function MetadataPage() {
     }
   };
 
-  const xml = items.length ? packageXml(items, version) : '';
+  // With only deletions, package.xml is empty (that is what Salesforce expects)
+  const xml = items.length || deletes.length ? packageXml(items, version) : '';
+  const destructiveXml = deletes.length ? packageXml(deletes, version) : '';
+  const downloadManifests = () => {
+    const zip = makeZip([
+      { path: 'package.xml', content: xml },
+      ...(deletes.length ? [{ path: deleteFile, content: destructiveXml }] : []),
+    ]);
+    save(`${org.label}-manifests-${stamp()}.zip`, new Blob([zip], { type: 'application/zip' }));
+  };
 
   return (
     <div className="page">
@@ -173,6 +217,14 @@ export function MetadataPage() {
             <button className="primary" disabled={selected.size === 0} onClick={addToPackage}>
               Add {selected.size || ''} to package
             </button>
+            <button
+              className="danger"
+              disabled={selected.size === 0}
+              title="Add to the components to delete from the org (destructiveChanges.xml)"
+              onClick={addToDelete}
+            >
+              Add {selected.size || ''} to delete
+            </button>
           </div>
           {current && current.childXmlNames.length > 0 && (
             <p className="muted" style={{ margin: 0 }}>
@@ -195,7 +247,9 @@ export function MetadataPage() {
         </div>
 
         <div className="card section">
-          <h3>Package ({items.length})</h3>
+          <h3>
+            Package ({items.length}){deletes.length > 0 && <span className="bad"> · delete ({deletes.length})</span>}
+          </h3>
           {project.info && project.info.manifests.length > 0 && (
             <div className="form">
               <select
@@ -215,14 +269,15 @@ export function MetadataPage() {
               </select>
             </div>
           )}
-          {items.length === 0 ? (
+          {items.length === 0 && deletes.length === 0 ? (
             <p className="muted" style={{ margin: 0 }}>
-              Select components on the left and add them; a package can mix types.
+              Select components on the left and add them to the package, or to delete from the org; a package can mix
+              types.
             </p>
           ) : (
             <>
               <div className="form">
-                <button className="primary" onClick={() => void downloadZip()}>
+                <button className="primary" disabled={!items.length} onClick={() => void downloadZip()}>
                   Download zip
                 </button>
                 {hostKind === 'app' && (
@@ -230,20 +285,72 @@ export function MetadataPage() {
                 )}
                 <button onClick={() => save('package.xml', new Blob([xml], { type: 'text/xml' }))}>package.xml</button>
                 <button onClick={() => void navigator.clipboard.writeText(xml)}>Copy package.xml</button>
-                <button onClick={() => setBasket(new Map())}>Clear</button>
+                <button
+                  onClick={() => {
+                    setBasket(new Map());
+                    setToDelete(new Map());
+                  }}
+                >
+                  Clear
+                </button>
               </div>
-              <DataTable
-                columns={['type', 'fullName']}
-                rows={items.map((c) => ({ type: c.type, fullName: c.fullName, key: keyOf(c) }))}
-                rowKey="key"
-                name="package"
-                onRowClick={(row) => {
-                  const next = new Map(basket);
-                  next.delete(String(row.key));
-                  setBasket(next);
-                }}
-                note={<span>· click a row to remove it</span>}
-              />
+              {items.length > 0 && (
+                <DataTable
+                  columns={['type', 'fullName']}
+                  rows={items.map((c) => ({ type: c.type, fullName: c.fullName, key: keyOf(c) }))}
+                  rowKey="key"
+                  name="package"
+                  onRowClick={(row) => {
+                    const next = new Map(basket);
+                    next.delete(String(row.key));
+                    setBasket(next);
+                  }}
+                  note={<span>· click a row to remove it</span>}
+                />
+              )}
+              {deletes.length > 0 && (
+                <div className="section delete-list">
+                  <h3 className="bad">To delete from the org ({deletes.length})</h3>
+                  <div className="form">
+                    <label>
+                      File
+                      <select value={deleteFile} onChange={(e) => setDeleteFile(e.target.value as DeleteFile)}>
+                        {DELETE_FILES.map(([file, hint]) => (
+                          <option key={file} value={file}>
+                            {file} — {hint}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button onClick={() => save(deleteFile, new Blob([destructiveXml], { type: 'text/xml' }))}>
+                      {deleteFile}
+                    </button>
+                    <button onClick={() => void navigator.clipboard.writeText(destructiveXml)}>Copy</button>
+                    <button className="primary" onClick={downloadManifests}>
+                      Manifests (zip)
+                    </button>
+                  </div>
+                  <p className="muted" style={{ margin: 0 }}>
+                    Deploy with the CLI:{' '}
+                    <code>
+                      sf project deploy start --manifest package.xml {DELETE_FLAG[deleteFile]} {deleteFile}
+                    </code>{' '}
+                    (Release › Project deletes straight from here).
+                  </p>
+                  <DataTable
+                    columns={['type', 'fullName']}
+                    rows={deletes.map((c) => ({ type: c.type, fullName: c.fullName, key: keyOf(c) }))}
+                    rowKey="key"
+                    name="delete"
+                    onRowClick={(row) => {
+                      const next = new Map(toDelete);
+                      next.delete(String(row.key));
+                      setToDelete(next);
+                    }}
+                    note={<span>· click a row to remove it</span>}
+                  />
+                </div>
+              )}
             </>
           )}
           {retrieved && (

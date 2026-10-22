@@ -4,6 +4,8 @@ import {
   codeKindOf,
   deleteFromOrg,
   deployZip,
+  destructiveZip,
+  fromBase64,
   listCode,
   listMetadata,
   projectCodeIndex,
@@ -208,6 +210,20 @@ export function ProjectCompare({
   const codeOnly = inProject.length > 0 && inProject.every((r) => codeKindOf(r.type));
   const canDeploy = codeOnly || project.localAppReady;
   const count = (where: Where): number => (rows ?? []).filter((r) => r.where === where).length;
+
+  /** A deployable zip that deletes the components only in the org: empty package.xml + destructiveChanges.xml. */
+  const downloadDeletePackage = async () => {
+    const zip = destructiveZip(
+      onlyOrg.map((r) => ({ type: r.type, fullName: r.name })),
+      await studio.client.version()
+    );
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([fromBase64(zip)], { type: 'application/zip' }));
+    a.download = `delete-${studio.org.label}-${new Date().toISOString().slice(0, 10)}.zip`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    setStatus(`✓ Delete package for ${onlyOrg.length} component(s): package.xml + destructiveChanges.xml.`);
+  };
 
   const restore = async () => {
     if (
@@ -463,6 +479,13 @@ export function ProjectCompare({
                 </button>
                 <button disabled={busy || !inOrg.length} onClick={() => void downloadZip()}>
                   Download zip ({inOrg.length})
+                </button>
+                <button
+                  disabled={busy || !onlyOrg.length}
+                  title="A zip to deploy later that deletes these from the org: an empty package.xml and destructiveChanges.xml"
+                  onClick={() => void downloadDeletePackage()}
+                >
+                  Download delete package ({onlyOrg.length})
                 </button>
                 <button
                   className="danger"
