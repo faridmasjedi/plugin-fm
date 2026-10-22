@@ -20,10 +20,14 @@ export type BackupObject = { name: string; where?: string; fields?: FieldChoice 
 
 export type BackupScope = 'picked' | 'custom' | 'standard' | 'all';
 
+export type ScheduleUnit = 'hours' | 'days' | 'weeks' | 'months';
+
 export type BackupSchedule =
   | { every: 'off' }
   | { every: 'daily'; time: string }
-  | { every: 'weekly'; time: string; weekday: number };
+  | { every: 'weekly'; time: string; weekday: number }
+  /** Every `count` hours (from the last run), or days / weeks / months at `time`. */
+  | { every: 'interval'; count: number; unit: ScheduleUnit; time: string };
 
 export type BackupJob = {
   id: string;
@@ -426,6 +430,20 @@ const timeOf = (text: string): [number, number] => {
 /** The next scheduled moment after `after` (local time), or undefined when the schedule is off. */
 export function nextRun(schedule: BackupSchedule, after: Date): Date | undefined {
   if (schedule.every === 'off') return undefined;
+  if (schedule.every === 'interval') {
+    const count = Math.floor(Number(schedule.count));
+    if (!(count >= 1 && count <= 999)) throw new Error('Repeat every 1 to 999.');
+    if (schedule.unit === 'hours') return new Date(after.getTime() + count * 3_600_000);
+    const [ih, im] = timeOf(schedule.time);
+    const next = new Date(after);
+    next.setHours(ih, im, 0, 0);
+    const step = (d: Date): void => {
+      if (schedule.unit === 'months') d.setMonth(d.getMonth() + count);
+      else d.setDate(d.getDate() + count * (schedule.unit === 'weeks' ? 7 : 1));
+    };
+    while (next <= after) step(next);
+    return next;
+  }
   const [h, m] = timeOf(schedule.time);
   const next = new Date(after);
   next.setHours(h, m, 0, 0);
@@ -452,6 +470,11 @@ export function isDue(schedule: BackupSchedule, lastRun: Date | undefined, now: 
 export function describeSchedule(schedule: BackupSchedule): string {
   if (schedule.every === 'off') return 'not scheduled';
   if (schedule.every === 'daily') return `daily at ${schedule.time}`;
+  if (schedule.every === 'interval') {
+    const one = schedule.unit.replace(/s$/, '');
+    const every = schedule.count === 1 ? `every ${one}` : `every ${schedule.count} ${schedule.unit}`;
+    return schedule.unit === 'hours' ? every : `${every} at ${schedule.time}`;
+  }
   const day = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'][schedule.weekday];
   return `${day} at ${schedule.time}`;
 }

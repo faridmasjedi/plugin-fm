@@ -3,6 +3,7 @@ import { searchUsers, setActive, setFrozen, userLogin, type UserMatch } from '@n
 import { useStudio } from '../context';
 import { RecordPage } from '../pages/RecordPage';
 import { DataTable } from './DataTable';
+import { UserAccessPanel } from './UserAccessPanel';
 
 /** Find a user by name, username, email or Id, then edit any field (the Record editor) or freeze / deactivate. */
 export function UserEditor() {
@@ -116,8 +117,14 @@ export function UserEditor() {
               {chosen.IsActive ? 'Deactivate' : 'Activate'}
             </button>
           </div>
-          {/* Every field of the user, with Edit / Save and Log in as */}
-          <RecordPage key={`${chosen.Id}-${reload}`} initialId={chosen.Id} embedded />
+          <UserAccessPanel
+            userId={chosen.Id}
+            label={chosen.Username}
+            details={
+              /* Every field of the user, with Edit / Save and Log in as */
+              <RecordPage key={`${chosen.Id}-${reload}`} initialId={chosen.Id} embedded />
+            }
+          />
         </>
       )}
     </div>

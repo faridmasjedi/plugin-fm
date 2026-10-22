@@ -120,9 +120,18 @@ export function joinBack(
   fields: string[],
   found: Map<string, Row[]>
 ): { columns: string[]; rows: Row[]; notFound: number } {
-  const added = fields.map((f) => `${column} → ${f}`);
+  // A file exported with names for Ids already has "X → Name": the looked-up columns get their own names
+  const taken = new Set(columns);
+  const unique = (name: string): string => {
+    let out = taken.has(name) ? `${name} (lookup)` : name;
+    for (let n = 2; taken.has(out); n++) out = `${name} (lookup ${n})`;
+    taken.add(out);
+    return out;
+  };
+  const foundColumn = unique(`${column} → Found`);
+  const added = fields.map((f) => unique(`${column} → ${f}`));
   const index = columns.indexOf(column);
-  const outColumns = [...columns.slice(0, index + 1), `${column} → Found`, ...added, ...columns.slice(index + 1)];
+  const outColumns = [...columns.slice(0, index + 1), foundColumn, ...added, ...columns.slice(index + 1)];
   let notFound = 0;
   const outRows = rows.map((row) => {
     const value = String(row[column] ?? '').trim();
@@ -131,13 +140,7 @@ export function joinBack(
     const first = matches[0];
     const next: Row = {
       ...row,
-      [`${column} → Found`]: !value
-        ? ''
-        : matches.length > 1
-        ? `several (${matches.length})`
-        : matches.length
-        ? 'yes'
-        : 'no',
+      [foundColumn]: !value ? '' : matches.length > 1 ? `several (${matches.length})` : matches.length ? 'yes' : 'no',
     };
     fields.forEach((f, i) => {
       next[added[i]] = first?.[f] ?? '';

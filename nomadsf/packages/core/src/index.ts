@@ -32,3 +32,4 @@ export * from './oldIds.js';
 export * from './crypto.js';
 export * from './files.js';
 export * from './lifecycle.js';
+export * from './userAccess.js';

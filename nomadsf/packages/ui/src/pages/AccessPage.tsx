@@ -49,6 +49,7 @@ export function AccessPage() {
   // ---------- permission sets ----------
   const [targets, setTargets] = useState<AccessTarget[]>([]);
   const [filter, setFilter] = useState('');
+  const [kindShown, setKindShown] = useState<'all' | AccessTarget['kind']>(() => storage.get('access.kind', 'all'));
   const [targetId, setTargetId] = useState('');
   const [assigned, setAssigned] = useState<QueryResult | null>(null);
   const [assignedSel, setAssignedSel] = useState<Set<string>>(new Set());
@@ -66,8 +67,13 @@ export function AccessPage() {
   }, [client]);
   const target = targets.find((t) => t.id === targetId);
   const shown = useMemo(
-    () => targets.filter((t) => !filter || `${t.label} ${t.name}`.toLowerCase().includes(filter.toLowerCase())),
-    [targets, filter]
+    () =>
+      targets.filter(
+        (t) =>
+          (kindShown === 'all' || t.kind === kindShown) &&
+          (!filter || `${t.label} ${t.name}`.toLowerCase().includes(filter.toLowerCase()))
+      ),
+    [targets, filter, kindShown]
   );
 
   const loadAssigned = async (t = target) => {
@@ -247,9 +253,37 @@ export function AccessPage() {
         <div className="card section">
           <h3>Permission sets &amp; groups</h3>
           <div className="form">
+            <div className="segmented" role="group" aria-label="Show">
+              {(
+                [
+                  ['all', `All (${targets.length})`],
+                  ['permset', `Permission sets (${targets.filter((t) => t.kind === 'permset').length})`],
+                  ['group', `Permission set groups (${targets.filter((t) => t.kind === 'group').length})`],
+                ] as Array<['all' | AccessTarget['kind'], string]>
+              ).map(([id, text]) => (
+                <button
+                  key={id}
+                  className={kindShown === id ? 'active' : ''}
+                  onClick={() => {
+                    setKindShown(id);
+                    storage.set('access.kind', id);
+                  }}
+                >
+                  {text}
+                </button>
+              ))}
+            </div>
             <input placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} />
             <select value={targetId} onChange={(e) => setTargetId(e.target.value)} style={{ minWidth: 340 }}>
-              <option value="">Choose a permission set or group ({targets.length})</option>
+              <option value="">
+                Choose{' '}
+                {kindShown === 'group'
+                  ? 'a permission set group'
+                  : kindShown === 'permset'
+                  ? 'a permission set'
+                  : 'a permission set or group'}{' '}
+                ({shown.length})
+              </option>
               {shown.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.kind === 'group' ? '▣ ' : ''}
