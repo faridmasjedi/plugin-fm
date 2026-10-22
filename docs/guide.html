@@ -36,6 +36,8 @@
         <a href="#code">Code</a>
         <a href="#apextests">Apex tests</a>
         <a href="#logs">Debug Logs</a>
+        <a href="#automation">Automation</a>
+        <a href="#jobs">Jobs</a>
         <b>Data</b>
         <a href="#query">Query</a>
         <a href="#record">Record</a>
@@ -52,6 +54,7 @@
         <a href="#project">Project</a>
         <a href="#metadata">Metadata</a>
         <a href="#orgdiff">Org compare</a>
+        <a href="#deployments">Deployments</a>
         <a href="#tests">E2E tests</a>
         <b>Org</b>
         <a href="#access">Users &amp; access</a>
@@ -164,7 +167,7 @@
           </tr>
           <tr>
             <td><b>Develop</b></td>
-            <td>Execute Apex · Code · Apex tests · Debug Logs</td>
+            <td>Execute Apex · Code · Apex tests · Debug Logs · Automation · Jobs</td>
           </tr>
           <tr>
             <td><b>Data</b></td>
@@ -176,7 +179,7 @@
           </tr>
           <tr>
             <td><b>Release</b></td>
-            <td>Project · Metadata · Org compare · E2E tests</td>
+            <td>Project · Metadata · Org compare · Deployments · E2E tests</td>
           </tr>
           <tr>
             <td><b>Org</b></td>
@@ -251,6 +254,22 @@
         <p>
           Turn <b>logging on</b> for yourself (a trace flag for a while), do something in the org, then open the new
           log. The log shows its debug lines, events and limits, and the raw text; ✦ explains it with an AI connected.
+        </p>
+
+        <h3 id="automation">Automation</h3>
+        <p>
+          Choose an object and see <b>what runs when a record is saved</b>, in Salesforce's order of execution:
+          before-save flows, before triggers, validation rules, duplicate rules, after triggers, assignment and workflow
+          rules, after-save flows (and before-delete flows) — with which events (insert, update, delete), whether each
+          is active, and its error message or API name. Escalation and auto-response rules cannot be read with the API;
+          the page says when they also apply.
+        </p>
+
+        <h3 id="jobs">Jobs</h3>
+        <p>
+          <b>Scheduled</b>: every scheduled job (scheduled Apex, report runs, dashboard refreshes, scheduled flows…)
+          with its next and last run and cron expression. <b>Background Apex</b>: batch, queueable and future jobs of
+          the last days with progress, errors and status. Tick jobs and <b>Stop</b> them — you type the org name first.
         </p>
 
         <h2 id="data">Data</h2>
@@ -583,6 +602,13 @@
           Select what to move, then download <code>package.xml</code>, <code>destructiveChangesPost.xml</code> (with
           <i>also delete</i> for those only in the target) and a deployable zip — or validate, deploy and quick deploy
           on the target with a test level.
+        </p>
+
+        <h3 id="deployments">Deployments</h3>
+        <p>
+          The org's deployments and validations — who, when, components and tests, how many failed. Click one for its
+          component and test failures. A validation that succeeded with tests in the last 10 days can be
+          <b>Quick deployed</b> from here (you type the org name).
         </p>
 
         <h3 id="tests">E2E tests</h3>

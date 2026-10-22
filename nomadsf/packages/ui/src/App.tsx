@@ -10,6 +10,9 @@ import { QueryPage } from './pages/QueryPage';
 import { DataPage } from './pages/DataPage';
 import { AccessPage } from './pages/AccessPage';
 import { SchemaPage } from './pages/SchemaPage';
+import { AutomationPage } from './pages/AutomationPage';
+import { DeploymentsPage } from './pages/DeploymentsPage';
+import { JobsPage } from './pages/JobsPage';
 import { ConnectedAppsPage } from './pages/ConnectedAppsPage';
 import { OrgHealthPage } from './pages/OrgHealthPage';
 import { ActivityPage } from './pages/ActivityPage';
@@ -261,6 +264,9 @@ export function App() {
         <InspectContext.Provider value={inspect}>
           {tool === 'apex' && <ExecutePage />}
           {tool === 'logs' && <LogsPage />}
+          {tool === 'automation' && <AutomationPage />}
+          {tool === 'jobs' && <JobsPage />}
+          {tool === 'deployments' && <DeploymentsPage />}
           {tool === 'query' && <QueryPage />}
           {tool === 'data' && <DataPage />}
           {tool === 'access' && <AccessPage />}
