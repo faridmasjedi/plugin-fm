@@ -88,6 +88,23 @@ describe('look up a file column in Salesforce', () => {
     expect(joined.notFound).toBe(1);
   });
 
+  it('gives looked-up columns their own names when the file already has them (export with names for Ids)', () => {
+    const rows = [{ Id: '500A', ContactId: P1, 'ContactId → Name': 'Old name' }];
+    const found = new Map([[P1.slice(0, 15), [{ Id: P1, Name: 'New name', Email: 'a@b.c' }]]]);
+    const joined = joinBack(rows, ['Id', 'ContactId', 'ContactId → Name'], 'ContactId', true, ['Name', 'Email'], found);
+    expect(joined.columns).toEqual([
+      'Id',
+      'ContactId',
+      'ContactId → Found',
+      'ContactId → Name (lookup)',
+      'ContactId → Email',
+      'ContactId → Name',
+    ]);
+    expect(new Set(joined.columns).size).toBe(joined.columns.length);
+    expect(joined.rows[0]['ContactId → Name']).toBe('Old name');
+    expect(joined.rows[0]['ContactId → Name (lookup)']).toBe('New name');
+  });
+
   it('matches text case-insensitively, escapes quotes and batches by 200', async () => {
     const users = [{ Id: '005000000000001AAA', Username: "O'Brien@x.com", Name: "Pat O'Brien" }];
     const { client, queries } = fakeOrg(users);

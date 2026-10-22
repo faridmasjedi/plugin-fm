@@ -1,13 +1,7 @@
 import { parseCsv, type IngestResult } from '@nomadsf/core';
-import { DataTable } from './DataTable';
+import { DataTable, download } from './DataTable';
 
-function saveFile(name: string, content: string): void {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([content], { type: 'text/csv' }));
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-}
+const saveFile = (name: string, content: string): void => download(name, content, 'text/csv');
 
 const stamp = (): string => new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
 

@@ -22,7 +22,9 @@ export function matches(value: unknown, filter: string): boolean {
 
 export function download(name: string, content: string, type: string): void {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([content], { type }));
+  // CSV with a UTF-8 BOM: Excel otherwise reads it as ANSI (→, é and the like turn into gibberish)
+  const body = type === 'text/csv' && !content.startsWith('\uFEFF') ? `\uFEFF${content}` : content;
+  a.href = URL.createObjectURL(new Blob([body], { type }));
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -167,9 +169,10 @@ export function DataTable({
                   />
                 </th>
               )}
-              {columns.map((c) => (
+              {/* Keys by position: a column name can repeat (a file's own column and a looked-up one) */}
+              {columns.map((c, ci) => (
                 <th
-                  key={c}
+                  key={`${ci}:${c}`}
                   onClick={() =>
                     setSort(sort?.col === c ? { col: c, dir: sort.dir === 1 ? -1 : 1 } : { col: c, dir: 1 })
                   }
@@ -181,8 +184,8 @@ export function DataTable({
             </tr>
             <tr className="dt-filters">
               {selectable && <th />}
-              {columns.map((c) => (
-                <th key={c}>
+              {columns.map((c, ci) => (
+                <th key={`${ci}:${c}`}>
                   <input
                     placeholder="filter"
                     value={colFilters[c] ?? ''}
@@ -195,7 +198,7 @@ export function DataTable({
           <tbody>
             {visible.slice(0, maxShown).map((r, i) => (
               <tr
-                key={String(r[rowKey] ?? i)}
+                key={`${String(r[rowKey] ?? '')}:${i}`}
                 className={`${onRowClick ? 'clickable' : ''} ${
                   selectedKey !== undefined && r[rowKey] === selectedKey ? 'selected' : ''
                 }`}
@@ -214,8 +217,8 @@ export function DataTable({
                     />
                   </td>
                 )}
-                {columns.map((c) => (
-                  <td key={c}>{cell(c, r[c])}</td>
+                {columns.map((c, ci) => (
+                  <td key={`${ci}:${c}`}>{cell(c, r[c])}</td>
                 ))}
               </tr>
             ))}

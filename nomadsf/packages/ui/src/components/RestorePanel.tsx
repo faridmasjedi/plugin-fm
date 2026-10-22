@@ -18,17 +18,12 @@ import {
   type DataField,
   type RestorePreview,
 } from '@nomadsf/core';
-import { DataTable } from './DataTable';
+import { DataTable, download as downloadFile } from './DataTable';
 import { storage, useStudio } from '../context';
 import { isLocked, jobSink, type JobRecord } from '../backups';
 import { UnlockBackup } from './UnlockBackup';
 
-const download = (name: string, text: string) => {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
-  a.download = name;
-  a.click();
-};
+const download = (name: string, text: string) => downloadFile(name, text, 'text/csv');
 
 /** Backup Id -> new Id of records created again by restores, kept next to the backups. */
 const RESTORED = 'restored-ids.json';

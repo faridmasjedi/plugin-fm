@@ -336,7 +336,7 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
                 onClick={() => void checkContent()}
                 title="Retrieves the components in both orgs and compares their files"
               >
-                Check content of {count('in both')} in both
+                Compare content of {count('in both')} in both
               </button>
             )}
             <button onClick={pickDifference}>Select the difference (only in source + different)</button>

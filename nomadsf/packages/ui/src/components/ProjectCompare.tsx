@@ -425,7 +425,7 @@ export function ProjectCompare({
               title="Compare the content of code (Apex, Visualforce, LWC, Aura) that is in both"
               onClick={() => void checkContent()}
             >
-              Check content
+              Compare content
             </button>
             <span className="muted">Code only for now: Apex, Visualforce, LWC and Aura.</span>
           </div>
