@@ -139,7 +139,7 @@
           last.
         </p>
         <div class="shot">
-          <video src="media/hubs.mp4" poster="media/hubs.jpg" muted loop playsinline autoplay controls></video>
+          <video src="media/hubs.mp4" poster="media/hubs.jpg" muted loop playsinline preload="none" controls></video>
         </div>
         <ul>
           <li>
@@ -185,6 +185,9 @@
         <h2 id="develop">Develop</h2>
 
         <h3 id="apex">Execute Apex</h3>
+        <div class="shot">
+          <video src="media/apex.mp4" poster="media/apex.jpg" muted loop playsinline preload="none" controls></video>
+        </div>
         <p>Run anonymous Apex in the org, like the Developer Console's Execute Anonymous window.</p>
         <ol class="steps">
           <li>Write or paste Apex. Snippets and highlighting help; <b>History…</b> brings back your last 20.</li>
@@ -198,6 +201,9 @@
         <div class="callout warn">In a production org you confirm before it runs: anonymous Apex can change data.</div>
 
         <h3 id="code">Code</h3>
+        <div class="shot">
+          <video src="media/code.mp4" poster="media/code.jpg" muted loop playsinline preload="none" controls></video>
+        </div>
         <p>
           Open, edit and save Apex classes, triggers, Visualforce pages and components, LWC and Aura — and compare them
           with your project.
@@ -220,12 +226,26 @@
         </div>
 
         <h3 id="apextests">Apex tests</h3>
+        <div class="shot">
+          <video
+            src="media/apextests.mp4"
+            poster="media/apextests.jpg"
+            muted
+            loop
+            playsinline
+            preload="none"
+            controls
+          ></video>
+        </div>
         <p>
           Select test classes and <b>Run</b>, or <b>Run all local tests</b>. Failures show the message and stack trace.
           The <b>Coverage</b> tab lists every class; click one to see covered (green) and uncovered (red) lines.
         </p>
 
         <h3 id="logs">Debug Logs</h3>
+        <div class="shot">
+          <video src="media/logs.mp4" poster="media/logs.jpg" muted loop playsinline preload="none" controls></video>
+        </div>
         <p>
           Turn <b>logging on</b> for yourself (a trace flag for a while), do something in the org, then open the new
           log. The log shows its debug lines, events and limits, and the raw text; ✦ explains it with an AI connected.
@@ -235,7 +255,7 @@
 
         <h3 id="query">Query</h3>
         <div class="shot">
-          <video src="media/query.mp4" poster="media/query.jpg" muted loop playsinline autoplay controls></video>
+          <video src="media/query.mp4" poster="media/query.jpg" muted loop playsinline preload="none" controls></video>
         </div>
         <ol class="steps">
           <li>Write SOQL with autocomplete for objects and fields, or ✦ ask in plain English.</li>
@@ -259,6 +279,17 @@
         </p>
 
         <h3 id="record">Record</h3>
+        <div class="shot">
+          <video
+            src="media/record.mp4"
+            poster="media/record.jpg"
+            muted
+            loop
+            playsinline
+            preload="none"
+            controls
+          ></video>
+        </div>
         <p>
           Paste a record Id, a record URL or a username and <b>Show all data</b>: every field with its label, API name,
           type and value. <b>Edit</b> changes fields in place (you type the org name to save); lookups open the record
@@ -266,6 +297,17 @@
         </p>
 
         <h3 id="data-tool">Import / Update / Delete</h3>
+        <div class="shot">
+          <video
+            src="media/data-tool.mp4"
+            poster="media/data-tool.jpg"
+            muted
+            loop
+            playsinline
+            preload="none"
+            controls
+          ></video>
+        </div>
         <ol class="steps">
           <li>
             Choose a CSV file and the object. Columns are matched to fields; untick columns you don't want to send.
@@ -282,6 +324,17 @@
         </p>
 
         <h3 id="lookup">Lookup</h3>
+        <div class="shot">
+          <video
+            src="media/lookup.mp4"
+            poster="media/lookup.jpg"
+            muted
+            loop
+            playsinline
+            preload="none"
+            controls
+          ></video>
+        </div>
         <p>
           A VLOOKUP against Salesforce: choose a CSV, the column to look up, what it holds (Ids of an object, or values
           of a field), and the fields to bring back. You get your file back with new columns —
@@ -290,6 +343,17 @@
         </p>
 
         <h3 id="fields">Field usage</h3>
+        <div class="shot">
+          <video
+            src="media/fields.mp4"
+            poster="media/fields.jpg"
+            muted
+            loop
+            playsinline
+            preload="none"
+            controls
+          ></video>
+        </div>
         <p>
           For an object: how full every field is (records with a value), where it is used (references, for custom
           fields), and which profiles, permission sets and groups can read or edit it.
@@ -299,7 +363,15 @@
 
         <h3 id="backup">Backup</h3>
         <div class="shot">
-          <video src="media/backup.mp4" poster="media/backup.jpg" muted loop playsinline autoplay controls></video>
+          <video
+            src="media/backup.mp4"
+            poster="media/backup.jpg"
+            muted
+            loop
+            playsinline
+            preload="none"
+            controls
+          ></video>
         </div>
         <ol class="steps">
           <li><b>+ New</b>, give it a name and choose the org.</li>
@@ -337,7 +409,15 @@
 
         <h3 id="migrate">Migrate</h3>
         <div class="shot">
-          <video src="media/migrate.mp4" poster="media/migrate.jpg" muted loop playsinline autoplay controls></video>
+          <video
+            src="media/migrate.mp4"
+            poster="media/migrate.jpg"
+            muted
+            loop
+            playsinline
+            preload="none"
+            controls
+          ></video>
         </div>
         <p>
           Copies records from one org (or a backup) into another and keeps every link between them: a Contact still
@@ -386,7 +466,7 @@
             muted
             loop
             playsinline
-            autoplay
+            preload="none"
             controls
           ></video>
         </div>
@@ -407,6 +487,17 @@
         <h2 id="release">Release</h2>
 
         <h3 id="project">Project</h3>
+        <div class="shot">
+          <video
+            src="media/project.mp4"
+            poster="media/project.jpg"
+            muted
+            loop
+            playsinline
+            preload="none"
+            controls
+          ></video>
+        </div>
         <p>
           Your Salesforce project (a folder on this computer or a GitHub repository, chosen in Settings › Project)
           against the org. Use it to see what differs, bring org changes into the project, or deploy project changes to
@@ -438,6 +529,17 @@
         </ul>
 
         <h3 id="metadata">Metadata</h3>
+        <div class="shot">
+          <video
+            src="media/metadata.mp4"
+            poster="media/metadata.jpg"
+            muted
+            loop
+            playsinline
+            preload="none"
+            controls
+          ></video>
+        </div>
         <p>Build a package by hand from any metadata type of the org.</p>
         <ol class="steps">
           <li>Choose a type, tick components, <b>Add to package</b> — a package can mix types.</li>
@@ -454,6 +556,17 @@
         </ol>
 
         <h3 id="orgdiff">Org compare</h3>
+        <div class="shot">
+          <video
+            src="media/orgdiff.mp4"
+            poster="media/orgdiff.jpg"
+            muted
+            loop
+            playsinline
+            preload="none"
+            controls
+          ></video>
+        </div>
         <p>
           Two orgs side by side (sandbox ↔ sandbox, or ↔ production): choose the metadata types and <b>Compare</b>. See
           what is only in the source, only in the target, or different, and <b>Compare content</b> of those in both.
@@ -471,6 +584,17 @@
         <h2 id="org">Org</h2>
 
         <h3 id="access">Users &amp; access</h3>
+        <div class="shot">
+          <video
+            src="media/access.mp4"
+            poster="media/access.jpg"
+            muted
+            loop
+            playsinline
+            preload="none"
+            controls
+          ></video>
+        </div>
         <ul>
           <li>
             <b>Users</b>: find a user by name, username, email or Id. <b>Details</b> edits any field; Freeze,
@@ -491,6 +615,9 @@
         </ul>
 
         <h3 id="apps">Connected apps</h3>
+        <div class="shot">
+          <video src="media/apps.mp4" poster="media/apps.jpg" muted loop playsinline preload="none" controls></video>
+        </div>
         <p>
           Connected apps, external client apps, and every app people sign in to with OAuth (including tools such as the
           Salesforce CLI): users, tokens, uses and last use per app. Click an app for its users;
@@ -498,6 +625,17 @@
         </p>
 
         <h3 id="limits">Limits</h3>
+        <div class="shot">
+          <video
+            src="media/limits.mp4"
+            poster="media/limits.jpg"
+            muted
+            loop
+            playsinline
+            preload="none"
+            controls
+          ></video>
+        </div>
         <p>The org's limits (API requests, storage, …) with how much is used.</p>
 
         <h3 id="events">Events</h3>
@@ -507,15 +645,40 @@
         </p>
 
         <h3 id="rest">REST Explorer</h3>
+        <div class="shot">
+          <video src="media/rest.mp4" poster="media/rest.jpg" muted loop playsinline preload="none" controls></video>
+        </div>
         <p>
           Any REST call: method, path, body, the answer with its status and headers. Calls other than GET ask first. ✦
           describe the call in plain English.
         </p>
 
         <h3 id="activity">Activity</h3>
+        <div class="shot">
+          <video
+            src="media/activity.mp4"
+            poster="media/activity.jpg"
+            muted
+            loop
+            playsinline
+            preload="none"
+            controls
+          ></video>
+        </div>
         <p>Every change made from NomadSF in this browser (and, in the CLI app, the project's shared log).</p>
 
         <h2 id="settings">Settings</h2>
+        <div class="shot">
+          <video
+            src="media/settings.mp4"
+            poster="media/settings.jpg"
+            muted
+            loop
+            playsinline
+            preload="none"
+            controls
+          ></video>
+        </div>
         <p>
           <b>Org</b>: the orgs you are logged in to. <b>Project</b>: a folder on this computer or a GitHub repository
           and branch. <b>AI</b> (browser extension): your own provider for the ✦ buttons — in the CLI app it is on the
@@ -646,5 +809,13 @@ sf fm dashboard --open</pre
         >
       </div>
     </footer>
+    <script>
+      // Each recording plays while it is on screen (and only then loads)
+      const watch = new IntersectionObserver(
+        (entries) => entries.forEach((e) => (e.isIntersecting ? e.target.play().catch(() => {}) : e.target.pause())),
+        { threshold: 0.4 }
+      );
+      document.querySelectorAll('.shot video').forEach((v) => watch.observe(v));
+    </script>
   </body>
 </html>

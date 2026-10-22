@@ -425,6 +425,7 @@ export function QueryPage() {
           Names for Ids
         </label>
         <select
+          className="menu-select"
           value=""
           title="Saved queries"
           onChange={(e) => {
@@ -443,7 +444,11 @@ export function QueryPage() {
             </option>
           ))}
         </select>
-        <select value="" onChange={(e) => e.target.value && setSoql(history[Number(e.target.value)])}>
+        <select
+          className="menu-select"
+          value=""
+          onChange={(e) => e.target.value && setSoql(history[Number(e.target.value)])}
+        >
           <option value="">History…</option>
           {history.map((h, i) => (
             <option key={i} value={i}>
