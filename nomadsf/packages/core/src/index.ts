@@ -34,3 +34,4 @@ export * from './files.js';
 export * from './lifecycle.js';
 export * from './userAccess.js';
 export * from './orgHealth.js';
+export * from './schema.js';

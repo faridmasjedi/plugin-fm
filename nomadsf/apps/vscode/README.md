@@ -14,7 +14,7 @@
   | Hub                 | Tools                                                                                     |
   | ------------------- | ----------------------------------------------------------------------------------------- |
   | **Develop**         | Execute Apex · Code · Apex tests with coverage · Debug Logs                               |
-  | **Data**            | Query · Record · Import / Update / Delete · Lookup · Field usage                          |
+  | **Data**            | Query · Record · Import / Update / Delete · Lookup · Schema · Field usage                 |
   | **Data protection** | Backup and restore · Migrate between orgs · Lifecycle jobs with approval                  |
   | **Release**         | Project (your repository vs the org) · Metadata · Org compare · E2E tests                 |
   | **Org**             | Users & access · Connected apps · Org health · Limits · Events · REST Explorer · Activity |

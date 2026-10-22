@@ -4,13 +4,16 @@ import {
   inspectRecord,
   loginAsPath,
   query,
+  recordHistory,
   updateRecord,
+  type HistoryEntry,
   type InspectedRecord,
   type RecordField,
 } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
 import { openInOrg } from '../host';
 import { CopyId } from '../components/CopyId';
+import { DataTable } from '../components/DataTable';
 
 const display = (v: unknown): string =>
   v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
@@ -37,6 +40,10 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
   const [editing, setEditing] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [status, setStatus] = useState('');
+  const [view, setView] = useState<'fields' | 'history'>('fields');
+  const [history, setHistory] = useState<{ object?: string; entries: HistoryEntry[] } | null>(null);
+  // Another record (or the same one after a save): its history is read again
+  useEffect(() => setHistory(null), [record]);
   const [recent, setRecent] = useState<Array<{ id: string; label: string }>>(() => storage.get('record.recent', []));
 
   const open = useCallback(
@@ -228,42 +235,114 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
               <button onClick={() => setEditing(true)}>Edit</button>
             )}
           </div>
-          <div className="form">
-            <input placeholder="Filter fields and values" value={filter} onChange={(e) => setFilter(e.target.value)} />
-            <label className="check">
-              <input type="checkbox" checked={onlyFilled} onChange={(e) => setOnlyFilled(e.target.checked)} /> Only
-              fields with a value
-            </label>
-            <span className="muted">
-              {fields.length} of {record.fields.length} fields
-            </span>
+          <div className="tabs">
+            <button className={`tab ${view === 'fields' ? 'active' : ''}`} onClick={() => setView('fields')}>
+              Fields
+            </button>
+            <button className={`tab ${view === 'history' ? 'active' : ''}`} onClick={() => setView('history')}>
+              History
+            </button>
           </div>
-          <table className="record">
-            <thead>
-              <tr>
-                <th>Label</th>
-                <th>API name</th>
-                <th>Type</th>
-                <th>Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {fields.map((f) => (
-                <tr key={f.name}>
-                  <td>{f.label}</td>
-                  <td className="mono">{f.name}</td>
-                  <td className="muted">
-                    {f.type}
-                    {f.referenceTo.length ? ` → ${f.referenceTo.join(', ')}` : ''}
-                    {f.calculated ? ' · formula' : ''}
-                  </td>
-                  <td>{valueCell(f)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {view === 'history' && (
+            <RecordHistory
+              sobject={record.sobject}
+              id={record.id}
+              fields={record.fields}
+              state={history}
+              onLoad={setHistory}
+            />
+          )}
+          {view === 'fields' && (
+            <>
+              <div className="form">
+                <input
+                  placeholder="Filter fields and values"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                />
+                <label className="check">
+                  <input type="checkbox" checked={onlyFilled} onChange={(e) => setOnlyFilled(e.target.checked)} /> Only
+                  fields with a value
+                </label>
+                <span className="muted">
+                  {fields.length} of {record.fields.length} fields
+                </span>
+              </div>
+              <table className="record">
+                <thead>
+                  <tr>
+                    <th>Label</th>
+                    <th>API name</th>
+                    <th>Type</th>
+                    <th>Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fields.map((f) => (
+                    <tr key={f.name}>
+                      <td>{f.label}</td>
+                      <td className="mono">{f.name}</td>
+                      <td className="muted">
+                        {f.type}
+                        {f.referenceTo.length ? ` → ${f.referenceTo.join(', ')}` : ''}
+                        {f.calculated ? ' · formula' : ''}
+                      </td>
+                      <td>{valueCell(f)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+/** Field changes of the record (from its history object, when field history tracking is on). */
+function RecordHistory({
+  sobject,
+  id,
+  fields,
+  state,
+  onLoad,
+}: {
+  sobject: string;
+  id: string;
+  fields: Array<{ name: string; label: string }>;
+  state: { object?: string; entries: HistoryEntry[] } | null;
+  onLoad: (h: { object?: string; entries: HistoryEntry[] }) => void;
+}) {
+  const { client } = useStudio();
+  const [error, setError] = useState('');
+  useEffect(() => {
+    if (state) return;
+    recordHistory(client, sobject, id)
+      .then(onLoad)
+      .catch((e: Error) => setError(e.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, sobject, id, state]);
+  if (error) return <p className="bad">❌ {error}</p>;
+  if (!state) return <p className="muted">Reading history…</p>;
+  if (!state.object)
+    return (
+      <p className="muted">
+        {sobject} keeps no field history in this org. Turn on <b>Track field history</b> for it in Setup (Object Manager
+        › {sobject} › Fields &amp; Relationships › Set History Tracking).
+      </p>
+    );
+  const labelOf = (f: string): string =>
+    f === 'created' ? 'Created' : fields.find((x) => x.name.toLowerCase() === f.toLowerCase())?.label ?? f;
+  return state.entries.length === 0 ? (
+    <p className="muted">No tracked changes yet ({state.object}).</p>
+  ) : (
+    <DataTable
+      columns={['when', 'field', 'from', 'to', 'by']}
+      rows={state.entries.map((e, i) => ({ ...e, field: labelOf(e.field), key: i }))}
+      rowKey="key"
+      name={`${sobject}-${id}-history`}
+      note={<span>· tracked fields only, newest first ({state.object})</span>}
+    />
   );
 }
