@@ -2394,3 +2394,28 @@ button.primary.danger-fill {
 select.menu-select {
   max-width: 170px;
 }
+
+/* Schema: relationship diagram */
+.schema-diagram svg line {
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+.schema-node rect {
+  fill: var(--panel-2);
+  stroke: var(--border);
+}
+.schema-node text {
+  fill: var(--text);
+  font-size: 12px;
+}
+.schema-node:hover rect {
+  stroke: var(--accent);
+}
+.schema-node.center rect {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+}
+.schema-node.center text {
+  fill: var(--accent);
+  font-weight: 600;
+}

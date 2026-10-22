@@ -9,6 +9,7 @@ import { LogsPage } from './pages/LogsPage';
 import { QueryPage } from './pages/QueryPage';
 import { DataPage } from './pages/DataPage';
 import { AccessPage } from './pages/AccessPage';
+import { SchemaPage } from './pages/SchemaPage';
 import { ConnectedAppsPage } from './pages/ConnectedAppsPage';
 import { OrgHealthPage } from './pages/OrgHealthPage';
 import { ActivityPage } from './pages/ActivityPage';
@@ -263,6 +264,7 @@ export function App() {
           {tool === 'query' && <QueryPage />}
           {tool === 'data' && <DataPage />}
           {tool === 'access' && <AccessPage />}
+          {tool === 'schema' && <SchemaPage />}
           {tool === 'apps' && <ConnectedAppsPage />}
           {tool === 'health' && <OrgHealthPage />}
           {tool === 'metadata' && <MetadataPage />}

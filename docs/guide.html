@@ -41,6 +41,7 @@
         <a href="#record">Record</a>
         <a href="#data-tool">Import / Update / Delete</a>
         <a href="#lookup">Lookup</a>
+        <a href="#schema">Schema</a>
         <a href="#fields">Field usage</a>
         <b>Data protection</b>
         <a href="#backup">Backup</a>
@@ -167,7 +168,7 @@
           </tr>
           <tr>
             <td><b>Data</b></td>
-            <td>Query · Record · Import / Update / Delete · Lookup · Field usage</td>
+            <td>Query · Record · Import / Update / Delete · Lookup · Schema · Field usage</td>
           </tr>
           <tr>
             <td><b>Data protection</b></td>
@@ -294,7 +295,8 @@
         <p>
           Paste a record Id, a record URL or a username and <b>Show all data</b>: every field with its label, API name,
           type and value. <b>Edit</b> changes fields in place (you type the org name to save); lookups open the record
-          they point to. For users, <b>Log in as</b>.
+          they point to. For users, <b>Log in as</b>. The <b>History</b> tab lists the record's tracked field changes —
+          when, which field, from, to and by whom — for objects with field history tracking on.
         </p>
 
         <h3 id="data-tool">Import / Update / Delete</h3>
@@ -341,6 +343,13 @@
           of a field), and the fields to bring back. You get your file back with new columns —
           <code>Column → Found</code> and <code>Column → Field</code> — and a list of the records found. Columns your
           file already has (from an export with names for Ids) get <code>(lookup)</code> added.
+        </p>
+
+        <h3 id="schema">Schema</h3>
+        <p>
+          Everything about an object: its <b>fields</b> (type, length, required, unique, external Id, formula, help
+          text, picklist values — click a field), its <b>relationships</b> (a diagram of what it points to and what
+          points to it; click an object to open it; system objects hidden unless you ask) and its <b>record types</b>.
         </p>
 
         <h3 id="fields">Field usage</h3>

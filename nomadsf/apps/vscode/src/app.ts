@@ -97,6 +97,7 @@ export const STUDIO_PAGES = [
   ['record', 'Record', 'Data'],
   ['data', 'Import / Update / Delete', 'Data'],
   ['lookup', 'Lookup', 'Data'],
+  ['schema', 'Schema', 'Data'],
   ['fields', 'Field usage', 'Data'],
   ['backup', 'Backup and restore', 'Data protection'],
   ['migrate', 'Migrate', 'Data protection'],
