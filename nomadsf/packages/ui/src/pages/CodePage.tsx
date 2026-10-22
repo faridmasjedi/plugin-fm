@@ -328,7 +328,7 @@ export function CodePage() {
     setView('org');
     setStatus(
       `Project version loaded into ${changed} file(s), not saved yet. ${
-        item && isBundle(item.kind) ? 'Save' : 'Check, then Save'
+        item && isBundle(item.kind) ? 'Save' : 'Compile only, then Save'
       } to apply it to ${studio.org.label}.${
         projectExtra ? ` ${projectExtra} file(s) only in the project need "Deploy from project".` : ''
       }`
@@ -445,8 +445,12 @@ export function CodePage() {
         </button>
         {item && inOrg && !isBundle(item.kind) && (
           <>
-            <button disabled={busy} onClick={() => void compile(true)}>
-              Check
+            <button
+              disabled={busy}
+              title="Compiles the code in the org to find errors, without saving anything"
+              onClick={() => void compile(true)}
+            >
+              Compile only
             </button>
             <button
               className="primary"
@@ -465,8 +469,8 @@ export function CodePage() {
       </div>
       {apexLocked && !isBundle(kind) && (
         <p className="muted">
-          Production org: Salesforce only accepts Apex and Visualforce changes through a deployment. Opening and Check
-          still work.
+          Production org: Salesforce only accepts Apex and Visualforce changes through a deployment. Opening and Compile
+          only still work.
         </p>
       )}
       {status && <p className="muted">{status}</p>}
@@ -520,7 +524,7 @@ export function CodePage() {
                   title="Compare the content of every component in both the org and the project"
                   onClick={() => void checkContent()}
                 >
-                  Check content
+                  Compare content
                 </button>
               </div>
             </div>
