@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { appInfo, selectProject, targetPath, waitForApp } from '../src/app';
+import { appInfo, isOlder, selectProject, targetPath, waitForApp } from '../src/app';
 
 describe('local app helpers', () => {
   let server: Server;
@@ -50,5 +50,16 @@ describe('local app helpers', () => {
     );
     expect(() => targetPath({ kind: 'record', id: 'hello' })).toThrow('record Id');
     expect(() => targetPath({ kind: 'query', soql: 'DELETE x' })).toThrow('SOQL');
+  });
+});
+
+describe('plugin version', () => {
+  it('tells when the plugin is older than the extension', () => {
+    expect(isOlder('1.0.0', '1.1.0')).toBe(true);
+    expect(isOlder('1.1.0', '1.1.0')).toBe(false);
+    expect(isOlder('1.2.0', '1.1.9')).toBe(false);
+    expect(isOlder('v1.0.9', '1.0.10')).toBe(true);
+    expect(isOlder(undefined, '1.0.0')).toBe(true);
+    expect(isOlder('', '1.0.0')).toBe(true);
   });
 });

@@ -21,6 +21,18 @@ import { ProjectContext } from './projects.js';
 import { FRAME_POLICY, handleStudioRoute } from './studio.js';
 
 const TEMPLATE_URL = new URL('../../../dashboard/index.html', import.meta.url);
+
+/** The plugin's version (the VS Code extension and the desktop app compare it with their own). */
+const PLUGIN_VERSION = ((): string => {
+  try {
+    return String(
+      (JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')) as { version?: string })
+        .version ?? ''
+    );
+  } catch {
+    return '';
+  }
+})();
 const MAX_EXPORTED_LOG = 20_000;
 
 export type DashboardInfo = {
@@ -112,8 +124,9 @@ function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
 export function startDashboardServer(options: ServeOptions): Promise<Server> {
   const { project } = options;
   const store = (): RunStore => project.store();
-  const info = (): DashboardInfo & { project: ReturnType<typeof ProjectContext.summary> } => ({
+  const info = (): DashboardInfo & { project: ReturnType<typeof ProjectContext.summary>; version: string } => ({
     mode: 'live',
+    version: PLUGIN_VERSION,
     ...project.pipeline(),
     canStart: Boolean(project.startCommand()),
     generatedAt: new Date().toISOString(),
