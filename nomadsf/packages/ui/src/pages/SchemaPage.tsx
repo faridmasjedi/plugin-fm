@@ -128,7 +128,7 @@ export function SchemaPage() {
           </div>
 
           {tab === 'fields' && (
-            <div className="split">
+            <div className="split schema-fields">
               <div>
                 <label className="check">
                   <input type="checkbox" checked={customOnly} onChange={(e) => setCustomOnly(e.target.checked)} />{' '}
@@ -182,7 +182,7 @@ export function SchemaPage() {
                         <b>Help text:</b> {field.helpText}
                       </p>
                     )}
-                    {field.formula && <pre className="mono">{field.formula}</pre>}
+                    {field.formula && <pre className="mono wrap">{field.formula}</pre>}
                     {field.picklist.length > 0 && (
                       <>
                         <h4>Picklist values ({field.picklist.length})</h4>

@@ -27,17 +27,16 @@
 - **A guide for every tool**: the **?** on each pane (or **NomadSF: Open the guide**) opens its section, with a short recording.
 - **The NomadSF app** too: release runs and approvals, orgs, runbooks and AI settings.
 - **Remote windows and Codespaces**: the port is forwarded for you.
-- **Works like the browser**: copy and paste, links (Salesforce pages open logged in, through the CLI), downloads with VS Code's Save dialog, and backup folders chosen with VS Code's folder picker.
 
 ![Query with a filterable table](https://faridmasjedi.github.io/plugin-fm/media/query.gif)
 
 ## What's in each hub
 
-- **Develop**: run anonymous Apex with its log; open, compile and save code, compared with your project; run Apex tests and see coverage line by line; debug logs.
-- **Data**: SOQL with names for Ids and Excel-ready CSV; every field of a record; import, update, upsert and delete from CSV; look up a CSV column in Salesforce; how full each field is and who can see it.
+- **Develop**: run anonymous Apex with its log; open, compile and save code, compared with your project; run Apex tests and see coverage line by line; debug logs; what runs when a record is saved, in order (flows, triggers, validation, duplicate, assignment and workflow rules); scheduled and background jobs, and stop them.
+- **Data**: SOQL with names for Ids and Excel-ready CSV; every field of a record and its field history; import, update, upsert and delete from CSV; look up a CSV column in Salesforce; an object's fields, relationships and record types; how full each field is and who can see it.
 - **Data protection**: backups to a folder (incremental, scheduled every N hours / days / weeks / months, encrypted) and restore; migrate records between orgs keeping every link; lifecycle jobs with approval.
-- **Release**: compare your project with the org and deploy, restore or delete; build a `package.xml` and a `destructiveChanges.xml`; compare two orgs.
-- **Org**: everything a user has (permission sets and groups, system permissions and what grants them, groups and queues, licenses, OAuth apps, logins); connected apps and OAuth usage; limits; events; REST; activity.
+- **Release**: compare your project with the org and deploy, restore or delete; build a `package.xml` and a `destructiveChanges.xml`; compare two orgs; recent deployments with their failures, and quick deploy.
+- **Org**: everything a user has (permission sets and groups, system permissions and what grants them, groups and queues, licenses, OAuth apps, logins); who has a permission set, group, license, profile, role or queue; compare two users or two permission sets; connected apps and OAuth usage; org health (risky permissions, inactive users, unused access, licenses); limits; events; REST; activity.
 
 ## Requirements
 
