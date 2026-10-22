@@ -198,9 +198,6 @@ export function App() {
     },
     [org, user]
   );
-  const studio: Studio | null =
-    client && org ? { hostKind: host.kind, client, org, facts, user, confirmRisky, confirmChange, logActivity } : null;
-
   const project = useProjectState(host.kind);
 
   // Backups can run against any org of the list (scheduled ones too, from any page)
@@ -211,6 +208,10 @@ export function App() {
     },
     [client, org, orgs]
   );
+  const studio: Studio | null =
+    client && org
+      ? { hostKind: host.kind, client, org, orgs, clientFor, facts, user, confirmRisky, confirmChange, logActivity }
+      : null;
   useBackupScheduler(clientFor);
   useLifecycleScheduler(clientFor);
   const backupRun = useBackupRun();

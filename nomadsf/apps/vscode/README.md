@@ -36,7 +36,7 @@
 - **Data**: SOQL with names for Ids and Excel-ready CSV; every field of a record and its field history; import, update, upsert and delete from CSV; look up a CSV column in Salesforce; an object's fields, relationships and record types; how full each field is and who can see it.
 - **Data protection**: backups to a folder (incremental, scheduled every N hours / days / weeks / months, encrypted) and restore; migrate records between orgs keeping every link; lifecycle jobs with approval.
 - **Release**: compare your project with the org and deploy, restore or delete; build a `package.xml` and a `destructiveChanges.xml`; compare two orgs; recent deployments with their failures, and quick deploy.
-- **Org**: everything a user has (permission sets and groups, system permissions and what grants them, groups and queues, licenses, OAuth apps, logins); who has a permission set, group, license, profile, role or queue; compare two users or two permission sets; connected apps and OAuth usage; org health (risky permissions, inactive users, unused access, licenses); limits; events; REST; activity.
+- **Org**: everything a user has (permission sets and groups, system permissions and what grants them, groups and queues, licenses, OAuth apps, logins); who has a permission set, group, license, profile, role or queue; compare two users or two permission sets, in one org or between two orgs; connected apps and OAuth usage, also compared with another org; org health (risky permissions, inactive users, unused access, licenses); limits; events; REST; activity.
 
 ## Requirements
 

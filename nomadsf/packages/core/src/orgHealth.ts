@@ -1,7 +1,7 @@
 import type { SalesforceClient } from './client.js';
 import { query, type Row } from './query.js';
 import { effectivePermissions, userAccess } from './userAccess.js';
-import { objectAccessOf, systemPermissionsOf } from './fieldUsage.js';
+import { fieldAccessOf, objectAccessOf, systemPermissionsOf } from './fieldUsage.js';
 
 /** Who has a permission set, group, license, profile, role or group; comparisons; security and license reports. */
 
@@ -155,16 +155,35 @@ const diffSets = (area: string, a: string[], b: string[]): Difference[] => {
     .map((item) => ({ area, item, a: sa.has(item) ? '✓' : '', b: sb.has(item) ? '✓' : '' }));
 };
 
-/** What one user has that the other does not: permission sets, groups, licenses, groups & queues, permissions. */
-export async function compareUsers(client: SalesforceClient, a: string, b: string): Promise<Difference[]> {
-  const [ua, ub, pa, pb] = await Promise.all([
+const differs = (area: string, item: string, a: string, b: string): Difference[] =>
+  a === b ? [] : [{ area, item, a: a || '—', b: b || '—' }];
+
+/**
+ * What one user has that the other does not: profile, role, permission sets, groups, licenses, groups & queues,
+ * permissions. B can be in another org (clientB).
+ */
+export async function compareUsers(
+  client: SalesforceClient,
+  a: string,
+  b: string,
+  clientB: SalesforceClient = client
+): Promise<Difference[]> {
+  checkId(a);
+  checkId(b);
+  const who = async (c: SalesforceClient, id: string): Promise<Row> =>
+    (await query(c, `SELECT Profile.Name, UserRole.Name FROM User WHERE Id = '${id}'`)).rows[0] ?? {};
+  const [ua, ub, pa, pb, wa, wb] = await Promise.all([
     userAccess(client, a),
-    userAccess(client, b),
+    userAccess(clientB, b),
     effectivePermissions(client, a),
-    effectivePermissions(client, b),
+    effectivePermissions(clientB, b),
+    who(client, a),
+    who(clientB, b),
   ]);
   const label = (rows: Row[]): string[] => rows.map((r) => String(r.Label ?? r.Name));
   return [
+    ...differs('Profile', 'Profile', String(wa['Profile.Name'] ?? ''), String(wb['Profile.Name'] ?? '')),
+    ...differs('Role', 'Role', String(wa['UserRole.Name'] ?? ''), String(wb['UserRole.Name'] ?? '')),
     ...diffSets('Permission set group', label(ua.permissionSetGroups), label(ub.permissionSetGroups)),
     ...diffSets('Permission set', label(ua.permissionSets), label(ub.permissionSets)),
     ...diffSets('License', label(ua.licenses), label(ub.licenses)),
@@ -181,13 +200,23 @@ export async function compareUsers(client: SalesforceClient, a: string, b: strin
   ];
 }
 
-/** What one profile / permission set / group allows that the other does not: system permissions and object access. */
-export async function comparePermissionSets(client: SalesforceClient, a: string, b: string): Promise<Difference[]> {
-  const [sa, sb, oa, ob] = await Promise.all([
+/**
+ * What one profile / permission set / group allows that the other does not: system permissions, object and field
+ * access. B can be in another org (clientB).
+ */
+export async function comparePermissionSets(
+  client: SalesforceClient,
+  a: string,
+  b: string,
+  clientB: SalesforceClient = client
+): Promise<Difference[]> {
+  const [sa, sb, oa, ob, fa, fb] = await Promise.all([
     systemPermissionsOf(client, a),
-    systemPermissionsOf(client, b),
+    systemPermissionsOf(clientB, b),
     objectAccessOf(client, a),
-    objectAccessOf(client, b),
+    objectAccessOf(clientB, b),
+    fieldAccessOf(client, a),
+    fieldAccessOf(clientB, b),
   ]);
   const on = (list: typeof sa): string[] => list.filter((p) => p.enabled).map((p) => p.label);
   const access = (o: (typeof oa)[number]): string =>
@@ -208,9 +237,15 @@ export async function comparePermissionSets(client: SalesforceClient, a: string,
     const y = ob.find((o) => o.object === object);
     const ax = x ? access(x) : '';
     const by = y ? access(y) : '';
-    if (ax !== by) objectDiffs.push({ area: 'Object access', item: object, a: ax || '—', b: by || '—' });
+    objectDiffs.push(...differs('Object access', object, ax, by));
   }
-  return [...diffSets('System permission', on(sa), on(sb)), ...objectDiffs];
+  const fieldAccess = (list: typeof fa): Map<string, string> =>
+    new Map(list.map((f) => [`${f.object}.${f.field}`, f.edit ? 'Read, Edit' : f.read ? 'Read' : '']));
+  const [ma, mb] = [fieldAccess(fa), fieldAccess(fb)];
+  const fieldDiffs = [...new Set([...ma.keys(), ...mb.keys()])]
+    .sort((x, y) => x.localeCompare(y))
+    .flatMap((field) => differs('Field access', field, ma.get(field) ?? '', mb.get(field) ?? ''));
+  return [...diffSets('System permission', on(sa), on(sb)), ...objectDiffs, ...fieldDiffs];
 }
 
 // ---------- security ----------
