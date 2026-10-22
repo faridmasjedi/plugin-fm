@@ -14,6 +14,8 @@ import {
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { PermissionsExplorer } from '../components/PermissionsExplorer';
 import { UserEditor } from '../components/UserEditor';
+import { WhoHasIt } from '../components/WhoHasIt';
+import { CompareAccess } from '../components/CompareAccess';
 import { storage, useStudio } from '../context';
 
 type By = 'usernames' | 'profile' | 'role' | 'publicGroup';
@@ -28,7 +30,7 @@ export function AccessPage() {
   const { client, org, confirmChange, logActivity } = useStudio();
   const instanceUrl = org.instanceUrl;
 
-  type Tab = 'login' | 'audit' | 'perms' | 'rights' | 'users';
+  type Tab = 'login' | 'audit' | 'perms' | 'rights' | 'users' | 'who' | 'compare';
   const [tab, setTab] = useState<Tab>(() => storage.get('access.tab', 'login'));
 
   // ---------- login history / audit trail ----------
@@ -160,6 +162,8 @@ export function AccessPage() {
             ['perms', 'Permission sets & groups'],
             ['rights', 'Object, field & system permissions'],
             ['users', 'Users'],
+            ['who', 'Who has it'],
+            ['compare', 'Compare'],
           ] as Array<[Tab, string]>
         ).map(([id, label]) => (
           <button
@@ -366,6 +370,8 @@ export function AccessPage() {
       )}
       {tab === 'rights' && <PermissionsExplorer />}
       {tab === 'users' && <UserEditor />}
+      {tab === 'who' && <WhoHasIt />}
+      {tab === 'compare' && <CompareAccess />}
     </div>
   );
 }

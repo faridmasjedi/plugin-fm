@@ -90,6 +90,7 @@ export const STUDIO_PAGES = [
   ['tests', 'E2E tests', 'Release'],
   ['access', 'Users & access', 'Org'],
   ['apps', 'Connected apps', 'Org'],
+  ['health', 'Org health', 'Org'],
   ['limits', 'Limits', 'Org'],
   ['events', 'Events', 'Org'],
   ['rest', 'REST Explorer', 'Org'],

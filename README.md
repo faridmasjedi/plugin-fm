@@ -12,14 +12,14 @@
 
 Tools are grouped into hubs. Open two or three side by side (drag a hub or a tab to the right of a pane), jump anywhere with <kbd>⌘K</kbd>, and every tab keeps its results until you reset it.
 
-| Hub                 | Tools                                                                                                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Develop**         | Execute Apex · Code (Apex, triggers, Visualforce, LWC, Aura — and a compare with your repository) · Apex tests with coverage · Debug Logs                                                         |
-| **Data**            | Query (SOQL with autocomplete, saved queries, Bulk export) · Record inspector · Import / Update / Delete from CSV · Lookup · Field usage                                                          |
-| **Data protection** | Backup to your own folder (incremental, scheduled, files, encrypted) and Restore with relationships · Migrate between orgs (keeps every link, masks personal data) · Lifecycle jobs with approval |
-| **Release**         | Project (repository vs org, validate and deploy) · Metadata · Org compare with `package.xml` and a deployable package                                                                             |
-| **Org**             | Users & access (permissions, groups, OAuth apps, logins per user) · Connected apps and OAuth usage · Limits · Platform events and CDC · REST Explorer · Activity                                  |
-| **✦ AI**            | Your own provider (Claude, OpenAI, Gemini, OpenRouter, Ollama, any endpoint) writes SOQL and Apex, explains logs and failures, reviews code                                                       |
+| Hub                 | Tools                                                                                                                                                                                                                                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Develop**         | Execute Apex · Code (Apex, triggers, Visualforce, LWC, Aura — and a compare with your repository) · Apex tests with coverage · Debug Logs                                                                                                                |
+| **Data**            | Query (SOQL with autocomplete, saved queries, Bulk export) · Record inspector · Import / Update / Delete from CSV · Lookup · Field usage                                                                                                                 |
+| **Data protection** | Backup to your own folder (incremental, scheduled, files, encrypted) and Restore with relationships · Migrate between orgs (keeps every link, masks personal data) · Lifecycle jobs with approval                                                        |
+| **Release**         | Project (repository vs org, validate and deploy) · Metadata · Org compare with `package.xml` and a deployable package                                                                                                                                    |
+| **Org**             | Users & access (permissions, groups, OAuth apps, logins per user) · Connected apps and OAuth usage · Org health (security check, licenses) · Who has it · Compare users or permission sets · Limits · Platform events and CDC · REST Explorer · Activity |
+| **✦ AI**            | Your own provider (Claude, OpenAI, Gemini, OpenRouter, Ollama, any endpoint) writes SOQL and Apex, explains logs and failures, reviews code                                                                                                              |
 
 ![Query with a filterable table](docs/media/query.gif)
 
