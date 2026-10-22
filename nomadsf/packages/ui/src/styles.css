@@ -2419,3 +2419,25 @@ select.menu-select {
   fill: var(--accent);
   font-weight: 600;
 }
+/* Automation: the phases of a save */
+ol.save-order {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 4px;
+  counter-reset: phase;
+}
+ol.save-order li {
+  counter-increment: phase;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: var(--panel);
+  font-size: var(--fs-sm);
+}
+ol.save-order li::before {
+  content: counter(phase) '. ';
+  color: var(--muted);
+}

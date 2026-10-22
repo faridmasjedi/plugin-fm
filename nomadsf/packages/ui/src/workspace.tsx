@@ -14,6 +14,9 @@ export type ToolId =
   | 'code'
   | 'apextests'
   | 'logs'
+  | 'automation'
+  | 'jobs'
+  | 'deployments'
   | 'query'
   | 'record'
   | 'data'
@@ -45,6 +48,8 @@ export const TOOLS: Tool[] = [
   { id: 'code', label: 'Code', icon: '{}', hint: 'Apex, triggers, Visualforce, LWC, Aura' },
   { id: 'apextests', label: 'Apex tests', icon: '◎', hint: 'run tests, code coverage' },
   { id: 'logs', label: 'Debug Logs', icon: '☰', hint: 'logs and trace flags' },
+  { id: 'automation', label: 'Automation', icon: '↯', hint: 'what runs when a record is saved' },
+  { id: 'jobs', label: 'Jobs', icon: '⏲', hint: 'scheduled and background Apex' },
   { id: 'query', label: 'Query', icon: '⌕', hint: 'SOQL with a filterable table' },
   { id: 'record', label: 'Record', icon: 'ⓘ', hint: 'inspect and edit one record' },
   { id: 'data', label: 'Import / Update / Delete', icon: '⇅', hint: 'from a CSV file or a query' },
@@ -57,6 +62,7 @@ export const TOOLS: Tool[] = [
   { id: 'project', label: 'Project', icon: '⌂', hint: 'your repository, compare with the org' },
   { id: 'metadata', label: 'Metadata', icon: '◫', hint: 'retrieve, package.xml' },
   { id: 'orgdiff', label: 'Org compare', icon: '⇋', hint: 'differences between two orgs, deploy' },
+  { id: 'deployments', label: 'Deployments', icon: '⇪', hint: 'deployment history, quick deploy' },
   { id: 'tests', label: 'E2E tests', icon: '✓', hint: 'Playwright (CLI app)' },
   { id: 'access', label: 'Users & access', icon: '⚿', hint: 'users, permissions, logins' },
   { id: 'apps', label: 'Connected apps', icon: '⚷', hint: 'connected apps, OAuth usage' },
@@ -73,10 +79,10 @@ export const TOOLS: Tool[] = [
 export type Hub = { id: string; label: string; icon: string; tools: ToolId[] };
 
 export const HUBS: Hub[] = [
-  { id: 'develop', label: 'Develop', icon: '{}', tools: ['apex', 'code', 'apextests', 'logs'] },
+  { id: 'develop', label: 'Develop', icon: '{}', tools: ['apex', 'code', 'apextests', 'logs', 'automation', 'jobs'] },
   { id: 'data', label: 'Data', icon: '⇅', tools: ['query', 'record', 'data', 'lookup', 'schema', 'fields'] },
   { id: 'protect', label: 'Data protection', icon: '⛁', tools: ['backup', 'migrate', 'lifecycle'] },
-  { id: 'release', label: 'Release', icon: '⌂', tools: ['project', 'metadata', 'orgdiff', 'tests'] },
+  { id: 'release', label: 'Release', icon: '⌂', tools: ['project', 'metadata', 'orgdiff', 'deployments', 'tests'] },
   { id: 'org', label: 'Org', icon: '⚿', tools: ['access', 'apps', 'health', 'limits', 'events', 'rest', 'activity'] },
   { id: 'local', label: 'Local app', icon: '☁', tools: ['local-orgs', 'local-ai'] },
   { id: 'settings', label: 'Settings', icon: '⚙', tools: ['settings'] },
