@@ -70,6 +70,11 @@
         "category": "NomadSF"
       },
       {
+        "command": "nomadsf.openGuide",
+        "title": "Open the guide (how to use each tool)",
+        "category": "NomadSF"
+      },
+      {
         "command": "nomadsf.stop",
         "title": "Stop the local app",
         "category": "NomadSF"

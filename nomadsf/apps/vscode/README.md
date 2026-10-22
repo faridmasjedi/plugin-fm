@@ -22,11 +22,22 @@
 - **From the editor** (select text, right-click):
   - **Show all data of the selected record Id** — the record inspector for an Id in your code or logs.
   - **Run the selected SOQL in Studio** — the query from your Apex or a `.soql` file, with a filterable table.
+- **Works like the browser**: ⌘C / ⌘V and right-click Cut · Copy · Paste, links (Salesforce pages open logged in), downloads with VS Code's Save dialog, backup folders with VS Code's folder picker, and every approval inside the page.
+- **Ids you can copy**: one click selects an Id in any table, **⧉** copies it, **↗** opens it in Salesforce, **ⓘ** shows all its fields.
+- **A guide for every tool**: the **?** on each pane (or **NomadSF: Open the guide**) opens its section, with a short recording.
 - **The NomadSF app** too: release runs and approvals, orgs, runbooks and AI settings.
 - **Remote windows and Codespaces**: the port is forwarded for you.
 - **Works like the browser**: copy and paste, links (Salesforce pages open logged in, through the CLI), downloads with VS Code's Save dialog, and backup folders chosen with VS Code's folder picker.
 
 ![Query with a filterable table](https://faridmasjedi.github.io/plugin-fm/media/query.gif)
+
+## What's in each hub
+
+- **Develop**: run anonymous Apex with its log; open, compile and save code, compared with your project; run Apex tests and see coverage line by line; debug logs.
+- **Data**: SOQL with names for Ids and Excel-ready CSV; every field of a record; import, update, upsert and delete from CSV; look up a CSV column in Salesforce; how full each field is and who can see it.
+- **Data protection**: backups to a folder (incremental, scheduled every N hours / days / weeks / months, encrypted) and restore; migrate records between orgs keeping every link; lifecycle jobs with approval.
+- **Release**: compare your project with the org and deploy, restore or delete; build a `package.xml` and a `destructiveChanges.xml`; compare two orgs.
+- **Org**: everything a user has (permission sets and groups, system permissions and what grants them, groups and queues, licenses, OAuth apps, logins); connected apps and OAuth usage; limits; events; REST; activity.
 
 ## Requirements
 
@@ -47,6 +58,16 @@ Prefer not to install the CLI? The **browser extension** offers the same Studio 
 2. Open your Salesforce DX project. NomadSF starts in the background.
 3. Click **NomadSF** in the status bar, or run **NomadSF: Open Studio** from the Command Palette (<kbd>⇧⌘P</kbd>).
 
+## Keeping it up to date
+
+The Studio in VS Code comes from the `sf fm` plugin (the local app the extension starts), so update both together. When the plugin is older than the extension, NomadSF says so and offers **Update the plugin** — it runs:
+
+```bash
+sf plugins install https://github.com/faridmasjedi/plugin-fm
+```
+
+Then **NomadSF: Stop the local app** and open the Studio again.
+
 ## Commands
 
 | Command                                              | What it does                                                                   |
@@ -56,6 +77,7 @@ Prefer not to install the CLI? The **browser extension** offers the same Studio 
 | **NomadSF: Open the app (runs, orgs, runbooks, AI)** | Release runs, approvals, orgs, runbooks, AI settings                           |
 | **NomadSF: Show all data of the selected record Id** | The record inspector for the selection (also in the editor's right-click menu) |
 | **NomadSF: Run the selected SOQL in Studio**         | Query the selection (also in the editor's right-click menu)                    |
+| **NomadSF: Open the guide (how to use each tool)**   | The guide on the website, a section and a recording per tool                   |
 | **NomadSF: Stop the local app**                      | Stops NomadSF for this workspace                                               |
 
 ## Settings

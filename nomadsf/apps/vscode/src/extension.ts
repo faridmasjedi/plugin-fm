@@ -3,7 +3,17 @@ import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
-import { STUDIO_PAGES, appInfo, baseUrl, selectProject, targetPath, waitForApp } from './app';
+import {
+  GUIDE_URL,
+  PLUGIN_INSTALL,
+  STUDIO_PAGES,
+  appInfo,
+  baseUrl,
+  isOlder,
+  selectProject,
+  targetPath,
+  waitForApp,
+} from './app';
 import { handleCall } from './bridge';
 
 /**
@@ -15,6 +25,31 @@ import { handleCall } from './bridge';
 let child: ChildProcess | undefined;
 let panel: vscode.WebviewPanel | undefined;
 let memento: vscode.Memento | undefined;
+let extensionVersion = '';
+let versionChecked = false;
+
+/** The Studio comes from the sf fm plugin: an older plugin shows an older Studio, so offer the update once. */
+function checkPluginVersion(pluginVersion: string | undefined): void {
+  if (versionChecked || !extensionVersion || !isOlder(pluginVersion, extensionVersion)) return;
+  versionChecked = true;
+  void vscode.window
+    .showWarningMessage(
+      `NomadSF: the sf fm plugin (${
+        pluginVersion || 'an older version'
+      }) is older than this extension (${extensionVersion}), so the Studio may miss the latest features. Update the plugin, then restart NomadSF.`,
+      'Update the plugin',
+      'Not now'
+    )
+    .then((choice) => {
+      if (choice !== 'Update the plugin') return;
+      const terminal = vscode.window.createTerminal('NomadSF update');
+      terminal.show();
+      terminal.sendText(PLUGIN_INSTALL);
+      void vscode.window.showInformationMessage(
+        'NomadSF: when the update finishes, run "NomadSF: Stop the local app" and open the Studio again.'
+      );
+    });
+}
 const output = vscode.window.createOutputChannel('NomadSF');
 
 const settings = (): { port: number; sf: string; autoStart: boolean } => {
@@ -59,6 +94,7 @@ async function ensureApp(): Promise<number> {
       () => waitForApp(port, 60_000, () => Boolean(child))
     );
   }
+  checkPluginVersion(info.version);
   if (project && info.project?.path !== project) {
     output.appendLine(`Switching the app to ${project}`);
     await selectProject(port, project);
@@ -151,6 +187,7 @@ function selection(): string {
 
 export function activate(context: vscode.ExtensionContext): void {
   memento = context.globalState;
+  extensionVersion = String((context.extension.packageJSON as { version?: string }).version ?? '');
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   status.text = '$(rocket) NomadSF';
   status.tooltip = 'Open NomadSF Studio';
@@ -175,6 +212,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('nomadsf.querySelection', () =>
       show({ kind: 'query', soql: selection().replace(/^\[|\]$/g, '') }, 'NomadSF · Query')
     ),
+    vscode.commands.registerCommand('nomadsf.openGuide', () => vscode.env.openExternal(vscode.Uri.parse(GUIDE_URL))),
     vscode.commands.registerCommand('nomadsf.stop', () => {
       if (child) {
         stopChild();
