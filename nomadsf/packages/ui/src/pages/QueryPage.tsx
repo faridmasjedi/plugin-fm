@@ -76,6 +76,7 @@ function SavedQueries({
   return (
     <div className="card saved-queries">
       <div className="form">
+        <b title="Queries kept in this browser; pick one from Saved… above">Saved queries</b>
         <input
           placeholder="Name this query"
           value={name}
@@ -108,14 +109,22 @@ function SavedQueries({
         <button
           disabled={!saved.length}
           onClick={() => download(SAVED_QUERIES_FILE, exportSavedQueries(saved), 'application/json')}
-          title="Download saved queries as nomadsf-queries.json"
+          title={`Download all saved queries as ${SAVED_QUERIES_FILE}, to share or keep`}
         >
-          Export saved
+          Download file
         </button>
-        <button onClick={() => fileInput.current?.click()}>Import saved…</button>
+        <button
+          title={`Add the queries from a ${SAVED_QUERIES_FILE} file (same names are updated)`}
+          onClick={() => fileInput.current?.click()}
+        >
+          Load file…
+        </button>
         {project.source && (
-          <button title={`Read ${SAVED_QUERIES_FILE} from the project`} onClick={() => void fromProject()}>
-            From project
+          <button
+            title={`Add the queries from ${SAVED_QUERIES_FILE} at the root of the project (shared with the team in git)`}
+            onClick={() => void fromProject()}
+          >
+            Load from project
           </button>
         )}
         <input

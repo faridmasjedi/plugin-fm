@@ -48,7 +48,7 @@ import {
 import { AiExplain } from '../components/AiHelp';
 import { ChildObjects } from '../components/ChildObjects';
 import { UnlockBackup } from '../components/UnlockBackup';
-import { DataTable } from '../components/DataTable';
+import { DataTable, download as downloadFile } from '../components/DataTable';
 import { ObjectPicker } from '../components/ObjectPicker';
 import { storage, useStudio } from '../context';
 import { orgFacts, type OrgChoice, type OrgFacts } from '../host';
@@ -59,12 +59,7 @@ import { askTyped } from '../components/Dialogs';
 type SourceChoice = { kind: 'org'; org: string } | { kind: 'backup'; jobId: string; folder: string };
 type LastCopy = { at: string; source: string; created: LoadResult['created']; records: number };
 
-const download = (name: string, text: string) => {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
-  a.download = name;
-  a.click();
-};
+const download = (name: string, text: string) => downloadFile(name, text, 'text/csv');
 
 /**
  * Copy records from one org (or a backup) into another: objects with a condition and a field
