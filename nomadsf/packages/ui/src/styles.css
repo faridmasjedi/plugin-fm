@@ -2441,3 +2441,16 @@ ol.save-order li::before {
   content: counter(phase) '. ';
   color: var(--muted);
 }
+/* Schema › Fields: the table is the main part, the details panel beside it */
+.split.schema-fields {
+  grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
+}
+@container pane (max-width: 760px) {
+  .split.schema-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+pre.wrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
