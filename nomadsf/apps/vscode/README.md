@@ -11,13 +11,13 @@
 - **NomadSF in the status bar.** Opening a Salesforce DX project starts NomadSF for that workspace (or switches a running one to it); click **NomadSF** in the status bar to open the Studio in an editor tab.
 - **Every Studio tool**, grouped into hubs, with tools side by side and <kbd>⌘K</kbd> to jump:
 
-  | Hub                 | Tools                                                                        |
-  | ------------------- | ---------------------------------------------------------------------------- |
-  | **Develop**         | Execute Apex · Code · Apex tests with coverage · Debug Logs                  |
-  | **Data**            | Query · Record · Import / Update / Delete · Lookup · Field usage             |
-  | **Data protection** | Backup and restore · Migrate between orgs · Lifecycle jobs with approval     |
-  | **Release**         | Project (your repository vs the org) · Metadata · Org compare · E2E tests    |
-  | **Org**             | Users & access · Connected apps · Limits · Events · REST Explorer · Activity |
+  | Hub                 | Tools                                                                                     |
+  | ------------------- | ----------------------------------------------------------------------------------------- |
+  | **Develop**         | Execute Apex · Code · Apex tests with coverage · Debug Logs                               |
+  | **Data**            | Query · Record · Import / Update / Delete · Lookup · Field usage                          |
+  | **Data protection** | Backup and restore · Migrate between orgs · Lifecycle jobs with approval                  |
+  | **Release**         | Project (your repository vs the org) · Metadata · Org compare · E2E tests                 |
+  | **Org**             | Users & access · Connected apps · Org health · Limits · Events · REST Explorer · Activity |
 
 - **From the editor** (select text, right-click):
   - **Show all data of the selected record Id** — the record inspector for an Id in your code or logs.

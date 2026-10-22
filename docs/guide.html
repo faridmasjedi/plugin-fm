@@ -55,6 +55,7 @@
         <b>Org</b>
         <a href="#access">Users &amp; access</a>
         <a href="#apps">Connected apps</a>
+        <a href="#health">Org health</a>
         <a href="#limits">Limits</a>
         <a href="#events">Events</a>
         <a href="#rest">REST Explorer</a>
@@ -178,7 +179,7 @@
           </tr>
           <tr>
             <td><b>Org</b></td>
-            <td>Users &amp; access · Connected apps · Limits · Events · REST Explorer · Activity</td>
+            <td>Users &amp; access · Connected apps · Org health · Limits · Events · REST Explorer · Activity</td>
           </tr>
         </table>
 
@@ -611,6 +612,15 @@
             <b>Object, field &amp; system permissions</b>: what a profile, permission set or group allows — object
             access, field access, user &amp; system permissions, or <b>All</b> together.
           </li>
+          <li>
+            <b>Who has it</b>: pick a permission set, permission set group, permission set license, profile, role,
+            public group or queue — and see its users (active only, or all).
+          </li>
+          <li>
+            <b>Compare</b>: two users — permission sets, groups, licenses, groups &amp; queues and system permissions
+            one has and the other not — or two profiles / permission sets / groups: system permissions and object access
+            that differ.
+          </li>
           <li><b>Login history</b> and <b>Setup audit trail</b> of the org for the last days.</li>
         </ul>
 
@@ -623,6 +633,19 @@
           Salesforce CLI): users, tokens, uses and last use per app. Click an app for its users;
           <b>All OAuth tokens</b> lists every user and app.
         </p>
+
+        <h3 id="health">Org health</h3>
+        <ul>
+          <li>
+            <b>Security</b>: Salesforce's Health Check score and its risks; active users with Modify All Data, View All
+            Data, Manage Users, Author Apex, Customize Application or API Enabled, with what grants it; users who have
+            not logged in for 30–365 days; permission sets nobody has; OAuth tokens nobody uses; licenses held by
+            deactivated users.
+          </li>
+          <li>
+            <b>Licenses</b>: every user license and permission set license, used of total; click one for its users.
+          </li>
+        </ul>
 
         <h3 id="limits">Limits</h3>
         <div class="shot">

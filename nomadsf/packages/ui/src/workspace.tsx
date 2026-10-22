@@ -28,6 +28,7 @@ export type ToolId =
   | 'tests'
   | 'access'
   | 'apps'
+  | 'health'
   | 'limits'
   | 'events'
   | 'rest'
@@ -57,6 +58,7 @@ export const TOOLS: Tool[] = [
   { id: 'tests', label: 'E2E tests', icon: '✓', hint: 'Playwright (CLI app)' },
   { id: 'access', label: 'Users & access', icon: '⚿', hint: 'users, permissions, logins' },
   { id: 'apps', label: 'Connected apps', icon: '⚷', hint: 'connected apps, OAuth usage' },
+  { id: 'health', label: 'Org health', icon: '♥', hint: 'security check, licenses' },
   { id: 'limits', label: 'Limits', icon: '▤', hint: 'org limits' },
   { id: 'events', label: 'Events', icon: '⚡', hint: 'platform events, CDC' },
   { id: 'rest', label: 'REST Explorer', icon: '⇄', hint: 'any REST call' },
@@ -73,7 +75,7 @@ export const HUBS: Hub[] = [
   { id: 'data', label: 'Data', icon: '⇅', tools: ['query', 'record', 'data', 'lookup', 'fields'] },
   { id: 'protect', label: 'Data protection', icon: '⛁', tools: ['backup', 'migrate', 'lifecycle'] },
   { id: 'release', label: 'Release', icon: '⌂', tools: ['project', 'metadata', 'orgdiff', 'tests'] },
-  { id: 'org', label: 'Org', icon: '⚿', tools: ['access', 'apps', 'limits', 'events', 'rest', 'activity'] },
+  { id: 'org', label: 'Org', icon: '⚿', tools: ['access', 'apps', 'health', 'limits', 'events', 'rest', 'activity'] },
   { id: 'local', label: 'Local app', icon: '☁', tools: ['local-orgs', 'local-ai'] },
   { id: 'settings', label: 'Settings', icon: '⚙', tools: ['settings'] },
 ];
