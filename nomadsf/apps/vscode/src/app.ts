@@ -3,7 +3,24 @@
  * switch it to the workspace's project. Kept free of the VS Code API so it is easy to test.
  */
 
-export type AppInfo = { project?: { name: string; path: string } };
+export type AppInfo = { project?: { name: string; path: string }; version?: string };
+
+/** True when version `a` is older than `b` (x.y.z; a missing version counts as older). */
+export function isOlder(a: string | undefined, b: string): boolean {
+  const parse = (v: string): number[] =>
+    v
+      .replace(/^v/, '')
+      .split(/[.-]/)
+      .slice(0, 3)
+      .map((n) => Number(n) || 0);
+  if (!a) return true;
+  const [x, y] = [parse(a), parse(b)];
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] < y[i];
+  return false;
+}
+
+export const GUIDE_URL = 'https://faridmasjedi.github.io/plugin-fm/guide.html';
+export const PLUGIN_INSTALL = 'sf plugins install https://github.com/faridmasjedi/plugin-fm';
 
 const HEADERS = { 'content-type': 'application/json', 'x-fm-dashboard': '1' };
 
