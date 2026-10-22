@@ -17,6 +17,7 @@ import {
   type BackupObject,
   type BackupScope,
   type BackupSchedule,
+  type ScheduleUnit,
   type DataField,
   type DataObject,
   type FieldChoice,
@@ -937,6 +938,8 @@ export function ScheduleEditor({
 }) {
   const time = schedule.every === 'off' ? '02:00' : schedule.time;
   const weekday = schedule.every === 'weekly' ? schedule.weekday : 1;
+  const count = schedule.every === 'interval' ? schedule.count : 1;
+  const unit = schedule.every === 'interval' ? schedule.unit : 'days';
   return (
     <div className="form">
       <label>
@@ -945,14 +948,49 @@ export function ScheduleEditor({
           value={schedule.every}
           onChange={(e) => {
             const every = e.target.value as BackupSchedule['every'];
-            onChange(every === 'off' ? { every } : every === 'daily' ? { every, time } : { every, time, weekday });
+            onChange(
+              every === 'off'
+                ? { every }
+                : every === 'daily'
+                ? { every, time }
+                : every === 'weekly'
+                ? { every, time, weekday }
+                : { every, time, count, unit }
+            );
           }}
         >
           <option value="off">Off (only when I run it)</option>
           <option value="daily">Daily</option>
           <option value="weekly">Weekly</option>
+          <option value="interval">Every…</option>
         </select>
       </label>
+      {schedule.every === 'interval' && (
+        <>
+          <label>
+            every
+            <input
+              type="number"
+              min={1}
+              max={999}
+              style={{ width: 80 }}
+              value={count}
+              onChange={(e) =>
+                onChange({ ...schedule, count: Math.max(1, Math.min(999, Math.floor(Number(e.target.value) || 1))) })
+              }
+            />
+          </label>
+          <label>
+            unit
+            <select value={unit} onChange={(e) => onChange({ ...schedule, unit: e.target.value as ScheduleUnit })}>
+              <option value="hours">hours</option>
+              <option value="days">days</option>
+              <option value="weeks">weeks</option>
+              <option value="months">months</option>
+            </select>
+          </label>
+        </>
+      )}
       {schedule.every === 'weekly' && (
         <label>
           on
@@ -968,7 +1006,7 @@ export function ScheduleEditor({
           </select>
         </label>
       )}
-      {schedule.every !== 'off' && (
+      {schedule.every !== 'off' && !(schedule.every === 'interval' && schedule.unit === 'hours') && (
         <label>
           at
           <input
@@ -977,6 +1015,9 @@ export function ScheduleEditor({
             onChange={(e) => onChange({ ...schedule, time: e.target.value || '02:00' } as BackupSchedule)}
           />
         </label>
+      )}
+      {schedule.every === 'interval' && schedule.unit === 'hours' && (
+        <span className="muted">counted from the last run</span>
       )}
     </div>
   );
