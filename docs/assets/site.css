@@ -216,7 +216,9 @@ pre {
 }
 .shot video {
   width: 100%;
-  aspect-ratio: 1280 / 760;
+  /* the recording's own shape (from the poster), 1280 × 760 until it loads */
+  aspect-ratio: auto 1280 / 760;
+  display: block;
 }
 
 /* Sections */
