@@ -116,6 +116,31 @@ describe('schedules', () => {
     expect(describeSchedule({ every: 'weekly', time: '02:00', weekday: 1 })).toBe('Mondays at 02:00');
   });
 
+  it('repeats every N hours, days, weeks or months', () => {
+    const last = new Date(2026, 9, 19, 2, 0, 30); // last run Monday 02:00
+    const every = (count: number, unit: 'hours' | 'days' | 'weeks' | 'months') =>
+      nextRun({ every: 'interval', count, unit, time: '02:00' }, last);
+    expect(every(6, 'hours')).toEqual(new Date(2026, 9, 19, 8, 0, 30));
+    expect(every(3, 'days')).toEqual(new Date(2026, 9, 22, 2, 0));
+    expect(every(2, 'weeks')).toEqual(new Date(2026, 10, 2, 2, 0));
+    expect(every(1, 'months')).toEqual(new Date(2026, 10, 19, 2, 0));
+    // From a time before 02:00: the same day's 02:00 counts
+    expect(nextRun({ every: 'interval', count: 1, unit: 'days', time: '02:00' }, new Date(2026, 9, 19, 1, 0))).toEqual(
+      new Date(2026, 9, 19, 2, 0)
+    );
+    expect(() => every(0, 'days')).toThrow('1 to 999');
+    expect(describeSchedule({ every: 'interval', count: 6, unit: 'hours', time: '02:00' })).toBe('every 6 hours');
+    expect(describeSchedule({ every: 'interval', count: 1, unit: 'months', time: '03:30' })).toBe(
+      'every month at 03:30'
+    );
+    expect(describeSchedule({ every: 'interval', count: 2, unit: 'weeks', time: '02:00' })).toBe(
+      'every 2 weeks at 02:00'
+    );
+    const sixHours = { every: 'interval' as const, count: 6, unit: 'hours' as const, time: '02:00' };
+    expect(isDue(sixHours, last, new Date(2026, 9, 19, 7, 0))).toBe(false);
+    expect(isDue(sixHours, last, new Date(2026, 9, 19, 8, 1))).toBe(true);
+  });
+
   it('is due once the scheduled moment after the last run has passed', () => {
     const daily = { every: 'daily' as const, time: '02:00' };
     const last = new Date(2026, 9, 18, 2, 5);
