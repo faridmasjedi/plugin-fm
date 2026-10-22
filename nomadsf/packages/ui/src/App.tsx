@@ -9,6 +9,7 @@ import { LogsPage } from './pages/LogsPage';
 import { QueryPage } from './pages/QueryPage';
 import { DataPage } from './pages/DataPage';
 import { AccessPage } from './pages/AccessPage';
+import { ConnectedAppsPage } from './pages/ConnectedAppsPage';
 import { ActivityPage } from './pages/ActivityPage';
 import { MetadataPage } from './pages/MetadataPage';
 import { LOCAL_PAGES, LocalAppPage } from './pages/LocalAppPage';
@@ -261,6 +262,7 @@ export function App() {
           {tool === 'query' && <QueryPage />}
           {tool === 'data' && <DataPage />}
           {tool === 'access' && <AccessPage />}
+          {tool === 'apps' && <ConnectedAppsPage />}
           {tool === 'metadata' && <MetadataPage />}
           {tool === 'activity' && <ActivityPage />}
           {tool === 'record' && <RecordPage initialId={inspectId} />}
