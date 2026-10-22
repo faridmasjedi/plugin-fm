@@ -31,12 +31,36 @@
         <a href="#install">Install</a>
         <a href="#first-steps">First steps</a>
         <a href="#layout">Hubs and panes</a>
-        <b>Hubs</b>
-        <a href="#develop">Develop</a>
-        <a href="#data">Data</a>
-        <a href="#protect">Data protection</a>
-        <a href="#release">Release</a>
-        <a href="#org">Org</a>
+        <b>Develop</b>
+        <a href="#apex">Execute Apex</a>
+        <a href="#code">Code</a>
+        <a href="#apextests">Apex tests</a>
+        <a href="#logs">Debug Logs</a>
+        <b>Data</b>
+        <a href="#query">Query</a>
+        <a href="#record">Record</a>
+        <a href="#data-tool">Import / Update / Delete</a>
+        <a href="#lookup">Lookup</a>
+        <a href="#fields">Field usage</a>
+        <b>Data protection</b>
+        <a href="#backup">Backup</a>
+        <a href="#restore">Restore</a>
+        <a href="#migrate">Migrate</a>
+        <a href="#lifecycle">Lifecycle</a>
+        <b>Release</b>
+        <a href="#project">Project</a>
+        <a href="#metadata">Metadata</a>
+        <a href="#orgdiff">Org compare</a>
+        <a href="#tests">E2E tests</a>
+        <b>Org</b>
+        <a href="#access">Users &amp; access</a>
+        <a href="#apps">Connected apps</a>
+        <a href="#limits">Limits</a>
+        <a href="#events">Events</a>
+        <a href="#rest">REST Explorer</a>
+        <a href="#activity">Activity</a>
+        <b>Settings</b>
+        <a href="#settings">Settings</a>
         <a href="#ai">AI</a>
         <b>More</b>
         <a href="#safety">Safety and privacy</a>
@@ -150,7 +174,7 @@
           </tr>
           <tr>
             <td><b>Release</b></td>
-            <td>Project · Metadata · Org compare</td>
+            <td>Project · Metadata · Org compare · E2E tests</td>
           </tr>
           <tr>
             <td><b>Org</b></td>
@@ -159,47 +183,121 @@
         </table>
 
         <h2 id="develop">Develop</h2>
-        <ul>
+
+        <h3 id="apex">Execute Apex</h3>
+        <p>Run anonymous Apex in the org, like the Developer Console's Execute Anonymous window.</p>
+        <ol class="steps">
+          <li>Write or paste Apex. Snippets and highlighting help; <b>History…</b> brings back your last 20.</li>
           <li>
-            <b>Execute Apex</b>: an editor with Apex highlighting and snippets, log levels, run all
-            (<kbd>⌘</kbd>+<kbd>Enter</kbd>) or the selection, compile errors on the line, the last 20 snippets.
+            Choose log levels, then <b>Execute</b> (<kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd>), or run only the
+            selection (<kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd>).
+          </li>
+          <li>Read the result: success or the exception, compile errors marked on the line, and the debug log.</li>
+        </ol>
+        <p>✦ With an AI connected, describe what you need ("deactivate users who have not logged in for 90 days").</p>
+        <div class="callout warn">In a production org you confirm before it runs: anonymous Apex can change data.</div>
+
+        <h3 id="code">Code</h3>
+        <p>
+          Open, edit and save Apex classes, triggers, Visualforce pages and components, LWC and Aura — and compare them
+          with your project.
+        </p>
+        <ol class="steps">
+          <li>Pick the kind (Classes, Triggers, VF pages…) and a component from the list, or <b>New …</b>.</li>
+          <li>
+            <b>Compile only</b> compiles it in the org to find errors <i>without saving</i>. <b>Save</b> saves it (you
+            type the org name first).
           </li>
           <li>
-            <b>Code</b>: open, check and save Apex classes, triggers, Visualforce pages and components, LWC and Aura;
-            create new ones. With a project chosen, every item is tagged <i>same</i> / <i>different</i> /
-            <i>only in org</i> / <i>only in project</i>, with a side-by-side compare and <b>Use project version</b>.
+            With a project chosen (Settings › Project), each item is tagged <i>same</i> / <i>different</i> /
+            <i>only in org</i> / <i>only in project</i>. <b>Compare content</b> checks every file; the
+            <b>Compare</b> tab shows both side by side, and <b>Use project version</b> loads it into the editor.
           </li>
-          <li><b>Apex tests</b>: run tests, failures with stack traces, and code coverage line by line.</li>
-          <li><b>Debug Logs</b>: trace flags and logs, and ✦ an explanation of a log with an AI connected.</li>
-        </ul>
+        </ol>
         <div class="callout warn">
-          Salesforce only accepts Apex and Visualforce changes in production through a deployment, so saving them is off
-          for production orgs (developer orgs allow it).
+          Salesforce only accepts Apex and Visualforce changes in production through a deployment, so Save is off there
+          (developer orgs allow it). Compile only still works.
         </div>
 
+        <h3 id="apextests">Apex tests</h3>
+        <p>
+          Select test classes and <b>Run</b>, or <b>Run all local tests</b>. Failures show the message and stack trace.
+          The <b>Coverage</b> tab lists every class; click one to see covered (green) and uncovered (red) lines.
+        </p>
+
+        <h3 id="logs">Debug Logs</h3>
+        <p>
+          Turn <b>logging on</b> for yourself (a trace flag for a while), do something in the org, then open the new
+          log. The log shows its debug lines, events and limits, and the raw text; ✦ explains it with an AI connected.
+        </p>
+
         <h2 id="data">Data</h2>
+
+        <h3 id="query">Query</h3>
         <div class="shot">
           <video src="media/query.mp4" poster="media/query.jpg" muted loop playsinline autoplay controls></video>
         </div>
-        <ul>
+        <ol class="steps">
+          <li>Write SOQL with autocomplete for objects and fields, or ✦ ask in plain English.</li>
           <li>
-            <b>Query</b>: SOQL with autocomplete, saved queries and history, a table you can filter by any column,
-            <i>names for Ids</i>, deleted and archived rows, the Tooling API; export with the Bulk API, split into
+            Options: <b>Names for Ids</b> (adds a column with the name next to every Id), <b>Deleted &amp; archived</b>,
+            the <b>Tooling API</b>.
+          </li>
+          <li>
+            <b>Run</b> (<kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd>). Filter any column, sort, and copy, or download
+            CSV / JSON (CSV opens in Excel as is). <b>Export CSV</b> uses the Bulk API for large results, split into
             files.
           </li>
-          <li><b>Record</b>: every field of a record (click any Id in a table), edited in place.</li>
           <li>
-            <b>Import / Update / Delete</b>: from a CSV file (with checks for required fields, picklists and read-only
-            fields before anything runs) or from a query, edited in a grid where only changed cells are sent.
+            Ids: click to select, <b>⧉</b> copies, <b>↗</b> opens it in Salesforce, <b>ⓘ</b> shows all its fields.
+          </li>
+        </ol>
+        <p>
+          <b>Saved queries</b>: name a query and <b>Save query</b>; pick it again from <b>Saved…</b>.
+          <b>Download file</b> / <b>Load file…</b> move them as <code>nomadsf-queries.json</code>, and
+          <b>Load from project</b> reads that file from your project, so a team shares queries through git.
+        </p>
+
+        <h3 id="record">Record</h3>
+        <p>
+          Paste a record Id, a record URL or a username and <b>Show all data</b>: every field with its label, API name,
+          type and value. <b>Edit</b> changes fields in place (you type the org name to save); lookups open the record
+          they point to. For users, <b>Log in as</b>.
+        </p>
+
+        <h3 id="data-tool">Import / Update / Delete</h3>
+        <ol class="steps">
+          <li>
+            Choose a CSV file and the object. Columns are matched to fields; untick columns you don't want to send.
           </li>
           <li>
-            <b>Lookup</b>: find the Ids for a column of names in a CSV. <b>Field usage</b>: how full every field is, and
-            who can see it.
+            Choose <b>Insert</b>, <b>Update</b>, <b>Upsert</b> (with an external Id field), <b>Delete</b> or
+            <b>Hard delete</b>. Before anything runs it checks required fields, picklist values and read-only fields.
           </li>
-        </ul>
+          <li>Send it (Bulk API). The summary lists what succeeded and failed, with CSVs of both.</li>
+        </ol>
+        <p>
+          <b>Delete records matching a query</b>: count what a query returns, then delete it. And
+          <b>edit query results in a grid</b>: query records, change cells, and only the changed cells are sent.
+        </p>
+
+        <h3 id="lookup">Lookup</h3>
+        <p>
+          A VLOOKUP against Salesforce: choose a CSV, the column to look up, what it holds (Ids of an object, or values
+          of a field), and the fields to bring back. You get your file back with new columns —
+          <code>Column → Found</code> and <code>Column → Field</code> — and a list of the records found. Columns your
+          file already has (from an export with names for Ids) get <code>(lookup)</code> added.
+        </p>
+
+        <h3 id="fields">Field usage</h3>
+        <p>
+          For an object: how full every field is (records with a value), where it is used (references, for custom
+          fields), and which profiles, permission sets and groups can read or edit it.
+        </p>
 
         <h2 id="protect">Data protection</h2>
-        <h3>Backup</h3>
+
+        <h3 id="backup">Backup</h3>
         <div class="shot">
           <video src="media/backup.mp4" poster="media/backup.jpg" muted loop playsinline autoplay controls></video>
         </div>
@@ -211,20 +309,22 @@
             these). <b>Count records</b> shows the size first.
           </li>
           <li>
-            <b>Settings</b>: incremental runs after the first full one, a schedule (daily or weekly), the folder on your
-            computer, files and attachments, and encryption with a passphrase.
+            <b>Settings</b>: incremental runs after the first full one, a schedule (daily, weekly, or every N hours,
+            days, weeks or months), the folder on your computer, files and attachments, and encryption with a
+            passphrase.
           </li>
           <li>
-            <b>Back up now</b>. Each run is a folder with a CSV per object and a manifest.
-            <b>Backups &amp; restore</b> lists the runs and their records.
+            <b>Back up now</b>. Each run is a folder with a CSV per object and a manifest; <b>Download as zip</b> works
+            without a folder. <b>Backups &amp; restore</b> lists the runs.
           </li>
         </ol>
         <div class="callout">
-          Scheduled backups run while NomadSF is open in Chrome; a missed one runs when you open it. Encrypted backups
-          can only be read with the passphrase — it cannot be recovered.
+          Scheduled backups run while NomadSF is open; a missed one runs once when you open it. Encrypted backups can
+          only be read with the passphrase — it cannot be recovered. In VS Code the folder is chosen with VS Code's
+          folder picker.
         </div>
 
-        <h3>Restore</h3>
+        <h3 id="restore">Restore</h3>
         <p>Open a run under <b>Backups &amp; restore</b>, tick the objects and <b>Compare with the org</b>:</p>
         <ul>
           <li><b>Changed since the backup</b>: tick values and <b>Put back</b>.</li>
@@ -235,33 +335,50 @@
           </li>
         </ul>
 
-        <h3>Migrate</h3>
+        <h3 id="migrate">Migrate</h3>
         <div class="shot">
           <video src="media/migrate.mp4" poster="media/migrate.jpg" muted loop playsinline autoplay controls></video>
         </div>
+        <p>
+          Copies records from one org (or a backup) into another and keeps every link between them: a Contact still
+          points to its Account, a Case to its Contact, and so on — even though every record gets a new Id in the
+          target.
+        </p>
         <ol class="steps">
-          <li><b>From</b> an org (or a backup) <b>into</b> another org.</li>
+          <li><b>From</b>: an org, or a backup run. <b>Into</b>: the target org.</li>
           <li>
-            <b>What to copy</b>: tick objects; per object choose <i>All</i>, <i>Related only</i> (children of what you
-            copy) or <i>Only those pointed to</i>. <b>Children…</b> adds an object's child objects in one click, with
-            counts.
+            <b>What to copy</b>: tick objects. Per object: <i>All</i> records (or a condition),
+            <i>Related only</i> (only the children of what you copy — e.g. the Contacts of the Accounts you copy), or
+            <i>Only those pointed to</i> (e.g. only the Users your records point to). <b>Children…</b> adds an object's
+            child objects in one click, with counts.
           </li>
           <li>
-            <b>Check plan</b>: the load order, records per object, fields missing in the target, masked fields, and a
-            <b>Links between records</b> table that shows every lookup kept or lost — with a fix for each.
+            <b>Check plan</b> before anything is written. It shows the load order (parents before children), records per
+            object, fields missing in the target, masked fields, and <b>Links between records</b>: every lookup, whether
+            it is kept or lost, and a fix for each lost one (add the object, or match on a field such as Name or an
+            external Id).
           </li>
           <li>
-            <b>Copy</b> (you type the target org name). Running it again updates instead of duplicating;
-            <b>Undo last copy</b> deletes what it created.
+            <b>Copy</b> — you type the target org name. Progress shows per object; failures are listed with a CSV.
           </li>
         </ol>
-        <p>
-          Options: mask personal data (on by default from production into a sandbox), copy files and attachments, and
-          <i>Keep the old Ids in the target org</i> — a field <code>NomadSF_Old_Id__c</code> for large copies with the
-          Bulk API, which you can remove afterwards.
-        </p>
+        <ul>
+          <li>
+            <b>Again</b>: running the same copy again updates the records it created instead of duplicating them.
+            <b>Undo last copy</b> deletes what the last copy created.
+          </li>
+          <li>
+            <b>Mask personal data</b>: names, emails and phones are replaced (on by default from production into a
+            sandbox).
+          </li>
+          <li><b>Files and attachments</b> can be copied with their records.</li>
+          <li>
+            <b>Keep the old Ids in the target org</b>: for large copies with the Bulk API, a field
+            <code>NomadSF_Old_Id__c</code> remembers each source Id; remove it afterwards with one click.
+          </li>
+        </ul>
 
-        <h3>Lifecycle</h3>
+        <h3 id="lifecycle">Lifecycle</h3>
         <div class="shot">
           <video
             src="media/lifecycle.mp4"
@@ -276,7 +393,7 @@
         <p>
           Jobs in steps on one org: <b>Back up</b>, <b>Check</b> (stop above a limit), <b>Archive</b> (into a backup
           folder, read back, then delete), <b>Anonymize</b> (personal fields in place), <b>Delete</b>. Start from a
-          template (retention, sandbox refresh, backup then archive) or an empty job.
+          template (retention, sandbox refresh, backup then archive) or an empty job, and schedule it like a backup.
         </p>
         <ul>
           <li><b>Dry run</b> only counts.</li>
@@ -288,39 +405,123 @@
         </ul>
 
         <h2 id="release">Release</h2>
+
+        <h3 id="project">Project</h3>
+        <p>
+          Your Salesforce project (a folder on this computer or a GitHub repository, chosen in Settings › Project)
+          against the org. Use it to see what differs, bring org changes into the project, or deploy project changes to
+          the org.
+        </p>
+        <ol class="steps">
+          <li>
+            <b>Overview</b>: the project's components by type, and its manifests (<code>package.xml</code> files).
+          </li>
+          <li>
+            <b>Compare with the org</b>: choose the metadata types (or <b>All</b>), then <b>Compare</b>. Every component
+            is listed as <i>same</i>, <i>different</i>, <i>only in org</i> or <i>only in project</i>; filter by status.
+            <b>Compare content</b> checks the files of components in both.
+          </li>
+          <li>Tick the components you want, then act on just those:</li>
+        </ol>
         <ul>
+          <li><b>Restore into project</b>: retrieve the ones only in the org into your project (CLI app).</li>
+          <li><b>Download zip</b>: retrieve them from the org.</li>
           <li>
-            <b>Project</b>: your repository's components, manifests, and a compare with the org — check content,
-            restore, delete from the org, or validate and deploy (code deploys straight from the browser).
+            <b>Download delete package</b>: a zip with an empty <code>package.xml</code> and
+            <code>destructiveChanges.xml</code> for the ones only in the org — to deploy later from a pipeline.
           </li>
+          <li><b>Delete from org</b>: delete them now (validate first if you like).</li>
           <li>
-            <b>Metadata</b>: every metadata type of the org, build a package, download a zip or
-            <code>package.xml</code>.
-          </li>
-          <li>
-            <b>Org compare</b>: two orgs (sandbox ↔ sandbox or ↔ production), differences and content, then
-            <code>package.xml</code>, <code>destructiveChangesPost.xml</code> and a deployable zip — or validate, deploy
-            and quick deploy on the target.
+            <b>Deploy to org</b>: validate or deploy from the project, with a test level; then <b>Quick deploy</b> a
+            validation. Code deploys straight from the browser; other metadata needs the CLI app.
           </li>
         </ul>
 
+        <h3 id="metadata">Metadata</h3>
+        <p>Build a package by hand from any metadata type of the org.</p>
+        <ol class="steps">
+          <li>Choose a type, tick components, <b>Add to package</b> — a package can mix types.</li>
+          <li>
+            <b>Download zip</b> retrieves them; <b>package.xml</b> / <b>Copy package.xml</b> give the manifest;
+            <b>Retrieve into project</b> in the CLI app.
+          </li>
+          <li>
+            To remove things from the org: tick them and <b>Add to delete</b>. Choose
+            <code>destructiveChanges.xml</code>, <code>destructiveChangesPre.xml</code> (deleted before the deploy) or
+            <code>destructiveChangesPost.xml</code> (after), then download it, copy it, or <b>Manifests (zip)</b> for
+            both files. The page shows the <code>sf project deploy start</code> command to use.
+          </li>
+        </ol>
+
+        <h3 id="orgdiff">Org compare</h3>
+        <p>
+          Two orgs side by side (sandbox ↔ sandbox, or ↔ production): choose the metadata types and <b>Compare</b>. See
+          what is only in the source, only in the target, or different, and <b>Compare content</b> of those in both.
+          Select what to move, then download <code>package.xml</code>, <code>destructiveChangesPost.xml</code> (with
+          <i>also delete</i> for those only in the target) and a deployable zip — or validate, deploy and quick deploy
+          on the target with a test level.
+        </p>
+
+        <h3 id="tests">E2E tests</h3>
+        <p>
+          Playwright scenarios of your project, run against the org by the CLI app (logged in through the frontdoor
+          URL), with the HTML report. The page shows how to set Playwright up if the project has none.
+        </p>
+
         <h2 id="org">Org</h2>
+
+        <h3 id="access">Users &amp; access</h3>
         <ul>
           <li>
-            <b>Users &amp; access</b>: users (find, edit, freeze, activate) with everything a user has — permission sets
-            and groups, licenses, public groups, queues and personal groups, OAuth apps, login history, and every system
-            permission with what grants it. Also the org's login history, setup audit trail, permission set (group)
-            assignments, and object / field / system permissions of any profile or permission set.
+            <b>Users</b>: find a user by name, username, email or Id. <b>Details</b> edits any field; Freeze,
+            Deactivate, Log in as. Beside it: their <b>Permission sets &amp; groups</b>,
+            <b>System permissions</b> (every permission they have, and the profile, permission set or group that gives
+            it), <b>Groups &amp; queues</b> (public groups, queues, personal groups), <b>Licenses</b>,
+            <b>OAuth apps</b> and <b>Login history</b>.
           </li>
           <li>
-            <b>Connected apps</b>: connected apps, external client apps and OAuth usage — how many users each app has,
-            how often it is used, and every user's OAuth tokens.
+            <b>Permission sets &amp; groups</b>: show all, only permission sets or only groups; see who has one, assign
+            it to users (found by usernames, profile, role or public group, with an optional expiry) or remove it.
           </li>
           <li>
-            <b>Limits</b>, <b>Events</b> (platform events and change data capture, subscribe and publish),
-            <b>REST Explorer</b>, and <b>Activity</b> — everything changed from NomadSF.
+            <b>Object, field &amp; system permissions</b>: what a profile, permission set or group allows — object
+            access, field access, user &amp; system permissions, or <b>All</b> together.
           </li>
+          <li><b>Login history</b> and <b>Setup audit trail</b> of the org for the last days.</li>
         </ul>
+
+        <h3 id="apps">Connected apps</h3>
+        <p>
+          Connected apps, external client apps, and every app people sign in to with OAuth (including tools such as the
+          Salesforce CLI): users, tokens, uses and last use per app. Click an app for its users;
+          <b>All OAuth tokens</b> lists every user and app.
+        </p>
+
+        <h3 id="limits">Limits</h3>
+        <p>The org's limits (API requests, storage, …) with how much is used.</p>
+
+        <h3 id="events">Events</h3>
+        <p>
+          Subscribe to a platform event or change data capture channel — new events only, or replay the last 72 hours —
+          and click an event for its payload. <b>Publish</b> a platform event (you type the org name).
+        </p>
+
+        <h3 id="rest">REST Explorer</h3>
+        <p>
+          Any REST call: method, path, body, the answer with its status and headers. Calls other than GET ask first. ✦
+          describe the call in plain English.
+        </p>
+
+        <h3 id="activity">Activity</h3>
+        <p>Every change made from NomadSF in this browser (and, in the CLI app, the project's shared log).</p>
+
+        <h2 id="settings">Settings</h2>
+        <p>
+          <b>Org</b>: the orgs you are logged in to. <b>Project</b>: a folder on this computer or a GitHub repository
+          and branch. <b>AI</b> (browser extension): your own provider for the ✦ buttons — in the CLI app it is on the
+          app's AI page. <b>NomadSF CLI app</b> (optional): connect the extension to the local app for CLI orgs and
+          deploys.
+        </p>
 
         <h2 id="ai">AI</h2>
         <p>

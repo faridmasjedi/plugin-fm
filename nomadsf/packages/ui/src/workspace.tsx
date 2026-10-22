@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { storage } from './context';
+import { openExternal } from './embed';
 
 /**
  * The Studio's layout: tools grouped into hubs (Develop, Data, Data protection, Release, Org),
@@ -81,6 +82,11 @@ export const HUBS: Hub[] = [
 const ALIASES: Record<string, ToolId> = { limits: 'limits' };
 
 export const toolOf = (id: string): Tool | undefined => TOOLS.find((t) => t.id === (ALIASES[id] ?? id));
+
+/** The guide's section for a tool (the website, docs/guide.html). */
+const GUIDE = 'https://faridmasjedi.github.io/plugin-fm/guide.html';
+const GUIDE_ANCHOR: Partial<Record<ToolId, string>> = { data: 'data-tool', 'local-orgs': 'cli', 'local-ai': 'ai' };
+export const guideUrl = (tool: ToolId): string => `${GUIDE}#${GUIDE_ANCHOR[tool] ?? tool}`;
 export const hubOf = (tool: ToolId): Hub => HUBS.find((h) => h.tools.includes(tool)) ?? HUBS[0];
 export const isTool = (id: string): id is ToolId => Boolean(toolOf(id));
 
@@ -356,6 +362,13 @@ export function Panes({
                   })}
                 </div>
                 <span className="grow" />
+                <button
+                  className="pane-action help"
+                  title={`How to use ${toolOf(tool)?.label ?? 'this tool'} (opens the guide)`}
+                  onClick={() => openExternal(guideUrl(tool))}
+                >
+                  ?
+                </button>
                 <button
                   className="pane-action"
                   title="Start this tab again with a clean page (its current results are cleared)"
