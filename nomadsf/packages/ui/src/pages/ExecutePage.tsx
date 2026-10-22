@@ -132,7 +132,11 @@ export function ExecutePage() {
             ))}
           </select>
         </label>
-        <select value="" onChange={(e) => e.target.value && setCode(history[Number(e.target.value)])}>
+        <select
+          className="menu-select"
+          value=""
+          onChange={(e) => e.target.value && setCode(history[Number(e.target.value)])}
+        >
           <option value="">History…</option>
           {history.map((h, i) => (
             <option key={i} value={i}>

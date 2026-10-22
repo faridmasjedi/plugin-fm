@@ -187,7 +187,7 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
             Show all data
           </button>
           {recent.length > 0 && (
-            <select value="" onChange={(e) => e.target.value && void open(e.target.value)}>
+            <select className="menu-select" value="" onChange={(e) => e.target.value && void open(e.target.value)}>
               <option value="">Recent…</option>
               {recent.map((r) => (
                 <option key={r.id} value={r.id}>

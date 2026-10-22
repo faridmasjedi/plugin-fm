@@ -2388,3 +2388,9 @@ button.primary.danger-fill {
   border-color: var(--bad);
   color: #fff;
 }
+
+/* "Pick one" menus (History…, Recent…, Saved…): Chrome sizes a select to its widest option */
+.pane-body select.menu-select,
+select.menu-select {
+  max-width: 170px;
+}
