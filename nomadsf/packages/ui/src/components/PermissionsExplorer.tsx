@@ -12,7 +12,7 @@ import {
 import { storage, useStudio } from '../context';
 import { DataTable, EmptyHint } from './DataTable';
 
-type Tab = 'objects' | 'fields' | 'system';
+type Tab = 'all' | 'objects' | 'fields' | 'system';
 const yes = (v: boolean): string => (v ? '✓' : '');
 
 /** What a profile, permission set or group allows: objects, fields and user / system permissions (read-only). */
@@ -20,6 +20,7 @@ export function PermissionsExplorer() {
   const { client } = useStudio();
   const [holders, setHolders] = useState<PermissionHolder[]>([]);
   const [filter, setFilter] = useState('');
+  const [kindShown, setKindShown] = useState<'all' | PermissionHolder['kind']>(() => storage.get('perms.kind', 'all'));
   const [holderId, setHolderId] = useState('');
   const [tab, setTab] = useState<Tab>(() => storage.get('perms.tab', 'objects'));
   const [objects, setObjects] = useState<ObjectAccessRow[] | null>(null);
@@ -39,8 +40,12 @@ export function PermissionsExplorer() {
   const holder = holders.find((h) => h.id === holderId);
   const shownHolders = useMemo(() => {
     const needle = filter.trim().toLowerCase();
-    return holders.filter((h) => !needle || `${h.kind} ${h.name}`.toLowerCase().includes(needle));
-  }, [holders, filter]);
+    return holders.filter(
+      (h) =>
+        (kindShown === 'all' || h.kind === kindShown) &&
+        (!needle || `${h.kind} ${h.name}`.toLowerCase().includes(needle))
+    );
+  }, [holders, filter, kindShown]);
 
   // Load what the current tab needs for the chosen holder
   useEffect(() => {
@@ -53,15 +58,16 @@ export function PermissionsExplorer() {
     let canceled = false;
     const fail = (e: Error) => !canceled && setStatus(`❌ ${e.message}`);
     setStatus('');
-    if (tab === 'objects' && objects === null)
+    const show = (t: Tab) => tab === t || tab === 'all';
+    if (show('objects') && objects === null)
       objectAccessOf(client, holderId)
         .then((r) => !canceled && setObjects(r))
         .catch(fail);
-    if (tab === 'system' && system === null)
+    if (show('system') && system === null)
       systemPermissionsOf(client, holderId)
         .then((r) => !canceled && setSystem(r))
         .catch(fail);
-    if (tab === 'fields' && fields === null)
+    if (show('fields') && fields === null)
       fieldAccessOf(client, holderId, fieldObject || undefined)
         .then((r) => !canceled && setFields(r))
         .catch(fail);
@@ -78,20 +84,37 @@ export function PermissionsExplorer() {
     <div className="card section">
       <h3>Permissions of a profile, permission set or group</h3>
       <div className="form">
+        <div className="segmented" role="group" aria-label="Show">
+          {(['all', ...kinds] as Array<'all' | PermissionHolder['kind']>).map((k) => (
+            <button
+              key={k}
+              className={kindShown === k ? 'active' : ''}
+              onClick={() => {
+                setKindShown(k);
+                storage.set('perms.kind', k);
+              }}
+            >
+              {k === 'all' ? 'All' : `${k}s`} (
+              {k === 'all' ? holders.length : holders.filter((h) => h.kind === k).length})
+            </button>
+          ))}
+        </div>
         <input placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} />
         <select value={holderId} onChange={(e) => setHolderId(e.target.value)} style={{ minWidth: 380 }}>
           <option value="">Choose ({shownHolders.length})</option>
-          {kinds.map((k) => (
-            <optgroup key={k} label={`${k}s`}>
-              {shownHolders
-                .filter((h) => h.kind === k)
-                .map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.name}
-                  </option>
-                ))}
-            </optgroup>
-          ))}
+          {kinds
+            .filter((k) => kindShown === 'all' || k === kindShown)
+            .map((k) => (
+              <optgroup key={k} label={`${k}s`}>
+                {shownHolders
+                  .filter((h) => h.kind === k)
+                  .map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.name}
+                    </option>
+                  ))}
+              </optgroup>
+            ))}
         </select>
         {holder && <span className="pill">{holder.kind}</span>}
         <span className="muted">{status}</span>
@@ -101,6 +124,7 @@ export function PermissionsExplorer() {
           <div className="tabs">
             {(
               [
+                ['all', 'All'],
                 ['objects', 'Object access'],
                 ['fields', 'Field access'],
                 ['system', 'User & system permissions'],
@@ -118,7 +142,8 @@ export function PermissionsExplorer() {
               </button>
             ))}
           </div>
-          {tab === 'objects' &&
+          {tab === 'all' && <h4>Object access</h4>}
+          {(tab === 'objects' || tab === 'all') &&
             (objects === null ? (
               <p className="muted">Reading object access…</p>
             ) : objects.length === 0 ? (
@@ -140,7 +165,8 @@ export function PermissionsExplorer() {
                 note={<span>· objects with any access</span>}
               />
             ))}
-          {tab === 'fields' && (
+          {tab === 'all' && <h4>Field access</h4>}
+          {(tab === 'fields' || tab === 'all') && (
             <>
               <div className="form">
                 <label>
@@ -175,7 +201,8 @@ export function PermissionsExplorer() {
               )}
             </>
           )}
-          {tab === 'system' &&
+          {tab === 'all' && <h4>User &amp; system permissions</h4>}
+          {(tab === 'system' || tab === 'all') &&
             (system === null ? (
               <p className="muted">Reading permissions…</p>
             ) : (

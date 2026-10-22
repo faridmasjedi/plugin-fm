@@ -89,6 +89,7 @@ export const STUDIO_PAGES = [
   ['orgdiff', 'Org compare', 'Release'],
   ['tests', 'E2E tests', 'Release'],
   ['access', 'Users & access', 'Org'],
+  ['apps', 'Connected apps', 'Org'],
   ['limits', 'Limits', 'Org'],
   ['events', 'Events', 'Org'],
   ['rest', 'REST Explorer', 'Org'],
