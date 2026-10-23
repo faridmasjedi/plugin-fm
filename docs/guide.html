@@ -683,12 +683,13 @@
                 role, public group or queue — and see its users (active only, or all).
               </li>
               <li>
-                <b>Compare</b>: two users side by side — their details, profile, permission sets, permission set groups,
-                licenses, groups &amp; queues and OAuth apps (in both, only in one), how each profile, permission set or
-                group's access differs (click it), the user and system permissions that differ, and the last 10 logins
-                of each — or two profiles, two permission sets or two permission set groups (each on its own tab):
-                system permissions, object and field access that differ. To compare with another org, use
-                <a href="#orgaccess">Org to org › Access</a>.
+                <b>Compare</b>: two users side by side, in tabs — <i>Details</i>; <i>Profile</i>,
+                <i>Permission sets</i> and <i>Permission set groups</i> with everything each allows (object, field and
+                system permissions, Apex classes, Visualforce pages, apps, custom permissions, connected apps, tab
+                settings, record types, page layouts); <i>Groups &amp; queues</i> and <i>Role</i> with the records
+                shared with them; <i>OAuth apps</i>; <i>Login history</i> — or two profiles, two permission sets or two
+                permission set groups (each on its own tab): system permissions, object and field access that differ. To
+                compare with another org, use <a href="#orgaccess">Org to org › Access</a>.
               </li>
               <li><b>Login history</b> and <b>Setup audit trail</b> of the org for the last days.</li>
             </ul>
@@ -728,7 +729,8 @@
               <li>
                 Tick or untick object access, field access and user &amp; system permissions; add an object or a field
                 (<code>Object.Field</code>). What Salesforce requires is kept: Edit needs Read, Modify all needs
-                everything. Changed boxes are outlined; nothing is sent yet.
+                everything. Changed boxes are outlined; nothing is sent yet. (Edit… is off, with the reason, when your
+                user can't change permissions in this org.)
               </li>
               <li><b>Save</b> — you type the org name; anything that fails is listed, the rest is saved.</li>
             </ol>
@@ -847,6 +849,12 @@
               from, copy from) and <b>B</b> (compare with, copy and deploy into). <b>⇄</b> swaps them. The pair is
               remembered, and A starts as the org chosen at the top of the Studio. Anything written goes into B, and you
               type B's name first.
+            </p>
+            <p>
+              Under the bar: <b>what your user may do</b> in each org — <i>full</i>, <i>read only</i> (can read setup,
+              can't change permissions) or <i>limited</i> (can't read profiles, permissions or code) — and which
+              permission is missing. What one org could not be read shows as <b>?</b> ("not read in B"), never as a
+              difference; copying into B is turned off when your user there can't change permissions.
             </p>
           </section>
           <section class="tool" data-title="Org compare">
