@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { SalesforceClient } from '@nomadsf/core';
 import { useStudio } from './context';
+import { useAccessOf } from './access';
 import type { OrgChoice } from './host';
 
 /**
@@ -16,6 +17,20 @@ export function usePair(): [OrgPair, (next: OrgPair) => void] {
   if (!pair) throw new Error('No org pair.');
   return pair;
 }
+
+/** One connection per org for the hub (so its access is checked once). */
+const connections = new Map<string, Promise<SalesforceClient>>();
+const connect = (id: string, clientFor: (id: string) => Promise<SalesforceClient>): Promise<SalesforceClient> => {
+  let p = connections.get(id);
+  if (!p) {
+    p = clientFor(id).catch((e: Error) => {
+      connections.delete(id);
+      throw e;
+    });
+    connections.set(id, p);
+  }
+  return p;
+};
 
 /** Both orgs of the pair and their connections (null until connected). */
 export function usePairClients(): {
@@ -40,8 +55,8 @@ export function usePairClients(): {
     let canceled = false;
     void (async () => {
       try {
-        const ca = a ? await clientFor(a.id) : null;
-        const cb = b ? await clientFor(b.id) : null;
+        const ca = a ? await connect(a.id, clientFor) : null;
+        const cb = b ? await connect(b.id, clientFor) : null;
         if (!canceled) setClients({ a: ca, b: cb });
       } catch (e) {
         if (!canceled) setError(`❌ ${(e as Error).message}`);
@@ -59,6 +74,9 @@ export function OrgPairBar({ labelA = 'A', labelB = 'B' }: { labelA?: string; la
   const { orgs } = useStudio();
   const [pair, setPair] = usePair();
   const b = pair.b !== pair.a ? orgs.find((o) => o.id === pair.b) : undefined;
+  const { clientA, clientB } = usePairClients();
+  const accessA = useAccessOf(clientA);
+  const accessB = useAccessOf(clientB);
   const option = (o: OrgChoice) => (
     <option key={o.id} value={o.id}>
       {o.label}
@@ -88,6 +106,26 @@ export function OrgPairBar({ labelA = 'A', labelB = 'B' }: { labelA?: string; la
           </select>
         </label>
       </div>
+      {(accessA || accessB) && (
+        <div className="pair-access">
+          {(
+            [
+              ['A', accessA],
+              ['B', b ? accessB : null],
+            ] as const
+          ).map(
+            ([side, access]) =>
+              access && (
+                <span key={side} className={`access-${access.level.replace(' ', '-')}`}>
+                  <b>
+                    {side}: {access.level === 'unknown' ? 'access not checked' : `${access.level} access`}
+                  </b>{' '}
+                  — {access.summary}
+                </span>
+              )
+          )}
+        </div>
+      )}
       {orgs.length < 2 && (
         <p className="muted" style={{ margin: 0 }}>
           Log in to a second org (Settings → Org) to work between two orgs.

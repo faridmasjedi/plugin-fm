@@ -10,6 +10,7 @@ import { useStudio } from '../context';
 import { orgFacts } from '../host';
 import { DataTable } from './DataTable';
 import { askTyped } from './Dialogs';
+import { cannotChangePermissions, useAccessOf } from '../access';
 
 /**
  * The differences; comparing permission sets or profiles of two orgs, tick some and copy A's access into B
@@ -29,6 +30,8 @@ export function DiffTable({
   const { logActivity } = useStudio();
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState('');
+  // B's user must be able to change permissions (checked once per org)
+  const blocked = cannotChangePermissions(useAccessOf(copy?.clientB), copy?.labelB ?? 'B');
   useEffect(() => setPicked(new Set()), [diff]);
   const canCopy = Boolean(copy && diff.some((d) => d.change));
   const run = async () => {
@@ -76,10 +79,17 @@ export function DiffTable({
       />
       {canCopy && (
         <div className="form">
-          <button className="primary" disabled={picked.size === 0} onClick={() => void run()}>
+          <button
+            className="primary"
+            disabled={picked.size === 0 || Boolean(blocked)}
+            title={blocked}
+            onClick={() => void run()}
+          >
             Copy A&apos;s access into B ({picked.size})…
           </button>
-          <span className="muted">{status || 'tick the differences to make B like A'}</span>
+          <span className={blocked && !status ? 'bad-text' : 'muted'}>
+            {status || blocked || 'tick the differences to make B like A'}
+          </span>
         </div>
       )}
     </>

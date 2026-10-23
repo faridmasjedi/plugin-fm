@@ -14,6 +14,7 @@ import {
 import { storage, useStudio } from '../context';
 import { DataTable, EmptyHint } from './DataTable';
 import { AccessEditor, GroupEditor } from './AccessEditor';
+import { cannotChangePermissions, useAccessOf } from '../access';
 
 type Tab = 'all' | 'objects' | 'fields' | 'system';
 const yes = (v: boolean): string => (v ? '✓' : '');
@@ -23,7 +24,9 @@ const yes = (v: boolean): string => (v ? '✓' : '');
  * sets and profiles can be edited; a group's permission sets can be added and removed.
  */
 export function PermissionsExplorer() {
-  const { client } = useStudio();
+  const { client, org } = useStudio();
+  // Changing permissions needs Manage Profiles and Permission Sets (checked once per org)
+  const blocked = cannotChangePermissions(useAccessOf(client), org.label);
   const [holders, setHolders] = useState<PermissionHolder[]>([]);
   const [filter, setFilter] = useState('');
   const [kindShown, setKindShown] = useState<'all' | PermissionHolder['kind']>(() => storage.get('perms.kind', 'all'));
@@ -145,16 +148,21 @@ export function PermissionsExplorer() {
         </select>
         {holder && <span className="pill">{holder.kind}</span>}
         {holder && info?.editable && !editing && (
-          <button onClick={() => setEditing(true)} title="Change object, field and user / system permissions">
+          <button
+            onClick={() => setEditing(true)}
+            disabled={Boolean(blocked)}
+            title={blocked ?? 'Change object, field and user / system permissions'}
+          >
             Edit…
           </button>
         )}
+        {holder && info?.editable && blocked && <span className="muted">{blocked}</span>}
         {holder && info && !info.editable && info.kind !== 'Permission set group' && (
           <span className="muted">{info.reason}</span>
         )}
         <span className="muted">{status}</span>
       </div>
-      {holder && info?.groupId && <GroupEditor groupId={info.groupId} holders={holders} />}
+      {holder && info?.groupId && <GroupEditor groupId={info.groupId} holders={holders} blocked={blocked} />}
       {holder &&
         editing &&
         (objects && fields && system ? (

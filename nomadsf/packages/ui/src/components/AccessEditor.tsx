@@ -266,7 +266,16 @@ export function AccessEditor({
 }
 
 /** The permission sets in a permission set group: remove one, or add one (Salesforce then recalculates the group). */
-export function GroupEditor({ groupId, holders }: { groupId: string; holders: PermissionHolder[] }) {
+export function GroupEditor({
+  groupId,
+  holders,
+  blocked,
+}: {
+  groupId: string;
+  holders: PermissionHolder[];
+  /** Why changes are not possible here (the user's permissions). */
+  blocked?: string;
+}) {
   const { client, org, confirmChange, logActivity } = useStudio();
   const [members, setMembers] = useState<GroupMember[] | null>(null);
   const [groupStatus, setGroupStatus] = useState('');
@@ -319,6 +328,8 @@ export function GroupEditor({ groupId, holders }: { groupId: string; holders: Pe
                 <td>
                   <button
                     className="link danger"
+                    disabled={Boolean(blocked)}
+                    title={blocked}
                     onClick={() =>
                       void run(`Remove ${m.label} from the group`, () => removeFromGroup(client, m.componentId))
                     }
@@ -341,7 +352,8 @@ export function GroupEditor({ groupId, holders }: { groupId: string; holders: Pe
           ))}
         </select>
         <button
-          disabled={!adding}
+          disabled={!adding || Boolean(blocked)}
+          title={blocked}
           onClick={() => {
             const name = holders.find((h) => h.id === adding)?.name ?? adding;
             setAdding('');
@@ -350,7 +362,7 @@ export function GroupEditor({ groupId, holders }: { groupId: string; holders: Pe
         >
           Add
         </button>
-        <span className="muted">{status}</span>
+        <span className="muted">{status || blocked}</span>
       </div>
     </div>
   );

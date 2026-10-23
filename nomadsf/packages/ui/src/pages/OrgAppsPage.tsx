@@ -53,11 +53,13 @@ export function OrgAppsPage() {
       {apps && (
         <>
           <div className="segmented" role="group" aria-label="Show">
-            {(['all', 'only in A', 'only in B', 'different', 'same'] as Show[]).map((s) => (
-              <button key={s} className={show === s ? 'active' : ''} onClick={() => setShow(s)}>
-                {s === 'all' ? 'All' : s[0].toUpperCase() + s.slice(1)} ({count(s)})
-              </button>
-            ))}
+            {(['all', 'only in A', 'only in B', 'different', 'same', 'not read in A', 'not read in B'] as Show[])
+              .filter((s) => !s.startsWith('not read') || count(s) > 0)
+              .map((s) => (
+                <button key={s} className={show === s ? 'active' : ''} onClick={() => setShow(s)}>
+                  {s === 'all' ? 'All' : s[0].toUpperCase() + s.slice(1)} ({count(s)})
+                </button>
+              ))}
           </div>
           <DataTable
             columns={['name', 'status', 'differences', 'kindA', 'kindB', 'usersA', 'usersB']}

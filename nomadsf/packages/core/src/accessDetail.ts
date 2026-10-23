@@ -240,12 +240,20 @@ export type MergedSection = {
   noteB?: string;
 };
 
-/** Two holders' sections side by side (either may be missing: only one user has it). */
+/** "?" for a side that could not be read: not a difference, just unknown. */
+export const NOT_READ = '?';
+
+/**
+ * Two holders' sections side by side (either may be missing: only one user has it). A section one side could
+ * not read shows "?" for that side and counts no differences — unknown is not "doesn't have".
+ */
 export function mergeAccess(a: AccessSection[] | undefined, b: AccessSection[] | undefined): MergedSection[] {
   const titles = [...new Set([...(a ?? []).map((s) => s.title), ...(b ?? []).map((s) => s.title)])];
   return titles.map((title) => {
     const x = a?.find((s) => s.title === title);
     const y = b?.find((s) => s.title === title);
+    const unreadA = Boolean(x?.note);
+    const unreadB = Boolean(y?.note);
     const byKey = new Map<string, { key: string; item: string; a: string; b: string }>();
     for (const r of x?.rows ?? []) byKey.set(r.key.toLowerCase(), { key: r.key, item: r.item, a: r.value, b: '' });
     for (const r of y?.rows ?? []) {
@@ -255,7 +263,12 @@ export function mergeAccess(a: AccessSection[] | undefined, b: AccessSection[] |
     return {
       title,
       rows: [...byKey.values()]
-        .map((r) => ({ ...r, differs: r.a !== r.b }))
+        .map((r) => ({
+          ...r,
+          a: unreadA ? NOT_READ : r.a,
+          b: unreadB ? NOT_READ : r.b,
+          differs: !unreadA && !unreadB && r.a !== r.b,
+        }))
         .sort((p, q) => p.item.localeCompare(q.item)),
       noteA: x?.note,
       noteB: y?.note,
@@ -316,15 +329,27 @@ export type UserSharing = {
 /** What is shared with a user: directly, through their groups and queues, and through their role. */
 export async function userSharing(client: SalesforceClient, userId: string): Promise<UserSharing> {
   if (!USER_ID.test(userId)) throw new Error('Invalid user Id.');
-  const user: Row = (await query(client, `SELECT UserRoleId FROM User WHERE Id = '${userId}'`)).rows[0] ?? {};
-  const members = await query(
-    client,
-    `SELECT GroupId, Group.Name, Group.Type FROM GroupMember WHERE UserOrGroupId = '${userId}'`,
-    { maxRows: 5000 }
+  const notes: string[] = [];
+  const part = <T>(what: string, read: Promise<T>, fallback: T): Promise<T> =>
+    read.catch((e: Error) => {
+      notes.push(`${what}: ${e.message}`);
+      return fallback;
+    });
+  const user: Row =
+    (
+      await part<{ rows: Row[] }>('Role', query(client, `SELECT UserRoleId FROM User WHERE Id = '${userId}'`), {
+        rows: [] as Row[],
+      })
+    ).rows[0] ?? {};
+  const members = await part<{ rows: Row[] }>(
+    'Groups & queues',
+    query(client, `SELECT GroupId, Group.Name, Group.Type FROM GroupMember WHERE UserOrGroupId = '${userId}'`, {
+      maxRows: 5000,
+    }),
+    { rows: [] as Row[] }
   );
   const groupIds = members.rows.map((m) => String(m.GroupId));
   const queueIds = members.rows.filter((m) => m['Group.Type'] === 'Queue').map((m) => String(m.GroupId));
-  const notes: string[] = [];
 
   let role: UserSharing['role'] = null;
   let roleGroupIds: string[] = [];
@@ -332,9 +357,13 @@ export async function userSharing(client: SalesforceClient, userId: string): Pro
     const roleId = String(user.UserRoleId);
     const r: Row =
       (
-        await query(
-          client,
-          `SELECT Id, Name, ParentRoleId, OpportunityAccessForAccountOwner, CaseAccessForAccountOwner, ContactAccessForAccountOwner, MayForecastManagerShare FROM UserRole WHERE Id = '${roleId}'`
+        await part<{ rows: Row[] }>(
+          'Role',
+          query(
+            client,
+            `SELECT Id, Name, ParentRoleId, OpportunityAccessForAccountOwner, CaseAccessForAccountOwner, ContactAccessForAccountOwner, MayForecastManagerShare FROM UserRole WHERE Id = '${roleId}'`
+          ),
+          { rows: [] as Row[] }
         )
       ).rows[0] ?? {};
     // Up the hierarchy (at most 20 levels)

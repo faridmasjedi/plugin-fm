@@ -2502,3 +2502,21 @@ pre.wrap {
 .user-comparison > .tabs {
   margin-top: 6px;
 }
+
+/* Org to org: what your user may do in A and B */
+.pair-access {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.pair-access .access-full b {
+  color: var(--good);
+}
+.pair-access .access-read-only b {
+  color: var(--warn);
+}
+.pair-access .access-limited b {
+  color: var(--bad);
+}

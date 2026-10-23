@@ -87,7 +87,10 @@ export function UserComparison({ userA, userB, ...sides }: Sides & { userA: stri
   if (!result) return <p className="muted">{status}</p>;
   const note = ` · A = ${labelA}, B = ${labelB}`;
   const items = (area: UserItem['area']) => result.items.filter((i) => i.area === area);
-  const differences = (list: UserItem[]) => list.filter((i) => i.in !== 'both' || i.a !== i.b).length;
+  // Unknown ("not read in A/B") is not a difference
+  const differences = (list: UserItem[]) =>
+    list.filter((i) => (i.in === 'only in A' || i.in === 'only in B' || i.a !== i.b) && !i.in.startsWith('not read'))
+      .length;
   const badge: Partial<Record<Tab, number>> = {
     details: result.details.filter((d) => !d.same).length + result.permissions.length,
     sets: differences(items('Permission set')),
@@ -99,6 +102,24 @@ export function UserComparison({ userA, userB, ...sides }: Sides & { userA: stri
 
   return (
     <div className="user-comparison">
+      {(result.notesA.length > 0 || result.notesB.length > 0) && (
+        <div className="callout">
+          <b>Not everything could be read</b> — shown as <b>?</b>, and not counted as a difference.
+          {(
+            [
+              ['A', labelA, result.notesA],
+              ['B', labelB, result.notesB],
+            ] as const
+          ).map(
+            ([side, who, notes]) =>
+              notes.length > 0 && (
+                <div key={side} className="muted">
+                  {side} ({who}): {notes.join(' · ')}
+                </div>
+              )
+          )}
+        </div>
+      )}
       <div className="tabs">
         {TABS.map(([id, text]) => (
           <button
@@ -329,12 +350,14 @@ function AccessCompare({
     };
   }, [client, clientB, idA, idB, refresh]);
   const section = sections?.find((s) => s.title === shown) ?? sections?.[0];
+  // A side that could not be read: show the other side's rows (as ?) instead of "no differences"
+  const unreadable = Boolean(section?.noteA || section?.noteB);
   const rows = useMemo(
-    () => (section?.rows ?? []).filter((r) => !both || !differencesOnly || r.differs),
-    [section, differencesOnly, both]
+    () => (section?.rows ?? []).filter((r) => !both || !differencesOnly || r.differs || unreadable),
+    [section, differencesOnly, both, unreadable]
   );
   if (!sections || !section) return <p className="muted">{status}</p>;
-  const copyable = twoOrgs && canCopy && both && COPYABLE.includes(section.title);
+  const copyable = twoOrgs && canCopy && both && !unreadable && COPYABLE.includes(section.title);
   const diffs: Difference[] = copyable
     ? rows.map((r) => ({
         area: section.title,
@@ -351,7 +374,11 @@ function AccessCompare({
         {sections.map((s) => (
           <button key={s.title} className={section.title === s.title ? 'active' : ''} onClick={() => setShown(s.title)}>
             {s.title}
-            {both ? ` (${s.rows.filter((r) => r.differs).length} ≠)` : ` (${s.rows.length})`}
+            {s.noteA || s.noteB
+              ? ' (?)'
+              : both
+              ? ` (${s.rows.filter((r) => r.differs).length} ≠)`
+              : ` (${s.rows.length})`}
           </button>
         ))}
       </div>
@@ -367,8 +394,16 @@ function AccessCompare({
           {section.noteB ? ` in B: ${section.noteB}` : ''}
         </p>
       )}
+      {unreadable && (
+        <p className="bad-text">
+          Can't compare {section.title.toLowerCase()}: {section.noteA ? 'A' : 'B'} could not be read (see above). Shown
+          as ?.
+        </p>
+      )}
       {rows.length === 0 ? (
-        <p className="good">✓ {both ? `No differences in ${section.title.toLowerCase()}.` : 'Nothing here.'}</p>
+        !unreadable && (
+          <p className="good">✓ {both ? `No differences in ${section.title.toLowerCase()}.` : 'Nothing here.'}</p>
+        )
       ) : copyable ? (
         <DiffTable
           diff={diffs}

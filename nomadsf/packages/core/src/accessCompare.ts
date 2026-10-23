@@ -141,10 +141,14 @@ export async function usersWithInBoth(
   holderB: Pick<Holder, 'kind' | 'id'> | undefined
 ): Promise<Row[]> {
   const people = (rows: Row[]): Row[] => rows.filter((r) => r.Username);
-  const [a, b] = await Promise.all([
-    holderA ? usersWith(clientA, holderA).then(people) : [],
-    holderB ? usersWith(clientB, holderB).then(people) : [],
-  ]);
+  // A side that cannot be read is unknown (null), not empty
+  const read = (client: SalesforceClient, holder: Pick<Holder, 'kind' | 'id'> | undefined): Promise<Row[] | null> =>
+    holder ? usersWith(client, holder).then(people, () => null) : Promise.resolve([]);
+  const [readA, readB] = await Promise.all([read(clientA, holderA), read(clientB, holderB)]);
+  if (!readA && !readB) throw new Error('The users could not be read in either org.');
+  const a = readA ?? [];
+  const b = readB ?? [];
+  const unknown = !readA ? 'not read in A' : !readB ? 'not read in B' : '';
   const left = new Set(b);
   const out: Row[] = [];
   for (const x of a) {
@@ -153,7 +157,7 @@ export async function usersWithInBoth(
     out.push({
       Id: `${String(x.Id)}${y ? `-${String(y.Id)}` : ''}`,
       Name: x.Name,
-      in: y ? 'both' : 'only in A',
+      in: y ? 'both' : unknown || 'only in A',
       usernameA: x.Username,
       usernameB: y?.Username ?? '',
       activeA: x.IsActive,
@@ -166,7 +170,7 @@ export async function usersWithInBoth(
     out.push({
       Id: String(y.Id),
       Name: y.Name,
-      in: 'only in B',
+      in: unknown || 'only in B',
       usernameA: '',
       usernameB: y.Username,
       activeA: '',
@@ -174,7 +178,10 @@ export async function usersWithInBoth(
       profileA: '',
       profileB: y['Profile.Name'] ?? '',
     });
-  const order = { 'only in A': 0, 'only in B': 1, both: 2 } as Record<string, number>;
+  const order = { 'only in A': 0, 'only in B': 1, both: 2, 'not read in A': 3, 'not read in B': 3 } as Record<
+    string,
+    number
+  >;
   return out.sort((x, y) => order[String(x.in)] - order[String(y.in)] || String(x.Name).localeCompare(String(y.Name)));
 }
 
@@ -268,7 +275,12 @@ export async function accessOverview(
   clientA: SalesforceClient,
   clientB: SalesforceClient
 ): Promise<AccessOverviewRow[]> {
-  const [a, b] = await Promise.all([snapshot(clientA), snapshot(clientB)]);
+  const label =
+    (side: string) =>
+    (e: Error): never => {
+      throw new Error(`${side}: profiles and permission sets could not be read — ${e.message}`);
+    };
+  const [a, b] = await Promise.all([snapshot(clientA).catch(label('A')), snapshot(clientB).catch(label('B'))]);
   const common = [...a.fields].filter((f) => b.fields.has(f));
   const rows: AccessOverviewRow[] = [];
   for (const key of new Set([...a.sets.keys(), ...b.sets.keys()])) {
@@ -380,7 +392,7 @@ async function appSide(client: SalesforceClient): Promise<AppSide> {
 
 export type AppComparison = {
   name: string;
-  status: 'only in A' | 'only in B' | 'different' | 'same';
+  status: 'only in A' | 'only in B' | 'different' | 'same' | 'not read in A' | 'not read in B';
   kindA: string;
   kindB: string;
   usersA: number | '';
@@ -417,9 +429,20 @@ export async function compareConnectedApps(
         if (ga.has(who) !== gb.has(who))
           differences.push({ area: 'Who may use it', item: who, a: ga.has(who) ? '✓' : '', b: gb.has(who) ? '✓' : '' });
     }
+    // An app missing on a side whose lists could not all be read is unknown there, not "only in" the other
     apps.push({
       name,
-      status: !y ? 'only in A' : !x ? 'only in B' : differences.length ? 'different' : 'same',
+      status: !y
+        ? b.report.notes.length
+          ? 'not read in B'
+          : 'only in A'
+        : !x
+        ? a.report.notes.length
+          ? 'not read in A'
+          : 'only in B'
+        : differences.length
+        ? 'different'
+        : 'same',
       kindA: x?.kind ?? '',
       kindB: y?.kind ?? '',
       usersA: x ? x.users : '',
@@ -427,7 +450,7 @@ export async function compareConnectedApps(
       differences,
     });
   }
-  const order = { 'only in A': 0, 'only in B': 1, different: 2, same: 3 };
+  const order = { 'only in A': 0, 'only in B': 1, different: 2, same: 3, 'not read in A': 4, 'not read in B': 4 };
   return {
     apps: apps.sort((x, y) => order[x.status] - order[y.status] || x.name.localeCompare(y.name)),
     notes: [...a.report.notes.map((n) => `A: ${n}`), ...b.report.notes.map((n) => `B: ${n}`)],

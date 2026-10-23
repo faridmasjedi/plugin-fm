@@ -212,13 +212,21 @@ export async function comparePermissionSets(
   b: string,
   clientB: SalesforceClient = client
 ): Promise<Difference[]> {
+  // Which side failed (e.g. the user in B cannot read setup) is part of the message
+  const side =
+    (label: string) =>
+    (e: Error): never => {
+      throw new Error(`${label}: ${e.message}`);
+    };
+  const inA = <T>(p: Promise<T>): Promise<T> => p.catch(side('A'));
+  const inB = <T>(p: Promise<T>): Promise<T> => p.catch(side('B'));
   const [sa, sb, oa, ob, fa, fb] = await Promise.all([
-    systemPermissionsOf(client, a),
-    systemPermissionsOf(clientB, b),
-    objectAccessOf(client, a),
-    objectAccessOf(clientB, b),
-    fieldAccessOf(client, a),
-    fieldAccessOf(clientB, b),
+    inA(systemPermissionsOf(client, a)),
+    inB(systemPermissionsOf(clientB, b)),
+    inA(objectAccessOf(client, a)),
+    inB(objectAccessOf(clientB, b)),
+    inA(fieldAccessOf(client, a)),
+    inB(fieldAccessOf(clientB, b)),
   ]);
   // System permissions by API name (both orgs may label them alike); only those one has and the other not
   const enabledB = new Set(sb.filter((p) => p.enabled).map((p) => p.api));
