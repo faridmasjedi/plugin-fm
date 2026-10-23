@@ -2,6 +2,7 @@ import type { SalesforceClient } from './client.js';
 import { query, type Row } from './query.js';
 import { effectivePermissions, userAccess } from './userAccess.js';
 import { fieldAccessOf, objectAccessOf, systemPermissionsOf } from './fieldUsage.js';
+import { NO_ACCESS, accessText, type AccessChange } from './accessEdit.js';
 
 /** Who has a permission set, group, license, profile, role or group; comparisons; security and license reports. */
 
@@ -144,7 +145,8 @@ export async function usersWith(client: SalesforceClient, holder: Pick<Holder, '
 
 // ---------- comparisons ----------
 
-export type Difference = { area: string; item: string; a: string; b: string };
+/** One difference; `change` (comparing permission sets) is what makes B like A. */
+export type Difference = { area: string; item: string; a: string; b: string; change?: AccessChange };
 
 const diffSets = (area: string, a: string[], b: string[]): Difference[] => {
   const sa = new Set(a);
@@ -218,35 +220,67 @@ export async function comparePermissionSets(
     fieldAccessOf(client, a),
     fieldAccessOf(clientB, b),
   ]);
-  const on = (list: typeof sa): string[] => list.filter((p) => p.enabled).map((p) => p.label);
-  const access = (o: (typeof oa)[number]): string =>
-    [
-      o.read && 'Read',
-      o.create && 'Create',
-      o.edit && 'Edit',
-      o.delete && 'Delete',
-      o.viewAll && 'View all',
-      o.modifyAll && 'Modify all',
-    ]
-      .filter(Boolean)
-      .join(', ');
+  // System permissions by API name (both orgs may label them alike); only those one has and the other not
+  const enabledB = new Set(sb.filter((p) => p.enabled).map((p) => p.api));
+  const enabledA = new Set(sa.filter((p) => p.enabled).map((p) => p.api));
+  const labels = new Map([...sb, ...sa].map((p) => [p.api, p.label]));
+  const systemDiffs: Difference[] = [...labels.keys()]
+    .filter((api) => enabledA.has(api) !== enabledB.has(api))
+    .sort((x, y) => labels.get(x)!.localeCompare(labels.get(y)!))
+    .map((api) => ({
+      area: 'System permission',
+      item: labels.get(api)!,
+      a: enabledA.has(api) ? '✓' : '',
+      b: enabledB.has(api) ? '✓' : '',
+      change: { kind: 'system', api, label: labels.get(api), enabled: enabledA.has(api) },
+    }));
   const objects = [...new Set([...oa, ...ob].map((o) => o.object))].sort();
   const objectDiffs: Difference[] = [];
   for (const object of objects) {
     const x = oa.find((o) => o.object === object);
     const y = ob.find((o) => o.object === object);
-    const ax = x ? access(x) : '';
-    const by = y ? access(y) : '';
-    objectDiffs.push(...differs('Object access', object, ax, by));
+    const [ax, by] = [x ? accessText(x) : '', y ? accessText(y) : ''];
+    for (const d of differs('Object access', object, ax, by))
+      objectDiffs.push({
+        ...d,
+        change: { kind: 'object', object, access: x ? { ...NO_ACCESS, ...pick(x) } : NO_ACCESS },
+      });
   }
-  const fieldAccess = (list: typeof fa): Map<string, string> =>
-    new Map(list.map((f) => [`${f.object}.${f.field}`, f.edit ? 'Read, Edit' : f.read ? 'Read' : '']));
+  const fieldAccess = (list: typeof fa): Map<string, (typeof fa)[number]> =>
+    new Map(list.map((f) => [`${f.object}.${f.field}`, f]));
+  const text = (f?: (typeof fa)[number]): string => (f?.edit ? 'Read, Edit' : f?.read ? 'Read' : '');
   const [ma, mb] = [fieldAccess(fa), fieldAccess(fb)];
   const fieldDiffs = [...new Set([...ma.keys(), ...mb.keys()])]
     .sort((x, y) => x.localeCompare(y))
-    .flatMap((field) => differs('Field access', field, ma.get(field) ?? '', mb.get(field) ?? ''));
-  return [...diffSets('System permission', on(sa), on(sb)), ...objectDiffs, ...fieldDiffs];
+    .flatMap((field) =>
+      differs('Field access', field, text(ma.get(field)), text(mb.get(field))).map((d) => ({
+        ...d,
+        change: {
+          kind: 'field',
+          field,
+          read: Boolean(ma.get(field)?.read),
+          edit: Boolean(ma.get(field)?.edit),
+        } as AccessChange,
+      }))
+    );
+  return [...systemDiffs, ...objectDiffs, ...fieldDiffs];
 }
+
+const pick = (o: {
+  read: boolean;
+  create: boolean;
+  edit: boolean;
+  delete: boolean;
+  viewAll: boolean;
+  modifyAll: boolean;
+}) => ({
+  read: o.read,
+  create: o.create,
+  edit: o.edit,
+  delete: o.delete,
+  viewAll: o.viewAll,
+  modifyAll: o.modifyAll,
+});
 
 // ---------- security ----------
 

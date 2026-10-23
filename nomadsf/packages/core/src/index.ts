@@ -35,5 +35,6 @@ export * from './lifecycle.js';
 export * from './userAccess.js';
 export * from './orgHealth.js';
 export * from './accessCompare.js';
+export * from './accessEdit.js';
 export * from './schema.js';
 export * from './operations.js';

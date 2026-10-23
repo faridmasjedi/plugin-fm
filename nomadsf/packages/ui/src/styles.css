@@ -2462,3 +2462,27 @@ pre.wrap {
   padding: 0;
   font-size: 16px;
 }
+
+/* Permissions explorer › Edit */
+.access-editor .editor-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--panel);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.edit-table {
+  border-collapse: collapse;
+  margin: 6px 0 10px;
+}
+.edit-table th,
+.edit-table td {
+  padding: 4px 12px 4px 0;
+  text-align: left;
+  font-size: var(--fs-sm);
+}
+.edit-table input.changed {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

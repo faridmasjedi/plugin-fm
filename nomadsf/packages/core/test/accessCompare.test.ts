@@ -186,7 +186,13 @@ describe('every profile and permission set of two orgs', () => {
         { PermissionSet: [{ name: 'PermissionsApiEnabled', label: 'API Enabled', type: 'boolean' }] }
       ).client;
     expect(await comparePermissionSets(side(true), '0PS000000000001AAA', '0PS000000000002AAA', side(false))).toEqual([
-      { area: 'Field access', item: 'Account.Phone', a: 'Read, Edit', b: 'Read' },
+      {
+        area: 'Field access',
+        item: 'Account.Phone',
+        a: 'Read, Edit',
+        b: 'Read',
+        change: { kind: 'field', field: 'Account.Phone', read: true, edit: true },
+      },
     ]);
   });
 });
