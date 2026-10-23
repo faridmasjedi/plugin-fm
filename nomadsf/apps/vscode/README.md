@@ -15,9 +15,10 @@
   | ------------------- | --------------------------------------------------------------------------------------------------- |
   | **Develop**         | Execute Apex · Code · Apex tests with coverage · Debug Logs · Automation (what runs on save) · Jobs |
   | **Data**            | Query · Record · Import / Update / Delete · Lookup · Schema · Field usage                           |
-  | **Data protection** | Backup and restore · Migrate between orgs · Lifecycle jobs with approval                            |
-  | **Release**         | Project (your repository vs the org) · Metadata · Org compare · Deployments · E2E tests             |
+  | **Data protection** | Backup and restore · Lifecycle jobs with approval                                                   |
+  | **Release**         | Project (your repository vs the org) · Metadata · Deployments · E2E tests                           |
   | **Org**             | Users & access · Connected apps · Org health · Limits · Events · REST Explorer · Activity           |
+  | **Org to org**      | Org compare · Migrate · Access · Connected apps — for one pair of orgs, A → B                       |
 
 - **From the editor** (select text, right-click):
   - **Show all data of the selected record Id** — the record inspector for an Id in your code or logs.
@@ -34,9 +35,10 @@
 
 - **Develop**: run anonymous Apex with its log; open, compile and save code, compared with your project; run Apex tests and see coverage line by line; debug logs; what runs when a record is saved, in order (flows, triggers, validation, duplicate, assignment and workflow rules); scheduled and background jobs, and stop them.
 - **Data**: SOQL with names for Ids and Excel-ready CSV; every field of a record and its field history; import, update, upsert and delete from CSV; look up a CSV column in Salesforce; an object's fields, relationships and record types; how full each field is and who can see it.
-- **Data protection**: backups to a folder (incremental, scheduled every N hours / days / weeks / months, encrypted) and restore; migrate records between orgs keeping every link; lifecycle jobs with approval.
-- **Release**: compare your project with the org and deploy, restore or delete; build a `package.xml` and a `destructiveChanges.xml`; compare two orgs; recent deployments with their failures, and quick deploy.
-- **Org**: everything a user has (permission sets and groups, system permissions and what grants them, groups and queues, licenses, OAuth apps, logins); who has a permission set, group, license, profile, role or queue; compare two users or two permission sets, in one org or between two orgs; connected apps and OAuth usage, also compared with another org; org health (risky permissions, inactive users, unused access, licenses); limits; events; REST; activity.
+- **Data protection**: backups to a folder (incremental, scheduled every N hours / days / weeks / months, encrypted) and restore; lifecycle jobs with approval.
+- **Release**: compare your project with the org and deploy, restore or delete; build a `package.xml` and a `destructiveChanges.xml`; recent deployments with their failures, and quick deploy.
+- **Org to org**: choose two orgs once (A → B) for every tool of the hub: compare their metadata and deploy the differences; migrate records keeping every link; find a user in both orgs; compare users (matched by username, with or without a sandbox suffix), profiles, permission sets and groups, or all of them side by side, and copy A's access into B; who has a permission set or profile in both; connected apps, their settings and who may use them.
+- **Org**: everything a user has (permission sets and groups, system permissions and what grants them, groups and queues, licenses, OAuth apps, logins); the assigned users of a permission set, group, license, profile, role or queue; compare two users side by side (everything assigned, its access, permissions, last logins), or two profiles, permission sets or groups; edit custom permission sets and profiles, and which permission sets a group holds; connected apps and OAuth usage; org health (risky permissions, inactive users, unused access, licenses); limits; events; REST; activity.
 
 ## Requirements
 
@@ -90,7 +92,7 @@ Then **NomadSF: Stop the local app** and open the Studio again.
 ## Safety and privacy
 
 - NomadSF runs on your computer and talks to Salesforce with the CLI's login; the access token stays in the local app and never reaches the Studio page.
-- Every change — saving code, editing records, deploying, deleting, restoring or copying data — asks you to type the org name first; production orgs are shown in red.
+- Every change — saving code, editing records, validating and deploying, deleting, restoring or copying data, changing permissions — asks you to type the org name first, in every org; running Apex or tests, debug logging and Log in as ask too. Production orgs are shown in red.
 - Backups go to a folder you choose, optionally encrypted with your passphrase.
 - AI is optional and uses the provider you connect yourself; it only fills editors or shows text.
 
