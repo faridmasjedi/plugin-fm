@@ -384,35 +384,135 @@ table.versions td a + a {
   margin-left: 10px;
 }
 
-/* Guide page: side menu and article */
+/* Guide page: hubs as tabs, their tools as tabs inside (set up by guide.html's script) */
 .doc {
-  display: grid;
-  grid-template-columns: 230px minmax(0, 1fr);
-  gap: 48px;
-  padding: 40px 0 80px;
+  max-width: 920px;
+  padding: 40px 24px 80px;
 }
-.toc {
+.guide-bar {
   position: sticky;
-  top: 84px;
-  align-self: start;
-  font-size: 14.5px;
+  top: 61px;
+  z-index: 5;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  margin: 28px 0 8px;
+  padding-top: 8px;
 }
-.toc b {
-  display: block;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+.guide-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.hub-tabs,
+.tool-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.hub-tabs a {
+  padding: 8px 12px 10px;
+  font-weight: 600;
+  font-size: 15px;
   color: var(--muted);
-  margin: 18px 0 6px;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
 }
-.toc a {
-  display: block;
+.hub-tabs a.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.tool-tabs {
+  flex-wrap: wrap;
+  padding: 10px 0;
+}
+.tool-tabs a {
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 14px;
   color: var(--muted);
-  padding: 4px 0;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  white-space: nowrap;
 }
-.toc a:hover {
+.tool-tabs a.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+.hub-tabs a:hover,
+.tool-tabs a:hover {
   color: var(--text);
   text-decoration: none;
+}
+.guide-search {
+  position: relative;
+  margin-left: auto;
+  padding-bottom: 6px;
+  flex: none;
+}
+.guide-search input {
+  width: 190px;
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+}
+.guide-results {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  width: min(420px, 90vw);
+  max-height: 60vh;
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 6px;
+}
+.guide-results a {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 14px;
+}
+.guide-results a:hover,
+.guide-results a:focus {
+  background: var(--accent-soft);
+  text-decoration: none;
+}
+.guide-results small {
+  display: block;
+  color: var(--muted);
+}
+.guide-results p {
+  margin: 8px 10px;
+  color: var(--muted);
+}
+article .hub,
+article .tool {
+  padding: 0;
+}
+.tabbed .hub,
+.tabbed .tool {
+  display: none;
+}
+.tabbed .hub.active,
+.tabbed .tool.active {
+  display: block;
+}
+.tabbed .hub > h2 {
+  display: none;
+}
+.tabbed .tool > :first-child {
+  margin-top: 20px;
+  scroll-margin-top: calc(61px + var(--bar, 110px) + 12px);
 }
 article h1 {
   font-size: 40px;
@@ -513,16 +613,27 @@ footer .wrap {
 }
 
 @media (max-width: 860px) {
-  .feature,
-  .doc {
+  .feature {
     grid-template-columns: 1fr;
     gap: 22px;
   }
   .feature.flip > :first-child {
     order: 0;
   }
-  .toc {
-    position: static;
+  .guide-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .hub-tabs {
+    order: 2;
+    width: 100%;
+  }
+  .guide-search {
+    margin-left: 0;
+    width: 100%;
+  }
+  .guide-search input {
+    width: 100%;
   }
   .top nav {
     gap: 14px;
