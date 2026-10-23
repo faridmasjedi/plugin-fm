@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { findUserInBoth, type Row, type SalesforceClient } from '@nomadsf/core';
 import { CompareAccess } from '../components/CompareAccess';
 import { DataTable, EmptyHint } from '../components/DataTable';
+import { UserComparison } from '../components/UserComparison';
 import { WhoHasIt } from '../components/WhoHasIt';
 import { storage } from '../context';
 import { OrgPairBar, usePairClients } from '../pair';
@@ -75,9 +76,22 @@ function FindUser({
   const [text, setText] = useState('');
   const [rows, setRows] = useState<Row[] | null>(null);
   const [status, setStatus] = useState('');
+  // The two users compared in full: a row in both, or one row of A and one of B
+  const [pickA, setPickA] = useState<Row | null>(null);
+  const [pickB, setPickB] = useState<Row | null>(null);
+  const pick = (row: Row) => {
+    if (row.idA && row.idB) {
+      setPickA(row);
+      setPickB(row);
+    } else if (row.idA) setPickA(row);
+    else setPickB(row);
+  };
+  const ready = pickA?.idA && pickB?.idB ? { a: pickA, b: pickB } : null;
   const find = async () => {
     if (!text.trim()) return;
     setRows(null);
+    setPickA(null);
+    setPickB(null);
     setStatus('Looking in both orgs…');
     try {
       setRows(await findUserInBoth(clientA, clientB, text));
@@ -122,13 +136,36 @@ function FindUser({
             rows={rows}
             rowKey="Id"
             name={`${labelA}-${labelB}-users`}
+            selectedKey={ready && ready.a === ready.b ? String(ready.a.Id) : undefined}
+            onRowClick={pick}
             note={
               <span>
-                · A = {labelA}, B = {labelB} · the same user by username, with or without a sandbox suffix
+                · A = {labelA}, B = {labelB} · the same user by username (with or without a sandbox suffix), else by
+                name · click a user to compare them in full
               </span>
             }
           />
         ))}
+      {(pickA || pickB) && !ready && (
+        <p className="muted">
+          {pickA
+            ? `A: ${String(pickA.Name)} — now click a user of B`
+            : `B: ${String(pickB?.Name)} — now click a user of A`}
+        </p>
+      )}
+      {ready && (
+        <UserComparison
+          key={`${String(ready.a.idA)}-${String(ready.b.idB)}`}
+          client={clientA}
+          clientB={clientB}
+          userA={String(ready.a.idA)}
+          userB={String(ready.b.idB)}
+          labelA={`${String(ready.a.Name)} (${labelA})`}
+          labelB={`${String(ready.b.Name)} (${labelB})`}
+          orgB={labelB}
+          twoOrgs
+        />
+      )}
     </div>
   );
 }

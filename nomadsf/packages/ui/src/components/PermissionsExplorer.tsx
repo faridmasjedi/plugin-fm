@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   fieldAccessOf,
   objectAccessOf,
@@ -74,29 +74,35 @@ export function PermissionsExplorer() {
       canceled = true;
     };
   }, [client, holderId]);
+  // What has been asked for this choice (a list is read once per holder, field filter and save)
+  const asked = useRef({ key: '', lists: new Set<string>() });
   useEffect(() => {
     if (!holderId) return;
-    let canceled = false;
-    const fail = (e: Error) => !canceled && setStatus(`❌ ${e.message}`);
+    const key = `${holderId}|${reloads}`;
+    if (asked.current.key !== key) asked.current = { key, lists: new Set() };
+    const mine = asked.current;
+    // Results of an earlier choice are dropped
+    const current = () => asked.current === mine;
+    const fail = (e: Error) => current() && setStatus(`❌ ${e.message}`);
     // Editing needs all three lists
     const show = (t: Tab) => editing || tab === t || tab === 'all';
-    if (show('objects') && objects === null)
-      objectAccessOf(client, holderId)
-        .then((r) => !canceled && setObjects(r))
-        .catch(fail);
-    if (show('system') && system === null)
-      systemPermissionsOf(client, holderId)
-        .then((r) => !canceled && setSystem(r))
-        .catch(fail);
-    if (show('fields') && fields === null)
-      fieldAccessOf(client, holderId, fieldObject || undefined)
-        .then((r) => !canceled && setFields(r))
-        .catch(fail);
-    return () => {
-      canceled = true;
+    const need = (list: string): boolean => {
+      if (mine.lists.has(list)) return false;
+      mine.lists.add(list);
+      return true;
     };
-    // results are not triggers
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (show('objects') && need('objects'))
+      objectAccessOf(client, holderId)
+        .then((r) => current() && setObjects(r))
+        .catch(fail);
+    if (show('system') && need('system'))
+      systemPermissionsOf(client, holderId)
+        .then((r) => current() && setSystem(r))
+        .catch(fail);
+    if (show('fields') && need(`fields:${fieldObject}`))
+      fieldAccessOf(client, holderId, fieldObject || undefined)
+        .then((r) => current() && setFields(r))
+        .catch(fail);
   }, [client, holderId, tab, fieldObject, editing, reloads]);
 
   const kinds = ['Profile', 'Permission set', 'Permission set group'] as const;

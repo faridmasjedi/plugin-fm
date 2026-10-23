@@ -78,6 +78,22 @@ describe('a user in both orgs', () => {
       ['Ann Other', 'only in B', '', 'ann.o@acme.com.uat'],
     ]);
   });
+
+  it('pairs users with another username by their name', async () => {
+    const a = fakeOrg([
+      [/FROM User WHERE/, [{ Id: '005000000000001AAA', Name: 'Farid M', Username: 'farid@fm.com', IsActive: true }]],
+    ]);
+    const b = fakeOrg([
+      [
+        /FROM User WHERE Username LIKE '%farid%'/,
+        [{ Id: '005000000000002AAA', Name: 'Farid M', Username: 'farid@scratch.com', IsActive: true }],
+      ],
+    ]);
+    const rows = await findUserInBoth(a.client, b.client, 'farid');
+    expect(rows.map((r) => [r.in, r.usernameA, r.usernameB, r.idA, r.idB])).toEqual([
+      ['both (by name)', 'farid@fm.com', 'farid@scratch.com', '005000000000001AAA', '005000000000002AAA'],
+    ]);
+  });
 });
 
 describe('who has it in two orgs', () => {

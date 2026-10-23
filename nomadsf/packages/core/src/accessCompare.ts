@@ -59,8 +59,8 @@ export async function findSameUser(client: SalesforceClient, username: string): 
 
 /**
  * A user looked up in two orgs at once (name, username, email or Id): the matches of both, paired by username.
- * Columns: Name, in (both / only in A / only in B), usernameA, usernameB, activeA, activeB, profileA, profileB,
- * lastLoginA, lastLoginB.
+ * Columns: Name, in (both / both (by name) / only in A / only in B), usernameA, usernameB, activeA, activeB,
+ * profileA, profileB, lastLoginA, lastLoginB; idA and idB are the users' Ids.
  */
 export async function findUserInBoth(
   clientA: SalesforceClient,
@@ -72,6 +72,8 @@ export async function findUserInBoth(
   const out: Row[] = [];
   const row = (x: UserMatch | undefined, y: UserMatch | undefined): Row => ({
     Id: `${x?.Id ?? ''}-${y?.Id ?? ''}`,
+    idA: x?.Id ?? '',
+    idB: y?.Id ?? '',
     Name: x?.Name ?? y?.Name ?? '',
     in: x && y ? 'both' : x ? 'only in A' : 'only in B',
     usernameA: x?.Username ?? '',
@@ -101,8 +103,21 @@ export async function findUserInBoth(
         )
       );
   }
-  for (const y of left) out.push(row(undefined, y));
-  const order = { both: 0, 'only in A': 1, 'only in B': 2 } as Record<string, number>;
+  // Still apart: the same name in both orgs is most likely the same person (another username, e.g. a scratch org)
+  for (const y of left) {
+    const x = out.find((r) => r.in === 'only in A' && String(r.Name).toLowerCase() === y.Name.toLowerCase());
+    if (x)
+      Object.assign(
+        x,
+        row(
+          a.find((u) => u.Id === x.idA),
+          y
+        ),
+        { in: 'both (by name)' }
+      );
+    else out.push(row(undefined, y));
+  }
+  const order = { both: 0, 'both (by name)': 1, 'only in A': 2, 'only in B': 3 } as Record<string, number>;
   return out.sort((x, y) => order[String(x.in)] - order[String(y.in)] || String(x.Name).localeCompare(String(y.Name)));
 }
 

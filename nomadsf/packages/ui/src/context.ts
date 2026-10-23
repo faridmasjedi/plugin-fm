@@ -13,7 +13,7 @@ export type Studio = {
   clientFor: (id: string) => Promise<SalesforceClient>;
   facts?: OrgFacts;
   user?: UserInfo;
-  /** Asks before running code or changing anything in a production org. */
+  /** Asks before running code, tests, debug logging or Log in as (in any org; production with a warning). */
   confirmRisky: (what: string) => Promise<boolean>;
   /** Data and access changes: the person types the org name to confirm (any org). */
   confirmChange: (what: string) => Promise<boolean>;

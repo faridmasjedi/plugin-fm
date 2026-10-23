@@ -165,13 +165,15 @@ export function App() {
   }, [org]);
 
   const production = facts ? !facts.isSandbox : org?.type === 'Production' || org?.type === 'Dev Hub';
+  // Running code, tests, logging and Log in as are approved in every org (in production with a warning)
   const confirmRisky = useCallback(
     async (what: string) =>
-      !production ||
-      askConfirm(`${what} in ${org?.label} — a PRODUCTION org (${facts?.name ?? ''}).`, {
-        ok: 'Continue',
-        danger: true,
-      }),
+      production
+        ? askConfirm(`${what} in ${org?.label} — a PRODUCTION org (${facts?.name ?? ''}).`, {
+            ok: 'Continue',
+            danger: true,
+          })
+        : askConfirm(`${what} in ${org?.label}?`, { ok: 'Continue' }),
     [production, org, facts]
   );
   const confirmChange = useCallback(

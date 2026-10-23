@@ -1,11 +1,7 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   accessOverview,
-  applyAccessChanges,
-  describeChange,
-  type AccessChange,
   comparePermissionSets,
-  compareUsers,
   findSameUser,
   permissionHolders,
   searchUsers,
@@ -17,8 +13,8 @@ import {
 } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
 import { DataTable } from './DataTable';
-import { askTyped } from './Dialogs';
-import { orgFacts } from '../host';
+import { DiffTable } from './DiffTable';
+import { UserComparison } from './UserComparison';
 
 type Kind = PermissionHolder['kind'];
 type Mode = 'users' | Kind | 'all';
@@ -60,6 +56,8 @@ export function CompareAccess({ between }: { between?: OrgSides }) {
   const [show, setShow] = useState<Show>('all');
   const [pair, setPair] = useState<AccessOverviewRow | null>(null);
   const [status, setStatus] = useState('');
+  // Two users: the pair shown in full (UserComparison) after Compare
+  const [usersShown, setUsersShown] = useState<{ a: UserMatch; b: UserMatch } | null>(null);
   const shownMode: Mode = mode === 'all' && !other ? 'users' : mode;
   // Profiles, permission sets or permission set groups
   const kind = KINDS.some(([k]) => k === shownMode) ? (shownMode as Kind) : null;
@@ -109,6 +107,7 @@ export function CompareAccess({ between }: { between?: OrgSides }) {
   }, [other, setA, holders, holdersB]);
   useEffect(() => {
     setDiff(null);
+    setUsersShown(null);
     setStatus('');
   }, [shownMode, userA, userB, setA, setB, clientB]);
   useEffect(() => {
@@ -128,12 +127,8 @@ export function CompareAccess({ between }: { between?: OrgSides }) {
       if (shownMode === 'all') {
         setPair(null);
         setOverview(await accessOverview(client, clientB));
-      } else
-        setDiff(
-          shownMode === 'users'
-            ? await compareUsers(client, userA!.Id, userB!.Id, clientB)
-            : await comparePermissionSets(client, setA, setB, clientB)
-        );
+      } else if (shownMode === 'users') setUsersShown({ a: userA!, b: userB! });
+      else setDiff(await comparePermissionSets(client, setA, setB, clientB));
       setStatus('');
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
@@ -233,12 +228,25 @@ export function CompareAccess({ between }: { between?: OrgSides }) {
         </button>
         <span className="muted">{status}</span>
       </div>
+      {shownMode === 'users' && usersShown && clientB && (
+        <UserComparison
+          key={`${usersShown.a.Id}-${usersShown.b.Id}`}
+          client={client}
+          clientB={clientB}
+          userA={usersShown.a.Id}
+          userB={usersShown.b.Id}
+          labelA={other ? `${usersShown.a.Name} (${labelA})` : usersShown.a.Name}
+          labelB={other ? `${usersShown.b.Name} (${labelB})` : usersShown.b.Name}
+          orgB={labelB}
+          twoOrgs={other}
+        />
+      )}
       {shownMode !== 'all' &&
+        shownMode !== 'users' &&
         diff &&
         (diff.length === 0 ? (
           <p className="good">
-            ✓ {a} and {b} have the same{' '}
-            {shownMode === 'users' ? 'access' : 'system permissions, object and field access'}.
+            ✓ {a} and {b} have the same system permissions, object and field access.
           </p>
         ) : (
           <DiffTable
@@ -435,80 +443,5 @@ function UserPicker({
         </span>
       )}
     </label>
-  );
-}
-
-/**
- * The differences; comparing permission sets or profiles of two orgs, tick some and copy A's access into B
- * (system permissions, object and field access — B's name is asked first).
- */
-function DiffTable({
-  diff,
-  name,
-  note,
-  copy,
-}: {
-  diff: Difference[];
-  name: string;
-  note: ReactNode;
-  copy?: { clientB: SalesforceClient; idB: string; what: string; labelB: string; onCopied: () => void };
-}) {
-  const { logActivity } = useStudio();
-  const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [status, setStatus] = useState('');
-  useEffect(() => setPicked(new Set()), [diff]);
-  const canCopy = Boolean(copy && diff.some((d) => d.change));
-  const run = async () => {
-    if (!copy) return;
-    const changes = [...picked].map((k) => diff[Number(k)]?.change).filter((c): c is AccessChange => Boolean(c));
-    if (!changes.length) return;
-    const production = await orgFacts(copy.clientB)
-      .then((f) => !f.isSandbox)
-      .catch(() => false);
-    const shown = changes.slice(0, 12).map((c) => `• ${describeChange(c)}`);
-    const ok = await askTyped(
-      `Copy ${changes.length} permission(s) of ${copy.what}:\n${shown.join('\n')}${
-        changes.length > shown.length ? `\n… and ${changes.length - shown.length} more` : ''
-      }${production ? `\n\n⚠ ${copy.labelB} is a PRODUCTION org.` : ''}`,
-      copy.labelB,
-      { ok: 'Copy', danger: production }
-    );
-    if (!ok) return;
-    setStatus('Copying…');
-    try {
-      const result = await applyAccessChanges(copy.clientB, copy.idB, changes);
-      logActivity('copy permissions', { into: copy.labelB, applied: result.applied, failed: result.failures.length });
-      setStatus(
-        result.failures.length
-          ? `✓ ${result.applied} copied. ❌ ${result.failures.length} failed: ${result.failures
-              .map((f) => `${f.change} (${f.error})`)
-              .join('; ')}`
-          : `✓ ${result.applied} copied into ${copy.labelB}.`
-      );
-      copy.onCopied();
-    } catch (e) {
-      setStatus(`❌ ${(e as Error).message}`);
-    }
-  };
-  return (
-    <>
-      <DataTable
-        columns={['area', 'item', 'a', 'b']}
-        rows={diff.map((d, i) => ({ area: d.area, item: d.item, a: d.a, b: d.b, key: i }))}
-        rowKey="key"
-        name={name}
-        note={note}
-        selected={canCopy ? picked : undefined}
-        onSelectedChange={canCopy ? setPicked : undefined}
-      />
-      {canCopy && (
-        <div className="form">
-          <button className="primary" disabled={picked.size === 0} onClick={() => void run()}>
-            Copy A&apos;s access into B ({picked.size})…
-          </button>
-          <span className="muted">{status || 'tick the differences to make B like A'}</span>
-        </div>
-      )}
-    </>
   );
 }

@@ -19,7 +19,7 @@ import { DataTable, download } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { detectHost, orgFacts, type OrgChoice, type OrgFacts } from '../host';
 import { OrgPairBar, usePair } from '../pair';
-import { askConfirm, askTyped } from '../components/Dialogs';
+import { askTyped } from '../components/Dialogs';
 
 const LEVELS: Array<{ id: TestLevel; label: string }> = [
   { id: 'NoTestRun', label: 'No tests (sandboxes only)' },
@@ -191,15 +191,13 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
 
   const deploy = async () => {
     if (!pkg || !clients.target || !target) return;
+    // Validating and deploying are both approved with B's name
     if (
-      !checkOnly &&
-      !(await confirmInTarget(`Deploy ${pkg.components} component(s) from ${source?.label} to ${target.label}`))
-    )
-      return;
-    if (
-      checkOnly &&
-      production &&
-      !(await askConfirm(`Validate a package against ${target.label}, a PRODUCTION org?`, { ok: 'Validate' }))
+      !(await confirmInTarget(
+        `${checkOnly ? 'Validate' : 'Deploy'} ${pkg.components} component(s) from ${source?.label} ${
+          checkOnly ? 'against' : 'to'
+        } ${target.label}`
+      ))
     )
       return;
     void run(
