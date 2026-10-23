@@ -1,56 +1,63 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  comparePermissionSets,
+  accessFromText,
   compareUsersFully,
+  holderAccess,
+  mergeAccess,
+  mergeShares,
+  userSharing,
+  type AccessChange,
   type Difference,
+  type MergedSection,
   type SalesforceClient,
   type UserComparison as Comparison,
   type UserItem,
+  type UserSharing,
 } from '@nomadsf/core';
+import { storage } from '../context';
 import { DataTable, EmptyHint } from './DataTable';
 import { DiffTable } from './DiffTable';
 
-type Show = 'all' | UserItem['in'];
+type Tab = 'details' | 'profile' | 'sets' | 'groups' | 'queues' | 'role' | 'oauth' | 'logins';
+const TABS: Array<[Tab, string]> = [
+  ['details', 'Details'],
+  ['profile', 'Profile'],
+  ['sets', 'Permission sets'],
+  ['groups', 'Permission set groups'],
+  ['queues', 'Groups & queues'],
+  ['role', 'Role'],
+  ['oauth', 'OAuth apps'],
+  ['logins', 'Login history'],
+];
 
-/**
- * Two users side by side — in one org, or A and B in two orgs: their details, everything they have (profile,
- * permission sets, groups, licenses, groups & queues, OAuth apps) and how each one's access differs, the user and
- * system permissions that differ, and their last 10 logins.
- */
-export function UserComparison({
-  client,
-  clientB,
-  userA,
-  userB,
-  labelA,
-  labelB,
-  orgB,
-  twoOrgs,
-}: {
+type Sides = {
   client: SalesforceClient;
   clientB: SalesforceClient;
-  userA: string;
-  userB: string;
-  /** How A and B are named in notes (the users, and their orgs with two orgs). */
   labelA: string;
   labelB: string;
   /** B's org (its name is typed to copy into it). */
   orgB: string;
   twoOrgs: boolean;
-}) {
+};
+
+/**
+ * Two users side by side — in one org, or A and B in two orgs — in tabs: details, profile, permission sets and
+ * groups (everything each allows), groups & queues and what is shared with them, role and its sharing, OAuth apps,
+ * login history. Each tab reads what it needs when opened.
+ */
+export function UserComparison({ userA, userB, ...sides }: Sides & { userA: string; userB: string }) {
+  const { client, clientB, labelA, labelB } = sides;
   const [result, setResult] = useState<Comparison | null>(null);
   const [status, setStatus] = useState('Comparing the two users…');
-  const [differencesOnly, setDifferencesOnly] = useState(false);
-  const [show, setShow] = useState<Show>('all');
-  const [chosen, setChosen] = useState<UserItem | null>(null);
-  const [access, setAccess] = useState<Difference[] | null>(null);
-  const [accessStatus, setAccessStatus] = useState('');
-  const [refresh, setRefresh] = useState(0);
+  const [tab, setTab] = useState<Tab>(() => storage.get('users.tab', 'details'));
+  const [sharing, setSharing] = useState<{ a: UserSharing; b: UserSharing } | null>(null);
+  const [sharingStatus, setSharingStatus] = useState('');
 
   useEffect(() => {
     let canceled = false;
     setResult(null);
-    setChosen(null);
+    setSharing(null);
+    setSharingStatus('');
     setStatus('Comparing the two users…');
     compareUsersFully(client, userA, userB, clientB)
       .then((r) => {
@@ -64,35 +71,148 @@ export function UserComparison({
     };
   }, [client, clientB, userA, userB]);
 
-  // How the chosen profile / permission set / group differs between the two users
+  // Groups & queues and Role read what is shared with each user (once)
+  const needsSharing = tab === 'queues' || tab === 'role';
   useEffect(() => {
-    setAccess(null);
-    setAccessStatus('');
-    if (!chosen?.idA || !chosen.idB) return;
-    let canceled = false;
-    setAccessStatus('Comparing their access…');
-    comparePermissionSets(client, chosen.idA, chosen.idB, clientB)
-      .then((d) => {
-        if (canceled) return;
-        setAccess(d);
-        setAccessStatus('');
+    if (!needsSharing || sharing || sharingStatus) return;
+    setSharingStatus('Reading what is shared with them…');
+    Promise.all([userSharing(client, userA), userSharing(clientB, userB)])
+      .then(([a, b]) => {
+        setSharing({ a, b });
+        setSharingStatus('');
       })
-      .catch((e: Error) => !canceled && setAccessStatus(`❌ ${e.message}`));
-    return () => {
-      canceled = true;
-    };
-  }, [chosen, client, clientB, refresh]);
+      .catch((e: Error) => setSharingStatus(`❌ ${e.message}`));
+  }, [needsSharing, sharing, sharingStatus, client, clientB, userA, userB]);
 
   if (!result) return <p className="muted">{status}</p>;
   const note = ` · A = ${labelA}, B = ${labelB}`;
-  const details = result.details.filter((d) => !differencesOnly || !d.same);
-  const count = (s: Show): number => result.items.filter((i) => s === 'all' || i.in === s).length;
-  const items = result.items.filter((i) => show === 'all' || i.in === show);
-  const chosenKey = chosen ? `${chosen.area}:${chosen.item}` : undefined;
+  const items = (area: UserItem['area']) => result.items.filter((i) => i.area === area);
+  const differences = (list: UserItem[]) => list.filter((i) => i.in !== 'both' || i.a !== i.b).length;
+  const badge: Partial<Record<Tab, number>> = {
+    details: result.details.filter((d) => !d.same).length + result.permissions.length,
+    sets: differences(items('Permission set')),
+    groups: differences(items('Permission set group')),
+    queues: differences(items('Group / queue')),
+    oauth: differences(items('OAuth app')),
+  };
+  const profile = items('Profile')[0];
 
   return (
     <div className="user-comparison">
-      <h4>Details</h4>
+      <div className="tabs">
+        {TABS.map(([id, text]) => (
+          <button
+            key={id}
+            className={`tab ${tab === id ? 'active' : ''}`}
+            onClick={() => {
+              setTab(id);
+              storage.set('users.tab', id);
+            }}
+          >
+            {text}
+            {badge[id] ? <span className="count-badge">{badge[id]}</span> : null}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'details' && <DetailsTab result={result} note={note} />}
+      {tab === 'profile' &&
+        (profile ? (
+          <>
+            <p>
+              A: <b>{profile.a}</b> · B: <b>{profile.b}</b>
+            </p>
+            <AccessCompare
+              key={`${profile.idA}-${profile.idB}`}
+              idA={profile.idA}
+              idB={profile.idB}
+              what={`profile ${profile.item}`}
+              sides={sides}
+            />
+          </>
+        ) : (
+          <EmptyHint what="profile" />
+        ))}
+      {tab === 'sets' && <HolderTab list={items('Permission set')} sides={sides} what="permission set" />}
+      {tab === 'groups' && <HolderTab list={items('Permission set group')} sides={sides} what="permission set group" />}
+      {tab === 'queues' && (
+        <>
+          <h4>Groups &amp; queues they are in</h4>
+          <ItemTable list={items('Group / queue')} note={note} name="users-groups" />
+          {sharingStatus && <p className="muted">{sharingStatus}</p>}
+          {sharing && (
+            <>
+              <h4>Queues and the objects they handle</h4>
+              <DataTable
+                columns={['queue', 'a', 'b']}
+                rows={mergeQueues(sharing.a.queues, sharing.b.queues)}
+                rowKey="queue"
+                name="users-queues"
+                note={<span>{note}</span>}
+              />
+              <h4>Records shared with their groups and queues</h4>
+              <SharesTable a={sharing.a.groupShares} b={sharing.b.groupShares} note={note} name="users-group-shares" />
+              <h4>Records shared with them directly (owned, manual, teams, rules…)</h4>
+              <SharesTable a={sharing.a.userShares} b={sharing.b.userShares} note={note} name="users-user-shares" />
+              <SharingNotes sharing={sharing} />
+            </>
+          )}
+        </>
+      )}
+      {tab === 'role' && (
+        <>
+          {sharingStatus && <p className="muted">{sharingStatus}</p>}
+          {sharing && (
+            <>
+              <DataTable
+                columns={['field', 'a', 'b', 'differs']}
+                rows={roleRows(sharing.a, sharing.b)}
+                rowKey="field"
+                name="users-role"
+                note={<span>{note}</span>}
+              />
+              <h4>Records shared with their role (and its subordinates)</h4>
+              <SharesTable a={sharing.a.roleShares} b={sharing.b.roleShares} note={note} name="users-role-shares" />
+              <p className="muted">Users also see the records of the users below them in the role hierarchy.</p>
+              <SharingNotes sharing={sharing} />
+            </>
+          )}
+        </>
+      )}
+      {tab === 'oauth' && <ItemTable list={items('OAuth app')} note={note} name="users-oauth" />}
+      {tab === 'logins' && (
+        <div className="grid2">
+          {(
+            [
+              [labelA, result.loginsA],
+              [labelB, result.loginsB],
+            ] as const
+          ).map(([who, rows]) => (
+            <div key={who}>
+              <b>{who}</b>
+              {rows.length === 0 ? (
+                <EmptyHint what="logins" />
+              ) : (
+                <DataTable
+                  columns={['LoginTime', 'Status', 'SourceIp', 'Application', 'Browser', 'Platform']}
+                  rows={rows.map((r, i) => ({ ...r, key: i }))}
+                  rowKey="key"
+                  name={`users-logins-${who}`}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailsTab({ result, note }: { result: Comparison; note: string }) {
+  const [differencesOnly, setDifferencesOnly] = useState(false);
+  const details = result.details.filter((d) => !differencesOnly || !d.same);
+  return (
+    <>
       <label className="check">
         <input type="checkbox" checked={differencesOnly} onChange={(e) => setDifferencesOnly(e.target.checked)} />{' '}
         Differences only ({result.details.filter((d) => !d.same).length})
@@ -104,64 +224,7 @@ export function UserComparison({
         name="users-details"
         note={<span>{note}</span>}
       />
-
-      <h4>Profile, permission sets, groups, licenses, groups &amp; queues, OAuth apps</h4>
-      <div className="segmented" role="group" aria-label="Show">
-        {(['all', 'both', 'only in A', 'only in B'] as Show[]).map((s) => (
-          <button key={s} className={show === s ? 'active' : ''} onClick={() => setShow(s)}>
-            {s === 'all' ? 'All' : s === 'both' ? 'Both' : s[0].toUpperCase() + s.slice(1)} ({count(s)})
-          </button>
-        ))}
-      </div>
-      <DataTable
-        columns={['area', 'item', 'in', 'a', 'b']}
-        rows={items.map((i) => ({ ...i, key: `${i.area}:${i.item}` }))}
-        rowKey="key"
-        name="users-assigned"
-        selectedKey={chosenKey}
-        onRowClick={(row) => setChosen(items.find((i) => `${i.area}:${i.item}` === row.key) ?? null)}
-        note={<span>{note} · click a profile, permission set or group both have to see how their access differs</span>}
-      />
-      {chosen &&
-        (chosen.idA && chosen.idB ? (
-          <div className="section">
-            <h4>
-              {chosen.area} {chosen.item}: access
-            </h4>
-            {accessStatus && <p className="muted">{accessStatus}</p>}
-            {access &&
-              (access.length === 0 ? (
-                <p className="good">✓ The same system permissions, object and field access.</p>
-              ) : (
-                <DiffTable
-                  diff={access}
-                  name={`users-${chosen.item}-access`}
-                  note={<span>{note} · only the differences</span>}
-                  copy={
-                    twoOrgs && chosen.area !== 'Permission set group'
-                      ? {
-                          clientB,
-                          idB: chosen.idB,
-                          what: `${chosen.area.toLowerCase()} ${chosen.item} into ${labelB}`,
-                          labelB: orgB,
-                          onCopied: () => setRefresh((n) => n + 1),
-                        }
-                      : undefined
-                  }
-                />
-              ))}
-          </div>
-        ) : (
-          <p className="muted">
-            {chosen.area === 'License' || chosen.area === 'Group / queue' || chosen.area === 'OAuth app'
-              ? `${chosen.area}s have no access of their own to compare.`
-              : chosen.in === 'only in A' || chosen.in === 'only in B'
-              ? `Only ${chosen.in === 'only in A' ? 'A' : 'B'} has ${chosen.item}: nothing to compare it with.`
-              : `The access of ${chosen.item} could not be read in ${chosen.idA ? 'B' : 'A'}.`}
-          </p>
-        ))}
-
-      <h4>User &amp; system permissions that differ (from every source)</h4>
+      <h4>User &amp; system permissions that differ (from the profile, permission sets and groups)</h4>
       {result.permissions.length === 0 ? (
         <p className="good">✓ The same user and system permissions.</p>
       ) : (
@@ -173,30 +236,228 @@ export function UserComparison({
           note={<span>{note}</span>}
         />
       )}
+    </>
+  );
+}
 
-      <h4>Last 10 logins</h4>
-      <div className="grid2">
-        {(
-          [
-            ['A', result.loginsA],
-            ['B', result.loginsB],
-          ] as const
-        ).map(([side, rows]) => (
-          <div key={side}>
-            <b>{side}</b>
-            {rows.length === 0 ? (
-              <EmptyHint what="logins" />
-            ) : (
-              <DataTable
-                columns={['LoginTime', 'Status', 'SourceIp', 'Application', 'Browser', 'Platform']}
-                rows={rows.map((r, i) => ({ ...r, key: i }))}
-                rowKey="key"
-                name={`users-logins-${side}`}
-              />
-            )}
-          </div>
+function ItemTable({ list, note, name }: { list: UserItem[]; note: string; name: string }) {
+  return list.length === 0 ? (
+    <EmptyHint what="items" />
+  ) : (
+    <DataTable
+      columns={['item', 'in', 'a', 'b']}
+      rows={list.map((i) => ({ ...i, key: i.item }))}
+      rowKey="key"
+      name={name}
+      note={<span>{note}</span>}
+    />
+  );
+}
+
+/** Permission sets or groups of the two users: choose one to see everything it allows, A beside B. */
+function HolderTab({ list, sides, what }: { list: UserItem[]; sides: Sides; what: string }) {
+  const [chosen, setChosen] = useState<UserItem | null>(list[0] ?? null);
+  if (list.length === 0) return <EmptyHint what={`${what}s`} />;
+  return (
+    <>
+      <DataTable
+        columns={['item', 'in', 'a', 'b']}
+        rows={list.map((i) => ({ ...i, key: i.item }))}
+        rowKey="key"
+        name={`users-${what}s`}
+        selectedKey={chosen?.item}
+        onRowClick={(row) => setChosen(list.find((i) => i.item === row.key) ?? null)}
+        note={<span>· click one to see everything it allows</span>}
+      />
+      {chosen && (
+        <>
+          <h4>
+            {chosen.item}{' '}
+            <span className="muted">
+              ({chosen.in === 'both' ? 'both have it' : `only ${chosen.in === 'only in A' ? 'A' : 'B'} has it`})
+            </span>
+          </h4>
+          <AccessCompare
+            key={`${chosen.idA}-${chosen.idB}`}
+            idA={chosen.idA}
+            idB={chosen.idB}
+            what={`${what} ${chosen.item}`}
+            sides={sides}
+            canCopy={what === 'permission set'}
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+const COPYABLE = ['Object access', 'Field access', 'User & system permissions'];
+
+/** Everything two holders allow (or one, when only one user has it), section by section. */
+function AccessCompare({
+  idA,
+  idB,
+  what,
+  sides,
+  canCopy = true,
+}: {
+  idA?: string;
+  idB?: string;
+  what: string;
+  sides: Sides;
+  canCopy?: boolean;
+}) {
+  const { client, clientB, labelA, labelB, orgB, twoOrgs } = sides;
+  const [sections, setSections] = useState<MergedSection[] | null>(null);
+  const [status, setStatus] = useState('Reading what it allows…');
+  const [shown, setShown] = useState('Object access');
+  const [differencesOnly, setDifferencesOnly] = useState(true);
+  const [refresh, setRefresh] = useState(0);
+  const both = Boolean(idA && idB);
+  useEffect(() => {
+    let canceled = false;
+    setStatus('Reading what it allows…');
+    Promise.all([idA ? holderAccess(client, idA) : undefined, idB ? holderAccess(clientB, idB) : undefined])
+      .then(([a, b]) => {
+        if (canceled) return;
+        setSections(mergeAccess(a, b));
+        setStatus('');
+      })
+      .catch((e: Error) => !canceled && setStatus(`❌ ${e.message}`));
+    return () => {
+      canceled = true;
+    };
+  }, [client, clientB, idA, idB, refresh]);
+  const section = sections?.find((s) => s.title === shown) ?? sections?.[0];
+  const rows = useMemo(
+    () => (section?.rows ?? []).filter((r) => !both || !differencesOnly || r.differs),
+    [section, differencesOnly, both]
+  );
+  if (!sections || !section) return <p className="muted">{status}</p>;
+  const copyable = twoOrgs && canCopy && both && COPYABLE.includes(section.title);
+  const diffs: Difference[] = copyable
+    ? rows.map((r) => ({
+        area: section.title,
+        item: r.item,
+        a: r.a || '—',
+        b: r.b || '—',
+        change: changeFor(section.title, r),
+      }))
+    : [];
+  const note = <span>{` · A = ${labelA}, B = ${labelB}`}</span>;
+  return (
+    <div className="access-compare section">
+      <div className="segmented wrap" role="group" aria-label="Section">
+        {sections.map((s) => (
+          <button key={s.title} className={section.title === s.title ? 'active' : ''} onClick={() => setShown(s.title)}>
+            {s.title}
+            {both ? ` (${s.rows.filter((r) => r.differs).length} ≠)` : ` (${s.rows.length})`}
+          </button>
         ))}
       </div>
+      {both && (
+        <label className="check">
+          <input type="checkbox" checked={differencesOnly} onChange={(e) => setDifferencesOnly(e.target.checked)} />{' '}
+          Differences only
+        </label>
+      )}
+      {(section.noteA || section.noteB) && (
+        <p className="muted">
+          Not read{section.noteA ? ` in A: ${section.noteA}` : ''}
+          {section.noteB ? ` in B: ${section.noteB}` : ''}
+        </p>
+      )}
+      {rows.length === 0 ? (
+        <p className="good">✓ {both ? `No differences in ${section.title.toLowerCase()}.` : 'Nothing here.'}</p>
+      ) : copyable ? (
+        <DiffTable
+          diff={diffs}
+          name={`${what}-${section.title}`}
+          note={note}
+          copy={{
+            clientB,
+            idB: idB!,
+            what: `${what} (${section.title.toLowerCase()}) into ${labelB}`,
+            labelB: orgB,
+            onCopied: () => setRefresh((n) => n + 1),
+          }}
+        />
+      ) : (
+        <DataTable
+          columns={['item', 'a', 'b', 'differs']}
+          rows={rows.map((r) => ({ ...r, differs: r.differs ? '≠' : '' }))}
+          rowKey="key"
+          name={`${what}-${section.title}`}
+          note={note}
+        />
+      )}
     </div>
   );
+}
+
+/** What makes B like A for one row of object, field or system access. */
+function changeFor(title: string, r: MergedSection['rows'][number]): AccessChange | undefined {
+  if (title === 'Object access') return { kind: 'object', object: r.key, access: accessFromText(r.a) };
+  if (title === 'Field access') return { kind: 'field', field: r.key, read: Boolean(r.a), edit: r.a.includes('Edit') };
+  if (title === 'User & system permissions')
+    return { kind: 'system', api: r.key.replace(/^Permissions/, ''), label: r.item, enabled: r.a === '✓' };
+  return undefined;
+}
+
+function SharesTable({
+  a,
+  b,
+  note,
+  name,
+}: {
+  a: UserSharing['userShares'];
+  b: UserSharing['userShares'];
+  note: string;
+  name: string;
+}) {
+  const rows = mergeShares(a, b);
+  return rows.length === 0 ? (
+    <p className="muted">None.</p>
+  ) : (
+    <DataTable
+      columns={['object', 'reason', 'a', 'b']}
+      rows={rows.map((r, i) => ({ ...r, key: i }))}
+      rowKey="key"
+      name={name}
+      note={<span>{note} · records</span>}
+    />
+  );
+}
+
+function SharingNotes({ sharing }: { sharing: { a: UserSharing; b: UserSharing } }) {
+  const notes = [...new Set([...sharing.a.notes, ...sharing.b.notes])];
+  return (
+    <p className="muted">
+      Counted for Accounts, Opportunities, Cases, Contacts and Leads.
+      {notes.length > 0 && ` Not read: ${notes.join(' · ')}`}
+    </p>
+  );
+}
+
+function mergeQueues(a: UserSharing['queues'], b: UserSharing['queues']) {
+  const map = new Map<string, { queue: string; a: string; b: string }>();
+  for (const q of a) map.set(String(q.queue), { queue: String(q.queue), a: String(q.objects) || '✓', b: '' });
+  for (const q of b) {
+    const k = String(q.queue);
+    map.set(k, { ...(map.get(k) ?? { queue: k, a: '' }), b: String(q.objects) || '✓' });
+  }
+  return [...map.values()];
+}
+
+function roleRows(a: UserSharing, b: UserSharing) {
+  const rows: Array<{ field: string; a: string; b: string }> = [
+    { field: 'Role', a: a.role?.name ?? '—', b: b.role?.name ?? '—' },
+    { field: 'Role hierarchy', a: a.role?.path ?? '—', b: b.role?.path ?? '—' },
+    ...[...new Set([...Object.keys(a.role?.settings ?? {}), ...Object.keys(b.role?.settings ?? {})])].map((k) => ({
+      field: k,
+      a: String(a.role?.settings[k] ?? ''),
+      b: String(b.role?.settings[k] ?? ''),
+    })),
+  ];
+  return rows.map((r) => ({ ...r, differs: r.a !== r.b ? '≠' : '' }));
 }

@@ -2486,3 +2486,19 @@ pre.wrap {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+
+/* Two users compared: differences per tab, section buttons that wrap */
+.count-badge {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: var(--accent);
+  color: #fff;
+}
+.segmented.wrap {
+  flex-wrap: wrap;
+}
+.user-comparison > .tabs {
+  margin-top: 6px;
+}
