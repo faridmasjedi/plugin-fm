@@ -11,14 +11,15 @@
 - **NomadSF in the status bar.** Opening a Salesforce DX project starts NomadSF for that workspace (or switches a running one to it); click **NomadSF** in the status bar to open the Studio in an editor tab.
 - **Every Studio tool**, grouped into hubs, with tools side by side and <kbd>⌘K</kbd> to jump:
 
-  | Hub                 | Tools                                                                                               |
-  | ------------------- | --------------------------------------------------------------------------------------------------- |
-  | **Develop**         | Execute Apex · Code · Apex tests with coverage · Debug Logs · Automation (what runs on save) · Jobs |
-  | **Data**            | Query · Record · Import / Update / Delete · Lookup · Schema · Field usage                           |
-  | **Data protection** | Backup and restore · Lifecycle jobs with approval                                                   |
-  | **Release**         | Project (your repository vs the org) · Metadata · Deployments · E2E tests                           |
-  | **Org**             | Users & access · Connected apps · Org health · Limits · Events · REST Explorer · Activity           |
-  | **Org to org**      | Org compare · Migrate · Access · Connected apps — for one pair of orgs, A → B                       |
+  | Hub                 | Tools                                                                                                                                      |
+  | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+  | **Develop**         | Execute Apex · Code · Apex tests with coverage · Debug Logs · Automation (what runs on save) · Jobs                                        |
+  | **Data**            | Query · Record · Import / Update / Delete · Lookup · Schema · Field usage                                                                  |
+  | **Data protection** | Backup and restore · Lifecycle jobs with approval                                                                                          |
+  | **Release**         | Project (your repository vs the org) · Metadata · Deployments · E2E tests                                                                  |
+  | **Access**          | Users · Permission sets & groups · Permissions · Assigned users · Compare · Access overview · Object access · Logins & audit · Your access |
+  | **Org**             | Connected apps · Org health · Limits · Events · REST Explorer · Activity                                                                   |
+  | **Org to org**      | Org compare · Migrate · Access · Connected apps — for one pair of orgs, A → B                                                              |
 
 - **From the editor** (select text, right-click):
   - **Show all data of the selected record Id** — the record inspector for an Id in your code or logs.
@@ -38,7 +39,9 @@
 - **Data protection**: backups to a folder (incremental, scheduled every N hours / days / weeks / months, encrypted) and restore; lifecycle jobs with approval.
 - **Release**: compare your project with the org and deploy, restore or delete; build a `package.xml` and a `destructiveChanges.xml`; recent deployments with their failures, and quick deploy.
 - **Org to org**: choose two orgs once (A → B) for every tool of the hub: compare their metadata and deploy the differences; migrate records keeping every link; find a user in both orgs; compare users (matched by username, with or without a sandbox suffix), profiles, permission sets and groups, or all of them side by side, and copy A's access into B; who has a permission set or profile in both; connected apps, their settings and who may use them.
-- **Org**: everything a user has (permission sets and groups, system permissions and what grants them, groups and queues, licenses, OAuth apps, logins); the assigned users of a permission set, group, license, profile, role or queue; compare two users side by side (everything assigned, its access, permissions, last logins), or two profiles, permission sets or groups; edit custom permission sets and profiles, and which permission sets a group holds; connected apps and OAuth usage; org health (risky permissions, inactive users, unused access, licenses); limits; events; REST; activity.
+- **Access**: everything a user has (permission sets and groups, system permissions and what grants them, groups and queues, licenses, OAuth apps, logins); assign and remove permission sets; what a profile, permission set or group allows, and edit custom ones (and which permission sets a group holds); the assigned users of a permission set, group, license, profile, role or queue; compare two users side by side (details, profile, permission sets and groups with everything each allows, groups & queues, role and sharing, OAuth apps, logins), or two profiles, permission sets or groups; every user with what they have and their powerful permissions; who can use an object or a field, and through what; login history and setup audit trail; and what your own user may do in this org.
+- **Every tool says what you are missing**: when your user lacks a permission a tool needs (for example View Setup and Configuration, or Author Apex to save code), the tool says so at the top, with the permission's name.
+- **Org**: connected apps and OAuth usage; org health (risky permissions, inactive users, unused access, licenses); limits; events; REST; activity.
 
 ## Requirements
 

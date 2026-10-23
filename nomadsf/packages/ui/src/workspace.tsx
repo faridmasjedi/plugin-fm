@@ -3,7 +3,7 @@ import { storage } from './context';
 import { openExternal } from './embed';
 
 /**
- * The Studio's layout: tools grouped into hubs (Develop, Data, Data protection, Release, Org, and
+ * The Studio's layout: tools grouped into hubs (Develop, Data, Data protection, Release, Access, Org, and
  * Org to org for the tools that work on two orgs),
  * each hub a page with its tools as tabs; and panes side by side — drag a hub or a tab to the
  * right half of a pane to open it beside, drag the divider to resize, ✕ to close. The layout
@@ -39,6 +39,14 @@ export type ToolId =
   | 'rest'
   | 'activity'
   | 'orgaccess'
+  | 'permsets'
+  | 'permissions'
+  | 'assigned'
+  | 'compare'
+  | 'accessmap'
+  | 'objectaccess'
+  | 'audit'
+  | 'myaccess'
   | 'orgapps'
   | 'settings'
   | 'local-orgs'
@@ -67,7 +75,15 @@ export const TOOLS: Tool[] = [
   { id: 'orgdiff', label: 'Org compare', icon: '⇋', hint: 'differences between two orgs, deploy' },
   { id: 'deployments', label: 'Deployments', icon: '⇪', hint: 'deployment history, quick deploy' },
   { id: 'tests', label: 'E2E tests', icon: '✓', hint: 'Playwright (CLI app)' },
-  { id: 'access', label: 'Users & access', icon: '⚿', hint: 'users, permissions, logins' },
+  { id: 'access', label: 'Users', icon: '☺', hint: 'a user and everything they have' },
+  { id: 'permsets', label: 'Permission sets & groups', icon: '▣', hint: 'who has one, assign, remove' },
+  { id: 'permissions', label: 'Permissions', icon: '⚿', hint: 'what a profile, set or group allows; edit' },
+  { id: 'assigned', label: 'Assigned users', icon: '☷', hint: 'users of a set, group, license, profile, role' },
+  { id: 'compare', label: 'Compare', icon: '⇆', hint: 'two users, profiles or permission sets' },
+  { id: 'accessmap', label: 'Access overview', icon: '▦', hint: 'every user and what they have' },
+  { id: 'objectaccess', label: 'Object access', icon: '⛉', hint: 'who can use an object or field' },
+  { id: 'audit', label: 'Logins & audit', icon: '⌛', hint: 'login history, setup audit trail' },
+  { id: 'myaccess', label: 'Your access', icon: '✓', hint: 'what your user may do here' },
   { id: 'apps', label: 'Connected apps', icon: '⚷', hint: 'connected apps, OAuth usage' },
   { id: 'health', label: 'Org health', icon: '♥', hint: 'security check, licenses' },
   { id: 'limits', label: 'Limits', icon: '▤', hint: 'org limits' },
@@ -88,7 +104,23 @@ export const HUBS: Hub[] = [
   { id: 'data', label: 'Data', icon: '⇅', tools: ['query', 'record', 'data', 'lookup', 'schema', 'fields'] },
   { id: 'protect', label: 'Data protection', icon: '⛁', tools: ['backup', 'lifecycle'] },
   { id: 'release', label: 'Release', icon: '⌂', tools: ['project', 'metadata', 'deployments', 'tests'] },
-  { id: 'org', label: 'Org', icon: '⚿', tools: ['access', 'apps', 'health', 'limits', 'events', 'rest', 'activity'] },
+  {
+    id: 'people',
+    label: 'Access',
+    icon: '⚿',
+    tools: [
+      'access',
+      'permsets',
+      'permissions',
+      'assigned',
+      'compare',
+      'accessmap',
+      'objectaccess',
+      'audit',
+      'myaccess',
+    ],
+  },
+  { id: 'org', label: 'Org', icon: '◈', tools: ['apps', 'health', 'limits', 'events', 'rest', 'activity'] },
   { id: 'between', label: 'Org to org', icon: '⇋', tools: ['orgdiff', 'migrate', 'orgaccess', 'orgapps'] },
   { id: 'local', label: 'Local app', icon: '☁', tools: ['local-orgs', 'local-ai'] },
   { id: 'settings', label: 'Settings', icon: '⚙', tools: ['settings'] },
@@ -149,7 +181,9 @@ export function useWorkspace(initial: ToolId) {
   /** Opens a hub (its last used tab) in the active pane. */
   const openHub = useCallback((hub: Hub) => {
     setLayout((l) => {
-      const tool = l.lastTab[hub.id] ?? hub.tools[0];
+      // The tab used last, if it is still in this hub (tools move between hubs)
+      const last = l.lastTab[hub.id];
+      const tool = last && hub.tools.includes(last) ? last : hub.tools[0];
       const open = l.panes.findIndex((p) => hubOf(p.tool).id === hub.id);
       if (open >= 0) return { ...l, active: open };
       return { ...l, panes: l.panes.map((p, i) => (i === l.active ? { ...p, tool } : p)) };
@@ -230,7 +264,9 @@ export function HubNav({
       className={`hub ${activeHub === h.id ? 'active' : ''} ${openHubs.has(h.id) ? 'open' : ''}`}
       onClick={() => ws.openHub(h)}
       draggable
-      onDragStart={dragTool(ws.lastTab[h.id] ?? h.tools.find(available) ?? h.tools[0])}
+      onDragStart={dragTool(
+        (h.tools.includes(ws.lastTab[h.id]) ? ws.lastTab[h.id] : undefined) ?? h.tools.find(available) ?? h.tools[0]
+      )}
       title={`${h.tools
         .filter(available)
         .map((t) => toolOf(t)!.label)

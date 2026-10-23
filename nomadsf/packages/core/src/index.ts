@@ -39,5 +39,6 @@ export * from './accessEdit.js';
 export * from './userCompare.js';
 export * from './accessDetail.js';
 export * from './myAccess.js';
+export * from './accessReports.js';
 export * from './schema.js';
 export * from './operations.js';

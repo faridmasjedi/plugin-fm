@@ -1,7 +1,7 @@
 import type { SalesforceClient } from './client.js';
 import { query, type QueryResult, type Row } from './query.js';
 
-/** Users & access: login history, setup audit trail, permission set (group) assignments. */
+/** Access: login history, setup audit trail, permission set (group) assignments. */
 
 const days = (n: number): number => Math.max(1, Math.min(180, Math.floor(n)));
 const soqlString = (value: string): string => value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");

@@ -8,6 +8,8 @@ export type MyAccess = {
   known: boolean;
   /** Effective permissions, by API name without "Permissions" (ApiEnabled, ViewSetup…). */
   permissions: Set<string>;
+  /** Labels of every user permission the org has (API name → label), granted or not. */
+  labels: Map<string, string>;
   can: {
     readSetup: boolean;
     changePermissions: boolean;
@@ -40,6 +42,7 @@ const WANTED = [
 const UNKNOWN: MyAccess = {
   known: false,
   permissions: new Set(),
+  labels: new Map(),
   can: {
     readSetup: true,
     changePermissions: true,
@@ -56,15 +59,30 @@ const UNKNOWN: MyAccess = {
 /** The user's effective permissions (UserPermissionAccess: from the profile, permission sets and groups). */
 export async function myAccess(client: SalesforceClient): Promise<MyAccess> {
   try {
-    const describe = await client.rest<{ fields: Array<{ name: string }> }>(
+    const describe = await client.rest<{ fields: Array<{ name: string; label?: string }> }>(
       'GET',
       '/sobjects/UserPermissionAccess/describe'
     );
-    const have = new Set(describe.fields.map((f) => f.name));
-    const fields = WANTED.map((w) => `Permissions${w}`).filter((f) => have.has(f));
-    if (!fields.length) return UNKNOWN;
-    const row = (await query(client, `SELECT ${fields.join(', ')} FROM UserPermissionAccess`)).rows[0] ?? {};
+    // Every user permission of the org (the ones the checks need first), read in chunks
+    const all = describe.fields.filter((f) => f.name.startsWith('Permissions'));
+    const wanted = new Set(WANTED.map((w) => `Permissions${w}`));
+    const fields = [...all.filter((f) => wanted.has(f.name)), ...all.filter((f) => !wanted.has(f.name))].map(
+      (f) => f.name
+    );
+    if (!fields.some((f) => wanted.has(f))) return UNKNOWN;
+    const row: Record<string, unknown> = {};
+    for (let i = 0; i < fields.length; i += 150) {
+      const chunk = fields.slice(i, i + 150);
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        Object.assign(row, (await query(client, `SELECT ${chunk.join(', ')} FROM UserPermissionAccess`)).rows[0] ?? {});
+      } catch (e) {
+        // The first chunk holds what the checks need: without it nothing is known
+        if (i === 0) throw e;
+      }
+    }
     const permissions = new Set(fields.filter((f) => row[f] === true).map((f) => f.replace(/^Permissions/, '')));
+    const labels = new Map(all.map((f) => [f.name.replace(/^Permissions/, ''), f.label ?? f.name]));
     const has = (p: string): boolean => permissions.has(p) || permissions.has('ModifyAllData');
     const can = {
       readSetup: has('ViewSetup'),
@@ -82,7 +100,7 @@ export async function myAccess(client: SalesforceClient): Promise<MyAccess> {
         : level === 'read only'
         ? "can read setup, can't change permissions (needs Manage Profiles and Permission Sets)"
         : 'can read and change setup and permissions';
-    return { known: true, permissions, can, level, summary };
+    return { known: true, permissions, labels, can, level, summary };
   } catch {
     return UNKNOWN;
   }

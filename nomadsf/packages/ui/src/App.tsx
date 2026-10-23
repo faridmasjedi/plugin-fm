@@ -8,7 +8,16 @@ import { ExecutePage } from './pages/ExecutePage';
 import { LogsPage } from './pages/LogsPage';
 import { QueryPage } from './pages/QueryPage';
 import { DataPage } from './pages/DataPage';
-import { AccessPage } from './pages/AccessPage';
+import {
+  AssignedUsersPage,
+  ComparePage,
+  LoginsAuditPage,
+  PermissionSetsPage,
+  PermissionsPage,
+  UsersPage,
+} from './pages/AccessPage';
+import { AccessOverviewPage, MyAccessPage, ObjectAccessPage } from './pages/AccessReportsPage';
+import { AccessNote } from './toolAccess';
 import { SchemaPage } from './pages/SchemaPage';
 import { AutomationPage } from './pages/AutomationPage';
 import { DeploymentsPage } from './pages/DeploymentsPage';
@@ -299,6 +308,7 @@ export function App() {
       <StudioContext.Provider value={studio}>
         <PairContext.Provider value={pair}>
           <InspectContext.Provider value={inspect}>
+            <AccessNote tool={tool} />
             {tool === 'apex' && <ExecutePage />}
             {tool === 'logs' && <LogsPage />}
             {tool === 'automation' && <AutomationPage />}
@@ -306,7 +316,15 @@ export function App() {
             {tool === 'deployments' && <DeploymentsPage />}
             {tool === 'query' && <QueryPage />}
             {tool === 'data' && <DataPage />}
-            {tool === 'access' && <AccessPage />}
+            {tool === 'access' && <UsersPage />}
+            {tool === 'permsets' && <PermissionSetsPage />}
+            {tool === 'permissions' && <PermissionsPage />}
+            {tool === 'assigned' && <AssignedUsersPage />}
+            {tool === 'compare' && <ComparePage />}
+            {tool === 'accessmap' && <AccessOverviewPage />}
+            {tool === 'objectaccess' && <ObjectAccessPage />}
+            {tool === 'audit' && <LoginsAuditPage />}
+            {tool === 'myaccess' && <MyAccessPage />}
             {tool === 'schema' && <SchemaPage />}
             {tool === 'apps' && <ConnectedAppsPage />}
             {tool === 'health' && <OrgHealthPage />}

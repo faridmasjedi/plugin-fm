@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   assignAccess,
   assignments,
@@ -26,12 +26,64 @@ const BY_LABEL: Record<By, string> = {
   publicGroup: 'Public group (API or label name)',
 };
 
-export function AccessPage() {
-  const { client, org, confirmChange, logActivity } = useStudio();
-  const instanceUrl = org.instanceUrl;
+/** A tool of the Access hub: its title, what it is about, then the tool. */
+function AccessTool({ title, about, children }: { title: string; about: string; children: ReactNode }) {
+  const { org } = useStudio();
+  return (
+    <div className="page">
+      <div className="toolbar">
+        <h2>{title}</h2>
+        <span className="muted">
+          {about} on {org.label}
+        </span>
+      </div>
+      {children}
+    </div>
+  );
+}
 
-  type Tab = 'login' | 'audit' | 'perms' | 'rights' | 'users' | 'who' | 'compare';
-  const [tab, setTab] = useState<Tab>(() => storage.get('access.tab', 'login'));
+/** Access › Users: find a user, edit them, and everything they have. */
+export function UsersPage() {
+  return (
+    <AccessTool title="Users" about="a user and everything they have">
+      <UserEditor />
+    </AccessTool>
+  );
+}
+
+/** Access › Permissions: what a profile, permission set or group allows (and editing it). */
+export function PermissionsPage() {
+  return (
+    <AccessTool title="Permissions" about="what a profile, permission set or group allows">
+      <PermissionsExplorer />
+    </AccessTool>
+  );
+}
+
+/** Access › Assigned users. */
+export function AssignedUsersPage() {
+  return (
+    <AccessTool title="Assigned users" about="the users of a permission set, group, license, profile, role or queue">
+      <WhoHasIt />
+    </AccessTool>
+  );
+}
+
+/** Access › Compare: two users, profiles, permission sets or groups. */
+export function ComparePage() {
+  return (
+    <AccessTool title="Compare" about="two users, profiles, permission sets or groups">
+      <CompareAccess />
+    </AccessTool>
+  );
+}
+
+/** Access › Logins & audit: login history and the setup audit trail. */
+export function LoginsAuditPage() {
+  const { client, org } = useStudio();
+  const instanceUrl = org.instanceUrl;
+  type Tab = 'login' | 'audit';
+  const [tab, setTab] = useState<Tab>(() => storage.get('audit.tab', 'login'));
 
   // ---------- login history / audit trail ----------
   const [log, setLog] = useState<{ title: string; result: QueryResult } | null>(null);
@@ -47,6 +99,109 @@ export function AccessPage() {
       setLogStatus(`❌ ${(e as Error).message}`);
     }
   };
+
+  return (
+    <AccessTool title="Logins & audit" about="login history and the setup audit trail">
+      <div className="tabs">
+        {(
+          [
+            ['login', 'Login history'],
+            ['audit', 'Setup audit trail'],
+          ] as Array<[Tab, string]>
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            className={`tab ${tab === id ? 'active' : ''}`}
+            onClick={() => {
+              setTab(id);
+              storage.set('audit.tab', id);
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === 'login' && (
+        <>
+          <div className="card form">
+            <h3 style={{ margin: 0, width: '100%' }}>Login history</h3>
+            <label>
+              Last
+              <select value={loginDays} onChange={(e) => setLoginDays(Number(e.target.value))}>
+                {[1, 7, 30, 90, 180].map((d) => (
+                  <option key={d} value={d}>
+                    {d} day(s)
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="primary"
+              onClick={() => void load('Login history', () => loginHistory(client, loginDays))}
+            >
+              Load
+            </button>
+          </div>
+          {logStatus && <p className="muted">{logStatus}</p>}
+          {log && log.title === 'Login history' && log.result.rows.length === 0 && <EmptyHint what="entries" />}
+          {log && log.title === 'Login history' && (
+            <div className="card section">
+              <h3>{log.title}</h3>
+              <DataTable
+                columns={log.result.columns}
+                rows={log.result.rows}
+                name={`${org.label}-${log.title}`}
+                instanceUrl={instanceUrl}
+                rowKey="__none"
+              />
+            </div>
+          )}
+        </>
+      )}
+      {tab === 'audit' && (
+        <>
+          <div className="card form">
+            <h3 style={{ margin: 0, width: '100%' }}>Setup audit trail</h3>
+            <label>
+              Last
+              <select value={auditDays} onChange={(e) => setAuditDays(Number(e.target.value))}>
+                {[7, 30, 90, 180].map((d) => (
+                  <option key={d} value={d}>
+                    {d} days
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="primary"
+              onClick={() => void load('Setup audit trail', () => auditTrail(client, auditDays))}
+            >
+              Load
+            </button>
+          </div>
+          {logStatus && <p className="muted">{logStatus}</p>}
+          {log && log.title === 'Setup audit trail' && log.result.rows.length === 0 && <EmptyHint what="entries" />}
+          {log && log.title === 'Setup audit trail' && (
+            <div className="card section">
+              <h3>{log.title}</h3>
+              <DataTable
+                columns={log.result.columns}
+                rows={log.result.rows}
+                name={`${org.label}-${log.title}`}
+                instanceUrl={instanceUrl}
+                rowKey="__none"
+              />
+            </div>
+          )}
+        </>
+      )}
+    </AccessTool>
+  );
+}
+
+/** Access › Permission sets & groups: who has one, assign it to users, remove it. */
+export function PermissionSetsPage() {
+  const { client, org, confirmChange, logActivity } = useStudio();
 
   // ---------- permission sets ----------
   const [targets, setTargets] = useState<AccessTarget[]>([]);
@@ -148,230 +303,120 @@ export function AccessPage() {
   };
 
   return (
-    <div className="page">
-      <div className="toolbar">
-        <h2>Users &amp; access</h2>
-        <span className="muted">on {org.label}</span>
-      </div>
-
-      <div className="tabs">
-        {(
-          [
-            ['login', 'Login history'],
-            ['audit', 'Setup audit trail'],
-            ['perms', 'Permission sets & groups'],
-            ['rights', 'Object, field & system permissions'],
-            ['users', 'Users'],
-            ['who', 'Assigned users'],
-            ['compare', 'Compare'],
-          ] as Array<[Tab, string]>
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            className={`tab ${tab === id ? 'active' : ''}`}
-            onClick={() => {
-              setTab(id);
-              storage.set('access.tab', id);
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'login' && (
-        <>
-          <div className="card form">
-            <h3 style={{ margin: 0, width: '100%' }}>Login history</h3>
-            <label>
-              Last
-              <select value={loginDays} onChange={(e) => setLoginDays(Number(e.target.value))}>
-                {[1, 7, 30, 90, 180].map((d) => (
-                  <option key={d} value={d}>
-                    {d} day(s)
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              className="primary"
-              onClick={() => void load('Login history', () => loginHistory(client, loginDays))}
-            >
-              Load
-            </button>
+    <AccessTool title="Permission sets & groups" about="who has one, assign it, remove it">
+      <div className="card section">
+        <h3>Permission sets &amp; groups</h3>
+        <div className="form">
+          <div className="segmented" role="group" aria-label="Show">
+            {(
+              [
+                ['all', `All (${targets.length})`],
+                ['permset', `Permission sets (${targets.filter((t) => t.kind === 'permset').length})`],
+                ['group', `Permission set groups (${targets.filter((t) => t.kind === 'group').length})`],
+              ] as Array<['all' | AccessTarget['kind'], string]>
+            ).map(([id, text]) => (
+              <button
+                key={id}
+                className={kindShown === id ? 'active' : ''}
+                onClick={() => {
+                  setKindShown(id);
+                  storage.set('access.kind', id);
+                }}
+              >
+                {text}
+              </button>
+            ))}
           </div>
-          {logStatus && <p className="muted">{logStatus}</p>}
-          {log && log.title === 'Login history' && log.result.rows.length === 0 && <EmptyHint what="entries" />}
-          {log && log.title === 'Login history' && (
-            <div className="card section">
-              <h3>{log.title}</h3>
-              <DataTable
-                columns={log.result.columns}
-                rows={log.result.rows}
-                name={`${org.label}-${log.title}`}
-                instanceUrl={instanceUrl}
-                rowKey="__none"
-              />
-            </div>
-          )}
-        </>
-      )}
-      {tab === 'audit' && (
-        <>
-          <div className="card form">
-            <h3 style={{ margin: 0, width: '100%' }}>Setup audit trail</h3>
-            <label>
-              Last
-              <select value={auditDays} onChange={(e) => setAuditDays(Number(e.target.value))}>
-                {[7, 30, 90, 180].map((d) => (
-                  <option key={d} value={d}>
-                    {d} days
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              className="primary"
-              onClick={() => void load('Setup audit trail', () => auditTrail(client, auditDays))}
-            >
-              Load
-            </button>
-          </div>
-          {logStatus && <p className="muted">{logStatus}</p>}
-          {log && log.title === 'Setup audit trail' && log.result.rows.length === 0 && <EmptyHint what="entries" />}
-          {log && log.title === 'Setup audit trail' && (
-            <div className="card section">
-              <h3>{log.title}</h3>
-              <DataTable
-                columns={log.result.columns}
-                rows={log.result.rows}
-                name={`${org.label}-${log.title}`}
-                instanceUrl={instanceUrl}
-                rowKey="__none"
-              />
-            </div>
-          )}
-        </>
-      )}
-      {tab === 'perms' && (
-        <div className="card section">
-          <h3>Permission sets &amp; groups</h3>
-          <div className="form">
-            <div className="segmented" role="group" aria-label="Show">
-              {(
-                [
-                  ['all', `All (${targets.length})`],
-                  ['permset', `Permission sets (${targets.filter((t) => t.kind === 'permset').length})`],
-                  ['group', `Permission set groups (${targets.filter((t) => t.kind === 'group').length})`],
-                ] as Array<['all' | AccessTarget['kind'], string]>
-              ).map(([id, text]) => (
-                <button
-                  key={id}
-                  className={kindShown === id ? 'active' : ''}
-                  onClick={() => {
-                    setKindShown(id);
-                    storage.set('access.kind', id);
-                  }}
-                >
-                  {text}
-                </button>
-              ))}
-            </div>
-            <input placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} />
-            <select value={targetId} onChange={(e) => setTargetId(e.target.value)} style={{ minWidth: 340 }}>
-              <option value="">
-                Choose{' '}
-                {kindShown === 'group'
-                  ? 'a permission set group'
-                  : kindShown === 'permset'
-                  ? 'a permission set'
-                  : 'a permission set or group'}{' '}
-                ({shown.length})
+          <input placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <select value={targetId} onChange={(e) => setTargetId(e.target.value)} style={{ minWidth: 340 }}>
+            <option value="">
+              Choose{' '}
+              {kindShown === 'group'
+                ? 'a permission set group'
+                : kindShown === 'permset'
+                ? 'a permission set'
+                : 'a permission set or group'}{' '}
+              ({shown.length})
+            </option>
+            {shown.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.kind === 'group' ? '▣ ' : ''}
+                {t.label} ({t.name})
               </option>
-              {shown.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.kind === 'group' ? '▣ ' : ''}
-                  {t.label} ({t.name})
-                </option>
-              ))}
-            </select>
-          </div>
-          {status && (
-            <p className="muted" style={{ margin: 0 }}>
-              {status}
-            </p>
-          )}
-          {target && (
-            <div className="grid2">
-              <div className="section">
-                <h3>Assigned ({assigned?.rows.length ?? 0})</h3>
-                {assigned && (
-                  <DataTable
-                    columns={[
-                      'Assignee.Name',
-                      'Assignee.Username',
-                      'Assignee.Profile.Name',
-                      'Assignee.IsActive',
-                      'ExpirationDate',
-                    ]}
-                    rows={assigned.rows}
-                    name={`${target.name}-assignments`}
-                    selected={assignedSel}
-                    onSelectedChange={setAssignedSel}
-                  />
-                )}
-                <div className="form">
-                  <button className="danger" disabled={assignedSel.size === 0} onClick={() => void remove()}>
-                    Remove {assignedSel.size || ''} selected…
-                  </button>
-                </div>
-              </div>
-              <div className="section">
-                <h3>Assign to users</h3>
-                <div className="form">
-                  <label>
-                    Find users by
-                    <select value={by} onChange={(e) => setBy(e.target.value as By)}>
-                      {(Object.keys(BY_LABEL) as By[]).map((b) => (
-                        <option key={b} value={b}>
-                          {BY_LABEL[b].split(' (')[0]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Expires (optional)
-                    <input type="date" value={expires} onChange={(e) => setExpires(e.target.value)} />
-                  </label>
-                </div>
-                <label className="muted" style={{ fontSize: 12.5 }}>
-                  {BY_LABEL[by]}
-                  <textarea rows={2} value={value} onChange={(e) => setValue(e.target.value)} />
-                </label>
-                <div className="form">
-                  <button onClick={() => void find()}>Find users</button>
-                  <button className="primary" disabled={userSel.size === 0} onClick={() => void assign()}>
-                    Assign to {userSel.size || ''} selected…
-                  </button>
-                </div>
-                {users.length > 0 && (
-                  <DataTable
-                    columns={['Name', 'Username', 'Profile.Name']}
-                    rows={users}
-                    name="users"
-                    selected={userSel}
-                    onSelectedChange={setUserSel}
-                  />
-                )}
+            ))}
+          </select>
+        </div>
+        {status && (
+          <p className="muted" style={{ margin: 0 }}>
+            {status}
+          </p>
+        )}
+        {target && (
+          <div className="grid2">
+            <div className="section">
+              <h3>Assigned ({assigned?.rows.length ?? 0})</h3>
+              {assigned && (
+                <DataTable
+                  columns={[
+                    'Assignee.Name',
+                    'Assignee.Username',
+                    'Assignee.Profile.Name',
+                    'Assignee.IsActive',
+                    'ExpirationDate',
+                  ]}
+                  rows={assigned.rows}
+                  name={`${target.name}-assignments`}
+                  selected={assignedSel}
+                  onSelectedChange={setAssignedSel}
+                />
+              )}
+              <div className="form">
+                <button className="danger" disabled={assignedSel.size === 0} onClick={() => void remove()}>
+                  Remove {assignedSel.size || ''} selected…
+                </button>
               </div>
             </div>
-          )}
-        </div>
-      )}
-      {tab === 'rights' && <PermissionsExplorer />}
-      {tab === 'users' && <UserEditor />}
-      {tab === 'who' && <WhoHasIt />}
-      {tab === 'compare' && <CompareAccess />}
-    </div>
+            <div className="section">
+              <h3>Assign to users</h3>
+              <div className="form">
+                <label>
+                  Find users by
+                  <select value={by} onChange={(e) => setBy(e.target.value as By)}>
+                    {(Object.keys(BY_LABEL) as By[]).map((b) => (
+                      <option key={b} value={b}>
+                        {BY_LABEL[b].split(' (')[0]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Expires (optional)
+                  <input type="date" value={expires} onChange={(e) => setExpires(e.target.value)} />
+                </label>
+              </div>
+              <label className="muted" style={{ fontSize: 12.5 }}>
+                {BY_LABEL[by]}
+                <textarea rows={2} value={value} onChange={(e) => setValue(e.target.value)} />
+              </label>
+              <div className="form">
+                <button onClick={() => void find()}>Find users</button>
+                <button className="primary" disabled={userSel.size === 0} onClick={() => void assign()}>
+                  Assign to {userSel.size || ''} selected…
+                </button>
+              </div>
+              {users.length > 0 && (
+                <DataTable
+                  columns={['Name', 'Username', 'Profile.Name']}
+                  rows={users}
+                  name="users"
+                  selected={userSel}
+                  onSelectedChange={setUserSel}
+                />
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </AccessTool>
   );
 }
