@@ -2454,3 +2454,11 @@ pre.wrap {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* Org to org: A ⇄ B */
+.org-pair .swap {
+  height: var(--h);
+  min-width: var(--h);
+  padding: 0;
+  font-size: 16px;
+}

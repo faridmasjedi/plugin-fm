@@ -14,22 +14,35 @@ import {
 } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
 import { DataTable } from './DataTable';
-import { OtherOrgSelect, useOtherOrg } from './OtherOrg';
 
-type Mode = 'users' | 'sets' | 'all';
+type Kind = PermissionHolder['kind'];
+type Mode = 'users' | Kind | 'all';
+const KINDS: Array<[Kind, string]> = [
+  ['Profile', 'Profiles'],
+  ['Permission set', 'Permission sets'],
+  ['Permission set group', 'Permission set groups'],
+];
 type Show = 'all' | AccessOverviewRow['status'];
 
+/** Org to org: A's and B's org (B's connection null until ready). */
+export type OrgSides = { clientA: SalesforceClient; labelA: string; clientB: SalesforceClient | null; labelB: string };
+
 /**
- * Two users, or two profiles / permission sets / groups: what one has that the other does not — in this org, or B
- * in another org. With another org, also every profile, permission set and group of both side by side.
+ * Two users, or two profiles / permission sets / groups: what one has that the other does not — in this org, or
+ * (between) A in one org and B in another, with every profile, permission set and group of both side by side.
  */
-export function CompareAccess() {
-  const { client, org } = useStudio();
-  const otherOrg = useOtherOrg('compare.org');
-  // B's org: this one, or the other once connected
-  const clientB = otherOrg.other ? otherOrg.client : client;
-  const labelB = otherOrg.other?.label ?? org.label;
-  const [mode, setMode] = useState<Mode>(() => storage.get('compare.mode', 'users'));
+export function CompareAccess({ between }: { between?: OrgSides }) {
+  const studio = useStudio();
+  const client = between?.clientA ?? studio.client;
+  const labelA = between?.labelA ?? studio.org.label;
+  const clientB = between ? between.clientB : client;
+  const labelB = between?.labelB ?? labelA;
+  const other = Boolean(between);
+  const [mode, setMode] = useState<Mode>(() => {
+    const saved = storage.get<string>('compare.mode', 'users');
+    return saved === 'sets' ? 'Profile' : (saved as Mode);
+  });
+  const [filter, setFilter] = useState('');
   const [userA, setUserA] = useState<UserMatch | null>(null);
   const [userB, setUserB] = useState<UserMatch | null>(null);
   const [matched, setMatched] = useState('');
@@ -42,31 +55,39 @@ export function CompareAccess() {
   const [show, setShow] = useState<Show>('all');
   const [pair, setPair] = useState<AccessOverviewRow | null>(null);
   const [status, setStatus] = useState('');
-  const shownMode: Mode = mode === 'all' && !otherOrg.other ? 'users' : mode;
+  const shownMode: Mode = mode === 'all' && !other ? 'users' : mode;
+  // Profiles, permission sets or permission set groups
+  const kind = KINDS.some(([k]) => k === shownMode) ? (shownMode as Kind) : null;
 
   useEffect(() => {
-    if (shownMode === 'sets' && holders.length === 0)
+    // Loaded up front: the tabs show how many there are
+    if (holders.length === 0)
       permissionHolders(client)
         .then(setHolders)
         .catch((e: Error) => setStatus(`❌ ${e.message}`));
-  }, [client, shownMode, holders.length]);
+  }, [client, holders.length]);
   // B's list: this org's, or the other org's
   useEffect(() => {
     setHoldersB([]);
     setSetB('');
-    if (shownMode !== 'sets' || !clientB) return;
+    if (!kind || !clientB) return;
     if (clientB === client) return setHoldersB(holders);
     permissionHolders(clientB)
       .then(setHoldersB)
       .catch((e: Error) => setStatus(`❌ ${labelB}: ${e.message}`));
-  }, [client, clientB, shownMode, holders, labelB]);
+  }, [client, clientB, kind, holders, labelB]);
+  useEffect(() => {
+    setSetA('');
+    setSetB('');
+    setFilter('');
+  }, [kind]);
   // Another org: B is the same user (by username) and the same profile / permission set (by API name)
   useEffect(() => {
     setUserB(null);
     setMatched('');
   }, [clientB]);
   useEffect(() => {
-    if (!otherOrg.other || !clientB || !userA) return;
+    if (!other || !clientB || !userA) return;
     setUserB(null);
     findSameUser(clientB, userA.Username)
       .then((u) => {
@@ -74,13 +95,13 @@ export function CompareAccess() {
         setMatched(u ? `matched by username` : `no user with username ${userA.Username} in ${labelB}`);
       })
       .catch(() => undefined);
-  }, [otherOrg.other, clientB, userA, labelB]);
+  }, [other, clientB, userA, labelB]);
   useEffect(() => {
-    if (!otherOrg.other) return;
+    if (!other) return;
     const api = holders.find((h) => h.id === setA)?.api;
     const same = api ? holdersB.find((h) => h.api === api) : undefined;
     setSetB(same?.id ?? '');
-  }, [otherOrg.other, setA, holders, holdersB]);
+  }, [other, setA, holders, holdersB]);
   useEffect(() => {
     setDiff(null);
     setStatus('');
@@ -93,8 +114,7 @@ export function CompareAccess() {
   const a = shownMode === 'users' ? userA?.Name : holders.find((h) => h.id === setA)?.name;
   const b = shownMode === 'users' ? userB?.Name : holdersB.find((h) => h.id === setB)?.name;
   const ready =
-    Boolean(clientB) &&
-    (shownMode === 'users' ? Boolean(userA && userB) : shownMode === 'sets' ? Boolean(setA && setB) : true);
+    Boolean(clientB) && (shownMode === 'users' ? Boolean(userA && userB) : kind ? Boolean(setA && setB) : true);
 
   const compare = async () => {
     if (!clientB) return;
@@ -116,12 +136,18 @@ export function CompareAccess() {
   };
 
   const areas = useMemo(() => [...new Set((diff ?? []).map((d) => d.area))], [diff]);
-  const orgsNote = otherOrg.other ? ` · A in ${org.label}, B in ${labelB}` : '';
+  const orgsNote = other ? ` · A in ${labelA}, B in ${labelB}` : '';
+  const count = (k: Kind): string => {
+    const n = holders.filter((h) => h.kind === k).length;
+    return n ? ` (${n})` : '';
+  };
   const modes: Array<[Mode, string]> = [
     ['users', 'Two users'],
-    ['sets', 'Two profiles, permission sets or groups'],
-    ...(otherOrg.other ? [['all', 'Every profile, permission set and group'] as [Mode, string]] : []),
+    ...KINDS.map(([k, label]) => [k, `${label}${count(k)}`] as [Mode, string]),
+    ...(other ? [['all', 'Everything'] as [Mode, string]] : []),
   ];
+  const matching = (list: PermissionHolder[]): PermissionHolder[] =>
+    list.filter((h) => h.kind === kind && (!filter || h.name.toLowerCase().includes(filter.trim().toLowerCase())));
 
   return (
     <div className="card section">
@@ -141,19 +167,13 @@ export function CompareAccess() {
             </button>
           ))}
         </div>
-        <OtherOrgSelect state={otherOrg} label="B in" />
       </div>
       {shownMode === 'users' && (
         <div className="form">
-          <UserPicker
-            label={otherOrg.other ? `A (${org.label})` : 'A'}
-            client={client}
-            value={userA}
-            onChange={setUserA}
-          />
+          <UserPicker label={other ? `A (${labelA})` : 'A'} client={client} value={userA} onChange={setUserA} />
           {clientB && (
             <UserPicker
-              label={otherOrg.other ? `B (${labelB})` : 'B'}
+              label={other ? `B (${labelB})` : 'B'}
               client={clientB}
               value={userB}
               onChange={(u) => {
@@ -165,41 +185,41 @@ export function CompareAccess() {
           {matched && <span className="muted">{matched}</span>}
         </div>
       )}
-      {shownMode === 'sets' && (
+      {kind && (
         <div className="form">
+          <label>
+            Filter
+            <input placeholder="Name…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          </label>
           {(
             [
-              [otherOrg.other ? `A (${org.label})` : 'A', setA, setSetA, holders],
-              [otherOrg.other ? `B (${labelB})` : 'B', setB, setSetB, holdersB],
+              [other ? `A (${labelA})` : 'A', setA, setSetA, holders],
+              [other ? `B (${labelB})` : 'B', setB, setSetB, holdersB],
             ] as const
           ).map(([label, value, set, list]) => (
             <label key={label}>
               {label}
               <select value={value} onChange={(e) => set(e.target.value)} style={{ minWidth: 300 }}>
-                <option value="">Choose ({list.length})</option>
-                {(['Profile', 'Permission set', 'Permission set group'] as const).map((k) => (
-                  <optgroup key={k} label={`${k}s`}>
-                    {list
-                      .filter((h) => h.kind === k)
-                      .map((h) => (
-                        <option key={h.id} value={h.id}>
-                          {h.name}
-                        </option>
-                      ))}
-                  </optgroup>
+                <option value="">Choose ({matching(list).length})</option>
+                {/* The chosen one stays listed while the filter hides it */}
+                {[...matching(list), ...list.filter((h) => h.id === value && !matching(list).includes(h))].map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name}
+                  </option>
                 ))}
               </select>
             </label>
           ))}
-          {otherOrg.other && setA && holdersB.length > 0 && !setB && (
+          {other && setA && holdersB.length > 0 && !setB && (
             <span className="muted">not in {labelB} by the same API name — choose one</span>
           )}
         </div>
       )}
       {shownMode === 'all' && (
         <p className="muted">
-          Profiles by name, permission sets and groups by API name. Counts the system permissions and objects whose
-          access differs; permissions one org does not have at all (licenses, features) are left out.
+          Every profile, permission set and permission set group of both orgs: profiles by name, permission sets and
+          groups by API name. Counts the system permissions and objects whose access differs; permissions one org does
+          not have at all (licenses, features) are left out.
         </p>
       )}
       <div className="form">
@@ -220,7 +240,7 @@ export function CompareAccess() {
             columns={['area', 'item', 'a', 'b']}
             rows={diff.map((d, i) => ({ ...d, key: i }))}
             rowKey="key"
-            name={`${org.label}-compare`}
+            name={`${labelA}-compare`}
             note={
               <span>
                 · A = {a}, B = {b}
@@ -335,12 +355,23 @@ function UserPicker({
   onChange: (u: UserMatch | null) => void;
 }) {
   const [text, setText] = useState('');
-  const [matches, setMatches] = useState<UserMatch[]>([]);
-  const find = async () => {
-    const found = await searchUsers(client, text).catch(() => []);
-    setMatches(found);
-    if (found.length === 1) onChange(found[0]);
-  };
+  const [matches, setMatches] = useState<UserMatch[] | null>(null);
+  // Searches while you type (Enter picks the only match)
+  useEffect(() => {
+    setMatches(null);
+    const term = text.trim();
+    if (term.length < 2) return;
+    let canceled = false;
+    const timer = setTimeout(() => {
+      searchUsers(client, term)
+        .then((found) => !canceled && setMatches(found))
+        .catch(() => !canceled && setMatches([]));
+    }, 350);
+    return () => {
+      canceled = true;
+      clearTimeout(timer);
+    };
+  }, [client, text]);
   return (
     <label>
       {label}
@@ -353,21 +384,26 @@ function UserPicker({
       ) : (
         <span className="form">
           <input
-            placeholder="Name, username or email, Enter"
+            placeholder="Name, username or email"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && text.trim() && void find()}
+            onKeyDown={(e) => e.key === 'Enter' && matches?.length === 1 && onChange(matches[0])}
           />
-          {matches.length > 1 && (
-            <select value="" onChange={(e) => onChange(matches.find((m) => m.Id === e.target.value) ?? null)}>
-              <option value="">{matches.length} users…</option>
-              {matches.map((m) => (
-                <option key={m.Id} value={m.Id}>
-                  {m.Name} ({m.Username})
+          {matches &&
+            (matches.length === 0 ? (
+              <span className="muted">no user found</span>
+            ) : (
+              <select value="" onChange={(e) => onChange(matches.find((m) => m.Id === e.target.value) ?? null)}>
+                <option value="">
+                  {matches.length} user{matches.length === 1 ? '' : 's'} — choose…
                 </option>
-              ))}
-            </select>
-          )}
+                {matches.map((m) => (
+                  <option key={m.Id} value={m.Id}>
+                    {m.Name} ({m.Username})
+                  </option>
+                ))}
+              </select>
+            ))}
         </span>
       )}
     </label>

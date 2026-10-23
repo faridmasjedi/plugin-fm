@@ -11,13 +11,15 @@ import {
 } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
 import { DataTable, EmptyHint } from './DataTable';
-import { OtherOrgSelect, useOtherOrg } from './OtherOrg';
+import type { OrgSides } from './CompareAccess';
 
-/** Who has a permission set, group, license, profile, role, public group or queue — here, or here and in another org. */
-export function WhoHasIt() {
-  const { client, org } = useStudio();
-  const otherOrg = useOtherOrg('who.org');
-  const clientB = otherOrg.other ? otherOrg.client : null;
+/** Assigned users: the users of a permission set, group, license, profile, role, public group or queue — in this org, or in two orgs. */
+export function WhoHasIt({ between }: { between?: OrgSides }) {
+  const studio = useStudio();
+  const client = between?.clientA ?? studio.client;
+  const labelA = between?.labelA ?? studio.org.label;
+  const clientB = between?.clientB ?? null;
+  const isBetween = Boolean(between);
   const [holdersB, setHoldersB] = useState<Holder[] | null>(null);
   const [kind, setKind] = useState<HolderKind>(() => storage.get('who.kind', 'permset'));
   const [holders, setHolders] = useState<Holder[] | null>(null);
@@ -42,8 +44,8 @@ export function WhoHasIt() {
     if (!clientB) return;
     holdersOf(clientB, kind)
       .then(setHoldersB)
-      .catch((e: Error) => setStatus(`❌ ${otherOrg.other?.label}: ${e.message}`));
-  }, [clientB, kind, otherOrg.other]);
+      .catch((e: Error) => setStatus(`❌ ${between?.labelB}: ${e.message}`));
+  }, [clientB, kind, between?.labelB]);
 
   const holder = holders?.find((h) => h.id === holderId);
   // The same one in the other org, by API name (profiles by name)
@@ -51,7 +53,7 @@ export function WhoHasIt() {
 
   useEffect(() => {
     setUsers(null);
-    if (!holder || (otherOrg.other && !holdersB)) return;
+    if (!holder || (isBetween && !holdersB)) return;
     setStatus('Reading users…');
     (clientB ? usersWithInBoth(client, holder, clientB, holderB) : usersWith(client, holder))
       .then((list) => {
@@ -59,7 +61,7 @@ export function WhoHasIt() {
         setStatus('');
       })
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
-  }, [client, clientB, holder, holderB, holdersB, otherOrg.other]);
+  }, [client, clientB, holder, holderB, holdersB, isBetween]);
 
   const shown = useMemo(
     () =>
@@ -76,7 +78,7 @@ export function WhoHasIt() {
 
   return (
     <div className="card section">
-      <h3>Who has it</h3>
+      <h3>Assigned users</h3>
       <div className="form">
         <label>
           Kind
@@ -108,7 +110,6 @@ export function WhoHasIt() {
           <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Active users
           only
         </label>
-        <OtherOrgSelect state={otherOrg} />
         <span className="muted">{status}</span>
       </div>
       {holder &&
@@ -133,13 +134,13 @@ export function WhoHasIt() {
             }
             rows={rows}
             rowKey="Id"
-            name={`${org.label}-${holder.label}-users`}
+            name={`${labelA}-${holder.label}-users`}
             note={
               <span>
                 · users with {kindLabel.toLowerCase()} {holder.label}
                 {kind === 'publicGroup' || kind === 'queue' ? ' (direct members)' : ''}
                 {both &&
-                  ` · A = ${org.label}, B = ${otherOrg.other?.label}${
+                  ` · A = ${labelA}, B = ${between?.labelB}${
                     holderB ? '' : ` (not in B by the same API name)`
                   } · users matched by username`}
               </span>

@@ -37,6 +37,9 @@ import { useLifecycleRun, useLifecycleScheduler } from './lifecycle';
 import { askConfirm, askTyped } from './components/Dialogs';
 import { useBackupRun, useBackupScheduler } from './backups';
 import { ProjectStateContext, useProjectState } from './project';
+import { PairContext, type OrgPair } from './pair';
+import { OrgAccessPage } from './pages/OrgAccessPage';
+import { OrgAppsPage } from './pages/OrgAppsPage';
 import { HubNav, Panes, QuickJump, isTool, useWorkspace, type ToolId } from './workspace';
 
 const host = detectHost();
@@ -210,8 +213,38 @@ export function App() {
   );
   const studio: Studio | null =
     client && org
-      ? { hostKind: host.kind, client, org, orgs, clientFor, facts, user, confirmRisky, confirmChange, logActivity }
+      ? {
+          hostKind: host.kind,
+          client,
+          org,
+          orgs,
+          clientFor,
+          facts,
+          user,
+          confirmRisky,
+          confirmChange,
+          logActivity,
+        }
       : null;
+
+  // Org to org: the pair of orgs, A defaulting to the org chosen at the top (earlier Org compare / Migrate choices carry over)
+  const [savedPair, setSavedPair] = useState<OrgPair>(() =>
+    storage.get('between.pair', {
+      a: storage.get('orgdiff.source', ''),
+      b: storage.get('orgdiff.target', '') || storage.get('migrate.target', ''),
+    })
+  );
+  const pair = useMemo<[OrgPair, (next: OrgPair) => void]>(() => {
+    const has = (id: string) => orgs.some((o) => o.id === id);
+    const a = has(savedPair.a) ? savedPair.a : org?.id ?? '';
+    return [
+      { a, b: savedPair.b !== a && has(savedPair.b) ? savedPair.b : '' },
+      (next) => {
+        setSavedPair(next);
+        storage.set('between.pair', next);
+      },
+    ];
+  }, [savedPair, orgs, org]);
   useBackupScheduler(clientFor);
   useLifecycleScheduler(clientFor);
   const backupRun = useBackupRun();
@@ -262,35 +295,39 @@ export function App() {
       );
     return (
       <StudioContext.Provider value={studio}>
-        <InspectContext.Provider value={inspect}>
-          {tool === 'apex' && <ExecutePage />}
-          {tool === 'logs' && <LogsPage />}
-          {tool === 'automation' && <AutomationPage />}
-          {tool === 'jobs' && <JobsPage />}
-          {tool === 'deployments' && <DeploymentsPage />}
-          {tool === 'query' && <QueryPage />}
-          {tool === 'data' && <DataPage />}
-          {tool === 'access' && <AccessPage />}
-          {tool === 'schema' && <SchemaPage />}
-          {tool === 'apps' && <ConnectedAppsPage />}
-          {tool === 'health' && <OrgHealthPage />}
-          {tool === 'metadata' && <MetadataPage />}
-          {tool === 'activity' && <ActivityPage />}
-          {tool === 'record' && <RecordPage initialId={inspectId} />}
-          {tool === 'limits' && <LimitsPage />}
-          {tool === 'rest' && <RestPage />}
-          {tool === 'code' && <CodePage />}
-          {tool === 'backup' && (
-            <BackupPage orgs={orgs} clientFor={clientFor} onOpenMigrate={() => setPage('migrate')} />
-          )}
-          {tool === 'migrate' && <MigratePage orgs={orgs} clientFor={clientFor} />}
-          {tool === 'lifecycle' && <LifecyclePage orgs={orgs} clientFor={clientFor} />}
-          {tool === 'events' && <EventsPage />}
-          {tool === 'fields' && <FieldUsagePage />}
-          {tool === 'lookup' && <LookupPage />}
-          {tool === 'orgdiff' && <OrgComparePage orgs={orgs} />}
-          {tool === 'apextests' && <ApexTestsPage />}
-        </InspectContext.Provider>
+        <PairContext.Provider value={pair}>
+          <InspectContext.Provider value={inspect}>
+            {tool === 'apex' && <ExecutePage />}
+            {tool === 'logs' && <LogsPage />}
+            {tool === 'automation' && <AutomationPage />}
+            {tool === 'jobs' && <JobsPage />}
+            {tool === 'deployments' && <DeploymentsPage />}
+            {tool === 'query' && <QueryPage />}
+            {tool === 'data' && <DataPage />}
+            {tool === 'access' && <AccessPage />}
+            {tool === 'schema' && <SchemaPage />}
+            {tool === 'apps' && <ConnectedAppsPage />}
+            {tool === 'health' && <OrgHealthPage />}
+            {tool === 'metadata' && <MetadataPage />}
+            {tool === 'activity' && <ActivityPage />}
+            {tool === 'record' && <RecordPage initialId={inspectId} />}
+            {tool === 'limits' && <LimitsPage />}
+            {tool === 'rest' && <RestPage />}
+            {tool === 'code' && <CodePage />}
+            {tool === 'backup' && (
+              <BackupPage orgs={orgs} clientFor={clientFor} onOpenMigrate={() => setPage('migrate')} />
+            )}
+            {tool === 'migrate' && <MigratePage orgs={orgs} clientFor={clientFor} />}
+            {tool === 'lifecycle' && <LifecyclePage orgs={orgs} clientFor={clientFor} />}
+            {tool === 'events' && <EventsPage />}
+            {tool === 'fields' && <FieldUsagePage />}
+            {tool === 'lookup' && <LookupPage />}
+            {tool === 'orgdiff' && <OrgComparePage orgs={orgs} />}
+            {tool === 'apextests' && <ApexTestsPage />}
+            {tool === 'orgaccess' && <OrgAccessPage />}
+            {tool === 'orgapps' && <OrgAppsPage />}
+          </InspectContext.Provider>
+        </PairContext.Provider>
       </StudioContext.Provider>
     );
   };

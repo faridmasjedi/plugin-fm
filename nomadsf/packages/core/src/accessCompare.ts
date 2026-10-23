@@ -1,5 +1,5 @@
 import type { SalesforceClient } from './client.js';
-import type { UserMatch } from './access.js';
+import { searchUsers, type UserMatch } from './access.js';
 import { permissionSetKey } from './fieldUsage.js';
 import { usersWith, type Difference, type Holder } from './orgHealth.js';
 import { query, type Row } from './query.js';
@@ -55,6 +55,55 @@ export async function findSameUser(client: SalesforceClient, username: string): 
         LastLoginDate: best.LastLoginDate ? String(best.LastLoginDate) : undefined,
       }
     : null;
+}
+
+/**
+ * A user looked up in two orgs at once (name, username, email or Id): the matches of both, paired by username.
+ * Columns: Name, in (both / only in A / only in B), usernameA, usernameB, activeA, activeB, profileA, profileB,
+ * lastLoginA, lastLoginB.
+ */
+export async function findUserInBoth(
+  clientA: SalesforceClient,
+  clientB: SalesforceClient,
+  text: string
+): Promise<Row[]> {
+  const [a, b] = await Promise.all([searchUsers(clientA, text), searchUsers(clientB, text)]);
+  const left = new Set(b);
+  const out: Row[] = [];
+  const row = (x: UserMatch | undefined, y: UserMatch | undefined): Row => ({
+    Id: `${x?.Id ?? ''}-${y?.Id ?? ''}`,
+    Name: x?.Name ?? y?.Name ?? '',
+    in: x && y ? 'both' : x ? 'only in A' : 'only in B',
+    usernameA: x?.Username ?? '',
+    usernameB: y?.Username ?? '',
+    activeA: x ? x.IsActive : '',
+    activeB: y ? y.IsActive : '',
+    profileA: x?.Profile ?? '',
+    profileB: y?.Profile ?? '',
+    lastLoginA: x?.LastLoginDate ?? '',
+    lastLoginB: y?.LastLoginDate ?? '',
+  });
+  for (const x of a) {
+    const y = [...left].find((u) => sameUsername(u.Username, x.Username));
+    if (y) left.delete(y);
+    out.push(row(x, y));
+  }
+  // Searched by name in A, the user may be in B under another name: look them up by username too
+  for (const x of out.filter((r) => r.in === 'only in A')) {
+    // eslint-disable-next-line no-await-in-loop
+    const y = await findSameUser(clientB, String(x.usernameA));
+    if (y)
+      Object.assign(
+        x,
+        row(
+          a.find((u) => u.Username === x.usernameA),
+          y
+        )
+      );
+  }
+  for (const y of left) out.push(row(undefined, y));
+  const order = { both: 0, 'only in A': 1, 'only in B': 2 } as Record<string, number>;
+  return out.sort((x, y) => order[String(x.in)] - order[String(y.in)] || String(x.Name).localeCompare(String(y.Name)));
 }
 
 // ---------- who has it, in both orgs ----------

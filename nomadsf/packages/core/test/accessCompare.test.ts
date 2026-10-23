@@ -5,6 +5,7 @@ import {
   compareConnectedApps,
   comparePermissionSets,
   findSameUser,
+  findUserInBoth,
   sameHolder,
   sameUsername,
   usersWithInBoth,
@@ -58,6 +59,24 @@ describe('the same user in two orgs', () => {
     expect(soql[0]).toContain("Username IN ('ann@acme.com.dev', 'ann@acme.com')");
     expect(soql[0]).toContain("Username LIKE 'ann@acme.com.%'");
     expect(await findSameUser(client, "o'brien")).toBeNull();
+  });
+});
+
+describe('a user in both orgs', () => {
+  it('pairs the matches of both orgs by username, and finds a renamed user by username', async () => {
+    const user = (Id: string, Name: string, Username: string) => ({ Id, Name, Username, IsActive: true });
+    const a = fakeOrg([
+      [/FROM User WHERE Username LIKE '%ann%'/, [user('005000000000001AAA', 'Ann Lee', 'ann@acme.com.dev')]],
+    ]);
+    const b = fakeOrg([
+      [/FROM User WHERE Username LIKE '%ann%'/, [user('005000000000009AAA', 'Ann Other', 'ann.o@acme.com.uat')]],
+      [/Username IN \('ann@acme.com.dev'/, [user('005000000000002AAA', 'Ann Lee-Smith', 'ann@acme.com.uat')]],
+    ]);
+    const rows = await findUserInBoth(a.client, b.client, 'ann');
+    expect(rows.map((r) => [r.Name, r.in, r.usernameA, r.usernameB])).toEqual([
+      ['Ann Lee', 'both', 'ann@acme.com.dev', 'ann@acme.com.uat'],
+      ['Ann Other', 'only in B', '', 'ann.o@acme.com.uat'],
+    ]);
   });
 });
 
