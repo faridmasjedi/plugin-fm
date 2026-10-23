@@ -18,6 +18,8 @@ import {
 import { DataTable, download } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { detectHost, orgFacts, type OrgChoice, type OrgFacts } from '../host';
+import { OrgPairBar, usePair } from '../pair';
+import { askTyped } from '../components/Dialogs';
 
 const LEVELS: Array<{ id: TestLevel; label: string }> = [
   { id: 'NoTestRun', label: 'No tests (sandboxes only)' },
@@ -55,8 +57,10 @@ const zipBytes = (b64: string): Blob => new Blob([fromBase64(b64)], { type: 'app
  */
 export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
   const studio = useStudio();
-  const [sourceId, setSourceId] = useState<string>(() => storage.get('orgdiff.source', studio.org.id));
-  const [targetId, setTargetId] = useState<string>(() => storage.get('orgdiff.target', ''));
+  // A → B of the Org to org hub: copy from A, compare with and deploy into B
+  const [pair] = usePair();
+  const sourceId = pair.a;
+  const targetId = pair.b;
   const [clients, setClients] = useState<{ source?: SalesforceClient; target?: SalesforceClient }>({});
   const [targetFacts, setTargetFacts] = useState<OrgFacts>();
   const [types, setTypes] = useState<MetadataType[]>([]);
@@ -86,8 +90,6 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
     setOutcome(null);
     setClients({});
     setTargetFacts(undefined);
-    storage.set('orgdiff.source', sourceId);
-    storage.set('orgdiff.target', targetId);
     const host = detectHost();
     let canceled = false;
     void (async () => {
@@ -180,14 +182,24 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
       'package'
     );
 
+  // Changes go into B: type B's name (the org at the top may be another one)
+  const confirmInTarget = (what: string): Promise<boolean> =>
+    askTyped(`${what}${production ? `\n\n⚠ ${target?.label} is a PRODUCTION org.` : ''}`, target?.label ?? '', {
+      ok: 'Confirm',
+      danger: production,
+    });
+
   const deploy = async () => {
     if (!pkg || !clients.target || !target) return;
+    // Validating and deploying are both approved with B's name
     if (
-      !checkOnly &&
-      !(await studio.confirmChange(`Deploy ${pkg.components} component(s) from ${source?.label} to ${target.label}`))
+      !(await confirmInTarget(
+        `${checkOnly ? 'Validate' : 'Deploy'} ${pkg.components} component(s) from ${source?.label} ${
+          checkOnly ? 'against' : 'to'
+        } ${target.label}`
+      ))
     )
       return;
-    if (checkOnly && production && !(await studio.confirmRisky(`Validate a package against ${target.label}`))) return;
     void run(
       checkOnly ? 'Validating…' : 'Deploying…',
       async () => {
@@ -211,7 +223,7 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
 
   const quick = async () => {
     if (!outcome || !clients.target || !target) return;
-    if (!(await studio.confirmChange(`Quick deploy validation ${outcome.id} to ${target.label}`))) return;
+    if (!(await confirmInTarget(`Quick deploy validation ${outcome.id} to ${target.label}`))) return;
     void run(
       'Quick deploy…',
       async () => {
@@ -237,43 +249,11 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
         <h2>Org compare</h2>
         <span className="muted">differences between two orgs → package.xml and a deployable package</span>
       </div>
+      <OrgPairBar labelA="A — source (copy from)" labelB="B — target (compare with, deploy to)" />
+      {production && (
+        <p className="bad-text">⚠ B ({target?.label}) is a PRODUCTION org: deploys there ask for its name.</p>
+      )}
       <div className="card section">
-        <div className="form">
-          <label>
-            Source (copy from)
-            <select value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
-              {orgs.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.label}
-                  {o.type ? ` — ${o.type}` : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-          <span className="arrow">→</span>
-          <label>
-            Target (compare with)
-            <select value={targetId} onChange={(e) => setTargetId(e.target.value)}>
-              <option value="">Choose…</option>
-              {orgs
-                .filter((o) => o.id !== sourceId)
-                .map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
-                    {o.type ? ` — ${o.type}` : ''}
-                  </option>
-                ))}
-            </select>
-          </label>
-          {targetFacts && (
-            <span className={`pill ${production ? 'bad' : 'good'}`}>{production ? 'Production' : 'Sandbox'}</span>
-          )}
-        </div>
-        {orgs.length < 2 && (
-          <p className="muted" style={{ margin: 0 }}>
-            Log in to a second org (Settings → Org) to compare two orgs.
-          </p>
-        )}
         <div className="form">
           <b>Metadata types</b>
           <button onClick={() => setChosen(new Set(types.map((t) => t.xmlName)))}>All</button>
@@ -376,6 +356,11 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
                 </button>
                 {status && statusAt === 'package' && <span className="muted">{status}</span>}
               </div>
+              <p className="muted" style={{ margin: 0 }}>
+                Build package retrieves the ticked components from A into a zip with <code>package.xml</code> (and{' '}
+                <code>destructiveChangesPost.xml</code> for those you also delete). Then download it, or validate and
+                deploy it into B.
+              </p>
             </div>
           )}
           {pkg && (

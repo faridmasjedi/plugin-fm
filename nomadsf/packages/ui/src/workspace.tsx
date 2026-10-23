@@ -3,7 +3,8 @@ import { storage } from './context';
 import { openExternal } from './embed';
 
 /**
- * The Studio's layout: tools grouped into hubs (Develop, Data, Data protection, Release, Org),
+ * The Studio's layout: tools grouped into hubs (Develop, Data, Data protection, Release, Org, and
+ * Org to org for the tools that work on two orgs),
  * each hub a page with its tools as tabs; and panes side by side — drag a hub or a tab to the
  * right half of a pane to open it beside, drag the divider to resize, ✕ to close. The layout
  * is remembered. ⌘/Ctrl + K jumps to any tool.
@@ -37,6 +38,8 @@ export type ToolId =
   | 'events'
   | 'rest'
   | 'activity'
+  | 'orgaccess'
+  | 'orgapps'
   | 'settings'
   | 'local-orgs'
   | 'local-ai';
@@ -71,6 +74,8 @@ export const TOOLS: Tool[] = [
   { id: 'events', label: 'Events', icon: '⚡', hint: 'platform events, CDC' },
   { id: 'rest', label: 'REST Explorer', icon: '⇄', hint: 'any REST call' },
   { id: 'activity', label: 'Activity', icon: '⏱', hint: 'what was changed from here' },
+  { id: 'orgaccess', label: 'Access', icon: '⚿', hint: 'users and permissions in two orgs' },
+  { id: 'orgapps', label: 'Connected apps', icon: '⚷', hint: 'connected apps in two orgs' },
   { id: 'settings', label: 'Settings', icon: '⚙', hint: 'org, project, AI' },
   { id: 'local-orgs', label: 'CLI orgs', icon: '☁', hint: 'orgs of the CLI app' },
   { id: 'local-ai', label: 'AI settings', icon: '✦', hint: 'AI of the CLI app' },
@@ -81,9 +86,10 @@ export type Hub = { id: string; label: string; icon: string; tools: ToolId[] };
 export const HUBS: Hub[] = [
   { id: 'develop', label: 'Develop', icon: '{}', tools: ['apex', 'code', 'apextests', 'logs', 'automation', 'jobs'] },
   { id: 'data', label: 'Data', icon: '⇅', tools: ['query', 'record', 'data', 'lookup', 'schema', 'fields'] },
-  { id: 'protect', label: 'Data protection', icon: '⛁', tools: ['backup', 'migrate', 'lifecycle'] },
-  { id: 'release', label: 'Release', icon: '⌂', tools: ['project', 'metadata', 'orgdiff', 'deployments', 'tests'] },
+  { id: 'protect', label: 'Data protection', icon: '⛁', tools: ['backup', 'lifecycle'] },
+  { id: 'release', label: 'Release', icon: '⌂', tools: ['project', 'metadata', 'deployments', 'tests'] },
   { id: 'org', label: 'Org', icon: '⚿', tools: ['access', 'apps', 'health', 'limits', 'events', 'rest', 'activity'] },
+  { id: 'between', label: 'Org to org', icon: '⇋', tools: ['orgdiff', 'migrate', 'orgaccess', 'orgapps'] },
   { id: 'local', label: 'Local app', icon: '☁', tools: ['local-orgs', 'local-ai'] },
   { id: 'settings', label: 'Settings', icon: '⚙', tools: ['settings'] },
 ];

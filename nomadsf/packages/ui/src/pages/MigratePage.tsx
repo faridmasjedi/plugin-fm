@@ -55,6 +55,7 @@ import { orgFacts, type OrgChoice, type OrgFacts } from '../host';
 import { backupFolder, backupJobs, bigStore, isLocked, jobSink, type JobRecord } from '../backups';
 import { ObjectSettings } from './BackupPage';
 import { askTyped } from '../components/Dialogs';
+import { OrgPairBar, usePair } from '../pair';
 
 type SourceChoice = { kind: 'org'; org: string } | { kind: 'backup'; jobId: string; folder: string };
 type LastCopy = { at: string; source: string; created: LoadResult['created']; records: number };
@@ -76,15 +77,21 @@ export function MigratePage({
   clientFor: (org: string) => Promise<SalesforceClient>;
 }) {
   const studio = useStudio();
-  const [source, setSource] = useState<SourceChoice>(() => {
+  // From org A (or a backup) into org B of the Org to org hub
+  const [pair, setPair] = usePair();
+  const [backup, setBackup] = useState<Extract<SourceChoice, { kind: 'backup' }> | null>(() => {
     const from = storage.get<{ jobId: string; folder: string } | undefined>('migrate.from', undefined);
-    if (from) {
-      storage.set('migrate.from', undefined);
-      return { kind: 'backup', ...from };
-    }
-    return { kind: 'org', org: storage.get('migrate.source', studio.org.id) };
+    if (!from) return null;
+    storage.set('migrate.from', undefined);
+    return { kind: 'backup', ...from };
   });
-  const [targetId, setTargetId] = useState<string>(() => storage.get('migrate.target', ''));
+  const source = useMemo<SourceChoice>(() => backup ?? { kind: 'org', org: pair.a }, [backup, pair.a]);
+  const setSource = (next: SourceChoice) => {
+    if (next.kind === 'backup') return setBackup(next);
+    setBackup(null);
+    setPair({ a: next.org, b: pair.b === next.org ? '' : pair.b });
+  };
+  const targetId = pair.b;
   const [facts, setFacts] = useState<{ source?: OrgFacts; target?: OrgFacts }>({});
   const [candidates, setCandidates] = useState<DataObject[] | null>(null);
   const [sourceClient, setSourceClient] = useState<SalesforceClient>();
@@ -164,7 +171,6 @@ export function MigratePage({
     void (async () => {
       try {
         if (source.kind === 'org') {
-          storage.set('migrate.source', source.org);
           const client = await clientFor(source.org);
           setSourceClient(client);
           const [list, f] = await Promise.all([
@@ -212,7 +218,6 @@ export function MigratePage({
     setFacts((x) => ({ ...x, target: undefined }));
     setLast(undefined);
     if (!targetId) return;
-    storage.set('migrate.target', targetId);
     let canceled = false;
     void (async () => {
       try {
@@ -596,6 +601,7 @@ export function MigratePage({
         <h2>Migrate</h2>
         <span className="muted">Copy records between orgs, or from a backup, with their relationships</span>
       </div>
+      <OrgPairBar labelA="A — copy from" labelB="B — copy into" />
       <div className="card section">
         <h3 className="step-title">
           <span className="step">1</span> From and into
@@ -613,12 +619,7 @@ export function MigratePage({
                 } else setSource({ kind: 'org', org: v.slice(4) });
               }}
             >
-              {orgs.map((o) => (
-                <option key={o.id} value={`org:${o.id}`}>
-                  {o.label}
-                  {o.type ? ` — ${o.type}` : ''}
-                </option>
-              ))}
+              <option value={`org:${pair.a}`}>A — {orgs.find((o) => o.id === pair.a)?.label}</option>
               {backupJobs.list().length > 0 && <option value="backup">A backup…</option>}
             </select>
           </label>
@@ -649,18 +650,10 @@ export function MigratePage({
             </>
           )}
           <span className="arrow">→</span>
-          <label>
-            Into
-            <select value={targetId} onChange={(e) => setTargetId(e.target.value)}>
-              <option value="">Choose the target…</option>
-              {orgs.map((o) => (
-                <option key={o.id} value={o.id} disabled={source.kind === 'org' && o.id === source.org}>
-                  {o.label}
-                  {o.type ? ` — ${o.type}` : ''}
-                </option>
-              ))}
-            </select>
-          </label>
+          <span>
+            Into{'\u00a0'}
+            <b>{target ? `B — ${target.label}` : 'B (choose it above)'}</b>
+          </span>
           {facts.target && (
             <span className={`pill ${targetProduction ? 'bad' : 'good'}`}>
               {targetProduction ? 'Production' : 'Sandbox'}

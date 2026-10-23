@@ -100,7 +100,7 @@
           <section class="tool" data-title="Hubs and panes">
             <h2 id="layout">Hubs and panes</h2>
             <p>
-              The sidebar has five hubs and Settings. A hub is a page with its tools as tabs, and opens on the tab you
+              The sidebar has six hubs and Settings. A hub is a page with its tools as tabs, and opens on the tab you
               used last.
             </p>
             <div class="shot">
@@ -143,15 +143,19 @@
               </tr>
               <tr>
                 <td><b>Data protection</b></td>
-                <td>Backup (with Restore) · Migrate · Lifecycle</td>
+                <td>Backup (with Restore) · Lifecycle</td>
               </tr>
               <tr>
                 <td><b>Release</b></td>
-                <td>Project · Metadata · Org compare · Deployments · E2E tests</td>
+                <td>Project · Metadata · Deployments · E2E tests</td>
               </tr>
               <tr>
                 <td><b>Org</b></td>
                 <td>Users &amp; access · Connected apps · Org health · Limits · Events · REST Explorer · Activity</td>
+              </tr>
+              <tr>
+                <td><b>Org to org</b></td>
+                <td>Org compare · Migrate · Access · Connected apps — for two orgs, A → B</td>
               </tr>
             </table>
           </section>
@@ -509,58 +513,6 @@
               </li>
             </ul>
           </section>
-          <section class="tool" data-title="Migrate">
-            <h3 id="migrate">Migrate</h3>
-            <div class="shot">
-              <video
-                src="media/migrate.mp4"
-                poster="media/migrate.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              Copies records from one org (or a backup) into another and keeps every link between them: a Contact still
-              points to its Account, a Case to its Contact, and so on — even though every record gets a new Id in the
-              target.
-            </p>
-            <ol class="steps">
-              <li><b>From</b>: an org, or a backup run. <b>Into</b>: the target org.</li>
-              <li>
-                <b>What to copy</b>: tick objects. Per object: <i>All</i> records (or a condition),
-                <i>Related only</i> (only the children of what you copy — e.g. the Contacts of the Accounts you copy),
-                or <i>Only those pointed to</i> (e.g. only the Users your records point to). <b>Children…</b> adds an
-                object's child objects in one click, with counts.
-              </li>
-              <li>
-                <b>Check plan</b> before anything is written. It shows the load order (parents before children), records
-                per object, fields missing in the target, masked fields, and <b>Links between records</b>: every lookup,
-                whether it is kept or lost, and a fix for each lost one (add the object, or match on a field such as
-                Name or an external Id).
-              </li>
-              <li>
-                <b>Copy</b> — you type the target org name. Progress shows per object; failures are listed with a CSV.
-              </li>
-            </ol>
-            <ul>
-              <li>
-                <b>Again</b>: running the same copy again updates the records it created instead of duplicating them.
-                <b>Undo last copy</b> deletes what the last copy created.
-              </li>
-              <li>
-                <b>Mask personal data</b>: names, emails and phones are replaced (on by default from production into a
-                sandbox).
-              </li>
-              <li><b>Files and attachments</b> can be copied with their records.</li>
-              <li>
-                <b>Keep the old Ids in the target org</b>: for large copies with the Bulk API, a field
-                <code>NomadSF_Old_Id__c</code> remembers each source Id; remove it afterwards with one click.
-              </li>
-            </ul>
-          </section>
           <section class="tool" data-title="Lifecycle">
             <h3 id="lifecycle">Lifecycle</h3>
             <div class="shot">
@@ -664,27 +616,6 @@
               </li>
             </ol>
           </section>
-          <section class="tool" data-title="Org compare">
-            <h3 id="orgdiff">Org compare</h3>
-            <div class="shot">
-              <video
-                src="media/orgdiff.mp4"
-                poster="media/orgdiff.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              Two orgs side by side (sandbox ↔ sandbox, or ↔ production): choose the metadata types and <b>Compare</b>.
-              See what is only in the source, only in the target, or different, and <b>Compare content</b> of those in
-              both. Select what to move, then download <code>package.xml</code>,
-              <code>destructiveChangesPost.xml</code> (with <i>also delete</i> for those only in the target) and a
-              deployable zip — or validate, deploy and quick deploy on the target with a test level.
-            </p>
-          </section>
           <section class="tool" data-title="Deployments">
             <h3 id="deployments">Deployments</h3>
             <div class="shot">
@@ -743,20 +674,26 @@
               </li>
               <li>
                 <b>Object, field &amp; system permissions</b>: what a profile, permission set or group allows — object
-                access, field access, user &amp; system permissions, or <b>All</b> together.
+                access, field access, user &amp; system permissions, or <b>All</b> together. <b>Edit…</b> changes a
+                custom permission set or custom profile (see below); for a permission set group, add or remove its
+                permission sets.
               </li>
               <li>
-                <b>Who has it</b>: pick a permission set, permission set group, permission set license, profile, role,
-                public group or queue — and see its users (active only, or all).
+                <b>Assigned users</b>: pick a permission set, permission set group, permission set license, profile,
+                role, public group or queue — and see its users (active only, or all).
               </li>
               <li>
-                <b>Compare</b>: two users — permission sets, groups, licenses, groups &amp; queues and system
-                permissions one has and the other not — or two profiles / permission sets / groups: system permissions
-                and object access that differ.
+                <b>Compare</b>: two users side by side, in tabs — <i>Details</i>; <i>Profile</i>,
+                <i>Permission sets</i> and <i>Permission set groups</i> with everything each allows (object, field and
+                system permissions, Apex classes, Visualforce pages, apps, custom permissions, connected apps, tab
+                settings, record types, page layouts); <i>Groups &amp; queues</i> and <i>Role</i> with the records
+                shared with them; <i>OAuth apps</i>; <i>Login history</i> — or two profiles, two permission sets or two
+                permission set groups (each on its own tab): system permissions, object and field access that differ. To
+                compare with another org, use <a href="#orgaccess">Org to org › Access</a>.
               </li>
               <li><b>Login history</b> and <b>Setup audit trail</b> of the org for the last days.</li>
             </ul>
-            <p><b>Who has it</b>:</p>
+            <p><b>Assigned users</b>:</p>
             <div class="shot">
               <video src="media/who.mp4" poster="media/who.jpg" muted loop playsinline preload="none" controls></video>
             </div>
@@ -772,6 +709,35 @@
                 controls
               ></video>
             </div>
+            <p id="permedit"><b>Changing permissions</b>:</p>
+            <div class="shot">
+              <video
+                src="media/permedit.mp4"
+                poster="media/permedit.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ol class="steps">
+              <li>
+                In <b>Object, field &amp; system permissions</b>, choose a custom permission set or custom profile and
+                <b>Edit…</b> (standard profiles cannot be changed).
+              </li>
+              <li>
+                Tick or untick object access, field access and user &amp; system permissions; add an object or a field
+                (<code>Object.Field</code>). What Salesforce requires is kept: Edit needs Read, Modify all needs
+                everything. Changed boxes are outlined; nothing is sent yet. (Edit… is off, with the reason, when your
+                user can't change permissions in this org.)
+              </li>
+              <li><b>Save</b> — you type the org name; anything that fails is listed, the rest is saved.</li>
+            </ol>
+            <p>
+              A permission set group gets its permissions from its permission sets: choose the group to add or remove
+              permission sets, and Salesforce recalculates it.
+            </p>
           </section>
           <section class="tool" data-title="Connected apps">
             <h3 id="apps">Connected apps</h3>
@@ -874,6 +840,167 @@
           </section>
         </section>
 
+        <section class="hub" id="hub-between" data-title="Org to org">
+          <h2 id="between">Org to org</h2>
+          <section class="tool" data-title="Two orgs">
+            <h3 id="pair">Two orgs, A → B</h3>
+            <p>
+              The tools that work on two orgs share one pair, chosen in the bar at the top of each: <b>A</b> (compare
+              from, copy from) and <b>B</b> (compare with, copy and deploy into). <b>⇄</b> swaps them. The pair is
+              remembered, and A starts as the org chosen at the top of the Studio. Anything written goes into B, and you
+              type B's name first.
+            </p>
+            <p>
+              Under the bar: <b>what your user may do</b> in each org — <i>full</i>, <i>read only</i> (can read setup,
+              can't change permissions) or <i>limited</i> (can't read profiles, permissions or code) — and which
+              permission is missing. What one org could not be read shows as <b>?</b> ("not read in B"), never as a
+              difference; copying into B is turned off when your user there can't change permissions.
+            </p>
+          </section>
+          <section class="tool" data-title="Org compare">
+            <h3 id="orgdiff">Org compare</h3>
+            <div class="shot">
+              <video
+                src="media/orgdiff.mp4"
+                poster="media/orgdiff.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              A (the source) and B (the target) side by side — sandbox ↔ sandbox, or ↔ production: choose the metadata
+              types and <b>Compare</b>. See what is only in A, only in B, or different, and <b>Compare content</b> of
+              those in both.
+            </p>
+            <ol class="steps">
+              <li>Tick what to move (<b>Select the difference</b> ticks everything only in A or different).</li>
+              <li>
+                <b>Build package</b> retrieves the ticked components from A into a zip with
+                <code>package.xml</code> (and <code>destructiveChangesPost.xml</code> with <i>also delete</i>, for those
+                only in B).
+              </li>
+              <li>
+                Download it, or validate, deploy and quick deploy it into B with a test level — you type B's name, and a
+                production B is shown in red.
+              </li>
+            </ol>
+          </section>
+          <section class="tool" data-title="Migrate">
+            <h3 id="migrate">Migrate</h3>
+            <div class="shot">
+              <video
+                src="media/migrate.mp4"
+                poster="media/migrate.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              Copies records from one org (or a backup) into another and keeps every link between them: a Contact still
+              points to its Account, a Case to its Contact, and so on — even though every record gets a new Id in the
+              target.
+            </p>
+            <ol class="steps">
+              <li>
+                <b>From</b>: org A of the bar, or a backup run. <b>Into</b>: org B. Choose them in the bar at the top
+                (the same two orgs for every tool of the hub).
+              </li>
+              <li>
+                <b>What to copy</b>: tick objects. Per object: <i>All</i> records (or a condition),
+                <i>Related only</i> (only the children of what you copy — e.g. the Contacts of the Accounts you copy),
+                or <i>Only those pointed to</i> (e.g. only the Users your records point to). <b>Children…</b> adds an
+                object's child objects in one click, with counts.
+              </li>
+              <li>
+                <b>Check plan</b> before anything is written. It shows the load order (parents before children), records
+                per object, fields missing in the target, masked fields, and <b>Links between records</b>: every lookup,
+                whether it is kept or lost, and a fix for each lost one (add the object, or match on a field such as
+                Name or an external Id).
+              </li>
+              <li>
+                <b>Copy</b> — you type the target org name. Progress shows per object; failures are listed with a CSV.
+              </li>
+            </ol>
+            <ul>
+              <li>
+                <b>Again</b>: running the same copy again updates the records it created instead of duplicating them.
+                <b>Undo last copy</b> deletes what the last copy created.
+              </li>
+              <li>
+                <b>Mask personal data</b>: names, emails and phones are replaced (on by default from production into a
+                sandbox).
+              </li>
+              <li><b>Files and attachments</b> can be copied with their records.</li>
+              <li>
+                <b>Keep the old Ids in the target org</b>: for large copies with the Bulk API, a field
+                <code>NomadSF_Old_Id__c</code> remembers each source Id; remove it afterwards with one click.
+              </li>
+            </ul>
+          </section>
+          <section class="tool" data-title="Access">
+            <h3 id="orgaccess">Access</h3>
+            <div class="shot">
+              <video
+                src="media/orgaccess.mp4"
+                poster="media/orgaccess.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ul>
+              <li>
+                <b>Find a user</b>: a name, username, email or Id — is that user in A, in B, or both? Usernames, active,
+                profile and last login side by side. The same user is matched by username, with or without a sandbox
+                suffix (<code>ann@acme.com</code> ↔ <code>ann@acme.com.uat</code> ↔ <code>ann@acme.com.dev</code>), else
+                by name. <b>Click a user</b> to compare them in full (or click one of A and one of B).
+              </li>
+              <li>
+                <b>Compare</b>: two users in full (B is found by username — details, everything assigned and its access,
+                permissions, last logins), two profiles, permission sets or permission set groups (B with the same name
+                or API name is chosen for you), or <b>Everything</b>: every profile, permission set and group of both
+                orgs — only in A, only in B, different (how many system permissions and objects), or the same; click one
+                for the details. Permissions one org does not have at all (licenses, features) are left out.
+              </li>
+              <li>
+                <b>Copy A's access into B</b>: comparing two permission sets or profiles, tick differences and copy them
+                — system permissions, object and field access — into B (you type B's name).
+              </li>
+              <li>
+                <b>Assigned users</b>: the users of a permission set, group, license, profile, role or queue in both
+                orgs — in both, only in A, only in B.
+              </li>
+            </ul>
+          </section>
+          <section class="tool" data-title="Connected apps">
+            <h3 id="orgapps">Connected apps</h3>
+            <div class="shot">
+              <video
+                src="media/orgapps.mp4"
+                poster="media/orgapps.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              Connected apps, external client apps and apps used through OAuth in A and B: which are only in one org,
+              and for apps in both, their settings (admin-approved users, refresh-token and session policies, start
+              URL…) and the profiles and permission sets that may use them.
+            </p>
+          </section>
+        </section>
+
         <section class="hub" id="hub-setup" data-title="Settings">
           <section class="tool" data-title="Settings">
             <h2 id="settings">Settings</h2>
@@ -923,8 +1050,10 @@
                 asked when you connect one.
               </li>
               <li>
-                <b>Every change asks first</b>: saving code, editing records, deploying, deleting, restoring and copying
-                data ask you to type the org name. Production orgs are shown in red.
+                <b>Every change asks first</b>, in every org: saving code, editing records, validating and deploying,
+                deleting, restoring and copying data, changing permissions — you type the org name (in Org to org, B's
+                name). Running Apex or tests, turning on debug logs and Log in as ask too. Production orgs are shown in
+                red.
               </li>
               <li>
                 <b>Your data stays with you</b>: backups go to a folder you choose on your own computer, optionally

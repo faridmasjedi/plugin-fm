@@ -1,11 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
-import { HOLDER_KINDS, holdersOf, usersWith, type Holder, type HolderKind, type Row } from '@nomadsf/core';
+import {
+  HOLDER_KINDS,
+  holdersOf,
+  sameHolder,
+  usersWith,
+  usersWithInBoth,
+  type Holder,
+  type HolderKind,
+  type Row,
+} from '@nomadsf/core';
 import { storage, useStudio } from '../context';
 import { DataTable, EmptyHint } from './DataTable';
+import type { OrgSides } from './CompareAccess';
 
-/** Who has a permission set, group, license, profile, role, public group or queue. */
-export function WhoHasIt() {
-  const { client, org } = useStudio();
+/** Assigned users: the users of a permission set, group, license, profile, role, public group or queue — in this org, or in two orgs. */
+export function WhoHasIt({ between }: { between?: OrgSides }) {
+  const studio = useStudio();
+  const client = between?.clientA ?? studio.client;
+  const labelA = between?.labelA ?? studio.org.label;
+  const clientB = between?.clientB ?? null;
+  const isBetween = Boolean(between);
+  const [holdersB, setHoldersB] = useState<Holder[] | null>(null);
   const [kind, setKind] = useState<HolderKind>(() => storage.get('who.kind', 'permset'));
   const [holders, setHolders] = useState<Holder[] | null>(null);
   const [filter, setFilter] = useState('');
@@ -25,16 +40,28 @@ export function WhoHasIt() {
   }, [client, kind]);
 
   useEffect(() => {
+    setHoldersB(null);
+    if (!clientB) return;
+    holdersOf(clientB, kind)
+      .then(setHoldersB)
+      .catch((e: Error) => setStatus(`❌ ${between?.labelB}: ${e.message}`));
+  }, [clientB, kind, between?.labelB]);
+
+  const holder = holders?.find((h) => h.id === holderId);
+  // The same one in the other org, by API name (profiles by name)
+  const holderB = holder && holdersB ? sameHolder(holdersB, holder) : undefined;
+
+  useEffect(() => {
     setUsers(null);
-    if (!holderId) return;
+    if (!holder || (isBetween && !holdersB)) return;
     setStatus('Reading users…');
-    usersWith(client, { kind, id: holderId })
+    (clientB ? usersWithInBoth(client, holder, clientB, holderB) : usersWith(client, holder))
       .then((list) => {
         setUsers(list);
         setStatus('');
       })
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
-  }, [client, kind, holderId]);
+  }, [client, clientB, holder, holderB, holdersB, isBetween]);
 
   const shown = useMemo(
     () =>
@@ -43,13 +70,15 @@ export function WhoHasIt() {
       ),
     [holders, filter]
   );
-  const holder = holders?.find((h) => h.id === holderId);
-  const rows = (users ?? []).filter((u) => !activeOnly || u.IsActive !== false);
+  const both = Boolean(clientB);
+  const rows = (users ?? []).filter((u) =>
+    !activeOnly ? true : both ? u.activeA === true || u.activeB === true : u.IsActive !== false
+  );
   const kindLabel = HOLDER_KINDS.find(([k]) => k === kind)?.[1] ?? '';
 
   return (
     <div className="card section">
-      <h3>Who has it</h3>
+      <h3>Assigned users</h3>
       <div className="form">
         <label>
           Kind
@@ -89,23 +118,31 @@ export function WhoHasIt() {
           <EmptyHint what="users" />
         ) : (
           <DataTable
-            columns={[
-              'Name',
-              'Username',
-              'Email',
-              'IsActive',
-              'Profile.Name',
-              'UserRole.Name',
-              'LastLoginDate',
-              ...(kind === 'permset' || kind === 'group' ? ['ExpirationDate'] : []),
-            ]}
+            columns={
+              both
+                ? ['Name', 'in', 'usernameA', 'usernameB', 'activeA', 'activeB', 'profileA', 'profileB']
+                : [
+                    'Name',
+                    'Username',
+                    'Email',
+                    'IsActive',
+                    'Profile.Name',
+                    'UserRole.Name',
+                    'LastLoginDate',
+                    ...(kind === 'permset' || kind === 'group' ? ['ExpirationDate'] : []),
+                  ]
+            }
             rows={rows}
             rowKey="Id"
-            name={`${org.label}-${holder.label}-users`}
+            name={`${labelA}-${holder.label}-users`}
             note={
               <span>
                 · users with {kindLabel.toLowerCase()} {holder.label}
                 {kind === 'publicGroup' || kind === 'queue' ? ' (direct members)' : ''}
+                {both &&
+                  ` · A = ${labelA}, B = ${between?.labelB}${
+                    holderB ? '' : ` (not in B by the same API name)`
+                  } · users matched by username`}
               </span>
             }
           />

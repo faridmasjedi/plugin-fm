@@ -1,5 +1,5 @@
 import type { SalesforceClient } from './client.js';
-import { query } from './query.js';
+import { query, type Row } from './query.js';
 
 /**
  * Field usage before you change or delete a field: how many records fill it, and which
@@ -161,7 +161,16 @@ export async function fieldAccess(client: SalesforceClient, sobject: string, fie
     .sort((a, b) => order[a.access] - order[b.access] || a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
 }
 
-export type PermissionHolder = { id: string; kind: FieldAccess['kind']; name: string };
+/** The same in every org: the profile's name, the group's or permission set's API name (with its namespace). */
+export type PermissionHolder = { id: string; kind: FieldAccess['kind']; name: string; api?: string };
+
+/** A PermissionSet row (with Name, NamespacePrefix, Type, IsOwnedByProfile, Profile.Name, PermissionSetGroup.DeveloperName) → its key across orgs. */
+export const permissionSetKey = (r: Row): string =>
+  r.IsOwnedByProfile === true
+    ? `Profile:${String(r['Profile.Name'] ?? '')}`
+    : r.Type === 'Group'
+    ? `Permission set group:${String(r['PermissionSetGroup.DeveloperName'] ?? r.Name ?? '')}`
+    : `Permission set:${r.NamespacePrefix ? `${String(r.NamespacePrefix)}__` : ''}${String(r.Name ?? '')}`;
 
 /**
  * Every profile, permission set and permission set group, by the PermissionSet record that holds
@@ -171,7 +180,7 @@ export type PermissionHolder = { id: string; kind: FieldAccess['kind']; name: st
 export async function permissionHolders(client: SalesforceClient): Promise<PermissionHolder[]> {
   const result = await query(
     client,
-    'SELECT Id, Label, Type, IsOwnedByProfile, Profile.Name, Profile.UserLicense.Name, PermissionSetGroup.MasterLabel FROM PermissionSet ORDER BY Label',
+    'SELECT Id, Name, NamespacePrefix, Label, Type, IsOwnedByProfile, Profile.Name, Profile.UserLicense.Name, PermissionSetGroup.MasterLabel, PermissionSetGroup.DeveloperName FROM PermissionSet ORDER BY Label',
     { maxRows: 10_000 }
   );
   const rows = result.rows.map((r) => {
@@ -184,14 +193,15 @@ export async function permissionHolders(client: SalesforceClient): Promise<Permi
         (profile ? r['Profile.Name'] : group ? r['PermissionSetGroup.MasterLabel'] ?? r.Label : r.Label) ?? ''
       ),
       licence: profile ? String(r['Profile.UserLicense.Name'] ?? '') : '',
+      api: permissionSetKey(r),
     };
   });
   return rows.map((r) => {
     const same = rows.filter((x) => x.kind === r.kind && x.name === r.name);
-    if (same.length < 2) return { id: r.id, kind: r.kind, name: r.name };
+    if (same.length < 2) return { id: r.id, kind: r.kind, name: r.name, api: r.api };
     const sameLicence = same.filter((x) => x.licence === r.licence).length > 1;
     const suffix = r.licence && !sameLicence ? r.licence : `${r.licence ? `${r.licence}, ` : ''}…${r.id.slice(9, 15)}`;
-    return { id: r.id, kind: r.kind, name: `${r.name} (${suffix})` };
+    return { id: r.id, kind: r.kind, name: `${r.name} (${suffix})`, api: r.api };
   });
 }
 

@@ -162,7 +162,7 @@ export function AccessPage() {
             ['perms', 'Permission sets & groups'],
             ['rights', 'Object, field & system permissions'],
             ['users', 'Users'],
-            ['who', 'Who has it'],
+            ['who', 'Assigned users'],
             ['compare', 'Compare'],
           ] as Array<[Tab, string]>
         ).map(([id, label]) => (

@@ -218,7 +218,10 @@ export function DataTable({
                   </td>
                 )}
                 {columns.map((c, ci) => (
-                  <td key={`${ci}:${c}`}>{cell(c, r[c])}</td>
+                  // Long text is cut to the column: hovering shows all of it
+                  <td key={`${ci}:${c}`} title={fullText(r[c])}>
+                    {cell(c, r[c])}
+                  </td>
                 ))}
               </tr>
             ))}
@@ -231,6 +234,9 @@ export function DataTable({
     </div>
   );
 }
+
+const fullText = (value: unknown): string | undefined =>
+  (typeof value === 'string' || typeof value === 'number') && String(value).length > 40 ? String(value) : undefined;
 
 /** Shown when Salesforce returns nothing: records the user cannot see are left out silently. */
 export function EmptyHint({ what = 'rows' }: { what?: string }) {

@@ -2454,3 +2454,69 @@ pre.wrap {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* Org to org: A ⇄ B */
+.org-pair .swap {
+  height: var(--h);
+  min-width: var(--h);
+  padding: 0;
+  font-size: 16px;
+}
+
+/* Permissions explorer › Edit */
+.access-editor .editor-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--panel);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.edit-table {
+  border-collapse: collapse;
+  margin: 6px 0 10px;
+}
+.edit-table th,
+.edit-table td {
+  padding: 4px 12px 4px 0;
+  text-align: left;
+  font-size: var(--fs-sm);
+}
+.edit-table input.changed {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Two users compared: differences per tab, section buttons that wrap */
+.count-badge {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: var(--accent);
+  color: #fff;
+}
+.segmented.wrap {
+  flex-wrap: wrap;
+}
+.user-comparison > .tabs {
+  margin-top: 6px;
+}
+
+/* Org to org: what your user may do in A and B */
+.pair-access {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.pair-access .access-full b {
+  color: var(--good);
+}
+.pair-access .access-read-only b {
+  color: var(--warn);
+}
+.pair-access .access-limited b {
+  color: var(--bad);
+}

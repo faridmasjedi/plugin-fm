@@ -1,23 +1,32 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   fieldAccessOf,
   objectAccessOf,
   permissionHolders,
+  permissionSetInfo,
   systemPermissionsOf,
   type FieldAccessRow,
   type ObjectAccessRow,
   type PermissionHolder,
+  type PermissionSetInfo,
   type SystemPermission,
 } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
 import { DataTable, EmptyHint } from './DataTable';
+import { AccessEditor, GroupEditor } from './AccessEditor';
+import { cannotChangePermissions, useAccessOf } from '../access';
 
 type Tab = 'all' | 'objects' | 'fields' | 'system';
 const yes = (v: boolean): string => (v ? '✓' : '');
 
-/** What a profile, permission set or group allows: objects, fields and user / system permissions (read-only). */
+/**
+ * What a profile, permission set or group allows: objects, fields and user / system permissions. Custom permission
+ * sets and profiles can be edited; a group's permission sets can be added and removed.
+ */
 export function PermissionsExplorer() {
-  const { client } = useStudio();
+  const { client, org } = useStudio();
+  // Changing permissions needs Manage Profiles and Permission Sets (checked once per org)
+  const blocked = cannotChangePermissions(useAccessOf(client), org.label);
   const [holders, setHolders] = useState<PermissionHolder[]>([]);
   const [filter, setFilter] = useState('');
   const [kindShown, setKindShown] = useState<'all' | PermissionHolder['kind']>(() => storage.get('perms.kind', 'all'));
@@ -30,6 +39,10 @@ export function PermissionsExplorer() {
   const [system, setSystem] = useState<SystemPermission[] | null>(null);
   const [grantedOnly, setGrantedOnly] = useState(true);
   const [status, setStatus] = useState('');
+  const [info, setInfo] = useState<PermissionSetInfo | null>(null);
+  const [editing, setEditing] = useState(false);
+  // Bumped after saving: reads the permissions again
+  const [reloads, setReloads] = useState(0);
 
   useEffect(() => {
     permissionHolders(client)
@@ -52,31 +65,48 @@ export function PermissionsExplorer() {
     setObjects(null);
     setFields(null);
     setSystem(null);
-  }, [holderId]);
-  useEffect(() => {
+    setEditing(false);
+    setInfo(null);
+    setStatus('');
     if (!holderId) return;
     let canceled = false;
-    const fail = (e: Error) => !canceled && setStatus(`❌ ${e.message}`);
-    setStatus('');
-    const show = (t: Tab) => tab === t || tab === 'all';
-    if (show('objects') && objects === null)
-      objectAccessOf(client, holderId)
-        .then((r) => !canceled && setObjects(r))
-        .catch(fail);
-    if (show('system') && system === null)
-      systemPermissionsOf(client, holderId)
-        .then((r) => !canceled && setSystem(r))
-        .catch(fail);
-    if (show('fields') && fields === null)
-      fieldAccessOf(client, holderId, fieldObject || undefined)
-        .then((r) => !canceled && setFields(r))
-        .catch(fail);
+    permissionSetInfo(client, holderId)
+      .then((i) => !canceled && setInfo(i))
+      .catch(() => undefined);
     return () => {
       canceled = true;
     };
-    // results are not triggers
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, holderId, tab, fieldObject]);
+  }, [client, holderId]);
+  // What has been asked for this choice (a list is read once per holder, field filter and save)
+  const asked = useRef({ key: '', lists: new Set<string>() });
+  useEffect(() => {
+    if (!holderId) return;
+    const key = `${holderId}|${reloads}`;
+    if (asked.current.key !== key) asked.current = { key, lists: new Set() };
+    const mine = asked.current;
+    // Results of an earlier choice are dropped
+    const current = () => asked.current === mine;
+    const fail = (e: Error) => current() && setStatus(`❌ ${e.message}`);
+    // Editing needs all three lists
+    const show = (t: Tab) => editing || tab === t || tab === 'all';
+    const need = (list: string): boolean => {
+      if (mine.lists.has(list)) return false;
+      mine.lists.add(list);
+      return true;
+    };
+    if (show('objects') && need('objects'))
+      objectAccessOf(client, holderId)
+        .then((r) => current() && setObjects(r))
+        .catch(fail);
+    if (show('system') && need('system'))
+      systemPermissionsOf(client, holderId)
+        .then((r) => current() && setSystem(r))
+        .catch(fail);
+    if (show('fields') && need(`fields:${fieldObject}`))
+      fieldAccessOf(client, holderId, fieldObject || undefined)
+        .then((r) => current() && setFields(r))
+        .catch(fail);
+  }, [client, holderId, tab, fieldObject, editing, reloads]);
 
   const kinds = ['Profile', 'Permission set', 'Permission set group'] as const;
 
@@ -117,9 +147,45 @@ export function PermissionsExplorer() {
             ))}
         </select>
         {holder && <span className="pill">{holder.kind}</span>}
+        {holder && info?.editable && !editing && (
+          <button
+            onClick={() => setEditing(true)}
+            disabled={Boolean(blocked)}
+            title={blocked ?? 'Change object, field and user / system permissions'}
+          >
+            Edit…
+          </button>
+        )}
+        {holder && info?.editable && blocked && <span className="muted">{blocked}</span>}
+        {holder && info && !info.editable && info.kind !== 'Permission set group' && (
+          <span className="muted">{info.reason}</span>
+        )}
         <span className="muted">{status}</span>
       </div>
-      {holder && (
+      {holder && info?.groupId && <GroupEditor groupId={info.groupId} holders={holders} blocked={blocked} />}
+      {holder &&
+        editing &&
+        (objects && fields && system ? (
+          <AccessEditor
+            holder={holder}
+            objects={objects}
+            fields={fields}
+            system={system}
+            onDone={(saved) => {
+              setEditing(false);
+              if (saved) {
+                setStatus('✓ Saved.');
+                setObjects(null);
+                setFields(null);
+                setSystem(null);
+                setReloads((n) => n + 1);
+              }
+            }}
+          />
+        ) : (
+          <p className="muted">Reading the current permissions…</p>
+        ))}
+      {holder && !editing && (
         <>
           <div className="tabs">
             {(
