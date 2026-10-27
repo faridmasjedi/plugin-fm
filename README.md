@@ -27,12 +27,12 @@ Tools are grouped into hubs. Open two or three side by side (drag a hub or a tab
 
 ## Get it
 
-| What                                 | How                                                                                                                                                                                                                             |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Browser extension** (Chrome, Edge) | Download [`nomadsf-extension.zip`](https://github.com/faridmasjedi/plugin-fm/releases/latest/download/nomadsf-extension.zip), unzip, `chrome://extensions` → Developer mode → **Load unpacked**. Store listings are on the way. |
-| **VS Code**                          | Download [`nomadsf-vscode.vsix`](https://github.com/faridmasjedi/plugin-fm/releases/latest/download/nomadsf-vscode.vsix) → Extensions → **Install from VSIX…** (uses the Salesforce CLI's logins).                              |
-| **One version**                      | Each release ships the plugin, the browser extension and the VS Code extension with the same version number.                                                                                                                    |
-| **Every version**                    | [GitHub Releases](https://github.com/faridmasjedi/plugin-fm/releases), or the list on the [website](https://faridmasjedi.github.io/plugin-fm/#download).                                                                        |
+| What                                 | How                                                                                                                                                                                                                                    |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Browser extension** (Chrome, Edge) | Download [`nomadsf-extension.zip`](https://github.com/faridmasjedi/plugin-fm/releases/latest/download/nomadsf-extension.zip), unzip, `chrome://extensions` → Developer mode → **Load unpacked**. Store listings are on the way.        |
+| **VS Code**                          | Download [`nomadsf-vscode.vsix`](https://github.com/faridmasjedi/plugin-fm/releases/latest/download/nomadsf-vscode.vsix) → Extensions → **Install from VSIX…** (works on its own; uses the Salesforce CLI's logins or logs in itself). |
+| **One version**                      | Each release ships the plugin, the browser extension and the VS Code extension with the same version number.                                                                                                                           |
+| **Every version**                    | [GitHub Releases](https://github.com/faridmasjedi/plugin-fm/releases), or the list on the [website](https://faridmasjedi.github.io/plugin-fm/#download).                                                                               |
 
 Then open any Salesforce page and click the NomadSF icon, or the **N** tab on the right edge (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd>). The [guide](https://faridmasjedi.github.io/plugin-fm/guide.html) walks through every hub.
 
@@ -49,7 +49,7 @@ Details: [nomadsf/STUDIO.md](nomadsf/STUDIO.md).
 
 ## For developers and CI: the `sf fm` plugin
 
-This repository also ships a Salesforce CLI plugin for release pipelines, and the local app it runs (`sf fm dashboard`, used by the VS Code extension):
+This repository also ships a Salesforce CLI plugin for release pipelines, and the local app it runs (`sf fm dashboard`, also shown by the VS Code extension's **Open the app**):
 
 ```bash
 sf plugins install https://github.com/faridmasjedi/plugin-fm

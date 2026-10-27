@@ -40,7 +40,7 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "workspaceContains:sfdx-project.json"
+    "onStartupFinished"
   ],
   "contributes": {
     "commands": [
