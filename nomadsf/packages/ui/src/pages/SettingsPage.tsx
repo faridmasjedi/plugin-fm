@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { GitHubCard } from '../components/GitHubCard';
 import { OrgSettings } from '../components/OrgSettings';
 import { AiSettingsCard } from '../components/AiSettingsCard';
-import type { OrgChoice } from '../host';
+import type { HostKind, OrgChoice } from '../host';
 import { storage } from '../context';
 import { localAppEnabled, useProject } from '../project';
 
@@ -17,7 +17,7 @@ export function SettingsPage({
   onSwitchOrg,
   onRefreshOrgs,
 }: {
-  hostKind: 'app' | 'extension';
+  hostKind: HostKind;
   onOpenProject: () => void;
   orgs: OrgChoice[];
   orgId: string;

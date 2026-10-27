@@ -1,13 +1,33 @@
 /**
- * The Studio inside the VS Code extension: an iframe in a sandboxed webview. There the
- * browser cannot open windows, use the clipboard, download files or show a folder picker,
- * and VS Code turns ⌘C / ⌘V into commands on the webview page instead of on this frame.
- * The extension's page (apps/vscode) passes those through, and the extension does what
- * the browser cannot: open links, read and write the clipboard, save files, folders.
+ * The Studio inside the VS Code extension, in a sandboxed webview: either the webview page
+ * itself (the extension ships the Studio) or an iframe of the local app (`sf fm dashboard`).
+ * There the browser cannot open windows, use the clipboard, download files or show a folder
+ * picker, and VS Code turns ⌘C / ⌘V into execCommand on the webview page. The extension
+ * (apps/vscode) does what the browser cannot: open links, read and write the clipboard,
+ * save files, folders, and (webview page only) the orgs and their requests.
  */
 
+/** The Studio is the webview page itself (the extension's page sets this meta tag). */
+export const inVsCodeWebview = (): boolean =>
+  Boolean(document.querySelector('meta[name="nomadsf-host"][content="vscode"]'));
+
 export const inVsCode = (): boolean =>
-  window.parent !== window && new URLSearchParams(location.search).get('embed') === 'vscode';
+  inVsCodeWebview() || (window.parent !== window && new URLSearchParams(location.search).get('embed') === 'vscode');
+
+type VsCodeApi = { postMessage(message: unknown): void };
+declare const acquireVsCodeApi: (() => VsCodeApi) | undefined;
+let vscodeApi: VsCodeApi | undefined;
+
+/** To the extension: straight from the webview page, else through the page around the frame. */
+function post(message: unknown): void {
+  if (inVsCodeWebview() && typeof acquireVsCodeApi === 'function') {
+    vscodeApi ??= acquireVsCodeApi();
+    vscodeApi.postMessage(message);
+  } else window.parent.postMessage(message, '*');
+}
+
+/** The browser's execCommand (the webview page replaces document.execCommand, see installEmbed). */
+let nativeExec = (cmd: string, value?: string): boolean => document.execCommand(cmd, false, value);
 
 type Reply = { nomadsf: 'reply'; id: number; result?: unknown; error?: string };
 const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
@@ -18,7 +38,7 @@ export function call<T>(op: string, ...args: unknown[]): Promise<T> {
   return new Promise((resolve, reject) => {
     const id = ++nextId;
     pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
-    window.parent.postMessage({ nomadsf: 'call', id, op, args }, '*');
+    post({ nomadsf: 'call', id, op, args });
   });
 }
 
@@ -78,7 +98,7 @@ function paste(text: string): void {
   const event = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
   target.dispatchEvent(event);
   // Monaco and other editors take the text from the event; plain fields get it typed in
-  if (!event.defaultPrevented) document.execCommand('insertText', false, text);
+  if (!event.defaultPrevented) nativeExec('insertText', text);
 }
 
 /** The last edit key handled in the Studio itself (so VS Code's copy of it is not run twice). */
@@ -98,12 +118,39 @@ function command(cmd: string, text?: string): void {
     const el = document.activeElement;
     const editable =
       el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || (el as HTMLElement)?.isContentEditable;
-    if (cmd === 'cut' && editable && selectedText()) document.execCommand('delete');
+    if (cmd === 'cut' && editable && selectedText()) nativeExec('delete');
   } else if (cmd === 'paste') {
     if (text) paste(text);
   } else if (['selectAll', 'undo', 'redo'].includes(cmd)) {
-    document.execCommand(cmd);
+    nativeExec(cmd);
   }
+}
+
+/** The same key already handled in the Studio (keydown below), when VS Code also sends it. */
+const justHandled = (cmd: string): boolean => Boolean(lastKey && lastKey.cmd === cmd && Date.now() - lastKey.at < 600);
+
+const EDIT_COMMANDS = new Set(['copy', 'cut', 'paste', 'selectAll', 'undo', 'redo']);
+
+/**
+ * The webview page: VS Code runs ⌘C, ⌘V… as document.execCommand here. They go to the Studio's
+ * own handling (the frame's page around the app's Studio does the same, apps/vscode).
+ */
+function routeEditCommands(): void {
+  const original = document.execCommand.bind(document);
+  nativeExec = (cmd, value) => original(cmd, false, value);
+  document.execCommand = (cmd: string, showUi?: boolean, value?: string): boolean => {
+    if (!EDIT_COMMANDS.has(cmd)) return original(cmd, showUi, value);
+    if (justHandled(cmd)) return true;
+    if (cmd === 'paste') void call<string>('clipboardRead').then((text) => command('paste', text));
+    else command(cmd);
+    return true;
+  };
+}
+
+/** A link from the extension (#apex, #record=…, #query=…) opens that tool. */
+function startAt(): void {
+  const hash = document.querySelector<HTMLMetaElement>('meta[name="nomadsf-hash"]')?.content;
+  if (hash) history.replaceState(null, '', `${location.href.split('#')[0]}#${hash}`);
 }
 
 // ---------- downloads ----------
@@ -206,9 +253,15 @@ export function installEmbed(): void {
   );
   if (!inVsCode()) return;
   document.documentElement.dataset.embed = 'vscode';
+  const webview = inVsCodeWebview();
+  if (webview) {
+    startAt();
+    routeEditCommands();
+  }
 
   window.addEventListener('message', (e) => {
-    if (e.source !== window.parent) return;
+    // The webview page gets the extension's messages through VS Code's frames (only VS Code can post here)
+    if (!webview && e.source !== window.parent) return;
     const msg = e.data as Reply | { nomadsf: 'exec'; cmd: string; text?: string };
     if (msg?.nomadsf === 'reply') {
       const wait = pending.get(msg.id);
@@ -216,8 +269,7 @@ export function installEmbed(): void {
       if (msg.error) wait?.reject(new Error(msg.error));
       else wait?.resolve(msg.result);
     } else if (msg?.nomadsf === 'exec') {
-      // The same key already handled here (keydown below), when VS Code also sends it
-      if (lastKey && lastKey.cmd === msg.cmd && Date.now() - lastKey.at < 600) return;
+      if (justHandled(msg.cmd)) return;
       command(msg.cmd, msg.text);
     }
   });
@@ -264,11 +316,13 @@ export function installEmbed(): void {
   // Right-click: VS Code's own menu for the webview (Cut / Copy / Paste come back as edit commands)
   document.addEventListener('contextmenu', (e) => {
     if (e.defaultPrevented) return;
-    e.preventDefault();
     menuFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     // An Id: the whole Id, so Copy has something to copy
     const id = (e.target as Element | null)?.closest?.('.id-text');
     if (id && !window.getSelection()?.toString()) window.getSelection()?.selectAllChildren(id);
+    // The webview page gets VS Code's menu itself; a frame asks the page around it
+    if (webview) return;
+    e.preventDefault();
     window.parent.postMessage({ nomadsf: 'contextmenu', x: e.clientX, y: e.clientY }, '*');
   });
 

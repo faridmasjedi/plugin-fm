@@ -1,7 +1,7 @@
 {
   "name": "nomadsf-vscode",
   "displayName": "NomadSF",
-  "description": "NomadSF Studio in VS Code: Execute Apex, SOQL, code, debug logs, metadata, org compare, data backup and migration for your Salesforce DX project — with the Salesforce CLI's login.",
+  "description": "NomadSF Studio in VS Code: Execute Apex, SOQL, code, debug logs, metadata, org compare, data backup and migration for your Salesforce DX project. Works on its own with the Salesforce CLI's logins (the CLI itself is optional).",
   "version": "1.0.0",
   "publisher": "nomadsf",
   "private": true,
@@ -46,7 +46,12 @@
     "commands": [
       {
         "command": "nomadsf.open",
-        "title": "Open the app (runs, orgs, runbooks, AI)",
+        "title": "Open the app (runs, runbooks, AI; needs the sf fm plugin)",
+        "category": "NomadSF"
+      },
+      {
+        "command": "nomadsf.login",
+        "title": "Log in to an org",
         "category": "NomadSF"
       },
       {
@@ -100,28 +105,29 @@
         "nomadsf.port": {
           "type": "number",
           "default": 7007,
-          "description": "Port of the local NomadSF app (sf fm dashboard)."
+          "description": "Port of the local NomadSF app (sf fm dashboard), for \"Open the app\"."
         },
         "nomadsf.sfCommand": {
           "type": "string",
           "default": "sf",
-          "description": "Salesforce CLI command (with plugin-fm installed)."
+          "description": "Salesforce CLI command (with plugin-fm installed), for \"Open the app\". The Studio does not need it."
         },
         "nomadsf.autoStart": {
           "type": "boolean",
           "default": true,
-          "description": "Start the local app for this workspace when it is not running."
+          "description": "\"Open the app\" starts the local app for this workspace when it is not running."
         }
       }
     }
   },
   "scripts": {
-    "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --outfile=dist/extension.js",
+    "build": "node scripts/copy-studio.js && esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --outfile=dist/extension.js",
     "typecheck": "tsc -p .",
     "package": "yarn build && cp ../../../LICENSE.txt LICENSE.txt && npx --yes @vscode/vsce@3.2.1 package --no-dependencies -o nomadsf-vscode.vsix",
     "test": "vitest run"
   },
   "devDependencies": {
+    "@salesforce/core-bundle": "8.21.0",
     "@types/node": "22.20.5",
     "@types/vscode": "1.95.0",
     "esbuild": "0.25.12",

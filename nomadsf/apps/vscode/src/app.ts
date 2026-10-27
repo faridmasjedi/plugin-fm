@@ -63,28 +63,32 @@ export async function selectProject(port: number, path: string): Promise<void> {
 
 const ID = /^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/;
 
-/** Path (with hash) inside the app for a target: app, studio page, a record or a query. */
-export function targetPath(
-  target:
-    | { kind: 'app' }
-    | { kind: 'studio'; page?: string }
-    | { kind: 'record'; id: string }
-    | { kind: 'query'; soql: string }
-): string {
-  // A changing query string makes the frame load again (a new hash alone would not)
-  const fresh = `v=${Date.now()}`;
+type StudioTarget =
+  | { kind: 'studio'; page?: string }
+  | { kind: 'record'; id: string }
+  | { kind: 'query'; soql: string };
+
+/** The Studio's #link for a target: a tool, a record or a query ('' = the last tool used). */
+export function studioHash(target: StudioTarget): string {
   switch (target.kind) {
-    case 'app':
-      return `/?${fresh}`;
     case 'studio':
-      return `/studio/?${fresh}${target.page ? `#${target.page}` : ''}`;
+      return target.page ?? '';
     case 'record':
       if (!ID.test(target.id)) throw new Error('Select a 15- or 18-character record Id.');
-      return `/studio/?${fresh}#record=${target.id}`;
+      return `record=${target.id}`;
     case 'query':
       if (!/^\s*select\b/i.test(target.soql)) throw new Error('Select a SOQL query (SELECT …).');
-      return `/studio/?${fresh}#query=${encodeURIComponent(target.soql.trim())}`;
+      return `query=${encodeURIComponent(target.soql.trim())}`;
   }
+}
+
+/** Path (with hash) inside the app for a target: app, studio page, a record or a query. */
+export function targetPath(target: { kind: 'app' } | StudioTarget): string {
+  // A changing query string makes the frame load again (a new hash alone would not)
+  const fresh = `v=${Date.now()}`;
+  if (target.kind === 'app') return `/?${fresh}`;
+  const hash = studioHash(target);
+  return `/studio/?${fresh}${hash ? `#${hash}` : ''}`;
 }
 
 /** Studio tools by hub (the ids are the Studio's #links). */

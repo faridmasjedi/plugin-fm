@@ -2,11 +2,13 @@ import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, resolve, sep } from 'node:path';
 import * as vscode from 'vscode';
+import { frontDoorUrl, listOrgs, loginWeb, proxySalesforce, type ProxyRequest } from './orgs';
 
 /**
- * What the Studio asks the extension for (its frame cannot do it in a webview): open links
- * in the default browser, the clipboard, saving downloads, and the backup folders the
- * person picked (only those: every file call checks the folder).
+ * What the Studio asks the extension for (its page cannot do it in a webview): open links
+ * in the default browser, the clipboard, saving downloads, the backup folders the person
+ * picked (only those: every file call checks the folder), and the orgs: the list, their
+ * requests, logged-in pages and the browser login (orgs.ts).
  */
 const FOLDERS = 'nomadsf.folders';
 
@@ -30,6 +32,26 @@ const exists = async (path: string, kind: 'file' | 'dir'): Promise<boolean> => {
   }
 };
 
+/** The browser login of the Salesforce CLI; null when the person cancels. */
+async function login(url: string, knownAlias?: string): Promise<string | null> {
+  const alias =
+    knownAlias ??
+    (await vscode.window.showInputBox({
+      title: 'NomadSF: log in to an org',
+      prompt: 'Alias for the org (optional). The Salesforce CLI and other tools see the login too.',
+      placeHolder: 'e.g. my-sandbox',
+      validateInput: (v) => (!v || /^[\w.@+-]{1,80}$/.test(v) ? undefined : 'Letters, digits and . _ - @ + only'),
+    }));
+  if (alias === undefined) return null;
+  return vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: 'NomadSF: log in to Salesforce in your browser…',
+    },
+    () => loginWeb(url, alias || undefined, (authUrl) => void vscode.env.openExternal(vscode.Uri.parse(authUrl, true)))
+  );
+}
+
 export async function handleCall(op: string, args: unknown[], memento: vscode.Memento): Promise<unknown> {
   const [a, b, c] = args;
   switch (op) {
@@ -38,6 +60,14 @@ export async function handleCall(op: string, args: unknown[], memento: vscode.Me
       if (url.scheme !== 'https' && url.scheme !== 'http') throw new Error('Only web pages open.');
       return vscode.env.openExternal(url);
     }
+    case 'orgs':
+      return listOrgs();
+    case 'sf':
+      return proxySalesforce(String(a), (b ?? {}) as ProxyRequest);
+    case 'openOrg':
+      return vscode.env.openExternal(vscode.Uri.parse(await frontDoorUrl(String(a), String(b)), true));
+    case 'login':
+      return login(String(a), typeof b === 'string' ? b : undefined);
     case 'clipboardWrite':
       return vscode.env.clipboard.writeText(String(a));
     case 'clipboardRead':

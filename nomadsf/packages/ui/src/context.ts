@@ -1,10 +1,10 @@
 import { createContext, useContext } from 'react';
 import type { SalesforceClient, UserInfo } from '@nomadsf/core';
-import type { OrgChoice, OrgFacts } from './host';
+import type { HostKind, OrgChoice, OrgFacts } from './host';
 
 export type Studio = {
   /** app: inside `sf fm dashboard` (CLI login, local repository); extension: browser session only. */
-  hostKind: 'app' | 'extension';
+  hostKind: HostKind;
   client: SalesforceClient;
   org: OrgChoice;
   /** Every org you can switch to (browser logins in the extension, CLI orgs in the app). */

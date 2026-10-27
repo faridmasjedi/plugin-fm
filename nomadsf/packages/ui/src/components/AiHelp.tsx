@@ -3,6 +3,7 @@ import { StudioContext } from '../context';
 import { aiAssist, aiTaskPrompt, extractCode, type BrowserAiTask } from '@nomadsf/core';
 import { aiUsable, loadExtensionAi } from '../extensionAi';
 import { localAppBase, useProject } from '../project';
+import type { HostKind } from '../host';
 
 const APP_TASKS = new Set(['explain-log', 'explain-test', 'soql']);
 
@@ -12,11 +13,7 @@ export type AiAnswer = { text: string; model: string; provider: string; sentChar
  * Asks the AI: in the extension, its own connection from Settings → AI if there is one; otherwise
  * the AI connected in the local NomadSF app (keys stay there).
  */
-export async function askAi(
-  hostKind: 'app' | 'extension',
-  body: Record<string, unknown>,
-  route = 'ai/assist'
-): Promise<AiAnswer> {
+export async function askAi(hostKind: HostKind, body: Record<string, unknown>, route = 'ai/assist'): Promise<AiAnswer> {
   // The extension's own AI (Settings → AI) answers directly; otherwise the CLI app's AI
   if (hostKind === 'extension' && route === 'ai/assist') {
     const own = await loadExtensionAi();

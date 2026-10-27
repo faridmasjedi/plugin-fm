@@ -6,11 +6,19 @@ import 'monaco-editor/esm/vs/basic-languages/javascript/javascript.contribution'
 import 'monaco-editor/esm/vs/basic-languages/html/html.contribution';
 import 'monaco-editor/esm/vs/basic-languages/css/css.contribution';
 import 'monaco-editor/esm/vs/basic-languages/xml/xml.contribution';
-import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import editorWorkerUrl from 'monaco-editor/esm/vs/editor/editor.worker?worker&url';
 import { loader } from '@monaco-editor/react';
+import { inVsCodeWebview } from './embed';
 
 (self as unknown as { MonacoEnvironment: monaco.Environment }).MonacoEnvironment = {
-  getWorker: () => new EditorWorker(),
+  getWorker: async () => {
+    const url = new URL(editorWorkerUrl, import.meta.url).href;
+    if (!inVsCodeWebview()) return new Worker(url, { type: 'module' });
+    // VS Code serves the Studio's files from another origin than the page (a worker cannot
+    // start from there, nor import from there): run the worker's own code from a blob
+    const code = await (await fetch(url)).text();
+    return new Worker(URL.createObjectURL(new Blob([code], { type: 'text/javascript' })), { type: 'module' });
+  },
 };
 loader.config({ monaco });
 

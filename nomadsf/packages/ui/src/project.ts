@@ -12,6 +12,7 @@ import {
 import { storage } from './context';
 import { currentGitHub, lastRepo } from './github';
 import { aiUsable, loadExtensionAi, onExtensionAiChange } from './extensionAi';
+import type { HostKind } from './host';
 
 /**
  * The Salesforce project (repository) the Studio works with:
@@ -90,7 +91,7 @@ const supportsFolders = (): boolean =>
 
 // ---------- local app ----------
 
-export const localAppBase = (kind: 'app' | 'extension'): string =>
+export const localAppBase = (kind: HostKind): string =>
   kind === 'app' ? '' : `http://127.0.0.1:${storage.get('local.port', 7007)}`;
 
 /** The extension only looks for the NomadSF CLI app when it is switched on in Settings (no failed requests otherwise). */
@@ -151,7 +152,7 @@ export function useProject(): ProjectState {
   return state;
 }
 
-export function useProjectState(hostKind: 'app' | 'extension', describeFolders?: Record<string, string>): ProjectState {
+export function useProjectState(hostKind: HostKind, describeFolders?: Record<string, string>): ProjectState {
   const [source, setSource] = useState<ProjectSource>();
   const [info, setInfo] = useState<ProjectInfo>();
   const [recent, setRecent] = useState<RecentProject[]>([]);
