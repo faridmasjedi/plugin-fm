@@ -1,6 +1,7 @@
 import { tokenTransport, type GitHubTransport } from '@nomadsf/core';
 import { storage } from './context';
 import { localAppBase } from './project';
+import type { HostKind } from './host';
 
 /**
  * How the Studio reaches GitHub:
@@ -36,7 +37,7 @@ export const githubToken = {
 };
 
 /** The connection to use now: a stored token first, then the local app's gh login. */
-export async function currentGitHub(hostKind: 'app' | 'extension'): Promise<GitHubConnection | undefined> {
+export async function currentGitHub(hostKind: HostKind): Promise<GitHubConnection | undefined> {
   const token = githubToken.get();
   if (token) return { mode: 'token', api: tokenTransport(token) };
   // The extension connects with a token or "Sign in with GitHub" only; the app uses its gh login

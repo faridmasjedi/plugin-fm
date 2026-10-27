@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import {
@@ -11,15 +11,16 @@ import {
   baseUrl,
   isOlder,
   selectProject,
+  studioHash,
   targetPath,
   waitForApp,
 } from './app';
 import { handleCall } from './bridge';
 
 /**
- * NomadSF for VS Code: the local NomadSF app (`sf fm dashboard`) for the workspace's
- * Salesforce project, shown in an editor tab. The Studio inside it uses the Salesforce CLI's
- * orgs; nothing is stored by the extension.
+ * NomadSF for VS Code: NomadSF Studio in an editor tab, shipped with the extension (dist/studio)
+ * and working on its own with the Salesforce CLI's logins (orgs.ts; the CLI is not needed).
+ * "Open the app" shows the local NomadSF app (`sf fm dashboard`) when the sf fm plugin is installed.
  */
 
 let child: ChildProcess | undefined;
@@ -102,40 +103,102 @@ async function ensureApp(): Promise<number> {
   return port;
 }
 
-async function show(target: Parameters<typeof targetPath>[0], title: string): Promise<void> {
+type Message = { type?: string; nomadsf?: string; id?: number; op?: string; args?: unknown[] };
+
+/** The one NomadSF tab: requests from the Studio (its own page, or the app's frame) go to bridge.ts. */
+function openPanel(title: string): vscode.WebviewPanel {
+  if (!panel) {
+    const created = vscode.window.createWebviewPanel('nomadsf', title, vscode.ViewColumn.Active, {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [studioRoot()],
+    });
+    created.webview.onDidReceiveMessage((message: Message) => {
+      if (message.type === 'paste') {
+        void vscode.env.clipboard.readText().then((text) => created.webview.postMessage({ type: 'paste', text }));
+        return;
+      }
+      // type 'call': through the app frame's page (BRIDGE); nomadsf 'call': the Studio page itself
+      const direct = message.nomadsf === 'call';
+      if ((message.type !== 'call' && !direct) || !message.id || !message.op) return;
+      const reply = (answer: { result?: unknown; error?: string }): Thenable<boolean> =>
+        created.webview.postMessage(
+          direct ? { nomadsf: 'reply', id: message.id, ...answer } : { type: 'reply', id: message.id, ...answer }
+        );
+      handleCall(message.op, message.args ?? [], memento!).then(
+        (result) => reply({ result }),
+        (error: Error) => reply({ error: error.message })
+      );
+    });
+    created.onDidDispose(() => (panel = undefined));
+    panel = created;
+  }
+  panel.title = title;
+  return panel;
+}
+
+const fail = (error: unknown): void => {
+  void vscode.window.showErrorMessage(`NomadSF: ${(error as Error).message}`, 'Show output').then((choice) => {
+    if (choice) output.show();
+  });
+};
+
+/** The local NomadSF app (`sf fm dashboard`): runs, pipelines, runbooks, AI. Needs the sf fm plugin. */
+async function showApp(): Promise<void> {
   try {
     const port = await ensureApp();
     // asExternalUri also works in remote windows and Codespaces (forwards the port)
     const external = await vscode.env.asExternalUri(vscode.Uri.parse(baseUrl(port)));
     const origin = external.toString(true).replace(/\/$/, '');
-    // embed=vscode: the Studio asks this extension for links, clipboard, files (bridge.ts)
-    const url = `${origin}${targetPath(target)}&embed=vscode`;
-    if (!panel) {
-      const created = vscode.window.createWebviewPanel('nomadsf', title, vscode.ViewColumn.Active, {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-      });
-      created.webview.onDidReceiveMessage((message: { type: string; id?: number; op?: string; args?: unknown[] }) => {
-        if (message.type === 'paste') {
-          void vscode.env.clipboard.readText().then((text) => created.webview.postMessage({ type: 'paste', text }));
-        } else if (message.type === 'call' && message.id && message.op) {
-          handleCall(message.op, message.args ?? [], memento!).then(
-            (result) => created.webview.postMessage({ type: 'reply', id: message.id, result }),
-            (error: Error) => created.webview.postMessage({ type: 'reply', id: message.id, error: error.message })
-          );
-        }
-      });
-      created.onDidDispose(() => (panel = undefined));
-      panel = created;
-    }
-    panel.title = title;
-    panel.webview.html = frame(url, origin);
-    panel.reveal();
+    // embed=vscode: the app's Studio asks this extension for links, clipboard, files (bridge.ts)
+    const url = `${origin}${targetPath({ kind: 'app' })}&embed=vscode`;
+    const shown = openPanel('NomadSF');
+    shown.webview.html = frame(url, origin);
+    shown.reveal();
   } catch (error) {
-    void vscode.window.showErrorMessage(`NomadSF: ${(error as Error).message}`, 'Show output').then((choice) => {
-      if (choice) output.show();
-    });
+    fail(error);
   }
+}
+
+/** NomadSF Studio, shipped with the extension: nothing else to install. */
+function showStudio(target: Parameters<typeof studioHash>[0], title: string): void {
+  try {
+    const hash = studioHash(target);
+    const shown = openPanel(title);
+    shown.webview.html = studioPage(shown.webview, hash);
+    shown.reveal();
+  } catch (error) {
+    fail(error);
+  }
+}
+
+let extensionRoot: vscode.Uri | undefined;
+const studioRoot = (): vscode.Uri => vscode.Uri.joinPath(extensionRoot!, 'dist', 'studio');
+
+/**
+ * The Studio's index.html as the webview page: its files from the extension (base), the meta
+ * tags that tell it it runs in VS Code and which tool to open, and a CSP for the webview.
+ */
+function studioPage(webview: vscode.Webview, hash: string): string {
+  const root = studioRoot();
+  const index = join(root.fsPath, 'index.html');
+  if (!existsSync(index)) throw new Error('NomadSF Studio is missing from this build of the extension.');
+  const escape = (s: string): string => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const files = webview.cspSource;
+  const csp = [
+    "default-src 'none'",
+    `script-src ${files} blob:`,
+    `style-src ${files} 'unsafe-inline'`,
+    `font-src ${files} data:`,
+    `img-src ${files} https: data: blob:`,
+    `connect-src ${files} blob: data:`,
+    'worker-src blob:',
+  ].join('; ');
+  const head = `<base href="${escape(`${webview.asWebviewUri(root).toString()}/`)}">
+<meta http-equiv="Content-Security-Policy" content="${csp}">
+<meta name="nomadsf-host" content="vscode">
+<meta name="nomadsf-hash" content="${escape(hash)}">`;
+  return readFileSync(index, 'utf8').replace('<head>', `<head>\n${head}`);
 }
 
 function frame(url: string, origin: string): string {
@@ -187,6 +250,7 @@ function selection(): string {
 
 export function activate(context: vscode.ExtensionContext): void {
   memento = context.globalState;
+  extensionRoot = context.extensionUri;
   extensionVersion = String((context.extension.packageJSON as { version?: string }).version ?? '');
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   status.text = '$(rocket) NomadSF';
@@ -197,20 +261,36 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     status,
     output,
-    vscode.commands.registerCommand('nomadsf.open', () => show({ kind: 'app' }, 'NomadSF')),
-    vscode.commands.registerCommand('nomadsf.openStudio', () => show({ kind: 'studio' }, 'NomadSF Studio')),
+    vscode.commands.registerCommand('nomadsf.open', () => showApp()),
+    vscode.commands.registerCommand('nomadsf.login', async () => {
+      const pick = await vscode.window.showQuickPick(
+        [
+          { label: 'Production or developer org', url: 'https://login.salesforce.com' },
+          { label: 'Sandbox', url: 'https://test.salesforce.com' },
+        ],
+        { placeHolder: 'Log in to…' }
+      );
+      if (!pick) return;
+      try {
+        const username = await handleCall('login', [pick.url], memento!);
+        if (username) void vscode.window.showInformationMessage(`NomadSF: logged in as ${String(username)}.`);
+      } catch (error) {
+        fail(error);
+      }
+    }),
+    vscode.commands.registerCommand('nomadsf.openStudio', () => showStudio({ kind: 'studio' }, 'NomadSF Studio')),
     vscode.commands.registerCommand('nomadsf.openStudioPage', async () => {
       const pick = await vscode.window.showQuickPick(
         STUDIO_PAGES.map(([id, label, hub]) => ({ label, description: hub, id })),
         { placeHolder: 'Studio tool', matchOnDescription: true }
       );
-      if (pick) await show({ kind: 'studio', page: pick.id }, `NomadSF · ${pick.label}`);
+      if (pick) showStudio({ kind: 'studio', page: pick.id }, `NomadSF · ${pick.label}`);
     }),
     vscode.commands.registerCommand('nomadsf.inspectSelection', () =>
-      show({ kind: 'record', id: selection().replace(/['"]/g, '') }, 'NomadSF · Record')
+      showStudio({ kind: 'record', id: selection().replace(/['"]/g, '') }, 'NomadSF · Record')
     ),
     vscode.commands.registerCommand('nomadsf.querySelection', () =>
-      show({ kind: 'query', soql: selection().replace(/^\[|\]$/g, '') }, 'NomadSF · Query')
+      showStudio({ kind: 'query', soql: selection().replace(/^\[|\]$/g, '') }, 'NomadSF · Query')
     ),
     vscode.commands.registerCommand('nomadsf.openGuide', () => vscode.env.openExternal(vscode.Uri.parse(GUIDE_URL))),
     vscode.commands.registerCommand('nomadsf.stop', () => {

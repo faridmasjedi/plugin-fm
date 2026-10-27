@@ -100,8 +100,8 @@ export function App() {
   }, []);
   useEffect(() => {
     loadOrgs();
-    // In the extension, orgs logged in to in another tab show up when you come back
-    if (host.kind !== 'extension') return undefined;
+    // Orgs logged in to in another tab (extension) or with the CLI (VS Code) show up when you come back
+    if (host.kind === 'app') return undefined;
     window.addEventListener('focus', loadOrgs);
     return () => window.removeEventListener('focus', loadOrgs);
   }, [loadOrgs]);
@@ -141,8 +141,10 @@ export function App() {
         (e: Error) =>
           !canceled &&
           setError(
-            host.kind === 'extension' && orgs.length > 1
+            host.kind !== 'app' && orgs.length > 1
               ? `${e.message} Choose another org in Settings, or log in to this one again.`
+              : host.kind === 'vscode'
+              ? `${e.message} Log in to it again in Settings.`
               : e.message
           )
       );
@@ -155,17 +157,18 @@ export function App() {
   // The address follows the active pane (a reload, or a copied link, opens the same tool)
   useEffect(() => {
     if (location.hash.slice(1).split('=')[0] !== page)
-      history.replaceState(null, '', `${location.pathname}${location.search}#${page}`);
+      // The full address: in VS Code a <base> points relative paths at the extension's files
+      history.replaceState(null, '', `${location.href.split('#')[0]}#${page}`);
   }, [page]);
-  // In the app, links to the org's pages open logged in (the CLI's `sf org open`, also from VS Code)
+  // In the app and VS Code, links to the org's pages open logged in (the CLI's login)
   useEffect(() => {
-    if (host.kind !== 'app' || !org?.instanceUrl) return undefined;
+    if (host.kind === 'extension' || !org?.instanceUrl) return undefined;
     const mine = new URL(org.instanceUrl).hostname.replace(/\.my\.salesforce\.com$/, '');
     setLinkHandler((url) => {
       const sameOrg =
         url.hostname.startsWith(`${mine}.`) && /\.(salesforce|force|salesforce-setup)\.com$/.test(url.hostname);
       if (!sameOrg) return false;
-      openInOrg('app', org, `${url.pathname}${url.search}${url.hash}`).catch((e: Error) =>
+      openInOrg(host.kind, org, `${url.pathname}${url.search}${url.hash}`).catch((e: Error) =>
         console.error(`Open in Salesforce: ${e.message}`)
       );
       return true;
@@ -301,7 +304,11 @@ export function App() {
     if (!studio)
       return (
         <p className="muted">
-          {orgs.length || host.kind === 'extension' ? 'Connecting…' : 'No orgs. Connect one in NomadSF → Orgs.'}
+          {orgs.length || host.kind === 'extension'
+            ? 'Connecting…'
+            : host.kind === 'vscode'
+            ? 'No orgs yet. Log in to one in Settings.'
+            : 'No orgs. Connect one in NomadSF → Orgs.'}
         </p>
       );
     return (
@@ -360,7 +367,7 @@ export function App() {
             <img className="logo" src="./logo.png" alt="" />
             NomadSF <span className="muted">Studio</span>
           </div>
-          {orgs.length > 1 || host.kind === 'app' ? (
+          {orgs.length > 1 || host.kind !== 'extension' ? (
             <select value={orgId} onChange={(e) => switchOrg(e.target.value)} title="Org (change it in Settings too)">
               {orgs.map((o) => (
                 <option key={o.id} value={o.id}>

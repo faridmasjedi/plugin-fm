@@ -1,6 +1,6 @@
 # NomadSF for VS Code
 
-**A Salesforce workbench next to your code.** NomadSF Studio opens in an editor tab for the Salesforce DX project you have open: Execute Apex, SOQL, code with a compare against your repository, Apex tests with coverage, debug logs, metadata and org compare — plus data backup, restore, migration and lifecycle jobs. It uses the orgs you already logged in to with the Salesforce CLI.
+**A Salesforce workbench next to your code.** NomadSF Studio opens in an editor tab for the Salesforce DX project you have open: Execute Apex, SOQL, code with a compare against your repository, Apex tests with coverage, debug logs, metadata and org compare — plus data backup, restore, migration and lifecycle jobs. It works on its own: the Studio ships with the extension, uses the orgs you already logged in to with the Salesforce CLI, and logs in to new ones itself, so the CLI is optional.
 
 ![NomadSF Studio: hubs, and two side by side](https://faridmasjedi.github.io/plugin-fm/media/hubs.gif)
 
@@ -8,7 +8,8 @@
 
 ## Features
 
-- **NomadSF in the status bar.** Opening a Salesforce DX project starts NomadSF for that workspace (or switches a running one to it); click **NomadSF** in the status bar to open the Studio in an editor tab.
+- **NomadSF in the status bar.** Click **NomadSF** in the status bar to open the Studio in an editor tab. Nothing else to install or start.
+- **Your orgs, no CLI needed**: the orgs logged in to with the Salesforce CLI on this computer show up by alias; **NomadSF: Log in to an org** (or Studio → Settings) logs in to a new one in your browser and saves it where the CLI keeps it, so both see it.
 - **Every Studio tool**, grouped into hubs, with tools side by side and <kbd>⌘K</kbd> to jump:
 
   | Hub                 | Tools                                                                                                                                      |
@@ -27,8 +28,7 @@
 - **Works like the browser**: ⌘C / ⌘V and right-click Cut · Copy · Paste, links (Salesforce pages open logged in), downloads with VS Code's Save dialog, backup folders with VS Code's folder picker, and every approval inside the page.
 - **Ids you can copy**: one click selects an Id in any table, **⧉** copies it, **↗** opens it in Salesforce, **ⓘ** shows all its fields.
 - **A guide for every tool**: the **?** on each pane (or **NomadSF: Open the guide**) opens its section, with a short recording.
-- **The NomadSF app** too: release runs and approvals, orgs, runbooks and AI settings.
-- **Remote windows and Codespaces**: the port is forwarded for you.
+- **The NomadSF app** too, when the `sf fm` plugin is installed: release runs and approvals, runbooks and AI settings (**NomadSF: Open the app**; in remote windows and Codespaces the port is forwarded for you).
 
 ![Query with a filterable table](https://faridmasjedi.github.io/plugin-fm/media/query.gif)
 
@@ -45,46 +45,47 @@
 
 ## Requirements
 
-- The [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) with the NomadSF plugin:
+- Nothing but VS Code 1.95 or later. Orgs logged in to with the Salesforce CLI show up by themselves; without the CLI, log in with **NomadSF: Log in to an org**.
+- Optional, for **NomadSF: Open the app** (release runs, runbooks, AI): the [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) with the NomadSF plugin, in a Salesforce DX project (a folder with `sfdx-project.json`):
 
   ```bash
   sf plugins install https://github.com/faridmasjedi/plugin-fm
   ```
 
-- Orgs logged in to with the CLI, for example `sf org login web --alias my-sandbox`.
-- A Salesforce DX project (a folder with `sfdx-project.json`).
-
-Prefer not to install the CLI? The **browser extension** offers the same Studio with your browser's Salesforce login — see the [download page](https://faridmasjedi.github.io/plugin-fm/#download).
+Prefer the browser? The **browser extension** offers the same Studio with your browser's Salesforce login — see the [download page](https://faridmasjedi.github.io/plugin-fm/#download).
 
 ## Getting started
 
 1. Install the extension: download `nomadsf-vscode.vsix` from the [latest release](https://github.com/faridmasjedi/plugin-fm/releases/latest), then **Extensions → … → Install from VSIX…**.
-2. Open your Salesforce DX project. NomadSF starts in the background.
-3. Click **NomadSF** in the status bar, or run **NomadSF: Open Studio** from the Command Palette (<kbd>⇧⌘P</kbd>).
+2. Click **NomadSF** in the status bar, or run **NomadSF: Open Studio** from the Command Palette (<kbd>⇧⌘P</kbd>).
+3. No org yet? Run **NomadSF: Log in to an org**, or use **Settings → Org** in the Studio.
 
 ## Keeping it up to date
 
-The Studio in VS Code comes from the `sf fm` plugin (the local app the extension starts), so update both together. When the plugin is older than the extension, NomadSF says so and offers **Update the plugin** — it runs:
+The Studio ships with the extension: install a newer `nomadsf-vscode.vsix` to update it. **NomadSF: Open the app** shows the local app of the `sf fm` plugin; when that plugin is older than the extension, NomadSF says so and offers **Update the plugin** — it runs:
 
 ```bash
 sf plugins install https://github.com/faridmasjedi/plugin-fm
 ```
 
-Then **NomadSF: Stop the local app** and open the Studio again.
+Then **NomadSF: Stop the local app** and open the app again.
 
 ## Commands
 
 | Command                                              | What it does                                                                   |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------ |
 | **NomadSF: Open Studio**                             | The Studio in an editor tab                                                    |
+| **NomadSF: Log in to an org**                        | Log in to a production, developer or sandbox org in your browser               |
 | **NomadSF: Open Studio page…**                       | Pick a tool (Query, Backup, Org compare…) and open it                          |
-| **NomadSF: Open the app (runs, orgs, runbooks, AI)** | Release runs, approvals, orgs, runbooks, AI settings                           |
+| **NomadSF: Open the app**                            | Release runs, approvals, runbooks, AI settings (needs the `sf fm` plugin)      |
 | **NomadSF: Show all data of the selected record Id** | The record inspector for the selection (also in the editor's right-click menu) |
 | **NomadSF: Run the selected SOQL in Studio**         | Query the selection (also in the editor's right-click menu)                    |
 | **NomadSF: Open the guide (how to use each tool)**   | The guide on the website, a section and a recording per tool                   |
-| **NomadSF: Stop the local app**                      | Stops NomadSF for this workspace                                               |
+| **NomadSF: Stop the local app**                      | Stops the local app this window started                                        |
 
 ## Settings
+
+These are for **NomadSF: Open the app** only; the Studio needs none.
 
 | Setting             | Default | Description                                                     |
 | ------------------- | ------- | --------------------------------------------------------------- |
@@ -94,7 +95,7 @@ Then **NomadSF: Stop the local app** and open the Studio again.
 
 ## Safety and privacy
 
-- NomadSF runs on your computer and talks to Salesforce with the CLI's login; the access token stays in the local app and never reaches the Studio page.
+- NomadSF runs on your computer and talks to Salesforce with the CLI's login; the access token stays in the extension and never reaches the Studio page, which may only call Salesforce's `/services/` APIs.
 - Every change — saving code, editing records, validating and deploying, deleting, restoring or copying data, changing permissions — asks you to type the org name first, in every org; running Apex or tests, debug logging and Log in as ask too. Production orgs are shown in red.
 - Backups go to a folder you choose, optionally encrypted with your passphrase.
 - AI is optional and uses the provider you connect yourself; it only fills editors or shows text.

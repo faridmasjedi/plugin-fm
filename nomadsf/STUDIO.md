@@ -5,7 +5,7 @@ A Salesforce developer workbench in the spirit of the Developer Console and Sale
 | Where                                | How it reaches Salesforce                                                                  | Status                     |
 | ------------------------------------ | ------------------------------------------------------------------------------------------ | -------------------------- |
 | **Browser extension** (Chrome, Edge) | the browser's own Salesforce session (`sid` cookie of the org you are on) — no CLI needed  | ✅ released (zip)          |
-| **VS Code extension**                | the local app in an editor tab, with the Salesforce CLI's login                            | ✅ released (.vsix)        |
+| **VS Code extension**                | the Studio in an editor tab, on its own, with the Salesforce CLI's logins                  | ✅ released (.vsix)        |
 | **Local app** — `sf fm dashboard`    | through the local server with the Salesforce CLI's login; the token never reaches the page | ✅ with the `sf fm` plugin |
 | **Desktop app** (Electron)           | the local app in its own window                                                            | build from source (below)  |
 
@@ -104,11 +104,12 @@ The extension asks for `cookies`, access to `127.0.0.1` / `localhost` (the local
 
 ### VS Code
 
-`nomadsf-vscode.vsix` (from a release or the `extension-latest` pre-release; or `yarn --cwd nomadsf/apps/vscode package`): **Extensions → … → Install from VSIX**. Needs the Salesforce CLI with plugin-fm. Its page in VS Code shows [its README](apps/vscode/README.md). It has the same version as the browser extension and the plugin.
+`nomadsf-vscode.vsix` (from a release or the `extension-latest` pre-release; or `yarn --cwd nomadsf/apps/vscode package`): **Extensions → … → Install from VSIX**. Needs nothing else: the Salesforce CLI and plugin-fm are optional. Its page in VS Code shows [its README](apps/vscode/README.md). It has the same version as the browser extension and the plugin.
 
-- Opening a Salesforce DX project starts the local app for that workspace (or switches a running one to it), and **NomadSF** in the status bar opens the Studio in an editor tab. Everything of the app and the Studio is there: runs and approvals, orgs, runbooks, AI, and every Studio page.
-- Commands (⇧⌘P → NomadSF): _Open the app_, _Open Studio_, _Open Studio page…_, _Stop the local app_. In the editor (right-click on a selection): **Show all data of the selected record Id** and **Run the selected SOQL in Studio**.
-- Settings: `nomadsf.port` (7007), `nomadsf.sfCommand` (`sf`), `nomadsf.autoStart`. Works in remote windows and Codespaces (the port is forwarded).
+- The Studio ships with the extension (`dist/studio`, the `packages/ui` build) and is the webview page itself. **NomadSF** in the status bar opens it in an editor tab.
+- Orgs: the Salesforce CLI's logins, read by the extension with `@salesforce/core` (bundled, `apps/vscode/src/orgs.ts`); the Studio's requests go through the extension, which adds the token (only `/services/*` and CometD, like the app's proxy). **NomadSF: Log in to an org** runs the CLI's browser login and saves it where the CLI keeps it. Salesforce pages open logged in through the org's front door.
+- Commands (⇧⌘P → NomadSF): _Open Studio_, _Open Studio page…_, _Log in to an org_, _Open the app_ (the local app of the plugin: runs and approvals, runbooks, AI), _Stop the local app_. In the editor (right-click on a selection): **Show all data of the selected record Id** and **Run the selected SOQL in Studio**.
+- Settings (for _Open the app_ only): `nomadsf.port` (7007), `nomadsf.sfCommand` (`sf`), `nomadsf.autoStart`. Works in remote windows and Codespaces (the port is forwarded).
 
 ### Desktop app
 

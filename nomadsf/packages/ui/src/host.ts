@@ -1,15 +1,20 @@
-import { SalesforceClient, apiHostFor, fetchTransport, proxyTransport, query } from '@nomadsf/core';
+import { SalesforceClient, apiHostFor, fetchTransport, proxyTransport, query, type HttpResponse } from '@nomadsf/core';
+import { call, inVsCodeWebview } from './embed';
 
 /**
  * Where the Studio runs decides how it reaches Salesforce:
  * - app: served by `sf fm dashboard`; requests go through the local server, which
  *   adds the Salesforce CLI's token (the token never reaches the page).
  * - extension: opened from a Salesforce tab; uses that browser session's `sid` cookie.
+ * - vscode: shipped inside the VS Code extension; the extension adds the Salesforce CLI's
+ *   token (read from the CLI's login files, no CLI or local app needed).
  */
+export type HostKind = 'app' | 'extension' | 'vscode';
+
 export type OrgChoice = { id: string; label: string; type?: string; instanceUrl?: string };
 
 export type Host = {
-  kind: 'app' | 'extension';
+  kind: HostKind;
   orgs(): Promise<OrgChoice[]>;
   client(org: OrgChoice): Promise<SalesforceClient>;
 };
@@ -85,8 +90,19 @@ function extensionHost(): Host {
   };
 }
 
+/** Orgs and requests go through the VS Code extension (bridge.ts there), which holds the tokens. */
+function vscodeHost(): Host {
+  return {
+    kind: 'vscode',
+    orgs: () => call<OrgChoice[]>('orgs'),
+    async client(org) {
+      return new SalesforceClient((request) => call<HttpResponse>('sf', org.id, request));
+    },
+  };
+}
+
 export function detectHost(): Host {
-  return isExtension() ? extensionHost() : appHost();
+  return isExtension() ? extensionHost() : inVsCodeWebview() ? vscodeHost() : appHost();
 }
 
 export type OrgFacts = { isSandbox: boolean; organizationType: string; name: string; instanceUrl?: string };
@@ -104,11 +120,16 @@ export async function orgFacts(client: SalesforceClient): Promise<OrgFacts> {
 
 /**
  * Opens a page of the org logged in. The extension uses the browser's own session; the app
- * asks the Salesforce CLI (`sf org open --path`), which logs the browser in first.
+ * asks the Salesforce CLI (`sf org open --path`), which logs the browser in first; VS Code
+ * opens it through the org's front door with the CLI login.
  */
-export async function openInOrg(kind: 'app' | 'extension', org: OrgChoice, path: string): Promise<void> {
+export async function openInOrg(kind: HostKind, org: OrgChoice, path: string): Promise<void> {
   if (kind === 'extension') {
     window.open(`${org.instanceUrl ?? ''}${path}`, '_blank', 'noopener');
+    return;
+  }
+  if (kind === 'vscode') {
+    await call('openOrg', org.id, path);
     return;
   }
   const res = await fetch('/api/orgs/open', {

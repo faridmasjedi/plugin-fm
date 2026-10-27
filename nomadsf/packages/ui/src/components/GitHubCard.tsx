@@ -12,9 +12,10 @@ import {
 import { storage } from '../context';
 import { currentGitHub, githubClientId, githubToken, lastRepo, type GitHubConnection } from '../github';
 import { useProject } from '../project';
+import type { HostKind } from '../host';
 
 /** Connect GitHub, then open any repository and branch as the project. */
-export function GitHubCard({ hostKind, embedded = false }: { hostKind: 'app' | 'extension'; embedded?: boolean }) {
+export function GitHubCard({ hostKind, embedded = false }: { hostKind: HostKind; embedded?: boolean }) {
   const project = useProject();
   const [connection, setConnection] = useState<GitHubConnection & { login: string }>();
   const [checking, setChecking] = useState(true);

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { DataTable } from '../components/DataTable';
 import { localAppBase } from '../project';
+import type { HostKind } from '../host';
 
 type RunStage = {
   id: string;
@@ -13,7 +14,7 @@ type RunStage = {
 type Run = { id: string; stages: RunStage[] };
 
 /** Playwright scenarios of the project, run by the local NomadSF app (`sf fm e2e run`). */
-export function TestsPage({ hostKind, defaultOrg }: { hostKind: 'app' | 'extension'; defaultOrg?: string }) {
+export function TestsPage({ hostKind, defaultOrg }: { hostKind: HostKind; defaultOrg?: string }) {
   const base = localAppBase(hostKind);
   const [specs, setSpecs] = useState<string[] | null>(null);
   const [hasConfig, setHasConfig] = useState(false);
