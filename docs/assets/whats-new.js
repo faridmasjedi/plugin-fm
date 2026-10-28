@@ -23,6 +23,10 @@ window.NOMADSF_WHATS_NEW = {
     'Field access: choose an object and set Read / Edit on all its fields',
     'New custom permissions, granted at once; groups: choose what to add (user, group, role…)',
     'Record: create a new record of any object',
+    'Code › Other metadata: open, edit, validate and deploy any type (FlexiPage, Flow, permission set…)',
+    'Dependencies: what a component uses and what uses it',
+    'Metadata: see what you selected, and click a component to see its XML',
+    'Query › Plan: how Salesforce would run a query (index or full scan)',
   ],
   '2.1.0': [
     'VS Code extension works on its own: no Salesforce CLI, no sf fm plugin, no local port',

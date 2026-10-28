@@ -11,6 +11,7 @@ import {
   type RetrieveResult,
 } from '@nomadsf/core';
 import { DataTable } from '../components/DataTable';
+import { ComponentPreview } from '../components/MetadataSource';
 import { useStudio } from '../context';
 import { useProject } from '../project';
 
@@ -49,6 +50,8 @@ export function MetadataPage() {
   const [type, setType] = useState('');
   const [components, setComponents] = useState<MetadataComponent[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // A component clicked in Browse: its files, read-only
+  const [preview, setPreview] = useState<MetadataComponent | null>(null);
   const [basket, setBasket] = useState<Map<string, MetadataComponent>>(new Map());
   // Components to delete from the org: destructiveChanges*.xml
   const [toDelete, setToDelete] = useState<Map<string, MetadataComponent>>(new Map());
@@ -226,6 +229,15 @@ export function MetadataPage() {
               Add {selected.size || ''} to delete
             </button>
           </div>
+          {selected.size > 0 && (
+            <p className="muted selected-list" style={{ margin: 0 }}>
+              Selected ({selected.size}):{' '}
+              {components
+                .filter((c) => selected.has(keyOf(c)))
+                .map((c) => c.fullName)
+                .join(', ')}
+            </p>
+          )}
           {current && current.childXmlNames.length > 0 && (
             <p className="muted" style={{ margin: 0 }}>
               Child types: {current.childXmlNames.join(', ')}
@@ -242,7 +254,12 @@ export function MetadataPage() {
               name={`${type}-components`}
               selected={selected}
               onSelectedChange={setSelected}
+              onRowClick={(row) => setPreview(components.find((c) => keyOf(c) === row.key) ?? null)}
+              note={<span>· tick to select · click a row to see what it is</span>}
             />
+          )}
+          {preview && (
+            <ComponentPreview type={preview.type} fullName={preview.fullName} onClose={() => setPreview(null)} />
           )}
         </div>
 
