@@ -35,6 +35,7 @@ export type ToolId =
   | 'apps'
   | 'health'
   | 'limits'
+  | 'company'
   | 'events'
   | 'rest'
   | 'activity'
@@ -90,7 +91,8 @@ export const TOOLS: Tool[] = [
   { id: 'myaccess', label: 'Your access', icon: '✓', hint: 'what your user may do here' },
   { id: 'apps', label: 'Connected apps', icon: '⚷', hint: 'connected apps, OAuth usage' },
   { id: 'health', label: 'Org health', icon: '♥', hint: 'security check, licenses' },
-  { id: 'limits', label: 'Limits', icon: '▤', hint: 'org limits' },
+  { id: 'company', label: 'Company', icon: '⌂', hint: 'company information: org Id, edition, locale, fiscal year' },
+  { id: 'limits', label: 'Limits', icon: '▤', hint: 'org limits and storage' },
   { id: 'events', label: 'Events', icon: '⚡', hint: 'platform events, CDC' },
   { id: 'rest', label: 'REST Explorer', icon: '⇄', hint: 'any REST call' },
   { id: 'activity', label: 'Activity', icon: '⏱', hint: 'what was changed from here' },
@@ -126,7 +128,7 @@ export const HUBS: Hub[] = [
       'myaccess',
     ],
   },
-  { id: 'org', label: 'Org', icon: '◈', tools: ['apps', 'health', 'limits', 'events', 'rest', 'activity'] },
+  { id: 'org', label: 'Org', icon: '◈', tools: ['company', 'apps', 'health', 'limits', 'events', 'rest', 'activity'] },
   { id: 'between', label: 'Org to org', icon: '⇋', tools: ['orgdiff', 'migrate', 'orgaccess', 'orgapps'] },
   { id: 'local', label: 'Local app', icon: '☁', tools: ['local-orgs', 'local-ai'] },
   { id: 'settings', label: 'Settings', icon: '⚙', tools: ['settings'] },

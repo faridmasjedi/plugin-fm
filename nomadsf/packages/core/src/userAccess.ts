@@ -205,6 +205,8 @@ export async function effectivePermissions(client: SalesforceClient, userId: str
 // ---------- connected apps and OAuth usage ----------
 
 export type OAuthApp = {
+  /** The connected app's or external client app's Id (none for "OAuth only"). */
+  id?: string;
   name: string;
   kind: string;
   users: number;
@@ -236,19 +238,21 @@ export async function connectedAppsReport(client: SalesforceClient): Promise<Con
     ),
   ]);
   const apps = new Map<string, OAuthApp>();
-  const app = (name: string, kind: string, created = ''): OAuthApp => {
+  const app = (name: string, kind: string, created = '', id?: string): OAuthApp => {
     const key = name.toLowerCase();
     const known = apps.get(key);
     if (known) {
       if (known.kind === 'OAuth only') known.kind = kind;
+      if (id && !known.id) known.id = id;
       return known;
     }
-    const next: OAuthApp = { name, kind, users: 0, tokens: 0, uses: 0, lastUsed: '', created };
+    const next: OAuthApp = { id, name, kind, users: 0, tokens: 0, uses: 0, lastUsed: '', created };
     apps.set(key, next);
     return next;
   };
-  for (const c of connected.rows) app(String(c.Name), 'Connected app', String(c.CreatedDate ?? ''));
-  for (const x of external.rows) app(String(x.MasterLabel), 'External client app', String(x.CreatedDate ?? ''));
+  for (const c of connected.rows) app(String(c.Name), 'Connected app', String(c.CreatedDate ?? ''), String(c.Id));
+  for (const x of external.rows)
+    app(String(x.MasterLabel), 'External client app', String(x.CreatedDate ?? ''), String(x.Id));
   const usersOf = new Map<string, Set<string>>();
   const flat: Row[] = [];
   for (const t of tokens.rows) {
