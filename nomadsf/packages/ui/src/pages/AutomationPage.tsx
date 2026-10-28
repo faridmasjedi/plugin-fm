@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { describeGlobal, saveOrder, type SaveStep, type SObjectSummary } from '@nomadsf/core';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
+import { ObjectOptions } from '../components/ObjectOptions';
 
 /** What runs when a record of an object is saved, in Salesforce's order of execution. */
 export function AutomationPage() {
@@ -55,13 +56,7 @@ export function AutomationPage() {
           }}
           onKeyDown={(e) => e.key === 'Enter' && !pick(typed) && setStatus(`❌ No object called "${typed.trim()}".`)}
         />
-        <datalist id="automation-objects">
-          {objects.map((o) => (
-            <option key={o.name} value={o.name}>
-              {o.label}
-            </option>
-          ))}
-        </datalist>
+        <ObjectOptions id="automation-objects" objects={objects} typed={typed} />
         <label className="check">
           <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Active only
         </label>

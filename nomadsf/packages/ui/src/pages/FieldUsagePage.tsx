@@ -12,6 +12,7 @@ import {
 } from '@nomadsf/core';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
+import { ObjectOptions } from '../components/ObjectOptions';
 
 /** How full each field is, and what references a custom field, before changing or deleting it. */
 export function FieldUsagePage() {
@@ -137,13 +138,7 @@ export function FieldUsagePage() {
           }}
           style={{ minWidth: 240 }}
         />
-        <datalist id="field-usage-objects">
-          {objects.map((o) => (
-            <option key={o.name} value={o.name}>
-              {o.label}
-            </option>
-          ))}
-        </datalist>
+        <ObjectOptions id="field-usage-objects" objects={objects} typed={typed} />
         <label className="check">
           <input type="checkbox" checked={onlyCustom} onChange={(e) => setOnlyCustom(e.target.checked)} /> Custom fields
           only

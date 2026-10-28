@@ -1,4 +1,5 @@
 import { SalesforceClient, apiHostFor, fetchTransport, proxyTransport, query, type HttpResponse } from '@nomadsf/core';
+import { tracked } from './busy';
 import { call, inVsCodeWebview } from './embed';
 
 /**
@@ -41,7 +42,9 @@ function appHost(): Host {
       }));
     },
     async client(org) {
-      return new SalesforceClient(proxyTransport(`/api/sf/${encodeURIComponent(org.id)}`, { 'x-fm-dashboard': '1' }));
+      return new SalesforceClient(
+        tracked(proxyTransport(`/api/sf/${encodeURIComponent(org.id)}`, { 'x-fm-dashboard': '1' }))
+      );
     },
   };
 }
@@ -85,7 +88,7 @@ function extensionHost(): Host {
       const cookie = await chrome.cookies.get({ url: `https://${org.id}`, name: 'sid' });
       if (!cookie?.value)
         throw new Error(`Not logged in to ${org.id}. Open Salesforce in this browser and log in first.`);
-      return new SalesforceClient(fetchTransport(`https://${org.id}`, cookie.value));
+      return new SalesforceClient(tracked(fetchTransport(`https://${org.id}`, cookie.value)));
     },
   };
 }
@@ -96,7 +99,7 @@ function vscodeHost(): Host {
     kind: 'vscode',
     orgs: () => call<OrgChoice[]>('orgs'),
     async client(org) {
-      return new SalesforceClient((request) => call<HttpResponse>('sf', org.id, request));
+      return new SalesforceClient(tracked((request) => call<HttpResponse>('sf', org.id, request)));
     },
   };
 }

@@ -866,6 +866,11 @@ export function ObjectSettings({
     onChange({ fields: { mode: choice.mode, fields: on ? [...listed, name] : listed.filter((f) => f !== name) } });
   };
   const shown = (fields ?? []).filter((f) => `${f.label} ${f.name}`.toLowerCase().includes(filter.toLowerCase()));
+  const [names, setNames] = useState<'label' | 'name' | 'both'>(() => storage.get('fields.names', 'label'));
+  const showNames = (v: typeof names) => {
+    setNames(v);
+    storage.set('fields.names', v);
+  };
   return (
     <div className="backup-settings">
       {!noCondition && (
@@ -896,21 +901,26 @@ export function ObjectSettings({
               value={filter}
               onChange={(e) => onFilter(e.target.value)}
             />
+            <select value={names} onChange={(e) => showNames(e.target.value as typeof names)} title="Show fields by">
+              <option value="label">Labels</option>
+              <option value="name">API names</option>
+              <option value="both">Labels and API names</option>
+            </select>
             <span className="muted">
               {listed.length} ticked · Id and SystemModstamp are always kept; address and file-body fields cannot be
               backed up by the bulk API
             </span>
           </div>
           {!fields && <p className="muted">Loading fields…</p>}
-          <div className="field-checks">
+          <div className={`field-checks ${names === 'both' ? 'two-lines' : ''}`}>
             {shown.map((f) => (
               <label
                 key={f.name}
                 className="check"
                 title={
                   NOT_IN_BULK.has(f.type)
-                    ? `${f.type} fields cannot be backed up by the bulk API`
-                    : `${f.name} · ${f.type}`
+                    ? `${f.label} (${f.name}): ${f.type} fields cannot be backed up by the bulk API`
+                    : `${f.label} · ${f.name} · ${f.type}`
                 }
               >
                 <input
@@ -919,7 +929,10 @@ export function ObjectSettings({
                   checked={listed.includes(f.name)}
                   onChange={(e) => tick(f.name, e.target.checked)}
                 />{' '}
-                {f.label} {f.label !== f.name && <span className="muted mono">{f.name}</span>}
+                <span className="field-check-text">
+                  {names === 'name' ? <span className="mono">{f.name}</span> : <span>{f.label}</span>}
+                  {names === 'both' && <span className="muted mono">{f.name}</span>}
+                </span>
               </label>
             ))}
           </div>

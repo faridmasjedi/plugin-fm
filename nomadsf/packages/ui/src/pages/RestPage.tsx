@@ -67,7 +67,11 @@ export function RestPage() {
             <option key={e} value={e} />
           ))}
         </datalist>
-        <button className="primary" disabled={running || !path.trim()} onClick={() => void send()}>
+        <button
+          className={`primary ${running ? 'working' : ''}`}
+          disabled={running || !path.trim()}
+          onClick={() => void send()}
+        >
           {running ? 'Sending…' : 'Send'}
         </button>
       </div>

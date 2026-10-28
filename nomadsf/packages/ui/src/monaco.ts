@@ -28,6 +28,17 @@ window.addEventListener('unhandledrejection', (event) => {
   if (reason?.name === 'Canceled' || reason?.message === 'Canceled') event.preventDefault();
 });
 
+/** Identifiers in the code (3+ characters), except the word being typed and the language's own words. */
+export function documentWords(text: string, current: string): string[] {
+  const known = new Set([...APEX_KEYWORDS, ...APEX_TYPES].map((k) => k.toLowerCase()));
+  const words = new Set<string>();
+  for (const w of text.replace(/\/\/.*$|'(?:[^'\\]|\\.)*'/gm, ' ').match(/[A-Za-z_]\w{2,}/g) ?? []) {
+    if (w !== current && !known.has(w.toLowerCase())) words.add(w);
+    if (words.size >= 2000) break;
+  }
+  return [...words];
+}
+
 const APEX_KEYWORDS = [
   'abstract',
   'after',
@@ -280,6 +291,14 @@ export function registerLanguages(): void {
             label: k,
             kind: monaco.languages.CompletionItemKind.Keyword,
             insertText: k,
+            range,
+          })),
+          // Names used in this editor (variables, methods): Monaco only asks its own word list
+          // when no provider answers, and this one always does
+          ...documentWords(model.getValue(), word.word).map((w) => ({
+            label: w,
+            kind: monaco.languages.CompletionItemKind.Text,
+            insertText: w,
             range,
           })),
         ],

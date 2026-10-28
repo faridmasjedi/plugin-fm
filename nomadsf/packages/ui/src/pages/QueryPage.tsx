@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import {
   describeGlobal,
@@ -38,6 +38,7 @@ function SavedQueries({
   setSaved,
   name,
   setName,
+  pickers,
 }: {
   soql: string;
   tooling: boolean;
@@ -45,6 +46,8 @@ function SavedQueries({
   setSaved: (list: SavedQuery[]) => void;
   name: string;
   setName: (name: string) => void;
+  /** The Saved… and History… menus, first in the row. */
+  pickers: ReactNode;
 }) {
   const project = useProject();
   const [message, setMessage] = useState('');
@@ -76,7 +79,8 @@ function SavedQueries({
   return (
     <div className="card saved-queries">
       <div className="form">
-        <b title="Queries kept in this browser; pick one from Saved… above">Saved queries</b>
+        <b title="Queries kept in this browser">Saved queries</b>
+        {pickers}
         <input
           placeholder="Name this query"
           value={name}
@@ -395,6 +399,50 @@ export function QueryPage() {
 
   return (
     <div className="page">
+      <SavedQueries
+        soql={soql}
+        tooling={tooling}
+        saved={saved}
+        setSaved={setSaved}
+        name={savedName}
+        setName={setSavedName}
+        pickers={
+          <>
+            <select
+              className="menu-select"
+              value=""
+              title="Saved queries"
+              onChange={(e) => {
+                const query = saved.find((q) => q.name === e.target.value);
+                if (!query) return;
+                setSoql(query.soql);
+                setTooling(query.tooling);
+                setSavedName(query.name);
+              }}
+            >
+              <option value="">{saved.length ? `Saved (${saved.length})…` : 'Saved…'}</option>
+              {saved.map((q) => (
+                <option key={q.name} value={q.name}>
+                  {q.name}
+                  {q.tooling ? ' · Tooling' : ''}
+                </option>
+              ))}
+            </select>
+            <select
+              className="menu-select"
+              value=""
+              onChange={(e) => e.target.value && setSoql(history[Number(e.target.value)])}
+            >
+              <option value="">History…</option>
+              {history.map((h, i) => (
+                <option key={i} value={i}>
+                  {h.replace(/\s+/g, ' ').slice(0, 70)}
+                </option>
+              ))}
+            </select>
+          </>
+        }
+      />
       <div className="toolbar">
         <h2>Query</h2>
         <span className="grow" />
@@ -424,40 +472,8 @@ export function QueryPage() {
           />{' '}
           Names for Ids
         </label>
-        <select
-          className="menu-select"
-          value=""
-          title="Saved queries"
-          onChange={(e) => {
-            const query = saved.find((q) => q.name === e.target.value);
-            if (!query) return;
-            setSoql(query.soql);
-            setTooling(query.tooling);
-            setSavedName(query.name);
-          }}
-        >
-          <option value="">{saved.length ? `Saved (${saved.length})…` : 'Saved…'}</option>
-          {saved.map((q) => (
-            <option key={q.name} value={q.name}>
-              {q.name}
-              {q.tooling ? ' · Tooling' : ''}
-            </option>
-          ))}
-        </select>
-        <select
-          className="menu-select"
-          value=""
-          onChange={(e) => e.target.value && setSoql(history[Number(e.target.value)])}
-        >
-          <option value="">History…</option>
-          {history.map((h, i) => (
-            <option key={i} value={i}>
-              {h.replace(/\s+/g, ' ').slice(0, 70)}
-            </option>
-          ))}
-        </select>
         <button onClick={() => void allFields()}>All fields</button>
-        <button className="primary" disabled={running} onClick={() => void run()}>
+        <button className={`primary ${running ? 'working' : ''}`} disabled={running} onClick={() => void run()}>
           {running ? 'Running…' : 'Run ⌘⏎'}
         </button>
       </div>
@@ -478,14 +494,6 @@ export function QueryPage() {
           </button>
         </div>
       )}
-      <SavedQueries
-        soql={soql}
-        tooling={tooling}
-        saved={saved}
-        setSaved={setSaved}
-        name={savedName}
-        setName={setSavedName}
-      />
       <div className="editor-box small">
         <CodeEditor language="soql" value={soql} onChange={setSoql} onMount={onMount} />
       </div>

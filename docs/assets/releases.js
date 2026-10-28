@@ -28,6 +28,19 @@
       if (name) name.textContent = latest.name || latest.tag_name;
     }
     if (!releases.length) throw new Error('none');
+    // A few words per version (whats-new.js); the newest release without its own entry shows "next"
+    const notes = window.NOMADSF_WHATS_NEW || {};
+    const newest = releases.find((r) => !r.prerelease);
+    const changes = (r) => {
+      const own = notes[r.tag_name.replace(/^v/, '')];
+      return own || (r === newest && notes.next) || [];
+    };
+    const list = (items) => (items.length ? `<ul>${items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>` : '');
+    const box2 = document.getElementById('whats-new');
+    if (box2 && newest && changes(newest).length) {
+      box2.innerHTML = `<h3>What's new in ${esc(newest.name || newest.tag_name)}</h3>${list(changes(newest))}`;
+      box2.hidden = false;
+    }
     const rows = releases
       .map((r) => {
         const date = new Date(r.published_at).toLocaleDateString(undefined, {
@@ -41,10 +54,12 @@
         const kind = r.prerelease ? ' <span class="badge">pre-release</span>' : '';
         return `<tr><td><a href="${esc(r.html_url)}"><b>${esc(
           r.name || r.tag_name
-        )}</b></a>${kind}</td><td>${date}</td><td>${files || '—'}</td></tr>`;
+        )}</b></a>${kind}</td><td>${date}</td><td class="changes">${list(changes(r)) || '—'}</td><td>${
+          files || '—'
+        }</td></tr>`;
       })
       .join('');
-    box.innerHTML = `<table class="versions"><thead><tr><th>Version</th><th>Date</th><th>Downloads</th></tr></thead><tbody>${rows}</tbody></table>`;
+    box.innerHTML = `<table class="versions"><thead><tr><th>Version</th><th>Date</th><th>What's new</th><th>Downloads</th></tr></thead><tbody>${rows}</tbody></table>`;
   } catch {
     box.innerHTML = `<p class="note">The list of versions could not be loaded here. See <a href="https://github.com/${repo}/releases">all releases on GitHub</a>.</p>`;
   }

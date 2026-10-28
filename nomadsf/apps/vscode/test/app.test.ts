@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { appInfo, isOlder, selectProject, targetPath, waitForApp } from '../src/app';
+import { appInfo, browserCommand, isOlder, selectProject, targetPath, waitForApp } from '../src/app';
 
 describe('local app helpers', () => {
   let server: Server;
@@ -61,5 +61,16 @@ describe('plugin version', () => {
     expect(isOlder('v1.0.9', '1.0.10')).toBe(true);
     expect(isOlder(undefined, '1.0.0')).toBe(true);
     expect(isOlder('', '1.0.0')).toBe(true);
+  });
+});
+
+describe('browserCommand', () => {
+  // A front door link: a query inside the query must reach the browser unchanged
+  const url =
+    'https://x.my.salesforce.com/secur/frontdoor.jsp?sid=00D%21AQ.a%2Bb&retURL=%2Flightning%2Fo%2FAccount%2Flist%3Fa%3D1%26filterName%3DAll';
+  it('passes the link as one argument, as written', () => {
+    expect(browserCommand('darwin', url)).toEqual(['open', [url]]);
+    expect(browserCommand('linux', url)).toEqual(['xdg-open', [url]]);
+    expect(browserCommand('win32', url)).toEqual(['rundll32', ['url.dll,FileProtocolHandler', url]]);
   });
 });

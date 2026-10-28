@@ -22,6 +22,8 @@ Local hooks (husky) run lint on commit and the full build + tests on push. They 
 
    As a repository admin you can also choose **bypass** instead of approving. If the tests or the files fail, the release goes back to a draft.
 
+**What's new on the website**: each pull request with a visible change adds a few words under `next` in `docs/assets/whats-new.js`. The download section shows them for the newest release that has no entry of its own, so publishing needs no edit; in the next pull request after a release, rename `next` to that version.
+
 **One version for everything**: the tag sets the same version on the `sf fm` plugin, the browser extension (its manifest) and the VS Code extension (`scripts/set-version.mjs`), so a release `v1.1.0` ships plugin 1.1.0, extension 1.1.0 and VS Code 1.1.0. The download names stay the same (`nomadsf-extension.zip`, `nomadsf-vscode.vsix`), so "latest" links never change.
 
 Nothing is pushed to `main` by a release: the version is set from the tag while building. To bring `main` in line after a release (optional, in a pull request): `node scripts/set-version.mjs 1.1.0`. The website and the README show the latest version from GitHub, so they need no edit per release.

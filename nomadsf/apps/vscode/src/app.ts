@@ -132,3 +132,10 @@ export const STUDIO_PAGES = [
   ['orgapps', 'Connected apps', 'Org to org'],
   ['settings', 'Settings', 'Settings'],
 ] as const;
+
+/** The system's own "open this link" command, with the link as one argument (no shell). */
+export function browserCommand(platform: NodeJS.Platform, url: string): [string, string[]] {
+  if (platform === 'darwin') return ['open', [url]];
+  if (platform === 'win32') return ['rundll32', ['url.dll,FileProtocolHandler', url]];
+  return ['xdg-open', [url]];
+}

@@ -18,14 +18,37 @@ import { DataTable } from '../components/DataTable';
 const display = (v: unknown): string =>
   v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
 
-/** Finds a user's Id from a username (the inspector also accepts usernames). */
-async function resolveInput(client: ReturnType<typeof useStudio>['client'], input: string): Promise<string> {
+type UserMatch = { id: string; name: string; username: string; active: boolean };
+
+const soqlText = (s: string): string => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+/**
+ * What the search box holds: a record Id or URL as it is, a username, or a user's name
+ * (several users with that name come back as a list to choose from).
+ */
+async function resolveInput(
+  client: ReturnType<typeof useStudio>['client'],
+  input: string
+): Promise<string | UserMatch[]> {
   const text = input.trim();
-  if (!/^[^\s@'\\]+@[^\s@'\\]+$/.test(text)) return text;
-  const result = await query(client, `SELECT Id FROM User WHERE Username = '${text}' LIMIT 1`);
-  const id = result.rows[0]?.Id;
-  if (!id) throw new Error(`No user with the username ${text}.`);
-  return String(id);
+  if (/^[a-zA-Z0-9]{15}([a-zA-Z0-9]{3})?$/.test(text) || text.includes('/')) return text;
+  const byUsername = /^[^\s@'\\]+@[^\s@'\\]+$/.test(text);
+  const where = byUsername ? `Username = '${soqlText(text)}'` : `Name LIKE '%${soqlText(text)}%'`;
+  const result = await query(
+    client,
+    `SELECT Id, Name, Username, IsActive FROM User WHERE ${where} ORDER BY IsActive DESC, Name LIMIT 20`
+  );
+  const users = result.rows.map((r) => ({
+    id: String(r.Id),
+    name: String(r.Name ?? ''),
+    username: String(r.Username ?? ''),
+    active: Boolean(r.IsActive),
+  }));
+  if (!users.length) throw new Error(byUsername ? `No user with the username ${text}.` : `No user named “${text}”.`);
+  const exact = users.filter((u) => u.name.toLowerCase() === text.toLowerCase());
+  if (users.length === 1) return users[0].id;
+  if (exact.length === 1) return exact[0].id;
+  return users;
 }
 
 /** Every field of one record, with inline edit (Salesforce Inspector's "Show all data"). */
@@ -45,14 +68,23 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
   // Another record (or the same one after a save): its history is read again
   useEffect(() => setHistory(null), [record]);
   const [recent, setRecent] = useState<Array<{ id: string; label: string }>>(() => storage.get('record.recent', []));
+  const [choices, setChoices] = useState<UserMatch[]>([]);
 
   const open = useCallback(
     async (value: string) => {
       setStatus('Loading…');
       setEditing(false);
       setEdits({});
+      setChoices([]);
       try {
-        const loaded = await inspectRecord(client, await resolveInput(client, value));
+        const target = await resolveInput(client, value);
+        if (Array.isArray(target)) {
+          setRecord(null);
+          setChoices(target);
+          setStatus(`${target.length} users match “${value.trim()}”: choose one.`);
+          return;
+        }
+        const loaded = await inspectRecord(client, target);
         setRecord(loaded);
         setInput(loaded.id);
         setStatus('');
@@ -185,7 +217,7 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
           <h2>Record</h2>
           <input
             style={{ minWidth: 360 }}
-            placeholder="Record Id, record URL or username"
+            placeholder="Record Id, record URL, username or a user's name"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && void open(input)}
@@ -193,6 +225,11 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
           <button className="primary" disabled={!input.trim()} onClick={() => void open(input)}>
             Show all data
           </button>
+          {user && (
+            <button title="Your own user in this org" onClick={() => void open(user.userId)}>
+              Me
+            </button>
+          )}
           {recent.length > 0 && (
             <select className="menu-select" value="" onChange={(e) => e.target.value && void open(e.target.value)}>
               <option value="">Recent…</option>
@@ -206,6 +243,16 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
         </div>
       )}
       {status && <p className="muted">{status}</p>}
+      {choices.length > 0 && (
+        <div className="card section">
+          <DataTable
+            name="users"
+            columns={['Name', 'Username', 'Active', 'Id']}
+            rows={choices.map((u) => ({ Name: u.name, Username: u.username, Active: u.active ? '✓' : '', Id: u.id }))}
+            onRowClick={(row) => void open(String(row.Id))}
+          />
+        </div>
+      )}
       {record && (
         <div className="card section">
           <div className="toolbar">
