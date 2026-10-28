@@ -1,14 +1,31 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
+  addGroupMembers,
+  assignAccess,
+  assignLicense,
+  deleteByIds,
   effectivePermissions,
+  listGroups,
+  listPermissionSetLicenses,
+  listPermissionSets,
+  removeAccess,
+  removeGroupMembers,
   userAccess,
   userLogins,
+  type AccessTarget,
   type EffectivePermission,
+  type GroupInfo,
+  type LicenseInfo,
   type Row,
   type UserAccess,
 } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
 import { DataTable, EmptyHint } from './DataTable';
+import { ManagedList } from './ManagedList';
+
+const fail = (r: { errors: string[] }): void => {
+  if (r.errors.length) throw new Error(r.errors.join('; '));
+};
 
 type Tab = 'perms' | 'system' | 'groups' | 'licenses' | 'oauth' | 'logins';
 const TABS: Array<[Tab, string]> = [
@@ -28,6 +45,16 @@ export function UserAccessPanel({ userId, label, details }: { userId: string; la
   const [system, setSystem] = useState<EffectivePermission[] | null>(null);
   const [logins, setLogins] = useState<Row[] | null>(null);
   const [status, setStatus] = useState('');
+  // What can be added: loaded with the tab that offers it
+  const [targets, setTargets] = useState<AccessTarget[] | null>(null);
+  const [groupList, setGroupList] = useState<GroupInfo[] | null>(null);
+  const [licenseList, setLicenseList] = useState<LicenseInfo[] | null>(null);
+  const refresh = () => {
+    setAccess(null);
+    setSystem(null);
+    setGroupList(null);
+    setLicenseList(null);
+  };
 
   useEffect(() => {
     setAccess(null);
@@ -48,6 +75,18 @@ export function UserAccessPanel({ userId, label, details }: { userId: string; la
       effectivePermissions(client, userId)
         .then((s) => !canceled && setSystem(s))
         .catch(fail);
+    if (tab === 'perms' && !targets)
+      listPermissionSets(client)
+        .then((t) => !canceled && setTargets(t))
+        .catch(fail);
+    if (tab === 'groups' && !groupList)
+      listGroups(client)
+        .then((g) => !canceled && setGroupList(g))
+        .catch(fail);
+    if (tab === 'licenses' && !licenseList)
+      listPermissionSetLicenses(client)
+        .then((l) => !canceled && setLicenseList(l))
+        .catch(fail);
     if (tab === 'logins' && !logins)
       userLogins(client, userId)
         .then((l) => !canceled && setLogins(l))
@@ -55,9 +94,9 @@ export function UserAccessPanel({ userId, label, details }: { userId: string; la
     return () => {
       canceled = true;
     };
-    // results are not triggers
+    // results are not triggers (cleared to read again after a change)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, userId, tab]);
+  }, [client, userId, tab, access === null]);
 
   const choose = (next: Tab | 'details') => {
     setTab(next);
@@ -83,27 +122,31 @@ export function UserAccessPanel({ userId, label, details }: { userId: string; la
         ) : (
           <>
             <h4>Permission set groups ({access.permissionSetGroups.length})</h4>
-            {access.permissionSetGroups.length ? (
-              <DataTable
-                columns={['Label', 'Name', 'ExpirationDate']}
-                rows={access.permissionSetGroups}
-                name={name('permission-set-groups')}
-                rowKey="Id"
-              />
-            ) : (
-              <EmptyHint what="permission set groups" />
-            )}
+            <ManagedList
+              rows={access.permissionSetGroups}
+              columns={['Label', 'Name', 'ExpirationDate']}
+              what="permission set group"
+              removeKey="AssignmentId"
+              onRemove={async (r) => fail(await removeAccess(client, [String(r.AssignmentId)]))}
+              choices={(targets ?? [])
+                .filter((t) => t.kind === 'group' && !access.permissionSetGroups.some((g) => g.Id === t.id))
+                .map((t) => ({ id: t.id, label: t.label, detail: t.name }))}
+              onAdd={async (c) => fail(await assignAccess(client, { kind: 'group', id: c.id }, [userId]))}
+              onChanged={refresh}
+            />
             <h4>Permission sets ({access.permissionSets.length})</h4>
-            {access.permissionSets.length ? (
-              <DataTable
-                columns={['Label', 'Name', 'ExpirationDate']}
-                rows={access.permissionSets}
-                name={name('permission-sets')}
-                rowKey="Id"
-              />
-            ) : (
-              <EmptyHint what="permission sets (besides the profile)" />
-            )}
+            <ManagedList
+              rows={access.permissionSets}
+              columns={['Label', 'Name', 'ExpirationDate']}
+              what="permission set"
+              removeKey="AssignmentId"
+              onRemove={async (r) => fail(await removeAccess(client, [String(r.AssignmentId)]))}
+              choices={(targets ?? [])
+                .filter((t) => t.kind === 'permset' && !access.permissionSets.some((p) => p.Id === t.id))
+                .map((t) => ({ id: t.id, label: t.label, detail: t.name }))}
+              onAdd={async (c) => fail(await assignAccess(client, { kind: 'permset', id: c.id }, [userId]))}
+              onChanged={refresh}
+            />
           </>
         )
       ) : tab === 'system' ? (
@@ -125,30 +168,43 @@ export function UserAccessPanel({ userId, label, details }: { userId: string; la
       ) : tab === 'groups' ? (
         !access ? (
           loading
-        ) : access.groups.length === 0 ? (
-          <EmptyHint what="groups or queues" />
         ) : (
-          <DataTable
-            columns={['Kind', 'Name', 'DeveloperName', 'Member', 'Owner']}
-            rows={access.groups}
-            rowKey="Id"
-            name={name('groups')}
-            note={
-              <span>· direct memberships (not through roles or other groups), and personal groups the user owns</span>
-            }
-          />
+          <>
+            <p className="muted">
+              Direct memberships (not through roles or other groups), and personal groups the user owns (those cannot be
+              removed here).
+            </p>
+            <ManagedList
+              rows={access.groups}
+              columns={['Name', 'Kind', 'DeveloperName', 'Member', 'Owner']}
+              what="group or queue"
+              whatPlural="groups or queues"
+              removeKey="MemberId"
+              onRemove={async (r) => fail(await removeGroupMembers(client, [String(r.MemberId)]))}
+              choices={(groupList ?? [])
+                .filter((g) => !access.groups.some((m) => m.Id === g.Id && m.MemberId))
+                .map((g) => ({ id: g.Id, label: g.Name, detail: g.Kind }))}
+              addLabel="Add to a public group or queue"
+              onAdd={async (c) => fail(await addGroupMembers(client, c.id, [userId]))}
+              onChanged={refresh}
+            />
+          </>
         )
       ) : tab === 'licenses' ? (
         !access ? (
           loading
-        ) : access.licenses.length === 0 ? (
-          <EmptyHint what="permission set licenses" />
         ) : (
-          <DataTable
-            columns={['Label', 'Name', 'Status', 'ExpirationDate']}
+          <ManagedList
             rows={access.licenses}
-            rowKey="Name"
-            name={name('licenses')}
+            columns={['Label', 'Name', 'Status', 'ExpirationDate']}
+            what="permission set license"
+            removeKey="AssignmentId"
+            onRemove={async (r) => fail(await deleteByIds(client, [String(r.AssignmentId)]))}
+            choices={(licenseList ?? [])
+              .filter((l) => !access.licenses.some((a) => a.Name === l.Name))
+              .map((l) => ({ id: l.Id, label: l.Label, detail: `${l.Used} of ${l.Total} used` }))}
+            onAdd={(c) => assignLicense(client, userId, c.id)}
+            onChanged={refresh}
           />
         )
       ) : tab === 'oauth' ? (

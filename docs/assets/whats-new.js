@@ -13,6 +13,12 @@ window.NOMADSF_WHATS_NEW = {
     'Apex editor suggests the names used in your code; Execute Apex asks for the org name',
     'Query: Related fields… adds any fields of the records Id columns point to, even where SOQL cannot follow',
     'Query editor: type Account. (or Account.Owner.) for the fields of related records',
+    'Users: add and remove permission sets, groups, licenses, public groups and queues',
+    'Record editor: find a profile, role, manager or any lookup by name',
+    'Permissions: Apex classes, Visualforce pages, custom permissions, connected apps, apps and tabs',
+    'Custom profiles: login IP ranges and hours',
+    'New tools: Groups & queues and Custom permissions; Assigned users can remove or move people',
+    'Create permission sets and permission set groups',
   ],
   '2.1.0': [
     'VS Code extension works on its own: no Salesforce CLI, no sf fm plugin, no local port',

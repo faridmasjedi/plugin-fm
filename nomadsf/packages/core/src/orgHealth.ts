@@ -91,7 +91,10 @@ const userColumns = (prefix = ''): string =>
 const unprefix = (row: Row, prefix: string): Row =>
   Object.fromEntries(Object.entries(row).map(([k, v]) => [k.startsWith(prefix) ? k.slice(prefix.length) : k, v]));
 
-/** The users who have it (direct assignments and memberships). */
+/**
+ * The users who have it (direct assignments and memberships). RemoveId: what to delete to take it
+ * away (the assignment or membership); profiles and roles are changed on the user instead.
+ */
 export async function usersWith(client: SalesforceClient, holder: Pick<Holder, 'kind' | 'id'>): Promise<Row[]> {
   checkId(holder.id);
   const rows = async (soql: string, prefix: string, extra: (r: Row) => Row = () => ({})): Promise<Row[]> =>
@@ -100,18 +103,19 @@ export async function usersWith(client: SalesforceClient, holder: Pick<Holder, '
     case 'permset':
     case 'group':
       return rows(
-        `SELECT ${userColumns('Assignee.')}, ExpirationDate FROM PermissionSetAssignment WHERE ${
+        `SELECT Id, ${userColumns('Assignee.')}, ExpirationDate FROM PermissionSetAssignment WHERE ${
           holder.kind === 'group' ? 'PermissionSetGroupId' : 'PermissionSetId'
         } = '${holder.id}' ORDER BY Assignee.Name`,
         'Assignee.',
-        (r) => ({ ExpirationDate: r.ExpirationDate ?? '' })
+        (r) => ({ Id: r['Assignee.Id'], RemoveId: r.Id, ExpirationDate: r.ExpirationDate ?? '' })
       );
     case 'license':
       return rows(
-        `SELECT ${userColumns('Assignee.')} FROM PermissionSetLicenseAssign WHERE PermissionSetLicenseId = '${
+        `SELECT Id, ${userColumns('Assignee.')} FROM PermissionSetLicenseAssign WHERE PermissionSetLicenseId = '${
           holder.id
         }' ORDER BY Assignee.Name`,
-        'Assignee.'
+        'Assignee.',
+        (r) => ({ Id: r['Assignee.Id'], RemoveId: r.Id })
       );
     case 'profile':
       return rows(`SELECT ${USER_FIELDS} FROM User WHERE ProfileId = '${holder.id}' ORDER BY Name`, '');
@@ -119,9 +123,10 @@ export async function usersWith(client: SalesforceClient, holder: Pick<Holder, '
       return rows(`SELECT ${USER_FIELDS} FROM User WHERE UserRoleId = '${holder.id}' ORDER BY Name`, '');
     case 'publicGroup':
     case 'queue': {
-      const members = await query(client, `SELECT UserOrGroupId FROM GroupMember WHERE GroupId = '${holder.id}'`, {
+      const members = await query(client, `SELECT Id, UserOrGroupId FROM GroupMember WHERE GroupId = '${holder.id}'`, {
         maxRows: 50_000,
       });
+      const memberId = new Map(members.rows.map((m) => [String(m.UserOrGroupId).slice(0, 15), String(m.Id)]));
       const ids = members.rows.map((m) => String(m.UserOrGroupId)).filter((id) => id.startsWith('005'));
       const out: Row[] = [];
       for (let i = 0; i < ids.length; i += 200) {
@@ -133,7 +138,7 @@ export async function usersWith(client: SalesforceClient, holder: Pick<Holder, '
             .map((id) => `'${id}'`)
             .join(',')}) ORDER BY Name`
         );
-        out.push(...page.rows);
+        out.push(...page.rows.map((u) => ({ ...u, RemoveId: memberId.get(String(u.Id).slice(0, 15)) })));
       }
       const nested = members.rows.length - ids.length;
       return nested

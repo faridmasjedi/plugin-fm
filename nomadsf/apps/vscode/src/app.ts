@@ -115,6 +115,8 @@ export const STUDIO_PAGES = [
   ['permsets', 'Permission sets & groups', 'Access'],
   ['permissions', 'Permissions', 'Access'],
   ['assigned', 'Assigned users', 'Access'],
+  ['groups', 'Groups & queues', 'Access'],
+  ['custperms', 'Custom permissions', 'Access'],
   ['compare', 'Compare', 'Access'],
   ['accessmap', 'Access overview', 'Access'],
   ['objectaccess', 'Object access', 'Access'],

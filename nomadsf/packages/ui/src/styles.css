@@ -2594,3 +2594,21 @@ button.working::before {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* Lookup fields in the Record editor: the Id plus a find-by-name picker */
+.lookup-edit,
+.record-picker {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.record-picker input {
+  width: 180px;
+}
+.managed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}

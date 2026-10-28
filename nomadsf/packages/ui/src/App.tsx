@@ -19,6 +19,7 @@ import {
 } from './pages/AccessPage';
 import { AccessOverviewPage, MyAccessPage, ObjectAccessPage } from './pages/AccessReportsPage';
 import { AccessNote } from './toolAccess';
+import { CustomPermissionsPage, GroupsPage } from './pages/AccessManagePages';
 import { SchemaPage } from './pages/SchemaPage';
 import { AutomationPage } from './pages/AutomationPage';
 import { DeploymentsPage } from './pages/DeploymentsPage';
@@ -329,6 +330,8 @@ export function App() {
             {tool === 'permsets' && <PermissionSetsPage />}
             {tool === 'permissions' && <PermissionsPage />}
             {tool === 'assigned' && <AssignedUsersPage />}
+            {tool === 'groups' && <GroupsPage />}
+            {tool === 'custperms' && <CustomPermissionsPage />}
             {tool === 'compare' && <ComparePage />}
             {tool === 'accessmap' && <AccessOverviewPage />}
             {tool === 'objectaccess' && <ObjectAccessPage />}

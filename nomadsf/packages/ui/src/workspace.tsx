@@ -42,6 +42,8 @@ export type ToolId =
   | 'permsets'
   | 'permissions'
   | 'assigned'
+  | 'groups'
+  | 'custperms'
   | 'compare'
   | 'accessmap'
   | 'objectaccess'
@@ -79,6 +81,8 @@ export const TOOLS: Tool[] = [
   { id: 'permsets', label: 'Permission sets & groups', icon: '▣', hint: 'who has one, assign, remove' },
   { id: 'permissions', label: 'Permissions', icon: '⚿', hint: 'what a profile, set or group allows; edit' },
   { id: 'assigned', label: 'Assigned users', icon: '☷', hint: 'users of a set, group, license, profile, role' },
+  { id: 'groups', label: 'Groups & queues', icon: '◎', hint: 'public groups, queues and their members' },
+  { id: 'custperms', label: 'Custom permissions', icon: '✱', hint: 'who gives each one; grant it' },
   { id: 'compare', label: 'Compare', icon: '⇆', hint: 'two users, profiles or permission sets' },
   { id: 'accessmap', label: 'Access overview', icon: '▦', hint: 'every user and what they have' },
   { id: 'objectaccess', label: 'Object access', icon: '⛉', hint: 'who can use an object or field' },
@@ -113,6 +117,8 @@ export const HUBS: Hub[] = [
       'permsets',
       'permissions',
       'assigned',
+      'groups',
+      'custperms',
       'compare',
       'accessmap',
       'objectaccess',

@@ -14,6 +14,7 @@ import { storage, useStudio } from '../context';
 import { openInOrg } from '../host';
 import { CopyId } from '../components/CopyId';
 import { DataTable } from '../components/DataTable';
+import { RecordPicker } from '../components/RecordPicker';
 
 const display = (v: unknown): string =>
   v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
@@ -182,7 +183,7 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
           />
         );
       }
-      return (
+      const input = (
         <input
           className={changed.includes(f.name) ? 'changed' : ''}
           value={current}
@@ -190,6 +191,19 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
           onChange={(e) => setEdits({ ...edits, [f.name]: e.target.value })}
         />
       );
+      // Lookups (ProfileId, UserRoleId, ManagerId…): find the record by name, its Id goes in
+      if (f.referenceTo.length)
+        return (
+          <span className="lookup-edit">
+            {input}
+            <RecordPicker
+              client={client}
+              objects={f.referenceTo}
+              onPick={(id) => setEdits({ ...edits, [f.name]: id })}
+            />
+          </span>
+        );
+      return input;
     }
     const text = display(f.value);
     if (f.referenceTo.length && text) {

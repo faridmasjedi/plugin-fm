@@ -17,6 +17,7 @@ import { UserEditor } from '../components/UserEditor';
 import { WhoHasIt } from '../components/WhoHasIt';
 import { CompareAccess } from '../components/CompareAccess';
 import { storage, useStudio } from '../context';
+import { NewPermissionSet } from './AccessManagePages';
 
 type By = 'usernames' | 'profile' | 'role' | 'publicGroup';
 const BY_LABEL: Record<By, string> = {
@@ -217,10 +218,13 @@ export function PermissionSetsPage() {
   const [userSel, setUserSel] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState('');
 
-  useEffect(() => {
+  const reloadTargets = () =>
     listPermissionSets(client)
       .then(setTargets)
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
+  useEffect(() => {
+    void reloadTargets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client]);
   const target = targets.find((t) => t.id === targetId);
   const shown = useMemo(
@@ -306,6 +310,7 @@ export function PermissionSetsPage() {
     <AccessTool title="Permission sets & groups" about="who has one, assign it, remove it">
       <div className="card section">
         <h3>Permission sets &amp; groups</h3>
+        <NewPermissionSet onCreated={() => void reloadTargets()} />
         <div className="form">
           <div className="segmented" role="group" aria-label="Show">
             {(

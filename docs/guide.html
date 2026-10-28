@@ -683,6 +683,12 @@
               have, and the profile, permission set or group that gives it), <b>Groups &amp; queues</b> (public groups,
               queues, personal groups), <b>Licenses</b>, <b>OAuth apps</b> and <b>Login history</b>.
             </p>
+            <p>
+              Change them right there: <b>Remove</b> a permission set, group, membership or license, or <b>Add</b> one
+              from the list under it (you type the org name each time). In <b>Details › Edit</b>, lookup fields such as
+              <code>ProfileId</code>, <code>UserRoleId</code> or <code>ManagerId</code> have a
+              <i>Find … by name</i> box: choose one and its Id is filled in.
+            </p>
           </section>
           <section class="tool" data-title="Permission sets &amp; groups">
             <h3 id="permsets">Permission sets &amp; groups</h3>
@@ -700,6 +706,8 @@
             <p>
               Show all, only permission sets or only groups; see who has one, assign it to users (found by usernames,
               profile, role or public group, with an optional expiry) or remove it — you type the org name first.
+              <b>New permission set / New permission set group</b> creates one (label and API name), ready for
+              Permissions.
             </p>
           </section>
           <section class="tool" data-title="Permissions">
@@ -736,6 +744,12 @@
               A permission set group gets its permissions from its permission sets: choose the group to add or remove
               permission sets, and Salesforce recalculates it.
             </p>
+            <p>
+              <b>Apps, classes &amp; more</b>: the Apex classes, Visualforce pages, custom permissions, connected apps
+              and apps a permission set or custom profile gives access to — add and remove them. <b>Tabs</b> (permission
+              sets): Visible, Available or Hidden for each tab. <b>Login IP ranges &amp; hours</b> (custom profiles):
+              edit them and <b>Deploy</b> — only those settings of the profile are sent.
+            </p>
           </section>
           <section class="tool" data-title="Assigned users">
             <h3 id="assigned">Assigned users</h3>
@@ -744,7 +758,22 @@
             </div>
             <p>
               Pick a permission set, permission set group, permission set license, profile, role, public group or queue
-              — and see its users (active only, or all).
+              — and see its users (active only, or all). Click a user to <b>Remove</b> them from it, or, for a profile
+              or role, <b>Move</b> them to another one.
+            </p>
+          </section>
+          <section class="tool" data-title="Groups &amp; queues">
+            <h3 id="groups">Groups &amp; queues</h3>
+            <p>
+              Every public group and queue, with its members (users, roles, roles and subordinates, other groups) and
+              the objects a queue can own. Choose one to add or remove members.
+            </p>
+          </section>
+          <section class="tool" data-title="Custom permissions">
+            <h3 id="custperms">Custom permissions</h3>
+            <p>
+              Every custom permission and the permission sets, profiles and groups that give it; grant it to another
+              permission set or profile, or remove a grant.
             </p>
           </section>
           <section class="tool" data-title="Compare">

@@ -14,9 +14,10 @@ import {
 import { storage, useStudio } from '../context';
 import { DataTable, EmptyHint } from './DataTable';
 import { AccessEditor, GroupEditor } from './AccessEditor';
+import { ProfileLoginPanel, SetupAccessPanel, TabSettingsPanel } from '../pages/AccessManagePages';
 import { cannotChangePermissions, useAccessOf } from '../access';
 
-type Tab = 'all' | 'objects' | 'fields' | 'system';
+type Tab = 'all' | 'objects' | 'fields' | 'system' | 'setup' | 'tabs' | 'login';
 const yes = (v: boolean): string => (v ? '✓' : '');
 
 /**
@@ -194,6 +195,9 @@ export function PermissionsExplorer() {
                 ['objects', 'Object access'],
                 ['fields', 'Field access'],
                 ['system', 'User & system permissions'],
+                ['setup', 'Apps, classes & more'],
+                ...(holder.kind === 'Permission set' ? [['tabs', 'Tabs']] : []),
+                ...(holder.kind === 'Profile' ? [['login', 'Login IP ranges & hours']] : []),
               ] as Array<[Tab, string]>
             ).map(([id, label]) => (
               <button
@@ -208,6 +212,23 @@ export function PermissionsExplorer() {
               </button>
             ))}
           </div>
+          {tab === 'setup' && (
+            <SetupAccessPanel
+              permissionSetId={holder.id}
+              editable={Boolean(info?.editable && !blocked)}
+              reason={blocked ?? info?.reason}
+            />
+          )}
+          {tab === 'tabs' && holder.kind === 'Permission set' && (
+            <TabSettingsPanel permissionSetId={holder.id} editable={Boolean(info?.editable && !blocked)} />
+          )}
+          {tab === 'login' &&
+            holder.kind === 'Profile' &&
+            (info?.profileId ? (
+              <ProfileLoginPanel profileId={info.profileId} editable={Boolean(info.editable && !blocked)} />
+            ) : (
+              <p className="muted">Reading the profile…</p>
+            ))}
           {tab === 'all' && <h4>Object access</h4>}
           {(tab === 'objects' || tab === 'all') &&
             (objects === null ? (
