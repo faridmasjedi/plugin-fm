@@ -250,10 +250,17 @@ export function MigratePage({
     [source.kind, sourceClient, state]
   );
   const allowed = useMemo(() => new Set((candidates ?? []).map((c) => c.name)), [candidates]);
-  const addChildren = (names: string[]) => {
+  /** Children follow the lookups they were added through (Contact via AccountId), not every lookup. */
+  const addChildren = (names: string[], via: Record<string, string[]> = {}) => {
     setChosen((list) => [
-      ...list,
-      ...names.filter((n) => !list.some((c) => c.name === n)).map((name) => ({ name, relatedOnly: true })),
+      ...list.map((c) =>
+        names.includes(c.name) && c.relatedOnly && c.via
+          ? { ...c, via: [...new Set([...c.via, ...(via[c.name] ?? [])])] }
+          : c
+      ),
+      ...names
+        .filter((n) => !list.some((c) => c.name === n))
+        .map((name) => ({ name, relatedOnly: true, via: via[name]?.length ? via[name] : undefined })),
     ]);
     setOpen('');
     setStatus(`✓ Added ${names.join(', ')} as Related only: only records linked to the copied records come along.`);
@@ -591,7 +598,7 @@ export function MigratePage({
         'which records': o.onlyReferenced
           ? 'pointed to by copied records'
           : o.relatedOnly
-          ? `related (via ${o.links.map((l) => l.field).join(', ') || '—'})`
+          ? `related (via ${(o.via ?? o.links.map((l) => l.field)).join(', ') || '—'})`
           : o.where
           ? 'condition'
           : 'all',
@@ -715,8 +722,8 @@ export function MigratePage({
                 source={childSource}
                 allowed={allowed}
                 isChosen={isChosen}
-                onAdd={(names) => {
-                  addChildren(names);
+                onAdd={(names, via) => {
+                  addChildren(names, via);
                   close();
                 }}
                 onClose={close}

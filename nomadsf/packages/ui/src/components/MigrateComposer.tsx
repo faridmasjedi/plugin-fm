@@ -8,9 +8,11 @@ function tree(chosen: MigrateObject[], fields: Record<string, DataField[]>): Nod
   const names = new Set(chosen.map((c) => c.name));
   const parentOf = new Map<string, { parent: string; via: string }>();
   for (const c of chosen.filter((x) => x.relatedOnly)) {
-    const link = (fields[c.name] ?? []).find(
+    // The lookup it follows (via), else the first one to a chosen object
+    const candidates = (fields[c.name] ?? []).filter(
       (f) => f.type === 'reference' && f.referenceTo.some((t) => names.has(t) && t !== c.name)
     );
+    const link = candidates.find((f) => c.via?.includes(f.name)) ?? (c.via ? undefined : candidates[0]);
     if (link)
       parentOf.set(c.name, { parent: link.referenceTo.find((t) => names.has(t) && t !== c.name)!, via: link.name });
   }
@@ -90,6 +92,10 @@ export function MigrateComposer({
   const row = (n: Node, group: 'tree' | 'parents') => {
     const o = n.o;
     const parents = parentsOf(o.name);
+    // Lookups that can tie this object's records to the chosen ones
+    const links = (fields[o.name] ?? [])
+      .filter((f) => f.type === 'reference')
+      .flatMap((f) => f.referenceTo.filter((t) => names.has(t) && t !== o.name).map((to) => ({ field: f.name, to })));
     return (
       <Fragment key={o.name}>
         <tr>
@@ -97,7 +103,28 @@ export function MigrateComposer({
             <span style={{ paddingLeft: n.depth * 18 }} className="composer-object">
               {n.depth > 0 && <span className="muted">↳ </span>}
               <b>{o.name}</b>
-              {n.via && <span className="muted"> via {n.via}</span>}
+              {o.relatedOnly && links.length > 0 ? (
+                <select
+                  className="composer-via"
+                  title="Which lookup ties these records to the ones above: only records linked through it are copied"
+                  value={o.via?.length === 1 ? o.via[0] : o.via?.length ? '*several' : ''}
+                  onChange={(e) =>
+                    setSettings(o.name, {
+                      via: e.target.value === '' ? undefined : e.target.value === '*several' ? o.via : [e.target.value],
+                    })
+                  }
+                >
+                  {links.map((l) => (
+                    <option key={l.field} value={l.field}>
+                      via {l.field} → {l.to}
+                    </option>
+                  ))}
+                  {o.via && o.via.length > 1 && <option value="*several">via {o.via.join(' or ')}</option>}
+                  <option value="">via any lookup to the objects above</option>
+                </select>
+              ) : (
+                n.via && <span className="muted"> via {n.via}</span>
+              )}
             </span>
           </td>
           <td>

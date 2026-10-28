@@ -2714,3 +2714,8 @@ button.working::before {
   padding-top: 12px;
   font-size: var(--fs-sm);
 }
+
+.composer-via {
+  margin-left: 8px;
+  font-size: var(--fs-sm);
+}

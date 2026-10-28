@@ -35,6 +35,8 @@ export type MigrateObject = {
   onlyReferenced?: boolean;
   /** At most this many records (the newest first). */
   limit?: number;
+  /** Related only: the lookups to follow (Contact.AccountId); none = any lookup to a chosen object. */
+  via?: string[];
 };
 
 export type MigrateObjectPlan = {
@@ -49,6 +51,7 @@ export type MigrateObjectPlan = {
   onlyReferenced: boolean;
   where?: string;
   limit?: number;
+  via?: string[];
 };
 
 export type MigratePlan = {
@@ -96,6 +99,7 @@ export function planMigration(
       onlyReferenced: Boolean(o.onlyReferenced),
       where: o.where,
       limit: o.limit && o.limit > 0 ? Math.floor(o.limit) : undefined,
+      via: o.via?.length ? o.via : undefined,
     };
   });
   return { order, deferred, objects, schemas, missingObjects };
@@ -113,7 +117,10 @@ export async function gatherRows(
 ): Promise<Record<string, SourceRow[]>> {
   const out: Record<string, SourceRow[]> = {};
   for (const o of plan.objects) {
-    const links = o.links.filter((l) => out[l.to]).map((l) => ({ field: l.field, ids: out[l.to].map((r) => r.Id) }));
+    // Related only: through the chosen lookups (via), or else any lookup to an object gathered before
+    const links = o.links
+      .filter((l) => out[l.to] && (!o.via || o.via.includes(l.field)))
+      .map((l) => ({ field: l.field, ids: out[l.to].map((r) => r.Id) }));
     let rows: SourceRow[];
     if (o.onlyReferenced) {
       rows = [];
