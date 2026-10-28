@@ -27,6 +27,9 @@ window.NOMADSF_WHATS_NEW = {
     'Dependencies: what a component uses and what uses it',
     'Metadata: see what you selected, and click a component to see its XML',
     'Query › Plan: how Salesforce would run a query (index or full scan)',
+    'Connected apps: each count opens its list; app settings, pre-authorized profiles and permission sets; revoke tokens',
+    'Org › Company information',
+    'Limits › Storage: storage by object, records created in a period, delete them',
   ],
   '2.1.0': [
     'VS Code extension works on its own: no Salesforce CLI, no sf fm plugin, no local port',

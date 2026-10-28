@@ -921,6 +921,13 @@
 
         <section class="hub" id="hub-org" data-title="Org">
           <h2 id="org">Org</h2>
+          <section class="tool" data-title="Company">
+            <h3 id="company">Company information</h3>
+            <p>
+              Everything Salesforce keeps about the org: name and address, org Id, edition, instance, sandbox or not,
+              locale, time zone, currency, fiscal year and defaults — grouped, with only filled fields by default.
+            </p>
+          </section>
           <section class="tool" data-title="Connected apps">
             <h3 id="apps">Connected apps</h3>
             <div class="shot">
@@ -936,8 +943,11 @@
             </div>
             <p>
               Connected apps, external client apps, and every app people sign in to with OAuth (including tools such as
-              the Salesforce CLI): users, tokens, uses and last use per app. Click an app for its users;
-              <b>All OAuth tokens</b> lists every user and app.
+              the Salesforce CLI): users, tokens, uses and last use per app. The four counts at the top are buttons:
+              <b>connected apps</b>, <b>external client apps</b>, <b>users with OAuth tokens</b> (click one for their
+              tokens) and <b>OAuth tokens</b>. Click a connected app for its users, its settings and the profiles and
+              permission sets that are <b>pre-authorized</b> to use it (add or remove them). Tick tokens and
+              <b>Revoke</b> them (you type the org name).
             </p>
           </section>
           <section class="tool" data-title="Org health">
@@ -979,6 +989,11 @@
               ></video>
             </div>
             <p>The org's limits (API requests, storage, …) with how much is used.</p>
+            <p>
+              <b>Storage</b>: data and file storage, and the records of each object (most first, with an estimate of
+              their size). Click an object, choose dates and <b>Count</b> the records created then; <b>Delete them…</b>
+              removes them with the Bulk API (you type the org name; back them up first if you may need them).
+            </p>
           </section>
           <section class="tool" data-title="Events">
             <h3 id="events">Events</h3>

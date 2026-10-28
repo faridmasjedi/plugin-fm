@@ -124,6 +124,7 @@ export const STUDIO_PAGES = [
   ['myaccess', 'Your access', 'Access'],
   ['apps', 'Connected apps', 'Org'],
   ['health', 'Org health', 'Org'],
+  ['company', 'Company information', 'Org'],
   ['limits', 'Limits', 'Org'],
   ['events', 'Events', 'Org'],
   ['rest', 'REST Explorer', 'Org'],
