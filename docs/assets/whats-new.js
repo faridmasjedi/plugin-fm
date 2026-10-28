@@ -27,6 +27,9 @@ window.NOMADSF_WHATS_NEW = {
     'Dependencies: what a component uses and what uses it',
     'Metadata: see what you selected, and click a component to see its XML',
     'Query › Plan: how Salesforce would run a query (index or full scan)',
+
+    'Users: save a snapshot of a user (one CSV) and make a user in any org match it',
+    'Data › Compare with CSV: a CSV next to the org, field by field; update and insert to match it',
   ],
   '2.1.0': [
     'VS Code extension works on its own: no Salesforce CLI, no sf fm plugin, no local port',

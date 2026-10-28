@@ -4,6 +4,7 @@ import { useStudio } from '../context';
 import { RecordPage } from '../pages/RecordPage';
 import { DataTable } from './DataTable';
 import { UserAccessPanel } from './UserAccessPanel';
+import { UserSnapshot } from './UserSnapshot';
 
 /** Find a user by name, username, email or Id, then edit any field (the Record editor) or freeze / deactivate. */
 export function UserEditor() {
@@ -68,6 +69,7 @@ export function UserEditor() {
         </button>
         <span className="muted">{status}</span>
       </div>
+      {!chosen && <UserSnapshot />}
       {matches && matches.length > 1 && (
         <DataTable
           columns={['Name', 'Username', 'Email', 'Profile', 'IsActive', 'LastLoginDate']}
@@ -117,6 +119,7 @@ export function UserEditor() {
               {chosen.IsActive ? 'Deactivate' : 'Activate'}
             </button>
           </div>
+          <UserSnapshot key={chosen.Id} userId={chosen.Id} username={chosen.Username} />
           <UserAccessPanel
             userId={chosen.Id}
             label={chosen.Username}
