@@ -39,6 +39,7 @@ export * from './accessEdit.js';
 export * from './accessManage.js';
 export * from './accessMeta.js';
 export * from './develop.js';
+export * from './orgInfo.js';
 export * from './snapshot.js';
 export * from './recordsCsv.js';
 export * from './userCompare.js';

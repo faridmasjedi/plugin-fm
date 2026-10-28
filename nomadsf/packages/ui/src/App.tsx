@@ -19,6 +19,7 @@ import {
 } from './pages/AccessPage';
 import { AccessOverviewPage, MyAccessPage, ObjectAccessPage } from './pages/AccessReportsPage';
 import { AccessNote } from './toolAccess';
+import { CompanyPage } from './pages/CompanyPage';
 import { CsvComparePage } from './pages/CsvComparePage';
 import { CustomPermissionsPage, GroupsPage } from './pages/AccessManagePages';
 import { SchemaPage } from './pages/SchemaPage';
@@ -346,6 +347,7 @@ export function App() {
             {tool === 'activity' && <ActivityPage />}
             {tool === 'record' && <RecordPage initialId={inspectId} />}
             {tool === 'limits' && <LimitsPage />}
+            {tool === 'company' && <CompanyPage />}
             {tool === 'rest' && <RestPage />}
             {tool === 'code' && <CodePage />}
             {tool === 'backup' && (

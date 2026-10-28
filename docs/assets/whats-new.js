@@ -27,7 +27,11 @@ window.NOMADSF_WHATS_NEW = {
     'Dependencies: what a component uses and what uses it',
     'Metadata: see what you selected, and click a component to see its XML',
     'Query › Plan: how Salesforce would run a query (index or full scan)',
-
+    'Connected apps: each count opens its list; app settings, pre-authorized profiles and permission sets; revoke tokens',
+    'Org › Company information',
+    'Limits › Storage: storage by object, records created in a period, delete them',
+    'Every page: ⤓ downloads all its tables at once (one CSV, a zip or JSON)',
+    'Org to org › Connected apps: the users of an app in both orgs, and compare two of them',
     'Users: save a snapshot of a user (one CSV) and make a user in any org match it',
     'Data › Compare with CSV: a CSV next to the org, field by field; update and insert to match it',
   ],
