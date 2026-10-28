@@ -2622,3 +2622,19 @@ button.working::before {
   gap: 6px;
   margin-bottom: 8px;
 }
+
+/* Code › Other metadata: room between the type and the list; long names end in … (full name on hover) */
+.metadata-source {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.metadata-source .code-layout {
+  grid-template-columns: 300px minmax(0, 1fr);
+}
+.metadata-source .code-list li button {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

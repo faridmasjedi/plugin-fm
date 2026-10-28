@@ -98,13 +98,16 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
     setDeps(null);
     if (!chosen) return;
     setStatus(`Retrieving ${chosen.fullName}…`);
-    retrieveComponent(client, type, chosen.fullName)
+    // The component's own type: the list may already show another one
+    retrieveComponent(client, chosen.type || type, chosen.fullName)
       .then((f) => {
         setFiles(f);
         setStatus('');
       })
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
-  }, [client, type, chosen]);
+    // `type` is read from the component
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, chosen]);
 
   useEffect(() => {
     if (view !== 'deps' || !chosen?.id || deps) return;
@@ -131,7 +134,7 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
     try {
       const outcome = await deployComponent(
         client,
-        type,
+        chosen.type || type,
         chosen.fullName,
         files.map((f) => ({ ...f, text: drafts[f.path] ?? f.text })),
         { checkOnly, onProgress: (s) => setStatus(`${checkOnly ? 'Validating' : 'Deploying'}: ${s}…`) }
@@ -169,7 +172,17 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
       <div className="form">
         <label>
           Type
-          <select value={type} onChange={(e) => setType(e.target.value)} style={{ minWidth: 220 }}>
+          <select
+            value={type}
+            onChange={(e) => {
+              // Another type: nothing of the last one stays open
+              setChosen(null);
+              setFiles(null);
+              setStatus('');
+              setType(e.target.value);
+            }}
+            style={{ minWidth: 220 }}
+          >
             {typeList.map((t) => (
               <option key={t}>{t}</option>
             ))}
@@ -197,7 +210,7 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
                 <button
                   className={chosen?.fullName === m.fullName ? 'active' : ''}
                   onClick={() => setChosen(m)}
-                  title={m.fileName}
+                  title={`${m.fullName}\n${m.fileName}`}
                 >
                   {m.fullName}
                 </button>
@@ -273,7 +286,7 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
                             language={languageOf(current.path)}
                             value={drafts[current.path] ?? current.text ?? ''}
                             onChange={(v) => setDrafts({ ...drafts, [current.path]: v })}
-                            readOnly={chosen.manageableState === 'installed'}
+                            readOnly={chosen.manageableState === 'installed' && chosen.type !== 'Layout'}
                           />
                         </div>
                       )
