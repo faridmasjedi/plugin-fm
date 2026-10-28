@@ -33,6 +33,8 @@ export type MigrateObject = {
   relatedOnly?: boolean;
   /** Only the records other copied records point to (brought by completeParents). */
   onlyReferenced?: boolean;
+  /** At most this many records (the newest first). */
+  limit?: number;
 };
 
 export type MigrateObjectPlan = {
@@ -46,6 +48,7 @@ export type MigrateObjectPlan = {
   relatedOnly: boolean;
   onlyReferenced: boolean;
   where?: string;
+  limit?: number;
 };
 
 export type MigratePlan = {
@@ -92,6 +95,7 @@ export function planMigration(
       relatedOnly: Boolean(o.relatedOnly),
       onlyReferenced: Boolean(o.onlyReferenced),
       where: o.where,
+      limit: o.limit && o.limit > 0 ? Math.floor(o.limit) : undefined,
     };
   });
   return { order, deferred, objects, schemas, missingObjects };
@@ -117,13 +121,14 @@ export async function gatherRows(
       /* eslint-disable no-await-in-loop */
       rows =
         o.relatedOnly && links.length
-          ? await fetchRelated(source.client, o.name, o.read, links, o.where)
-          : await fetchRows(source.client, o.name, o.read, o.where);
+          ? await fetchRelated(source.client, o.name, o.read, links, o.where, o.limit)
+          : await fetchRows(source.client, o.name, o.read, o.where, o.limit);
       /* eslint-enable no-await-in-loop */
     } else {
       const all = [...(source.rows[o.name]?.values() ?? [])];
       const linked = links.map((l) => ({ field: l.field, ids: new Set(l.ids) }));
       rows = o.relatedOnly && links.length ? all.filter((r) => linked.some((l) => l.ids.has(r[l.field]))) : all;
+      if (o.limit) rows = rows.sort((a, b) => (a.Id < b.Id ? 1 : -1)).slice(0, o.limit);
     }
     out[o.name] = rows;
     onProgress?.(o.name, rows.length);

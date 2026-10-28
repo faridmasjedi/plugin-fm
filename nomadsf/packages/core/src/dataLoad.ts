@@ -586,11 +586,17 @@ export async function fetchRows(
   client: SalesforceClient,
   object: string,
   fields: string[],
-  where?: string
+  where?: string,
+  /** At most this many records, the newest first (by Id). */
+  limit?: number
 ): Promise<SourceRow[]> {
   if (!/^\w+$/.test(object) || fields.some((f) => !/^\w+$/.test(f))) throw new Error('Invalid object or field name.');
+  if (limit !== undefined && !(Number.isInteger(limit) && limit > 0))
+    throw new Error('The limit is a whole number above 0.');
   const condition = (where ?? '').trim().replace(/^where\s+/i, '');
-  const soql = `SELECT ${fields.join(', ')} FROM ${object}${condition ? ` WHERE ${condition}` : ''}`;
+  const soql = `SELECT ${fields.join(', ')} FROM ${object}${condition ? ` WHERE ${condition}` : ''}${
+    limit ? ` ORDER BY Id DESC LIMIT ${limit}` : ''
+  }`;
   const result = await bulkQuery(client, soql);
   return parseCsv(result.csv).rows;
 }
@@ -601,7 +607,8 @@ export async function fetchRelated(
   object: string,
   fields: string[],
   links: Array<{ field: string; ids: string[] }>,
-  where?: string
+  where?: string,
+  limit?: number
 ): Promise<SourceRow[]> {
   const seen = new Map<string, SourceRow>();
   const extra = (where ?? '').trim().replace(/^where\s+/i, '');
@@ -621,9 +628,13 @@ export async function fetchRelated(
         `${link.field} IN (${list})${extra ? ` AND (${extra})` : ''}`
       );
       for (const r of rows) seen.set(r.Id, r);
+      if (limit && seen.size >= limit) break;
     }
+    if (limit && seen.size >= limit) break;
   }
-  return [...seen.values()];
+  // The newest first, as fetchRows' limit
+  const all = [...seen.values()];
+  return limit ? all.sort((a, b) => (a.Id < b.Id ? 1 : -1)).slice(0, limit) : all;
 }
 
 /** Field definitions of the objects in both orgs. */
