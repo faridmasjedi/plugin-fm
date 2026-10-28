@@ -55,6 +55,8 @@ export function UserEditor() {
 
   return (
     <div className="card section">
+      {/* Snapshot first: save the chosen user, or compare a file with this org */}
+      <UserSnapshot key={chosen?.Id ?? 'none'} userId={chosen?.Id} username={chosen?.Username} />
       <h3>Find and update a user</h3>
       <div className="form">
         <input
@@ -69,7 +71,6 @@ export function UserEditor() {
         </button>
         <span className="muted">{status}</span>
       </div>
-      {!chosen && <UserSnapshot />}
       {matches && matches.length > 1 && (
         <DataTable
           columns={['Name', 'Username', 'Email', 'Profile', 'IsActive', 'LastLoginDate']}
@@ -119,7 +120,6 @@ export function UserEditor() {
               {chosen.IsActive ? 'Deactivate' : 'Activate'}
             </button>
           </div>
-          <UserSnapshot key={chosen.Id} userId={chosen.Id} username={chosen.Username} />
           <UserAccessPanel
             userId={chosen.Id}
             label={chosen.Username}

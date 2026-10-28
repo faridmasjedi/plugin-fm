@@ -22,6 +22,7 @@ describe('user snapshot', () => {
     line('permissionSet', 'Sales_Ops'),
     line('license', 'SalesConsoleUser'),
     line('group', 'Support_Queue', 'Queue'),
+    line('app', 'Salesforce CLI'),
   ];
 
   it('goes to CSV and back, also after Excel (byte-order mark)', () => {
@@ -39,6 +40,7 @@ describe('user snapshot', () => {
       line('lookup', 'ManagerId', 'bob@acme.com.uat'),
       line('permissionSet', 'Old_Access'),
       line('license', 'SalesConsoleUser'),
+      line('app', 'Data Loader'),
     ];
     const diff = diffSnapshot(kept, now);
     expect(diff.map((d) => `${d.section}:${d.name}:${d.action}`)).toEqual([
@@ -47,7 +49,10 @@ describe('user snapshot', () => {
       'permissionSet:Old_Access:remove',
       'permissionSet:Sales_Ops:assign',
       'group:Support_Queue:add to the queue',
+      'app:Data Loader:used here only (revoke it in Org › Connected apps)',
+      'app:Salesforce CLI:the user connects it (signs in to the app)',
     ]);
+    expect(diff.filter((d) => d.checkOnly).map((d) => d.name)).toEqual(['Data Loader', 'Salesforce CLI']);
     expect(diff.find((d) => d.name === 'Old_Access')?.extra).toBe(true);
   });
 

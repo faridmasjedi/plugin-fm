@@ -60,7 +60,7 @@ export function UserSnapshot({ userId, username }: { userId?: string; username?:
       setStatus('Comparing…');
       const d = diffSnapshot(lines, await takeUserSnapshot(client, id, org.label));
       setDiff(d);
-      setPicked(new Set(d.filter((x) => !x.extra && x.name !== 'Username').map((x) => x.key)));
+      setPicked(new Set(d.filter((x) => !x.extra && !x.checkOnly && x.name !== 'Username').map((x) => x.key)));
       setStatus('');
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
@@ -69,7 +69,8 @@ export function UserSnapshot({ userId, username }: { userId?: string; username?:
 
   const apply = async () => {
     if (!diff || !target) return;
-    const chosen = diff.filter((d) => picked.has(d.key));
+    // Apps are to check only: only the user can connect one
+    const chosen = diff.filter((d) => picked.has(d.key) && !d.checkOnly);
     const removes = chosen.filter((d) => d.extra).length;
     if (
       !(await confirmChange(
@@ -147,11 +148,13 @@ export function UserSnapshot({ userId, username }: { userId?: string; username?:
               rowKey="key"
               name="snapshot-differences"
               selected={picked}
-              onSelectedChange={setPicked}
+              onSelectedChange={(next) =>
+                setPicked(new Set([...next].filter((k) => !diff.find((d) => d.key === k)?.checkOnly)))
+              }
               note={
                 <span>
                   · snapshot = {kept?.name}, org = {org.label} now · lookups by name · removals (only in the org) are
-                  not ticked
+                  not ticked · apps (connected apps the user signs in to) are to check only: the user connects them
                 </span>
               }
             />

@@ -19,7 +19,9 @@ export type SnapshotSection =
   | 'permissionSet'
   | 'permissionSetGroup'
   | 'license'
-  | 'group';
+  | 'group'
+  /** A connected app the user signs in to (OAuth): checked, but only the user can connect it. */
+  | 'app';
 export type SnapshotLine = { Section: SnapshotSection; Name: string; Value: string };
 
 /** Fields that describe the user, not their history: no system, audit or login fields. */
@@ -85,7 +87,7 @@ export async function takeUserSnapshot(
     }
     lines.push({ Section: 'lookup', Name: f.name, Value: value });
   }
-  const [assignments, licenses, groups] = await Promise.all([
+  const [assignments, licenses, groups, tokens] = await Promise.all([
     query(
       client,
       `SELECT PermissionSet.Name, PermissionSet.NamespacePrefix, PermissionSet.IsOwnedByProfile, PermissionSet.Type, PermissionSetGroup.DeveloperName, PermissionSetGroupId FROM PermissionSetAssignment WHERE AssigneeId = '${userId}'`,
@@ -101,6 +103,9 @@ export async function takeUserSnapshot(
     query(client, `SELECT Group.DeveloperName, Group.Type FROM GroupMember WHERE UserOrGroupId = '${userId}'`, {
       maxRows: 5000,
     }),
+    query(client, `SELECT AppName FROM OauthToken WHERE UserId = '${userId}'`, { maxRows: 5000 }).catch(() => ({
+      rows: [] as Row[],
+    })),
   ]);
   for (const a of assignments.rows) {
     if (a.PermissionSetGroupId)
@@ -110,6 +115,8 @@ export async function takeUserSnapshot(
   }
   for (const l of licenses.rows)
     lines.push({ Section: 'license', Name: String(l['PermissionSetLicense.DeveloperName']), Value: '' });
+  for (const app of [...new Set(tokens.rows.map((t) => String(t.AppName ?? '')).filter(Boolean))].sort())
+    lines.push({ Section: 'app', Name: app, Value: '' });
   for (const g of groups.rows)
     if (g['Group.Type'] === 'Regular' || g['Group.Type'] === 'Queue')
       lines.push({
@@ -136,6 +143,7 @@ export function parseSnapshot(text: string): SnapshotLine[] {
     'permissionSetGroup',
     'license',
     'group',
+    'app',
   ]);
   return table.rows
     .map((r) => ({ Section: r.Section as SnapshotSection, Name: r.Name ?? '', Value: r.Value ?? '' }))
@@ -155,6 +163,8 @@ export type SnapshotDifference = {
   action: string;
   /** Only in the org (applying removes it, when asked to). */
   extra?: boolean;
+  /** To check only: applying cannot do it (a user connects an app themselves). */
+  checkOnly?: boolean;
 };
 
 const same = (a: string, b: string): boolean => {
@@ -189,13 +199,19 @@ export function diffSnapshot(snapshot: SnapshotLine[], now: SnapshotLine[]): Sna
         action: l.Section === 'field' ? 'set the field' : 'point it to the snapshot’s record',
       });
     } else if (!nowOf(l.Section, l.Name)) {
+      const app = l.Section === 'app';
       out.push({
         key,
         section: l.Section,
         name: l.Name,
         snapshot: '✓',
         org: '',
-        action: l.Section === 'group' ? `add to the ${l.Value.toLowerCase() || 'group'}` : 'assign',
+        action: app
+          ? 'the user connects it (signs in to the app)'
+          : l.Section === 'group'
+          ? `add to the ${l.Value.toLowerCase() || 'group'}`
+          : 'assign',
+        ...(app ? { checkOnly: true } : {}),
       });
     }
   }
@@ -208,11 +224,20 @@ export function diffSnapshot(snapshot: SnapshotLine[], now: SnapshotLine[]): Sna
         name: n.Name,
         snapshot: '',
         org: '✓',
-        action: 'remove',
-        extra: true,
+        ...(n.Section === 'app'
+          ? { action: 'used here only (revoke it in Org › Connected apps)', checkOnly: true }
+          : { action: 'remove', extra: true }),
       });
   }
-  const order: SnapshotSection[] = ['field', 'lookup', 'permissionSet', 'permissionSetGroup', 'license', 'group'];
+  const order: SnapshotSection[] = [
+    'field',
+    'lookup',
+    'permissionSet',
+    'permissionSetGroup',
+    'license',
+    'group',
+    'app',
+  ];
   return out.sort((a, b) => order.indexOf(a.section) - order.indexOf(b.section) || a.name.localeCompare(b.name));
 }
 
@@ -294,7 +319,13 @@ export async function applySnapshot(
       ? `Name = '${soqlText(key.slice(at + 2))}' AND NamespacePrefix = '${soqlText(key.slice(0, at))}'`
       : `Name = '${soqlText(key)}' AND NamespacePrefix = null`;
   };
-  for (const d of differences.filter((x) => !['field', 'lookup'].includes(x.section))) {
+  // Apps: only the user can connect one; listed to check, never applied
+  for (const d of differences.filter((x) => x.checkOnly))
+    out.failed.push({
+      item: `app ${d.name}`,
+      error: 'only the user can connect an app (revoke one in Org › Connected apps)',
+    });
+  for (const d of differences.filter((x) => !['field', 'lookup'].includes(x.section) && !x.checkOnly)) {
     const item = `${d.extra ? 'remove' : 'add'} ${d.section} ${d.name}`;
     // eslint-disable-next-line no-await-in-loop
     await attempt(item, async () => {
