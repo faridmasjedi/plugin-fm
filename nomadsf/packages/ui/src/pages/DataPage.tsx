@@ -17,6 +17,7 @@ import { EditableGrid, type GridRow } from '../components/EditableGrid';
 import { IngestSummary } from '../components/IngestSummary';
 import { QueryEditTab } from '../components/QueryEditTab';
 import { storage, useStudio } from '../context';
+import { ObjectOptions } from '../components/ObjectOptions';
 
 const OPERATIONS: Array<[IngestOperation, string]> = [
   ['insert', 'Insert'],
@@ -28,10 +29,11 @@ const OPERATIONS: Array<[IngestOperation, string]> = [
 
 export function DataPage() {
   const { client, org, confirmChange, logActivity } = useStudio();
-  const [objects, setObjects] = useState<string[]>([]);
+  const [summaries, setSummaries] = useState<Array<{ name: string; label: string }>>([]);
+  const objects = useMemo(() => summaries.map((o) => o.name), [summaries]);
   useEffect(() => {
     describeGlobal(client)
-      .then((list) => setObjects(list.map((o) => o.name)))
+      .then((list) => setSummaries(list.map((o) => ({ name: o.name, label: o.label }))))
       .catch(() => undefined);
   }, [client]);
 
@@ -54,6 +56,7 @@ export function DataPage() {
   const knownObject = objects.find((o) => o.toLowerCase() === object.trim().toLowerCase());
   useEffect(() => {
     setRules(null);
+    setExternalId('');
     if (!knownObject) return;
     fieldRules(client, knownObject)
       .then(setRules)
@@ -186,11 +189,7 @@ export function DataPage() {
           </button>
         ))}
       </div>
-      <datalist id="objects">
-        {objects.map((o) => (
-          <option key={o} value={o} />
-        ))}
-      </datalist>
+      <ObjectOptions id="objects" objects={summaries} typed={object} />
 
       <p className="muted" style={{ margin: 0 }}>
         To export records, use <b>Query</b>: Export CSV there uses the Bulk API for large results, including deleted
@@ -202,7 +201,9 @@ export function DataPage() {
           <div className="card section">
             <h3>Import, update or delete from CSV</h3>
             <p className="muted" style={{ margin: 0 }}>
-              Header row with API field names. Update, delete and hard delete need an <code>Id</code> column.
+              Header row with API field names. Update, delete and hard delete need an <code>Id</code> column. Upsert
+              updates the records it finds by the field you choose (<code>Id</code> or an External ID field) and inserts
+              the rest.
             </p>
             <div className="form">
               <label>
@@ -225,13 +226,18 @@ export function DataPage() {
                 </select>
               </label>
               {operation === 'upsert' && (
-                <label>
-                  External ID field
-                  <input
-                    value={externalId}
-                    onChange={(e) => setExternalId(e.target.value)}
-                    placeholder="External_Id__c"
-                  />
+                <label title="Upsert matches each row to an existing record by this field: a match is updated, no match is inserted. Only Id and fields marked External ID can be used.">
+                  Match records by
+                  <select value={externalId} onChange={(e) => setExternalId(e.target.value)}>
+                    <option value="">{rules ? 'Choose a field…' : 'Choose the object first'}</option>
+                    {(rules ?? [])
+                      .filter((r) => r.name === 'Id' || r.externalId)
+                      .map((r) => (
+                        <option key={r.name} value={r.name}>
+                          {r.label} ({r.name})
+                        </option>
+                      ))}
+                  </select>
                 </label>
               )}
               <label>
@@ -299,7 +305,11 @@ export function DataPage() {
               </>
             )}
             <div className="form">
-              <button className="primary" disabled={!toSend.length || !object} onClick={() => void runIngest()}>
+              <button
+                className="primary"
+                disabled={!toSend.length || !object || (operation === 'upsert' && !externalId)}
+                onClick={() => void runIngest()}
+              >
                 Run on {toSend.length.toLocaleString()} row(s), {columnsToSend.length} column(s)…
               </button>
               <span className="muted">{ingestStatus}</span>

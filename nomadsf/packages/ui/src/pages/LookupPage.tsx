@@ -17,6 +17,7 @@ import {
 import { DataTable } from '../components/DataTable';
 import { useStudio } from '../context';
 import { askConfirm } from '../components/Dialogs';
+import { ObjectOptions } from '../components/ObjectOptions';
 
 /** Field types a file value can be matched on (text-like, Ids and numbers). */
 const MATCHABLE = new Set(['string', 'email', 'id', 'reference', 'phone', 'url', 'picklist', 'int', 'double']);
@@ -222,13 +223,7 @@ export function LookupPage() {
                     }}
                   />
                 </label>
-                <datalist id="lookup-objects">
-                  {objects.map((o) => (
-                    <option key={o.name} value={o.name}>
-                      {o.label}
-                    </option>
-                  ))}
-                </datalist>
+                <ObjectOptions id="lookup-objects" objects={objects} typed={sobject} />
                 <label>
                   matched on
                   <select

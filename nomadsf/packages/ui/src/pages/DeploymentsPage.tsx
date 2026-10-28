@@ -64,7 +64,7 @@ export function DeploymentsPage() {
           <EmptyHint what="deployments" />
         ) : (
           <DataTable
-            columns={['Kind', 'Status', 'Started', 'Finished', 'Components', 'Tests', 'By', 'QuickDeploy']}
+            columns={['Id', 'Kind', 'Status', 'Started', 'Finished', 'Components', 'Tests', 'By', 'QuickDeploy']}
             rows={rows}
             rowKey="Id"
             name={`${org.label}-deployments`}

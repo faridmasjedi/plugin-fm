@@ -50,7 +50,7 @@ System.debug('SOQL used: ' + Limits.getQueries());
 `;
 
 export function ExecutePage() {
-  const { client, org, confirmRisky } = useStudio();
+  const { client, org, confirmChange } = useStudio();
   const [code, setCode] = useState<string>(() => storage.get('apex.code', SAMPLE));
   const [preset, setPreset] = useState<string>(() => storage.get('apex.preset', 'default'));
   const [history, setHistory] = useState<string[]>(() => storage.get('apex.history', []));
@@ -70,7 +70,7 @@ export function ExecutePage() {
         selectionOnly && selection && !selection.isEmpty()
           ? editor?.getModel()?.getValueInRange(selection) ?? code
           : code;
-      if (!source.trim() || !(await confirmRisky('Run anonymous Apex'))) return;
+      if (!source.trim() || !(await confirmChange('Run anonymous Apex (it can change data)'))) return;
       setRunning(true);
       setError('');
       const model = editor?.getModel();
@@ -100,7 +100,7 @@ export function ExecutePage() {
         setRunning(false);
       }
     },
-    [client, code, preset, history, confirmRisky]
+    [client, code, preset, history, confirmChange]
   );
 
   const onMount: OnMount = (editor) => {
@@ -147,7 +147,12 @@ export function ExecutePage() {
         <button onClick={() => void run(true)} disabled={running} title="Ctrl/Cmd + Shift + Enter">
           Run selection
         </button>
-        <button className="primary" onClick={() => void run(false)} disabled={running} title="Ctrl/Cmd + Enter">
+        <button
+          className={`primary ${running ? 'working' : ''}`}
+          onClick={() => void run(false)}
+          disabled={running}
+          title="Ctrl/Cmd + Enter"
+        >
           {running ? 'Running…' : 'Execute ⌘⏎'}
         </button>
       </div>

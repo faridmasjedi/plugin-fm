@@ -237,12 +237,18 @@ export function installEmbed(): void {
       if (!a?.href || a.download) return;
       const url = new URL(a.href, location.href);
       if (!/^https?:$/.test(url.protocol)) return;
-      if (linkHandler?.(url)) {
+      // VS Code's webview also opens clicked links (asking "open the external website?") and
+      // ignores preventDefault: a link handled here goes no further
+      const handled = (): void => {
         e.preventDefault();
+        if (inVsCode()) e.stopPropagation();
+      };
+      if (linkHandler?.(url)) {
+        handled();
         return;
       }
       if (!inVsCode()) return;
-      e.preventDefault();
+      handled();
       if (url.origin === location.origin && !a.target) {
         // Pages of the app (← NomadSF) keep the bridge
         url.searchParams.set('embed', 'vscode');

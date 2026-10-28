@@ -383,6 +383,26 @@ table.versions tr:last-child td {
 table.versions td a + a {
   margin-left: 10px;
 }
+table.versions td.changes ul,
+.whats-new ul {
+  margin: 0;
+  padding-left: 18px;
+}
+table.versions td.changes {
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.whats-new {
+  margin-top: 28px;
+}
+@media (max-width: 720px) {
+  table.versions td.changes {
+    display: none;
+  }
+  table.versions th:nth-child(3) {
+    display: none;
+  }
+}
 
 /* Guide page: hubs as tabs, their tools as tabs inside (set up by guide.html's script) */
 .doc {

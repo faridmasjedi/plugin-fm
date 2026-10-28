@@ -1,7 +1,9 @@
+import { spawn } from 'node:child_process';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, resolve, sep } from 'node:path';
 import * as vscode from 'vscode';
+import { browserCommand } from './app';
 import { frontDoorUrl, listOrgs, loginWeb, proxySalesforce, type ProxyRequest } from './orgs';
 
 /**
@@ -48,24 +50,44 @@ async function login(url: string, knownAlias?: string): Promise<string | null> {
       location: vscode.ProgressLocation.Notification,
       title: 'NomadSF: log in to Salesforce in your browser…',
     },
-    () => loginWeb(url, alias || undefined, (authUrl) => void vscode.env.openExternal(vscode.Uri.parse(authUrl, true)))
+    () => loginWeb(url, alias || undefined, (authUrl) => void openUrl(authUrl))
   );
+}
+
+/**
+ * Opens a web page in the default browser exactly as written, like `sf org open`. VS Code's
+ * openExternal either encodes a vscode.Uri again (a query inside a query, such as the front
+ * door's retURL or OAuth's redirect_uri, breaks) or asks "open the external website?" for a
+ * string (showing the session in the link). In a remote window the browser is on the other
+ * side, so VS Code opens it there.
+ */
+export async function openUrl(url: string): Promise<boolean> {
+  const parsed = new URL(url);
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error('Only web pages open.');
+  if (vscode.env.remoteName) return vscode.env.openExternal(vscode.Uri.parse(url, true));
+  const [command, args] = browserCommand(process.platform, url);
+  await new Promise<void>((done, fail) => {
+    const child = spawn(command, args, { stdio: 'ignore', detached: true });
+    child.once('error', fail);
+    child.once('spawn', () => {
+      child.unref();
+      done();
+    });
+  });
+  return true;
 }
 
 export async function handleCall(op: string, args: unknown[], memento: vscode.Memento): Promise<unknown> {
   const [a, b, c] = args;
   switch (op) {
-    case 'open': {
-      const url = vscode.Uri.parse(String(a), true);
-      if (url.scheme !== 'https' && url.scheme !== 'http') throw new Error('Only web pages open.');
-      return vscode.env.openExternal(url);
-    }
+    case 'open':
+      return openUrl(String(a));
     case 'orgs':
       return listOrgs();
     case 'sf':
       return proxySalesforce(String(a), (b ?? {}) as ProxyRequest);
     case 'openOrg':
-      return vscode.env.openExternal(vscode.Uri.parse(await frontDoorUrl(String(a), String(b)), true));
+      return openUrl(await frontDoorUrl(String(a), String(b)));
     case 'login':
       return login(String(a), typeof b === 'string' ? b : undefined);
     case 'clipboardWrite':

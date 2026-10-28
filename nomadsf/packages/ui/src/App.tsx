@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { getUserInfo, type SalesforceClient, type UserInfo } from '@nomadsf/core';
 import { detectHost, openInOrg, orgFacts, type OrgChoice, type OrgFacts } from './host';
+import { useBusy } from './busy';
 import { setLinkHandler } from './embed';
 import { InspectContext, StudioContext, activityLog, storage, type Studio } from './context';
 import { toggleTheme } from './theme';
@@ -56,6 +57,7 @@ const host = detectHost();
 const LOCAL = host.kind === 'extension' ? LOCAL_PAGES : [];
 
 export function App() {
+  const busy = useBusy();
   const [orgs, setOrgs] = useState<OrgChoice[]>([]);
   // The extension opened from a Salesforce tab starts on that tab's org
   const [orgId, setOrgId] = useState<string>(
@@ -388,6 +390,11 @@ export function App() {
             </span>
           )}
           <span className="grow" />
+          {busy && (
+            <span className="busy-pill" title="Waiting for Salesforce…" role="status">
+              <span className="spinner" aria-hidden="true" /> Working…
+            </span>
+          )}
           {backupRun && !backupRun.done && !backupRun.error && (
             <button className="link backup-pill" onClick={() => setPage('backup')} title="Backup running">
               ⛁ {backupRun.jobName} · {backupRun.index + 1}/{backupRun.total || '?'}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { describeGlobal, objectSchema, type SchemaField, type SchemaInfo, type SObjectSummary } from '@nomadsf/core';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
+import { ObjectOptions } from '../components/ObjectOptions';
 
 type Tab = 'fields' | 'relationships' | 'recordTypes';
 const yes = (v: boolean): string => (v ? '✓' : '');
@@ -95,13 +96,7 @@ export function SchemaPage() {
             else setStatus(`❌ No object called "${typed.trim()}" in this org.`);
           }}
         />
-        <datalist id="schema-objects">
-          {objects.map((o) => (
-            <option key={o.name} value={o.name}>
-              {o.label}
-            </option>
-          ))}
-        </datalist>
+        <ObjectOptions id="schema-objects" objects={objects} typed={typed} />
         {schema && (
           <span className="muted">
             {`${schema.label} (${schema.labelPlural}) · prefix ${schema.keyPrefix || '—'} · ${

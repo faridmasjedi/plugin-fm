@@ -816,6 +816,30 @@ table.events tbody tr.selected {
   padding: 8px;
   font-size: 13px;
 }
+.field-checks > label {
+  min-width: 0;
+  align-items: flex-start;
+}
+.field-check-text {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+.field-check-text > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.field-checks.two-lines {
+  max-height: 280px;
+}
+.field-checks.two-lines .field-check-text {
+  flex-direction: column;
+  gap: 0;
+}
+.field-checks.two-lines .field-check-text > span:last-child {
+  font-size: 11px;
+}
 .project-compare {
   display: flex;
   flex-direction: column;
@@ -2519,4 +2543,41 @@ pre.wrap {
 }
 .pair-access .access-limited b {
   color: var(--bad);
+}
+
+/* Waiting for Salesforce (busy.ts) */
+.busy-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: nsf-spin 0.8s linear infinite;
+  flex: none;
+}
+@keyframes nsf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* Buttons that say they are working (Running…, Saving…, Loading…) show the spinner too */
+button.working::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: nsf-spin 0.8s linear infinite;
 }
