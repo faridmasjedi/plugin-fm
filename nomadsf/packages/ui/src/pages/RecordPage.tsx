@@ -14,6 +14,8 @@ import { storage, useStudio } from '../context';
 import { openInOrg } from '../host';
 import { CopyId } from '../components/CopyId';
 import { DataTable } from '../components/DataTable';
+import { NewRecord } from '../components/NewRecord';
+import { RecordPicker } from '../components/RecordPicker';
 
 const display = (v: unknown): string =>
   v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
@@ -69,6 +71,7 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
   useEffect(() => setHistory(null), [record]);
   const [recent, setRecent] = useState<Array<{ id: string; label: string }>>(() => storage.get('record.recent', []));
   const [choices, setChoices] = useState<UserMatch[]>([]);
+  const [creating, setCreating] = useState(false);
 
   const open = useCallback(
     async (value: string) => {
@@ -182,7 +185,7 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
           />
         );
       }
-      return (
+      const input = (
         <input
           className={changed.includes(f.name) ? 'changed' : ''}
           value={current}
@@ -190,6 +193,19 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
           onChange={(e) => setEdits({ ...edits, [f.name]: e.target.value })}
         />
       );
+      // Lookups (ProfileId, UserRoleId, ManagerId…): find the record by name, its Id goes in
+      if (f.referenceTo.length)
+        return (
+          <span className="lookup-edit">
+            {input}
+            <RecordPicker
+              client={client}
+              objects={f.referenceTo}
+              onPick={(id) => setEdits({ ...edits, [f.name]: id })}
+            />
+          </span>
+        );
+      return input;
     }
     const text = display(f.value);
     if (f.referenceTo.length && text) {
@@ -230,6 +246,9 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
               Me
             </button>
           )}
+          <button title="Create a record of any object" onClick={() => setCreating(true)}>
+            New…
+          </button>
           {recent.length > 0 && (
             <select className="menu-select" value="" onChange={(e) => e.target.value && void open(e.target.value)}>
               <option value="">Recent…</option>
@@ -241,6 +260,15 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
             </select>
           )}
         </div>
+      )}
+      {creating && !embedded && (
+        <NewRecord
+          onClose={() => setCreating(false)}
+          onCreated={(id) => {
+            setCreating(false);
+            void open(id).then(() => setStatus('✓ Created.'));
+          }}
+        />
       )}
       {status && <p className="muted">{status}</p>}
       {choices.length > 0 && (

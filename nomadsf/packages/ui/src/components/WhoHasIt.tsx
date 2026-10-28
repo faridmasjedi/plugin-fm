@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   HOLDER_KINDS,
+  deleteByIds,
   holdersOf,
+  removeAccess,
+  removeGroupMembers,
+  updateRecord,
   sameHolder,
   usersWith,
   usersWithInBoth,
@@ -28,6 +32,10 @@ export function WhoHasIt({ between }: { between?: OrgSides }) {
   const [users, setUsers] = useState<Row[] | null>(null);
   const [activeOnly, setActiveOnly] = useState(true);
   const [status, setStatus] = useState('');
+  // One user picked in the table: remove their assignment, or move them to another profile / role
+  const [picked, setPicked] = useState<Row | null>(null);
+  const [moveTo, setMoveTo] = useState('');
+  const [reloads, setReloads] = useState(0);
 
   useEffect(() => {
     setHolders(null);
@@ -53,6 +61,7 @@ export function WhoHasIt({ between }: { between?: OrgSides }) {
 
   useEffect(() => {
     setUsers(null);
+    setPicked(null);
     if (!holder || (isBetween && !holdersB)) return;
     setStatus('Reading users…');
     (clientB ? usersWithInBoth(client, holder, clientB, holderB) : usersWith(client, holder))
@@ -61,7 +70,7 @@ export function WhoHasIt({ between }: { between?: OrgSides }) {
         setStatus('');
       })
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
-  }, [client, clientB, holder, holderB, holdersB, isBetween]);
+  }, [client, clientB, holder, holderB, holdersB, isBetween, reloads]);
 
   const shown = useMemo(
     () =>
@@ -75,6 +84,46 @@ export function WhoHasIt({ between }: { between?: OrgSides }) {
     !activeOnly ? true : both ? u.activeA === true || u.activeB === true : u.IsActive !== false
   );
   const kindLabel = HOLDER_KINDS.find(([k]) => k === kind)?.[1] ?? '';
+
+  const change = async (text: string, action: () => Promise<unknown>) => {
+    if (!(await studio.confirmChange(`${text} in ${labelA}`))) return;
+    setStatus(`${text}…`);
+    try {
+      await action();
+      studio.logActivity('access change', { what: text });
+      setStatus(`✓ ${text}.`);
+      setReloads((n) => n + 1);
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    }
+  };
+  const check = (r: { errors: string[] }): void => {
+    if (r.errors.length) throw new Error(r.errors.join('; '));
+  };
+  const remove = (user: Row) => {
+    const id = String(user.RemoveId);
+    void change(`Remove ${String(user.Name)} from ${kindLabel.toLowerCase()} ${holder?.label ?? ''}`, async () =>
+      check(
+        kind === 'permset' || kind === 'group'
+          ? await removeAccess(client, [id])
+          : kind === 'license'
+          ? await deleteByIds(client, [id])
+          : await removeGroupMembers(client, [id])
+      )
+    );
+  };
+  const move = (user: Row) => {
+    const target = holders?.find((h) => h.id === moveTo);
+    if (!target) return;
+    void change(`Move ${String(user.Name)} to ${kindLabel.toLowerCase()} ${target.label}`, () =>
+      updateRecord(
+        client,
+        'User',
+        String(user.Id),
+        kind === 'profile' ? { ProfileId: target.id } : { UserRoleId: target.id }
+      )
+    );
+  };
 
   return (
     <div className="card section">
@@ -135,6 +184,8 @@ export function WhoHasIt({ between }: { between?: OrgSides }) {
             rows={rows}
             rowKey="Id"
             name={`${labelA}-${holder.label}-users`}
+            selectedKey={picked ? String(picked.Id) : undefined}
+            onRowClick={both ? undefined : (r) => setPicked(r.Id ? r : null)}
             note={
               <span>
                 · users with {kindLabel.toLowerCase()} {holder.label}
@@ -147,6 +198,41 @@ export function WhoHasIt({ between }: { between?: OrgSides }) {
             }
           />
         ))}
+      {picked && holder && !both && (
+        <div className="form user-actions">
+          <b>{String(picked.Name)}</b>
+          <span className="muted">{String(picked.Username ?? '')}</span>
+          <span className="grow" />
+          {picked.RemoveId ? (
+            <button className="danger" onClick={() => remove(picked)}>
+              Remove from {holder.label}…
+            </button>
+          ) : kind === 'profile' || kind === 'role' ? (
+            <>
+              <select value={moveTo} onChange={(e) => setMoveTo(e.target.value)} style={{ minWidth: 260 }}>
+                <option value="">Move to another {kindLabel.toLowerCase()}…</option>
+                {(holders ?? [])
+                  .filter((h) => h.id !== holder.id)
+                  .map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.label}
+                    </option>
+                  ))}
+              </select>
+              <button disabled={!moveTo} onClick={() => move(picked)}>
+                Move…
+              </button>
+            </>
+          ) : (
+            <span className="muted">A member through a role or another group: change it there.</span>
+          )}
+        </div>
+      )}
+      {!both && users && users.length > 0 && !picked && (
+        <p className="muted">
+          Click a user to remove them{kind === 'profile' || kind === 'role' ? ' or move them' : ''}.
+        </p>
+      )}
     </div>
   );
 }

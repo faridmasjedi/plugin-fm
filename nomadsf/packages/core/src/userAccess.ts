@@ -73,6 +73,7 @@ export async function userAccess(client: SalesforceClient, userId: string): Prom
     const g = grp(m);
     groups.set(String(m.GroupId), {
       Id: m.GroupId,
+      MemberId: m.Id,
       Name: g.Name,
       DeveloperName: g.DeveloperName,
       Kind: groupKind(g.Type, g.OwnerId),
@@ -97,6 +98,7 @@ export async function userAccess(client: SalesforceClient, userId: string): Prom
       .filter((r) => !r.PermissionSetGroupId && ps(r).IsOwnedByProfile !== true && ps(r).Type !== 'Group')
       .map((r) => ({
         Id: r.PermissionSetId,
+        AssignmentId: r.Id,
         Label: ps(r).Label,
         Name: ps(r).Name,
         ExpirationDate: r.ExpirationDate ?? '',
@@ -106,6 +108,7 @@ export async function userAccess(client: SalesforceClient, userId: string): Prom
       .filter((r) => r.PermissionSetGroupId)
       .map((r) => ({
         Id: r.PermissionSetGroupId,
+        AssignmentId: r.Id,
         Label: psg(r).MasterLabel,
         Name: psg(r).DeveloperName,
         ExpirationDate: r.ExpirationDate ?? '',
@@ -113,6 +116,7 @@ export async function userAccess(client: SalesforceClient, userId: string): Prom
       .sort((a, b) => String(a.Label).localeCompare(String(b.Label))),
     licenses: licenses.rows
       .map((r) => ({
+        AssignmentId: r.Id,
         Label: lic(r).MasterLabel,
         Name: lic(r).DeveloperName,
         Status: lic(r).Status ?? '',

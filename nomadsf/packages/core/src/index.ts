@@ -36,6 +36,8 @@ export * from './userAccess.js';
 export * from './orgHealth.js';
 export * from './accessCompare.js';
 export * from './accessEdit.js';
+export * from './accessManage.js';
+export * from './accessMeta.js';
 export * from './userCompare.js';
 export * from './accessDetail.js';
 export * from './myAccess.js';

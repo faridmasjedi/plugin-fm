@@ -14,9 +14,17 @@ import {
 import { storage, useStudio } from '../context';
 import { DataTable, EmptyHint } from './DataTable';
 import { AccessEditor, GroupEditor } from './AccessEditor';
+import {
+  CloneHolder,
+  LayoutsPanel,
+  ProfileLoginPanel,
+  RecordTypesPanel,
+  SetupAccessPanel,
+  TabSettingsPanel,
+} from '../pages/AccessManagePages';
 import { cannotChangePermissions, useAccessOf } from '../access';
 
-type Tab = 'all' | 'objects' | 'fields' | 'system';
+type Tab = 'all' | 'objects' | 'fields' | 'system' | 'setup' | 'rtypes' | 'layouts' | 'tabs' | 'login';
 const yes = (v: boolean): string => (v ? '✓' : '');
 
 /**
@@ -41,6 +49,7 @@ export function PermissionsExplorer() {
   const [status, setStatus] = useState('');
   const [info, setInfo] = useState<PermissionSetInfo | null>(null);
   const [editing, setEditing] = useState(false);
+  const [cloning, setCloning] = useState(false);
   // Bumped after saving: reads the permissions again
   const [reloads, setReloads] = useState(0);
 
@@ -66,6 +75,7 @@ export function PermissionsExplorer() {
     setFields(null);
     setSystem(null);
     setEditing(false);
+    setCloning(false);
     setInfo(null);
     setStatus('');
     if (!holderId) return;
@@ -156,12 +166,39 @@ export function PermissionsExplorer() {
             Edit…
           </button>
         )}
+        {holder && info && !editing && (
+          <button
+            onClick={() => setCloning(true)}
+            disabled={Boolean(blocked)}
+            title={blocked ?? `A copy of this ${holder.kind.toLowerCase()} under a new name`}
+          >
+            Clone…
+          </button>
+        )}
         {holder && info?.editable && blocked && <span className="muted">{blocked}</span>}
         {holder && info && !info.editable && info.kind !== 'Permission set group' && (
           <span className="muted">{info.reason}</span>
         )}
         <span className="muted">{status}</span>
       </div>
+      {holder && info && cloning && (
+        <CloneHolder
+          kind={holder.kind}
+          name={holder.name}
+          permissionSetId={holder.id}
+          profileId={info.profileId}
+          groupId={info.groupId}
+          onDone={(created) => {
+            setCloning(false);
+            if (created) {
+              setStatus('✓ Cloned. Find the copy in the list.');
+              permissionHolders(client)
+                .then(setHolders)
+                .catch(() => undefined);
+            }
+          }}
+        />
+      )}
       {holder && info?.groupId && <GroupEditor groupId={info.groupId} holders={holders} blocked={blocked} />}
       {holder &&
         editing &&
@@ -194,6 +231,11 @@ export function PermissionsExplorer() {
                 ['objects', 'Object access'],
                 ['fields', 'Field access'],
                 ['system', 'User & system permissions'],
+                ['setup', 'Apps, classes & more'],
+                ...(holder.kind !== 'Permission set group' ? [['rtypes', 'Record types']] : []),
+                ...(holder.kind === 'Profile' ? [['layouts', 'Page layouts']] : []),
+                ...(holder.kind === 'Permission set' ? [['tabs', 'Tabs']] : []),
+                ...(holder.kind === 'Profile' ? [['login', 'Login IP ranges']] : []),
               ] as Array<[Tab, string]>
             ).map(([id, label]) => (
               <button
@@ -208,6 +250,36 @@ export function PermissionsExplorer() {
               </button>
             ))}
           </div>
+          {tab === 'setup' && (
+            <SetupAccessPanel
+              permissionSetId={holder.id}
+              editable={Boolean(info?.editable && !blocked)}
+              reason={blocked ?? info?.reason}
+            />
+          )}
+          {tab === 'rtypes' && holder.kind !== 'Permission set group' && info && (
+            <RecordTypesPanel
+              holder={{
+                kind: holder.kind === 'Profile' ? 'Profile' : 'Permission set',
+                permissionSetId: holder.id,
+                profileId: info.profileId,
+              }}
+              editable={Boolean(info.editable && !blocked)}
+            />
+          )}
+          {tab === 'layouts' && holder.kind === 'Profile' && info?.profileId && (
+            <LayoutsPanel profileId={info.profileId} editable={Boolean(info.editable && !blocked)} />
+          )}
+          {tab === 'tabs' && holder.kind === 'Permission set' && (
+            <TabSettingsPanel permissionSetId={holder.id} editable={Boolean(info?.editable && !blocked)} />
+          )}
+          {tab === 'login' &&
+            holder.kind === 'Profile' &&
+            (info?.profileId ? (
+              <ProfileLoginPanel profileId={info.profileId} editable={!blocked} />
+            ) : (
+              <p className="muted">Reading the profile…</p>
+            ))}
           {tab === 'all' && <h4>Object access</h4>}
           {(tab === 'objects' || tab === 'all') &&
             (objects === null ? (
