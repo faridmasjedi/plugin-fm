@@ -593,7 +593,7 @@ function PageDownload({ tables, name }: { tables: PageTables; name: string }) {
       </button>
       {note && <span className="muted">{note}</span>}
       {open && (
-        <span className="menu page-download-menu">
+        <span className="page-download-menu">
           <button onClick={() => take('csv')}>All tables in one CSV</button>
           <button onClick={() => take('zip')}>A zip with a CSV per table</button>
           <button onClick={() => take('json')}>All tables as JSON</button>

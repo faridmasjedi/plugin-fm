@@ -401,6 +401,17 @@ export type AppComparison = {
 };
 
 /** Connected apps (and OAuth-only apps) of two orgs: which exist where, their users, settings and who may use them. */
+/** The list an app of this kind comes from could not be read (connectedAppsReport notes: "Connected apps: …"). */
+const unreadable = (notes: string[], kind = ''): boolean => {
+  const list =
+    kind === 'Connected app'
+      ? 'Connected apps'
+      : kind === 'External client app'
+      ? 'External client apps'
+      : 'OAuth tokens';
+  return notes.some((n) => n.startsWith(`${list}:`));
+};
+
 export async function compareConnectedApps(
   clientA: SalesforceClient,
   clientB: SalesforceClient
@@ -429,15 +440,15 @@ export async function compareConnectedApps(
         if (ga.has(who) !== gb.has(who))
           differences.push({ area: 'Who may use it', item: who, a: ga.has(who) ? '✓' : '', b: gb.has(who) ? '✓' : '' });
     }
-    // An app missing on a side whose lists could not all be read is unknown there, not "only in" the other
+    // An app missing on a side is unknown there only when that side's list for its kind could not be read
     apps.push({
       name,
       status: !y
-        ? b.report.notes.length
+        ? unreadable(b.report.notes, x?.kind)
           ? 'not read in B'
           : 'only in A'
         : !x
-        ? a.report.notes.length
+        ? unreadable(a.report.notes, y.kind)
           ? 'not read in A'
           : 'only in B'
         : differences.length

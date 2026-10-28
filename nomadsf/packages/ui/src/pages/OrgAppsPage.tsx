@@ -135,9 +135,20 @@ export function OrgAppsPage() {
               )}
             </div>
           )}
-          {app && app.status !== 'only in A' && app.status !== 'only in B' && (
+          {app && (app.status === 'not read in A' || app.status === 'not read in B') && (
+            <p className="muted">
+              {app.name} could not be compared: the {app.status === 'not read in A' ? 'A' : 'B'} org did not let us read
+              its list of {(app.status === 'not read in A' ? app.kindB : app.kindA) || 'apps'} ({status || 'see above'}
+              ).
+            </p>
+          )}
+          {app && (app.status === 'same' || app.status === 'different') && (
             <div className="section">
-              <h4>Settings and who may use it</h4>
+              <h4>The app in A and in B</h4>
+              <p className="muted">
+                Its OAuth settings (admin-approved users only, refresh-token and session policies, start URL…) and the
+                profiles and permission sets pre-authorized to use it, side by side.
+              </p>
               {app.differences.length ? (
                 <DataTable
                   columns={['area', 'item', 'a', 'b']}
@@ -147,7 +158,9 @@ export function OrgAppsPage() {
                   note={<span>· only the differences</span>}
                 />
               ) : (
-                <p className="good">✓ The same settings and the same profiles and permission sets in both orgs.</p>
+                <p className="good">
+                  ✓ {app.name} has the same settings in both orgs, and the same profiles and permission sets may use it.
+                </p>
               )}
             </div>
           )}
