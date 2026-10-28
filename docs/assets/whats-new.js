@@ -18,7 +18,11 @@ window.NOMADSF_WHATS_NEW = {
     'Permissions: Apex classes, Visualforce pages, custom permissions, connected apps, apps and tabs',
     'Custom profiles: login IP ranges and hours',
     'New tools: Groups & queues and Custom permissions; Assigned users can remove or move people',
-    'Create permission sets and permission set groups',
+    'Create permission sets and permission set groups; clone profiles, permission sets and groups',
+    'Record types and page layouts per profile; record types per permission set',
+    'Field access: choose an object and set Read / Edit on all its fields',
+    'New custom permissions, granted at once; groups: choose what to add (user, group, role…)',
+    'Record: create a new record of any object',
   ],
   '2.1.0': [
     'VS Code extension works on its own: no Salesforce CLI, no sf fm plugin, no local port',

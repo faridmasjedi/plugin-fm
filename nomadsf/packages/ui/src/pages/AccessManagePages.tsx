@@ -4,26 +4,37 @@ import {
   WEEK_DAYS,
   addGroupMembers,
   apiNameFrom,
+  cloneProfile,
+  clonePermissionSet,
+  clonePermissionSetGroup,
+  createCustomPermission,
   createPermissionSet,
   customPermissionHolders,
   grantSetupAccess,
   listGroupMembers,
+  layoutAssignments,
   listGroups,
+  listMetadata,
   permissionHolders,
   profileLoginSettings,
   query,
+  recordTypeAccess,
   removeGroupMembers,
   revokeSetupAccess,
   roleGroups,
+  saveLayoutAssignments,
   saveProfileLoginSettings,
+  saveRecordTypeAccess,
   setTabSetting,
   setupAccessOf,
   setupEntities,
   tabSettingsOf,
   type GroupInfo,
   type GroupMemberRow,
+  type LayoutAssignment,
   type PermissionHolder,
   type ProfileLoginSettings,
+  type RecordTypeAccess,
   type Row,
   type SetupAccessRow,
   type SetupEntity,
@@ -77,16 +88,21 @@ export function GroupsPage() {
       roleGroups(client).catch(() => []),
     ]).then(([users, roles]) =>
       setChoices([
-        ...users.rows.map((u) => ({ id: String(u.Id), label: String(u.Name), detail: `user · ${String(u.Username)}` })),
-        ...roles.flatMap((r) => [
-          ...(r.roleGroupId ? [{ id: r.roleGroupId, label: r.role, detail: 'role' }] : []),
-          ...(r.withSubordinatesGroupId
-            ? [{ id: r.withSubordinatesGroupId, label: r.role, detail: 'role and subordinates' }]
-            : []),
-        ]),
+        ...users.rows.map((u) => ({
+          id: String(u.Id),
+          label: String(u.Name),
+          detail: String(u.Username),
+          kind: 'User',
+        })),
         ...(groups ?? [])
           .filter((g) => g.Kind === 'Public group')
-          .map((g) => ({ id: g.Id, label: g.Name, detail: 'public group' })),
+          .map((g) => ({ id: g.Id, label: g.Name, detail: g.DeveloperName, kind: 'Public group' })),
+        ...roles.flatMap((r) => [
+          ...(r.roleGroupId ? [{ id: r.roleGroupId, label: r.role, kind: 'Role' }] : []),
+          ...(r.withSubordinatesGroupId
+            ? [{ id: r.withSubordinatesGroupId, label: r.role, kind: 'Role and subordinates' }]
+            : []),
+        ]),
       ])
     );
   }, [client, chosen, choices, groups]);
@@ -133,9 +149,9 @@ export function GroupsPage() {
               removeKey="MemberId"
               onRemove={async (r) => fail(await removeGroupMembers(client, [String(r.MemberId)]))}
               choices={(choices ?? []).filter(
-                (c) => !members.some((m) => m.UserOrGroupId.slice(0, 15) === c.id.slice(0, 15))
+                (c) => c.id !== chosen.Id && !members.some((m) => m.UserOrGroupId.slice(0, 15) === c.id.slice(0, 15))
               )}
-              addLabel={choices ? 'Add a user, role or group' : 'Loading users and roles'}
+              kinds={['User', 'Public group', 'Role', 'Role and subordinates']}
               onAdd={async (c) => fail(await addGroupMembers(client, chosen.Id, [c.id]))}
               onChanged={() => {
                 setMembers(null);
@@ -161,15 +177,18 @@ export function CustomPermissionsPage() {
   const [all, setAll] = useState<PermissionHolder[] | null>(null);
   const [status, setStatus] = useState('');
 
-  useEffect(() => {
-    setList(null);
-    setChosen(null);
+  const loadList = () =>
     setupEntities(client, 'CustomPermission')
       .then(setList)
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
+  useEffect(() => {
+    setList(null);
+    setChosen(null);
+    void loadList();
     permissionHolders(client)
       .then(setAll)
       .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client]);
   const load = (id: string) => {
     setHolders(null);
@@ -188,6 +207,7 @@ export function CustomPermissionsPage() {
         <h2>Custom permissions</h2>
         <span className="muted">who gives each one; grant it to a permission set or profile</span>
       </div>
+      <NewCustomPermission holders={all ?? []} onCreated={() => void loadList()} />
       {status && <p className="muted">{status}</p>}
       {!list ? (
         <p className="muted">Reading…</p>
@@ -201,7 +221,7 @@ export function CustomPermissionsPage() {
           name="custom-permissions"
           selectedKey={chosen?.id}
           onRowClick={(r) => setChosen(list.find((c) => c.id === r.id) ?? null)}
-          note={<span>· click one for who has it · new ones are made in Setup or deployed as metadata</span>}
+          note={<span>· click one for who has it</span>}
         />
       )}
       {chosen && (
@@ -233,7 +253,130 @@ export function CustomPermissionsPage() {
   );
 }
 
+/** A new custom permission (deployed with the Metadata API), granted at once to the sets and profiles ticked. */
+function NewCustomPermission({ holders, onCreated }: { holders: PermissionHolder[]; onCreated: () => void }) {
+  const { client, org, confirmChange, logActivity } = useStudio();
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState('');
+  const [name, setName] = useState('');
+  const [nameTouched, setNameTouched] = useState(false);
+  const [description, setDescription] = useState('');
+  const [grantTo, setGrantTo] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState('');
+  const [status, setStatus] = useState('');
+  const apiName = nameTouched ? name : apiNameFrom(label);
+  const offered = holders.filter((h) => h.kind !== 'Permission set group');
+  const needle = filter.trim().toLowerCase();
+  const shown = offered.filter((h) => !needle || `${h.kind} ${h.name}`.toLowerCase().includes(needle));
+
+  const create = async () => {
+    const names = offered.filter((h) => grantTo.has(h.id)).map((h) => h.name);
+    if (
+      !(await confirmChange(
+        `Create custom permission ${label} (${apiName}) in ${org.label}${
+          names.length ? ` and grant it to: ${names.join(', ')}` : ''
+        }`
+      ))
+    )
+      return;
+    setStatus('Deploying the custom permission…');
+    try {
+      const id = await createCustomPermission(client, { label, name: apiName, description });
+      const errors: string[] = [];
+      for (const holder of grantTo) {
+        // eslint-disable-next-line no-await-in-loop
+        errors.push(...(await grantSetupAccess(client, holder, [id])).errors);
+      }
+      logActivity('create custom permission', { label, name: apiName, grantedTo: names });
+      setStatus(errors.length ? `✓ Created. ❌ Some grants failed: ${errors.join('; ')}` : `✓ Created ${label}.`);
+      setLabel('');
+      setName('');
+      setNameTouched(false);
+      setDescription('');
+      setGrantTo(new Set());
+      onCreated();
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    }
+  };
+
+  if (!open)
+    return (
+      <div className="form">
+        <button onClick={() => setOpen(true)}>New custom permission…</button>
+        {status && <span className="muted">{status}</span>}
+      </div>
+    );
+  return (
+    <div className="card section">
+      <h3>New custom permission</h3>
+      <div className="form">
+        <input placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
+        <input
+          className="mono"
+          placeholder="API name"
+          value={apiName}
+          onChange={(e) => {
+            setName(e.target.value);
+            setNameTouched(true);
+          }}
+        />
+        <input
+          placeholder="Description (optional)"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          style={{ minWidth: 280 }}
+        />
+      </div>
+      <div className="form">
+        <b>Grant it to</b>
+        <input placeholder="Filter" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <span className="muted">{grantTo.size} ticked (optional; you can grant it later too)</span>
+      </div>
+      <div className="field-checks two-lines">
+        {shown.map((h) => (
+          <label key={h.id} className="check">
+            <input
+              type="checkbox"
+              checked={grantTo.has(h.id)}
+              onChange={(e) => {
+                const next = new Set(grantTo);
+                if (e.target.checked) next.add(h.id);
+                else next.delete(h.id);
+                setGrantTo(next);
+              }}
+            />{' '}
+            <span className="field-check-text">
+              <span>{h.name}</span>
+              <span className="muted">{h.kind}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <div className="form">
+        <button onClick={() => setOpen(false)}>Close</button>
+        <button className="primary" disabled={!label.trim() || !apiName} onClick={() => void create()}>
+          Create…
+        </button>
+        {status && <span className="muted">{status}</span>}
+      </div>
+    </div>
+  );
+}
+
 // ---------- Permissions › Apps, classes & more ----------
+
+/** What each kind of access means, in a sentence. */
+const SETUP_HELP: Record<SetupKind, string> = {
+  ApexClass:
+    'Apex classes users may run from outside the class: Visualforce controllers, LWC and Aura @AuraEnabled methods, REST and SOAP web services.',
+  ApexPage: 'Visualforce pages users may open.',
+  CustomPermission:
+    'Custom permissions this grants. Apex ($Permission, FeatureManagement.checkPermission), flows, validation rules and formulas check them.',
+  ConnectedApplication:
+    'Connected apps set to "Admin approved users are pre-authorized": users with this may log in to the app (OAuth).',
+  TabSet: 'Lightning and Classic apps (App Launcher) users may open; the tabs inside still need their own access.',
+};
 
 /**
  * What a permission set or profile gives access to besides objects, fields and system permissions:
@@ -279,6 +422,7 @@ export function SetupAccessPanel({
           </button>
         ))}
       </div>
+      <p className="muted">{SETUP_HELP[kind]}</p>
       {status && <p className="muted">{status}</p>}
       {!rows ? (
         <p className="muted">Reading…</p>
@@ -630,6 +774,381 @@ export function NewPermissionSet({ onCreated }: { onCreated: () => void }) {
         Create…
       </button>
       {status && <span className="muted">{status}</span>}
+    </div>
+  );
+}
+
+// ---------- Permissions › Record types (profiles and permission sets) ----------
+
+type Holder = { kind: 'Profile' | 'Permission set'; permissionSetId: string; profileId?: string };
+
+/** Which record types a profile or permission set may use (and, for a profile, each object's default). */
+export function RecordTypesPanel({ holder, editable }: { holder: Holder; editable: boolean }) {
+  const { client, org, confirmChange, logActivity } = useStudio();
+  const [rows, setRows] = useState<RecordTypeAccess[] | null>(null);
+  const [draft, setDraft] = useState<Map<string, RecordTypeAccess>>(new Map());
+  const [filter, setFilter] = useState('');
+  const [onlyVisible, setOnlyVisible] = useState(false);
+  const [status, setStatus] = useState('');
+  const profile = holder.kind === 'Profile';
+  const load = () => {
+    setRows(null);
+    setDraft(new Map());
+    recordTypeAccess(client, holder)
+      .then((r) => {
+        setRows(r);
+        setStatus('');
+      })
+      .catch((e: Error) => setStatus(`❌ ${e.message}`));
+  };
+  useEffect(load, [client, holder.permissionSetId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const now = (r: RecordTypeAccess): RecordTypeAccess => draft.get(r.recordType) ?? r;
+  const set = (r: RecordTypeAccess, patch: Partial<RecordTypeAccess>) => {
+    const next = new Map(draft);
+    next.set(r.recordType, { ...now(r), ...patch });
+    // One default per object: the others of the object lose it
+    if (patch.isDefault)
+      for (const other of rows ?? [])
+        if (other.object === r.object && other.recordType !== r.recordType && now(other).isDefault)
+          next.set(other.recordType, { ...now(other), isDefault: false });
+    setDraft(next);
+  };
+  const changed = [...draft.values()].filter((d) => {
+    const r = rows?.find((x) => x.recordType === d.recordType);
+    return r && (r.visible !== d.visible || r.isDefault !== d.isDefault);
+  });
+  const save = async () => {
+    if (
+      !(await confirmChange(
+        `Change ${changed.length} record type setting(s) of ${holder.kind.toLowerCase()} in ${org.label}:\n${changed
+          .map((c) => `• ${c.recordType}: ${c.visible ? 'visible' : 'hidden'}${c.isDefault ? ', default' : ''}`)
+          .join('\n')}`
+      ))
+    )
+      return;
+    setStatus('Deploying…');
+    try {
+      await saveRecordTypeAccess(client, holder, changed);
+      logActivity('record type access', { holder: holder.permissionSetId, changes: changed.length });
+      setStatus('✓ Saved.');
+      load();
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    }
+  };
+
+  const needle = filter.trim().toLowerCase();
+  const shown = (rows ?? []).filter(
+    (r) =>
+      (!onlyVisible || now(r).visible) &&
+      (!needle || `${r.object} ${r.label} ${r.recordType}`.toLowerCase().includes(needle))
+  );
+  return (
+    <div className="section">
+      <div className="form">
+        <input
+          placeholder="Filter objects or record types"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+        <label className="check">
+          <input type="checkbox" checked={onlyVisible} onChange={(e) => setOnlyVisible(e.target.checked)} /> Only the
+          ones it can use
+        </label>
+        <span className="grow" />
+        {editable && (
+          <>
+            <button disabled={!changed.length} onClick={() => setDraft(new Map())}>
+              Undo
+            </button>
+            <button className="primary" disabled={!changed.length} onClick={() => void save()}>
+              Save {changed.length || ''} change(s)…
+            </button>
+          </>
+        )}
+      </div>
+      <p className="muted">
+        {status ||
+          (profile
+            ? 'A profile also sets each object’s default record type. Saving deploys only these settings of the profile.'
+            : 'Saving deploys the permission set again with these record types (everything else stays as it is).')}
+      </p>
+      {!rows ? (
+        <p className="muted">Reading…</p>
+      ) : shown.length === 0 ? (
+        <EmptyHint what="record types" />
+      ) : (
+        <table className="edit-table">
+          <thead>
+            <tr>
+              <th>object</th>
+              <th>record type</th>
+              <th>Visible</th>
+              {profile && <th>Default</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((r) => {
+              const v = now(r);
+              const isChanged = v.visible !== r.visible || v.isDefault !== r.isDefault;
+              return (
+                <tr key={r.recordType}>
+                  <td>{r.object}</td>
+                  <td>
+                    {r.label} <span className="muted mono">{r.recordType.split('.')[1]}</span>
+                    {!r.active && <span className="muted"> · inactive</span>}
+                  </td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      className={isChanged ? 'changed' : ''}
+                      disabled={!editable}
+                      checked={v.visible}
+                      onChange={(e) =>
+                        set(r, { visible: e.target.checked, ...(e.target.checked ? {} : { isDefault: false }) })
+                      }
+                    />
+                  </td>
+                  {profile && (
+                    <td>
+                      <input
+                        type="radio"
+                        name={`default-${r.object}`}
+                        disabled={!editable || !v.visible}
+                        checked={v.isDefault}
+                        onChange={() => set(r, { isDefault: true })}
+                      />
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// ---------- Permissions › Page layouts (profiles) ----------
+
+export function LayoutsPanel({ profileId, editable }: { profileId: string; editable: boolean }) {
+  const { client, org, confirmChange, logActivity } = useStudio();
+  const [rows, setRows] = useState<LayoutAssignment[] | null>(null);
+  const [layouts, setLayouts] = useState<Map<string, string[]>>(new Map());
+  const [draft, setDraft] = useState<Map<string, string>>(new Map());
+  const [filter, setFilter] = useState('');
+  const [status, setStatus] = useState('');
+  const key = (a: LayoutAssignment): string => `${a.object}|${a.recordType}`;
+  const load = () => {
+    setRows(null);
+    setDraft(new Map());
+    layoutAssignments(client, profileId)
+      .then(setRows)
+      .catch((e: Error) => setStatus(`❌ ${e.message}`));
+  };
+  useEffect(load, [client, profileId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!editable) return;
+    listMetadata(client, 'Layout')
+      .then((list) => {
+        const byObject = new Map<string, string[]>();
+        for (const l of list) {
+          const object = l.fullName.slice(0, l.fullName.indexOf('-'));
+          byObject.set(object, [...(byObject.get(object) ?? []), l.fullName]);
+        }
+        setLayouts(byObject);
+      })
+      .catch(() => undefined);
+  }, [client, editable]);
+
+  const changed = (rows ?? []).filter((r) => draft.has(key(r)) && draft.get(key(r)) !== r.layout);
+  const save = async () => {
+    const list = changed.map((r) => ({ ...r, layout: draft.get(key(r))! }));
+    if (
+      !(await confirmChange(
+        `Assign ${list.length} page layout(s) in ${org.label}:\n${list
+          .map((l) => `• ${l.recordType || l.object}: ${l.layout}`)
+          .join('\n')}`
+      ))
+    )
+      return;
+    setStatus('Deploying…');
+    try {
+      await saveLayoutAssignments(client, profileId, list);
+      logActivity('layout assignments', { profile: profileId, changes: list.length });
+      setStatus('✓ Saved.');
+      load();
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    }
+  };
+  const needle = filter.trim().toLowerCase();
+  const shown = (rows ?? []).filter(
+    (r) => !needle || `${r.object} ${r.recordType} ${r.layout}`.toLowerCase().includes(needle)
+  );
+  return (
+    <div className="section">
+      <div className="form">
+        <input placeholder="Filter objects or layouts" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <span className="grow" />
+        {editable && (
+          <>
+            <button disabled={!changed.length} onClick={() => setDraft(new Map())}>
+              Undo
+            </button>
+            <button className="primary" disabled={!changed.length} onClick={() => void save()}>
+              Save {changed.length || ''} change(s)…
+            </button>
+          </>
+        )}
+      </div>
+      <p className="muted">
+        {status ||
+          'The page layout this profile sees for each object (and record type). Permission sets have no layouts.'}
+      </p>
+      {!rows ? (
+        <p className="muted">Reading…</p>
+      ) : (
+        <table className="edit-table">
+          <thead>
+            <tr>
+              <th>object</th>
+              <th>record type</th>
+              <th>layout</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((r) => {
+              const value = draft.get(key(r)) ?? r.layout;
+              const options = layouts.get(r.object) ?? [];
+              return (
+                <tr key={key(r)}>
+                  <td>{r.object}</td>
+                  <td className="muted">{r.recordType ? r.recordType.split('.')[1] : '(master)'}</td>
+                  <td>
+                    {editable && options.length ? (
+                      <select
+                        className={value !== r.layout ? 'changed' : ''}
+                        value={value}
+                        onChange={(e) => setDraft(new Map(draft).set(key(r), e.target.value))}
+                      >
+                        {[...new Set([r.layout, ...options])].filter(Boolean).map((l) => (
+                          <option key={l} value={l}>
+                            {l.slice(l.indexOf('-') + 1)}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      r.layout.slice(r.layout.indexOf('-') + 1)
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// ---------- Permissions › Clone ----------
+
+/** A copy of a profile, permission set or permission set group under a new name. */
+export function CloneHolder({
+  kind,
+  name,
+  permissionSetId,
+  profileId,
+  groupId,
+  onDone,
+}: {
+  kind: 'Profile' | 'Permission set' | 'Permission set group';
+  name: string;
+  permissionSetId: string;
+  profileId?: string;
+  groupId?: string;
+  onDone: (created: boolean) => void;
+}) {
+  const { client, org, confirmChange, logActivity } = useStudio();
+  const [label, setLabel] = useState(`Copy of ${name}`);
+  const [apiName, setApiName] = useState('');
+  const [touched, setTouched] = useState(false);
+  const [description, setDescription] = useState('');
+  const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
+  const api = touched ? apiName : apiNameFrom(label);
+  const clone = async () => {
+    if (
+      !(await confirmChange(
+        `Clone ${kind.toLowerCase()} ${name} as ${label}${kind === 'Profile' ? '' : ` (${api})`} in ${org.label}`
+      ))
+    )
+      return;
+    setBusy(true);
+    setStatus(kind === 'Permission set group' ? 'Creating…' : 'Reading and deploying (Metadata API)…');
+    try {
+      if (kind === 'Profile') await cloneProfile(client, profileId ?? '', label, description);
+      else if (kind === 'Permission set')
+        await clonePermissionSet(client, permissionSetId, { label, name: api, description });
+      else {
+        const r = await clonePermissionSetGroup(client, groupId ?? '', { label, name: api, description });
+        if (r.errors.length) setStatus(`✓ Created with ${r.added} permission set(s). ❌ ${r.errors.join('; ')}`);
+      }
+      logActivity(`clone ${kind.toLowerCase()}`, { from: name, to: label });
+      onDone(true);
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="card section">
+      <h4>Clone {name}</h4>
+      <div className="form">
+        <input
+          placeholder={kind === 'Profile' ? 'Profile name' : 'Label'}
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+        />
+        {kind !== 'Profile' && (
+          <input
+            className="mono"
+            placeholder="API name"
+            value={api}
+            onChange={(e) => {
+              setApiName(e.target.value);
+              setTouched(true);
+            }}
+          />
+        )}
+        <input
+          placeholder="Description (optional)"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+        <button onClick={() => onDone(false)} disabled={busy}>
+          Cancel
+        </button>
+        <button
+          className="primary"
+          disabled={busy || !label.trim() || (kind !== 'Profile' && !api)}
+          onClick={() => void clone()}
+        >
+          Clone…
+        </button>
+      </div>
+      <p className="muted">
+        {status ||
+          (kind === 'Profile'
+            ? 'Everything the profile has (permissions, access, record types, layouts, login settings) goes to a new custom profile with the same license.'
+            : kind === 'Permission set'
+            ? 'Everything the permission set grants goes to the new one; nobody is assigned.'
+            : 'The new group holds the same permission sets (muting permission sets are not copied); nobody is assigned.')}
+      </p>
     </div>
   );
 }

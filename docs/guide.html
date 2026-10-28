@@ -380,6 +380,10 @@
               the record they point to. For users, <b>Log in as</b>. The <b>History</b> tab lists the record's tracked
               field changes — when, which field, from, to and by whom — for objects with field history tracking on.
             </p>
+            <p>
+              <b>Me</b> opens your own user; a user's name finds them too. <b>New…</b> creates a record of any object:
+              required fields first, picklists as lists, lookups found by name.
+            </p>
             <div class="shot">
               <video
                 src="media/history.mp4"
@@ -733,10 +737,10 @@
                 Choose a custom permission set or custom profile and <b>Edit…</b> (standard profiles cannot be changed).
               </li>
               <li>
-                Tick or untick object access, field access and user &amp; system permissions; add an object or a field
-                (<code>Object.Field</code>). What Salesforce requires is kept: Edit needs Read, Modify all needs
-                everything. Changed boxes are outlined; nothing is sent yet. (Edit… is off, with the reason, when your
-                user can't change permissions in this org.)
+                Tick or untick object access, field access and user &amp; system permissions; add an object, or choose
+                one under Field access for all its fields. What Salesforce requires is kept: Edit needs Read, Modify all
+                needs everything. Changed boxes are outlined; nothing is sent yet. (Edit… is off, with the reason, when
+                your user can't change permissions in this org.)
               </li>
               <li><b>Save</b> — you type the org name; anything that fails is listed, the rest is saved.</li>
             </ol>
@@ -746,9 +750,21 @@
             </p>
             <p>
               <b>Apps, classes &amp; more</b>: the Apex classes, Visualforce pages, custom permissions, connected apps
-              and apps a permission set or custom profile gives access to — add and remove them. <b>Tabs</b> (permission
-              sets): Visible, Available or Hidden for each tab. <b>Login IP ranges &amp; hours</b> (custom profiles):
-              edit them and <b>Deploy</b> — only those settings of the profile are sent.
+              (pre-authorized OAuth access) and apps (App Launcher) a permission set or custom profile gives access to —
+              add and remove them. <b>Record types</b>: which ones it may use (and, for a profile, each object's
+              default). <b>Page layouts</b> (profiles): the layout for each object and record type.
+              <b>Tabs</b> (permission sets): Visible, Available or Hidden.
+              <b>Login IP ranges &amp; hours</b> (profiles). Record types, layouts and login settings are deployed with
+              the Metadata API: only those settings change.
+            </p>
+            <p>
+              <b>Field access</b> while editing: choose an object to list every field that can have field permissions,
+              with Read and Edit (and All Read / All Edit). Required and system fields are not listed: everyone with the
+              object can use them.
+            </p>
+            <p>
+              <b>Clone…</b> copies a profile (to a new custom profile with the same license), a permission set or a
+              permission set group under a new name; nobody is assigned.
             </p>
           </section>
           <section class="tool" data-title="Assigned users">
@@ -766,14 +782,16 @@
             <h3 id="groups">Groups &amp; queues</h3>
             <p>
               Every public group and queue, with its members (users, roles, roles and subordinates, other groups) and
-              the objects a queue can own. Choose one to add or remove members.
+              the objects a queue can own. Choose one to add members (first choose what: a user, a public group, a role
+              or a role and its subordinates) or remove them.
             </p>
           </section>
           <section class="tool" data-title="Custom permissions">
             <h3 id="custperms">Custom permissions</h3>
             <p>
               Every custom permission and the permission sets, profiles and groups that give it; grant it to another
-              permission set or profile, or remove a grant.
+              permission set or profile, or remove a grant. <b>New custom permission…</b> creates one (Metadata API) and
+              grants it at once to the permission sets and profiles you tick.
             </p>
           </section>
           <section class="tool" data-title="Compare">

@@ -118,6 +118,17 @@ export function coerceFieldValue(field: Pick<RecordField, 'type' | 'name'>, text
   return text;
 }
 
+/** Creates a record and returns its Id. */
+export async function createRecord(
+  client: SalesforceClient,
+  sobject: string,
+  values: Record<string, unknown>
+): Promise<string> {
+  if (!/^\w+$/.test(sobject)) throw new Error('Invalid object.');
+  const r = await client.rest<{ id: string }>('POST', `/sobjects/${sobject}`, values);
+  return r.id;
+}
+
 /** Saves only the changed fields (PATCH). */
 export async function updateRecord(
   client: SalesforceClient,

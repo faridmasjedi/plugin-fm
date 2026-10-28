@@ -3,7 +3,8 @@ import type { Row } from '@nomadsf/core';
 import { useStudio } from '../context';
 import { EmptyHint } from './DataTable';
 
-export type Choice = { id: string; label: string; detail?: string };
+/** `kind`: what it is (User, Role…), when the list offers several kinds to choose from first. */
+export type Choice = { id: string; label: string; detail?: string; kind?: string };
 
 /**
  * A list someone can change: each row has Remove, and a picker adds one more. Every change asks for
@@ -21,6 +22,7 @@ export function ManagedList({
   onAdd,
   onChanged,
   extra,
+  kinds,
 }: {
   rows: Row[];
   columns: string[];
@@ -37,10 +39,13 @@ export function ManagedList({
   onAdd?: (choice: Choice) => Promise<void>;
   onChanged: () => void;
   extra?: ReactNode;
+  /** Kinds of choices (User, Public group…): a list to pick the kind first. */
+  kinds?: string[];
 }) {
   const { org, confirmChange, logActivity } = useStudio();
   const [adding, setAdding] = useState('');
   const [filter, setFilter] = useState('');
+  const [kind, setKind] = useState(kinds?.[0] ?? '');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -62,8 +67,11 @@ export function ManagedList({
 
   const needle = filter.trim().toLowerCase();
   const shownChoices = (choices ?? []).filter(
-    (c) => !needle || `${c.label} ${c.detail ?? ''}`.toLowerCase().includes(needle)
+    (c) => (!kinds || c.kind === kind) && (!needle || `${c.label} ${c.detail ?? ''}`.toLowerCase().includes(needle))
   );
+  // "an Apex class", "a user"
+  const article = (w: string): string => (/^([aeio]|u(?!s))/i.test(w) ? 'an' : 'a');
+  const adding_what = kinds ? kind.toLowerCase() : what;
   const name = (r: Row): string => String(r[columns[0]] ?? r.Name ?? '');
 
   return (
@@ -106,15 +114,30 @@ export function ManagedList({
       )}
       {onAdd && (
         <div className="form">
+          {kinds && (
+            <select
+              value={kind}
+              onChange={(e) => {
+                setKind(e.target.value);
+                setAdding('');
+              }}
+              title="What to add"
+            >
+              {kinds.map((k) => (
+                <option key={k}>{k}</option>
+              ))}
+            </select>
+          )}
           <input
-            placeholder={`Filter ${choices?.length ?? 0}`}
+            placeholder={`Filter ${shownChoices.length}`}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             style={{ width: 140 }}
           />
           <select value={adding} onChange={(e) => setAdding(e.target.value)} style={{ minWidth: 300 }}>
             <option value="">
-              {addLabel ?? `Add ${/^[aeiou]/i.test(what) ? 'an' : 'a'} ${what}`} ({shownChoices.length})…
+              {kinds ? `Choose ${article(adding_what)} ${adding_what}` : addLabel ?? `Add ${article(what)} ${what}`} (
+              {shownChoices.length})…
             </option>
             {shownChoices.map((c) => (
               <option key={c.id} value={c.id}>
@@ -129,7 +152,7 @@ export function ManagedList({
               const choice = choices?.find((c) => c.id === adding);
               if (!choice) return;
               setAdding('');
-              void act(`Add ${what} ${choice.label}`, () => onAdd(choice));
+              void act(`Add ${kinds ? adding_what : what} ${choice.label}`, () => onAdd(choice));
             }}
           >
             Add

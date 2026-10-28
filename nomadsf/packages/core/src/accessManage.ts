@@ -1,9 +1,10 @@
 import type { SalesforceClient } from './client.js';
 import { deployZip } from './deploy.js';
-import { listMetadata, packageXml, retrieveZip } from './metadata.js';
+import { profileMetadata } from './accessMeta.js';
+import { packageXml } from './metadata.js';
 import { query, type Row } from './query.js';
 import { escapeXml, xmlBlocks, xmlValue } from './soap.js';
-import { fromBase64, makeZip, readZip, toBase64 } from './zip.js';
+import { makeZip, toBase64 } from './zip.js';
 
 /**
  * Managing access beyond object, field and system permissions: public groups and queues and their
@@ -459,15 +460,6 @@ export const WEEK_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'
 export type LoginHours = Partial<Record<(typeof WEEK_DAYS)[number], { start: number; end: number }>>;
 export type ProfileLoginSettings = { fullName: string; ipRanges: IpRange[]; hours: LoginHours };
 
-/** The Metadata API name of a profile ("Admin" for System Administrator…), from its Id. */
-async function profileFullName(client: SalesforceClient, profileId: string): Promise<string> {
-  idOf('00e', profileId, 'profile');
-  const list = await listMetadata(client, 'Profile');
-  const found = list.find((p) => p.id?.slice(0, 15) === profileId.slice(0, 15));
-  if (!found) throw new Error('This profile is not in the Metadata API list.');
-  return found.fullName;
-}
-
 export function parseLoginSettings(xml: string, fullName: string): ProfileLoginSettings {
   const ipRanges = xmlBlocks(xml, 'loginIpRanges').map((b) => ({
     start: xmlValue(b, 'startAddress') ?? '',
@@ -513,14 +505,26 @@ export function loginSettingsXml(settings: Omit<ProfileLoginSettings, 'fullName'
   return `<?xml version="1.0" encoding="UTF-8"?>\n<Profile xmlns="http://soap.sforce.com/2006/04/metadata">\n${ranges}${hours}</Profile>\n`;
 }
 
+/** A profile's IP ranges and login hours, read in one Tooling API call. */
 export async function profileLoginSettings(client: SalesforceClient, profileId: string): Promise<ProfileLoginSettings> {
-  const fullName = await profileFullName(client, profileId);
-  const result = await retrieveZip(client, [{ type: 'Profile', fullName }]);
-  if (!result.zipFile) throw new Error(result.errorMessage ?? 'The profile could not be read.');
-  const files = await readZip(fromBase64(result.zipFile));
-  const file = [...files.entries()].find(([path]) => path.endsWith('.profile'));
-  if (!file) throw new Error('The profile was not in the retrieve.');
-  return parseLoginSettings(new TextDecoder().decode(file[1]), fullName);
+  const { fullName, metadata } = await profileMetadata(client, profileId);
+  const ranges = (metadata.loginIpRanges ?? []) as Array<Record<string, unknown>>;
+  const block = (metadata.loginHours ?? {}) as Record<string, unknown>;
+  const hours: LoginHours = {};
+  for (const day of WEEK_DAYS) {
+    const start = block[`${day}Start`];
+    const end = block[`${day}End`];
+    if (start != null && end != null) hours[day] = { start: Number(start), end: Number(end) };
+  }
+  return {
+    fullName,
+    ipRanges: ranges.map((r) => ({
+      start: String(r.startAddress ?? ''),
+      end: String(r.endAddress ?? ''),
+      description: String(r.description ?? ''),
+    })),
+    hours,
+  };
 }
 
 /**

@@ -4,6 +4,8 @@ import {
   addToGroup,
   applyAccessChanges,
   describeChange,
+  describeGlobal,
+  fieldAccessOf,
   groupPermissionSets,
   normalizeObjectAccess,
   removeFromGroup,
@@ -16,6 +18,9 @@ import {
   type SystemPermission,
 } from '@nomadsf/core';
 import { useStudio } from '../context';
+import { ObjectOptions } from './ObjectOptions';
+
+type EditableField = { name: string; label: string; type: string; editable: boolean };
 
 const FLAGS: Array<[keyof ObjectAccess, string]> = [
   ['read', 'Read'],
@@ -49,9 +54,14 @@ export function AccessEditor({
   const { client, org, confirmChange, logActivity } = useStudio();
   const [changes, setChanges] = useState<Map<string, AccessChange>>(new Map());
   const [addedObjects, setAddedObjects] = useState<string[]>([]);
-  const [addedFields, setAddedFields] = useState<string[]>([]);
   const [newObject, setNewObject] = useState('');
-  const [newField, setNewField] = useState('');
+  // Field access: one object at a time, every field that can have field permissions
+  const [allObjects, setAllObjects] = useState<Array<{ name: string; label: string }>>([]);
+  const [fieldObject, setFieldObject] = useState('');
+  const [typedFieldObject, setTypedFieldObject] = useState('');
+  const [objectFields, setObjectFields] = useState<EditableField[] | null>(null);
+  const [loadedAccess, setLoadedAccess] = useState<FieldAccessRow[]>([]);
+  const [fieldFilter, setFieldFilter] = useState('');
   const [systemFilter, setSystemFilter] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -68,9 +78,48 @@ export function AccessEditor({
   const fieldNow = (field: string): { read: boolean; edit: boolean } => {
     const c = changes.get(`field:${field}`);
     if (c?.kind === 'field') return { read: c.read, edit: c.edit };
-    const f = fields.find((x) => `${x.object}.${x.field}` === field);
+    const f = [...loadedAccess, ...fields].find((x) => `${x.object}.${x.field}` === field);
     return { read: Boolean(f?.read), edit: Boolean(f?.edit) };
   };
+
+  useEffect(() => {
+    describeGlobal(client)
+      .then((list) => setAllObjects(list.map((o) => ({ name: o.name, label: o.label }))))
+      .catch(() => undefined);
+  }, [client]);
+  useEffect(() => {
+    setObjectFields(null);
+    setLoadedAccess([]);
+    if (!fieldObject) return;
+    let canceled = false;
+    void Promise.all([
+      client.rest<{
+        fields: Array<{
+          name: string;
+          label: string;
+          type: string;
+          permissionable: boolean;
+          updateable: boolean;
+          calculated: boolean;
+        }>;
+      }>('GET', `/sobjects/${fieldObject}/describe`),
+      fieldAccessOf(client, holder.id, fieldObject).catch(() => [] as FieldAccessRow[]),
+    ])
+      .then(([describe, access]) => {
+        if (canceled) return;
+        setObjectFields(
+          describe.fields
+            .filter((f) => f.permissionable)
+            .map((f) => ({ name: f.name, label: f.label, type: f.type, editable: f.updateable && !f.calculated }))
+            .sort((a, b) => a.label.localeCompare(b.label))
+        );
+        setLoadedAccess(access);
+      })
+      .catch((e: Error) => !canceled && setStatus(`❌ ${fieldObject}: ${e.message}`));
+    return () => {
+      canceled = true;
+    };
+  }, [client, holder.id, fieldObject]);
   const systemNow = (p: SystemPermission): boolean => {
     const c = changes.get(`system:${p.api}`);
     return c?.kind === 'system' ? c.enabled : p.enabled;
@@ -88,10 +137,21 @@ export function AccessEditor({
     () => [...new Set([...objects.map((o) => o.object), ...addedObjects])],
     [objects, addedObjects]
   );
-  const fieldRows = useMemo(
-    () => [...new Set([...fields.map((f) => `${f.object}.${f.field}`), ...addedFields])],
-    [fields, addedFields]
+  const fieldNeedle = fieldFilter.trim().toLowerCase();
+  const shownFields = (objectFields ?? []).filter(
+    (f) => !fieldNeedle || `${f.label} ${f.name}`.toLowerCase().includes(fieldNeedle)
   );
+  const changedElsewhere = [...changes.values()].filter(
+    (c) => c.kind === 'field' && !c.field.startsWith(`${fieldObject}.`)
+  ).length;
+  const setAllFields = (what: 'read' | 'edit', on: boolean) => {
+    for (const f of shownFields) {
+      const field = `${fieldObject}.${f.name}`;
+      const now = fieldNow(field);
+      if (what === 'read') put({ kind: 'field', field, read: on, edit: on && now.edit });
+      else if (f.editable) put({ kind: 'field', field, read: now.read || on, edit: on });
+    }
+  };
   const needle = systemFilter.trim().toLowerCase();
   const systemRows = system.filter((p) => !needle || `${p.label} ${p.api}`.toLowerCase().includes(needle));
 
@@ -181,10 +241,12 @@ export function AccessEditor({
       </table>
       <div className="form">
         <input
-          placeholder="Add an object (API name)"
+          list="editor-objects"
+          placeholder="Add an object"
           value={newObject}
           onChange={(e) => setNewObject(e.target.value)}
         />
+        <ObjectOptions id="editor-objects" objects={allObjects} typed={newObject} />
         <button
           disabled={!/^\w+$/.test(newObject.trim())}
           onClick={() => {
@@ -197,45 +259,74 @@ export function AccessEditor({
       </div>
 
       <h4>Field access</h4>
-      <table className="edit-table">
-        <thead>
-          <tr>
-            <th>field</th>
-            <th>Read</th>
-            <th>Edit</th>
-          </tr>
-        </thead>
-        <tbody>
-          {fieldRows.map((field) => {
-            const now = fieldNow(field);
-            const changed = changes.has(`field:${field}`);
-            return (
-              <tr key={field}>
-                <td>{field}</td>
-                <td>{box(now.read, (on) => put({ kind: 'field', field, read: on, edit: on && now.edit }), changed)}</td>
-                <td>{box(now.edit, (on) => put({ kind: 'field', field, read: now.read || on, edit: on }), changed)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
       <div className="form">
         <input
-          placeholder="Add a field (Object.Field, e.g. Account.Phone)"
-          value={newField}
-          onChange={(e) => setNewField(e.target.value)}
-          style={{ minWidth: 300 }}
-        />
-        <button
-          disabled={!/^\w+\.\w+$/.test(newField.trim())}
-          onClick={() => {
-            setAddedFields((l) => [...l, newField.trim()]);
-            setNewField('');
+          list="editor-field-objects"
+          placeholder="Choose an object"
+          value={typedFieldObject}
+          onChange={(e) => {
+            setTypedFieldObject(e.target.value);
+            const match = allObjects.find((o) => o.name.toLowerCase() === e.target.value.trim().toLowerCase());
+            if (match) setFieldObject(match.name);
           }}
-        >
-          Add
-        </button>
+        />
+        <ObjectOptions id="editor-field-objects" objects={allObjects} typed={typedFieldObject} />
+        {objectFields && (
+          <>
+            <input placeholder="Filter fields" value={fieldFilter} onChange={(e) => setFieldFilter(e.target.value)} />
+            <button onClick={() => setAllFields('read', true)}>All Read</button>
+            <button onClick={() => setAllFields('edit', true)}>All Edit</button>
+            <button onClick={() => setAllFields('read', false)}>None</button>
+          </>
+        )}
+        <span className="muted">
+          {fieldObject && !objectFields ? `Reading ${fieldObject} fields…` : ''}
+          {changedElsewhere ? ` ${changedElsewhere} field change(s) in other objects are kept.` : ''}
+        </span>
       </div>
+      {objectFields && (
+        <p className="muted">
+          Required and system fields (Id, Name of most objects, CreatedDate…) are not listed: everyone with access to
+          the object can read and edit them, so they have no field permissions.
+        </p>
+      )}
+      {objectFields && (
+        <table className="edit-table">
+          <thead>
+            <tr>
+              <th>field</th>
+              <th>API name</th>
+              <th>Read</th>
+              <th>Edit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shownFields.map((f) => {
+              const field = `${fieldObject}.${f.name}`;
+              const now = fieldNow(field);
+              const changed = changes.has(`field:${field}`);
+              return (
+                <tr key={field}>
+                  <td>{f.label}</td>
+                  <td className="muted mono">{f.name}</td>
+                  <td>
+                    {box(now.read, (on) => put({ kind: 'field', field, read: on, edit: on && now.edit }), changed)}
+                  </td>
+                  <td>
+                    {f.editable ? (
+                      box(now.edit, (on) => put({ kind: 'field', field, read: now.read || on, edit: on }), changed)
+                    ) : (
+                      <span className="muted" title="Formula, auto-number and other read-only fields can only be read">
+                        —
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
 
       <h4>User &amp; system permissions</h4>
       <div className="form">
