@@ -2638,3 +2638,33 @@ button.working::before {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ⤓ in a pane header: download every table of the page */
+.page-download {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.page-download-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+.page-download-menu button {
+  text-align: left;
+  border: 0;
+  background: transparent;
+}
+.page-download-menu button:hover {
+  background: var(--accent-soft);
+}

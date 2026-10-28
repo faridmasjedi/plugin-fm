@@ -1,5 +1,6 @@
-import { useContext, useMemo, useState, type ReactNode } from 'react';
+import { useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { InspectContext } from '../context';
+import { useRegisterTable } from '../pageTables';
 import { CopyId } from './CopyId';
 
 type Row = Record<string, unknown>;
@@ -86,6 +87,10 @@ export function DataTable({
     return out;
   }, [rows, columns, filter, colFilters, sort]);
 
+  // In the page's ⤓ download, as shown (filters and sorting applied)
+  const root = useRef<HTMLDivElement>(null);
+  useRegisterTable(root, () => ({ name, columns, rows: visible }));
+
   const toCsv = (): string =>
     [
       columns.join(','),
@@ -133,7 +138,7 @@ export function DataTable({
   };
 
   return (
-    <div className="dt">
+    <div className="dt" ref={root}>
       <div className="dt-bar">
         <input
           className="dt-filter"

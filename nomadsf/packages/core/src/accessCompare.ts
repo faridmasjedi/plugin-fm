@@ -456,3 +456,84 @@ export async function compareConnectedApps(
     notes: [...a.report.notes.map((n) => `A: ${n}`), ...b.report.notes.map((n) => `B: ${n}`)],
   };
 }
+
+// ---------- the users of one app in two orgs ----------
+
+export type AppUser = {
+  Name: string;
+  in: 'both' | 'only in A' | 'only in B';
+  usernameA: string;
+  usernameB: string;
+  idA: string;
+  idB: string;
+  usesA: number;
+  usesB: number;
+  lastUsedA: string;
+  lastUsedB: string;
+};
+
+/** Token rows (from connectedAppsReport) of one app, one row per user and org, matched by username across the orgs. */
+export function matchAppUsers(tokensA: Row[], tokensB: Row[], app: string): AppUser[] {
+  const perUser = (
+    tokens: Row[]
+  ): Map<string, { id: string; name: string; username: string; uses: number; last: string }> => {
+    const out = new Map<string, { id: string; name: string; username: string; uses: number; last: string }>();
+    for (const t of tokens.filter((x) => String(x.App).toLowerCase() === app.toLowerCase())) {
+      const id = String(t.UserId);
+      const u = out.get(id) ?? {
+        id,
+        name: String(t.User ?? ''),
+        username: String(t.Username ?? ''),
+        uses: 0,
+        last: '',
+      };
+      u.uses += Number(t.Uses ?? 0);
+      if (String(t.LastUsed ?? '') > u.last) u.last = String(t.LastUsed ?? '');
+      out.set(id, u);
+    }
+    return out;
+  };
+  const a = [...perUser(tokensA).values()];
+  const b = [...perUser(tokensB).values()];
+  const usedB = new Set<string>();
+  const rows: AppUser[] = a.map((x) => {
+    const y = b.find((u) => !usedB.has(u.id) && sameUsername(x.username, u.username));
+    if (y) usedB.add(y.id);
+    return {
+      Name: x.name,
+      in: y ? 'both' : 'only in A',
+      usernameA: x.username,
+      usernameB: y?.username ?? '',
+      idA: x.id,
+      idB: y?.id ?? '',
+      usesA: x.uses,
+      usesB: y?.uses ?? 0,
+      lastUsedA: x.last,
+      lastUsedB: y?.last ?? '',
+    };
+  });
+  for (const y of b.filter((u) => !usedB.has(u.id)))
+    rows.push({
+      Name: y.name,
+      in: 'only in B',
+      usernameA: '',
+      usernameB: y.username,
+      idA: '',
+      idB: y.id,
+      usesA: 0,
+      usesB: y.uses,
+      lastUsedA: '',
+      lastUsedB: y.last,
+    });
+  return rows.sort((x, y) => x.in.localeCompare(y.in) || x.Name.localeCompare(y.Name));
+}
+
+/** Who uses an app (OAuth tokens) in A and in B, the same person matched by username. */
+export async function appUsersInBoth(
+  clientA: SalesforceClient,
+  clientB: SalesforceClient,
+  app: string
+): Promise<AppUser[]> {
+  const [a, b] = await Promise.all([connectedAppsReport(clientA), connectedAppsReport(clientB)]);
+  return matchAppUsers(a.tokens, b.tokens, app);
+}

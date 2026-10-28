@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { compareConnectedApps, type AppComparison } from '@nomadsf/core';
-import { DataTable } from '../components/DataTable';
+import { appUsersInBoth, compareConnectedApps, type AppComparison, type AppUser } from '@nomadsf/core';
+import { DataTable, EmptyHint } from '../components/DataTable';
+import { UserComparison } from '../components/UserComparison';
 import { OrgPairBar, usePairClients } from '../pair';
 
 type Show = 'all' | AppComparison['status'];
@@ -12,6 +13,17 @@ export function OrgAppsPage() {
   const [status, setStatus] = useState('');
   const [show, setShow] = useState<Show>('all');
   const [chosen, setChosen] = useState('');
+  // Who uses the chosen app in A and B, and one person picked to compare
+  const [users, setUsers] = useState<AppUser[] | null>(null);
+  const [person, setPerson] = useState<AppUser | null>(null);
+  useEffect(() => {
+    setUsers(null);
+    setPerson(null);
+    if (!chosen || !clientA || !clientB) return;
+    appUsersInBoth(clientA, clientB, chosen)
+      .then(setUsers)
+      .catch((e: Error) => setStatus(`❌ ${e.message}`));
+  }, [clientA, clientB, chosen]);
 
   const load = async () => {
     if (!clientA || !clientB) return;
@@ -70,13 +82,62 @@ export function OrgAppsPage() {
             onRowClick={(row) => setChosen(String(row.name))}
             note={
               <span>
-                · A = {a?.label}, B = {b?.label} · click an app in both for its settings and who may use it
+                · A = {a?.label}, B = {b?.label} · click an app for its users in both orgs (and, when in both, its
+                settings)
               </span>
             }
           />
-          {app && app.status !== 'only in A' && app.status !== 'only in B' && (
+          {app && (
             <div className="section">
               <h3>{app.name}</h3>
+              <h4>Users in A and B</h4>
+              {!users ? (
+                <p className="muted">Reading the OAuth users of both orgs…</p>
+              ) : users.length === 0 ? (
+                <EmptyHint what="users of this app (OAuth tokens)" />
+              ) : (
+                <DataTable
+                  columns={['Name', 'in', 'usernameA', 'usernameB', 'usesA', 'usesB', 'lastUsedA', 'lastUsedB']}
+                  rows={users.map((u) => ({ ...u, key: `${u.idA}|${u.idB}` }))}
+                  rowKey="key"
+                  name={`${app.name}-users-a-b`}
+                  selectedKey={person ? `${person.idA}|${person.idB}` : undefined}
+                  onRowClick={(row) => setPerson(users.find((u) => `${u.idA}|${u.idB}` === row.key) ?? null)}
+                  note={
+                    <span>
+                      · people who connected the app with OAuth, matched by username · click one in both to compare them
+                    </span>
+                  }
+                />
+              )}
+              {person && person.in !== 'both' && (
+                <p className="muted">
+                  {person.Name} uses {app.name}{' '}
+                  {person.in === 'only in A' ? `only in ${a?.label}` : `only in ${b?.label}`}: nobody to compare with.
+                  Org to org › Access finds them in the other org by username.
+                </p>
+              )}
+              {person && person.in === 'both' && clientA && clientB && (
+                <UserComparison
+                  key={`${person.idA}-${person.idB}`}
+                  client={clientA}
+                  clientB={clientB}
+                  userA={person.idA}
+                  userB={person.idB}
+                  labelA={`${person.Name} (${a?.label ?? 'A'})`}
+                  labelB={`${person.Name} (${b?.label ?? 'B'})`}
+                  orgB={b?.label ?? 'B'}
+                  twoOrgs
+                />
+              )}
+              {(app.status === 'only in A' || app.status === 'only in B') && (
+                <p className="muted">The app itself is {app.status}: no settings to compare.</p>
+              )}
+            </div>
+          )}
+          {app && app.status !== 'only in A' && app.status !== 'only in B' && (
+            <div className="section">
+              <h4>Settings and who may use it</h4>
               {app.differences.length ? (
                 <DataTable
                   columns={['area', 'item', 'a', 'b']}

@@ -1,6 +1,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { storage } from './context';
 import { openExternal } from './embed';
+import { PageTables, PageTablesProvider, tablesCsv, tablesZip } from './pageTables';
+import { download } from './components/DataTable';
 
 /**
  * The Studio's layout: tools grouped into hubs (Develop, Data, Data protection, Release, Access, Org, and
@@ -308,6 +310,13 @@ export function Panes({
 }) {
   const [drag, setDrag] = useState<{ pane: number; side: 'beside' | 'here' } | null>(null);
   // Tools opened in each pane stay mounted (hidden when not shown), so switching tabs or hubs, or
+  // The tables of each open tab, for its ⤓ download
+  const registries = useRef(new Map<string, PageTables>());
+  const tablesOf = (key: string): PageTables => {
+    let tables = registries.current.get(key);
+    if (!tables) registries.current.set(key, (tables = new PageTables()));
+    return tables;
+  };
   // closing another pane, keeps their results; ↻ resets one to a clean page
   const [opened, setOpened] = useState<Record<string, ToolId[]>>({});
   const [resets, setResets] = useState<Record<string, number>>({});
@@ -427,6 +436,7 @@ export function Panes({
                 >
                   ?
                 </button>
+                <PageDownload tables={tablesOf(`${pane.key}:${tool}`)} name={toolOf(tool)?.label ?? tool} />
                 <button
                   className="pane-action"
                   title="Start this tab again with a clean page (its current results are cleared)"
@@ -448,7 +458,7 @@ export function Panes({
               <div className="pane-body">
                 {kept.map((t) => (
                   <div key={`${t}:${resets[`${pane.key}:${t}`] ?? 0}`} className="tool-view" hidden={t !== tool}>
-                    {render(t, i)}
+                    <PageTablesProvider tables={tablesOf(`${pane.key}:${t}`)}>{render(t, i)}</PageTablesProvider>
                   </div>
                 ))}
               </div>
@@ -545,5 +555,50 @@ export function QuickJump({ ws, available }: { ws: WorkspaceState; available: (t
         </ul>
       </div>
     </div>
+  );
+}
+
+/** ⤓ in a pane: every table on the page in one CSV, or a zip with a CSV per table. */
+function PageDownload({ tables, name }: { tables: PageTables; name: string }) {
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState('');
+  const file = `${name.replace(/[^\w-]+/g, '-')}-${new Date().toLocaleDateString('en-CA')}`;
+  const take = (as: 'csv' | 'zip' | 'json') => {
+    setOpen(false);
+    const list = tables.visible();
+    if (!list.length) {
+      setNote('No tables on this page yet');
+      setTimeout(() => setNote(''), 2500);
+      return;
+    }
+    if (as === 'csv') download(`${file}.csv`, tablesCsv(list), 'text/csv');
+    else if (as === 'json')
+      download(
+        `${file}.json`,
+        JSON.stringify(Object.fromEntries(list.map((t) => [t.name, t.rows])), null, 2),
+        'application/json'
+      );
+    else {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([tablesZip(list)], { type: 'application/zip' }));
+      a.download = `${file}.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+  };
+  return (
+    <span className="page-download">
+      <button className="pane-action" title="Download every table on this page" onClick={() => setOpen(!open)}>
+        ⤓
+      </button>
+      {note && <span className="muted">{note}</span>}
+      {open && (
+        <span className="menu page-download-menu">
+          <button onClick={() => take('csv')}>All tables in one CSV</button>
+          <button onClick={() => take('zip')}>A zip with a CSV per table</button>
+          <button onClick={() => take('json')}>All tables as JSON</button>
+        </span>
+      )}
+    </span>
   );
 }

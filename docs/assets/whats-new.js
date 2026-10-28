@@ -27,6 +27,9 @@ window.NOMADSF_WHATS_NEW = {
     'Dependencies: what a component uses and what uses it',
     'Metadata: see what you selected, and click a component to see its XML',
     'Query › Plan: how Salesforce would run a query (index or full scan)',
+
+    'Every page: ⤓ downloads all its tables at once (one CSV, a zip or JSON)',
+    'Org to org › Connected apps: the users of an app in both orgs, and compare two of them',
   ],
   '2.1.0': [
     'VS Code extension works on its own: no Salesforce CLI, no sf fm plugin, no local port',
