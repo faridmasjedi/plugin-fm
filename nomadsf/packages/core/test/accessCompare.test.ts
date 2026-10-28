@@ -10,6 +10,7 @@ import {
   sameUsername,
   usersWithInBoth,
   type HttpRequest,
+  matchAppUsers,
 } from '../src/index.js';
 
 /** Answers each SOQL with the rows of the first matcher it fits, and describes with the given fields. */
@@ -250,5 +251,37 @@ describe('connected apps of two orgs', () => {
       { area: 'Setting', item: 'Admin approved users only', a: 'true', b: 'false' },
       { area: 'Who may use it', item: 'Permission set: Integration', a: '✓', b: '' },
     ]);
+  });
+});
+
+describe('users of one app in two orgs', () => {
+  const token = (user: string, username: string, app: string, uses: number, last: string) => ({
+    UserId: user,
+    User: username.split('@')[0],
+    Username: username,
+    App: app,
+    Uses: uses,
+    LastUsed: last,
+  });
+  it('matches the same person across orgs by username (sandbox suffix too), one row per person', () => {
+    const rows = matchAppUsers(
+      [
+        token('005A1', 'ann@acme.com', 'Salesforce CLI', 3, '2026-10-01'),
+        token('005A1', 'ann@acme.com', 'Salesforce CLI', 2, '2026-10-05'),
+        token('005A2', 'bob@acme.com', 'Salesforce CLI', 1, '2026-09-01'),
+        token('005A3', 'cy@acme.com', 'Other App', 9, '2026-10-09'),
+      ],
+      [
+        token('005B1', 'ann@acme.com.uat', 'salesforce cli', 4, '2026-10-07'),
+        token('005B9', 'dee@acme.com.uat', 'Salesforce CLI', 1, ''),
+      ],
+      'Salesforce CLI'
+    );
+    expect(rows.map((r) => [r.Name, r.in, r.usesA, r.usesB, r.lastUsedA])).toEqual([
+      ['ann', 'both', 5, 4, '2026-10-05'],
+      ['bob', 'only in A', 1, 0, '2026-09-01'],
+      ['dee', 'only in B', 0, 1, ''],
+    ]);
+    expect(rows[0]).toMatchObject({ idA: '005A1', idB: '005B1', usernameB: 'ann@acme.com.uat' });
   });
 });

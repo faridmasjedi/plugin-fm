@@ -30,6 +30,8 @@ window.NOMADSF_WHATS_NEW = {
     'Connected apps: each count opens its list; app settings, pre-authorized profiles and permission sets; revoke tokens',
     'Org › Company information',
     'Limits › Storage: storage by object, records created in a period, delete them',
+    'Every page: ⤓ downloads all its tables at once (one CSV, a zip or JSON)',
+    'Org to org › Connected apps: the users of an app in both orgs, and compare two of them',
   ],
   '2.1.0': [
     'VS Code extension works on its own: no Salesforce CLI, no sf fm plugin, no local port',
