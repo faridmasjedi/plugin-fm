@@ -349,8 +349,14 @@ export function revokeSetupAccess(client: SalesforceClient, accessIds: string[])
 }
 
 /** Who gives a custom permission: permission sets, profiles and groups (by their permission set). */
-export async function customPermissionHolders(client: SalesforceClient, customPermissionId: string): Promise<Row[]> {
+export function customPermissionHolders(client: SalesforceClient, customPermissionId: string): Promise<Row[]> {
   idOf('0CP', customPermissionId, 'custom permission');
+  return setupAccessHolders(client, customPermissionId);
+}
+
+/** Who gives access to a custom permission, connected app, Apex class…: permission sets, profiles and groups. */
+export async function setupAccessHolders(client: SalesforceClient, entityId: string): Promise<Row[]> {
+  const customPermissionId = anyId(entityId);
   const result = await query(
     client,
     `SELECT Id, ParentId, Parent.Label, Parent.Name, Parent.IsOwnedByProfile, Parent.Profile.Name, Parent.Type FROM SetupEntityAccess WHERE SetupEntityId = '${customPermissionId}'`,

@@ -2098,15 +2098,23 @@ button.metric {
   gap: 5px;
   font-size: var(--fs-sm);
 }
-/* Titles and plain text in a row of inputs sit in the middle of the row, not at its foot */
+/* Titles and plain text in a row of inputs line up with the controls: as tall as a button, at the
+   row's foot (where the inputs are, below any labels), text in the middle */
 .form > h3,
 .form > h4,
 .form > b,
-.form > span.muted,
-.form > span.pill {
-  align-self: center;
+.form > span.muted {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--h);
   margin-top: 0;
   margin-bottom: 0;
+}
+/* A pill keeps its own height: lifted to the middle of a control */
+.form > span.pill {
+  align-self: flex-end;
+  margin-bottom: calc((var(--h) - 1.6em) / 2);
 }
 label.check,
 .form label.check {
