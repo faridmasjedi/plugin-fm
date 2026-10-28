@@ -102,6 +102,7 @@ export const STUDIO_PAGES = [
   ['query', 'Query', 'Data'],
   ['record', 'Record', 'Data'],
   ['data', 'Import / Update / Delete', 'Data'],
+  ['csvcompare', 'Compare with CSV', 'Data'],
   ['lookup', 'Lookup', 'Data'],
   ['schema', 'Schema', 'Data'],
   ['fields', 'Field usage', 'Data'],

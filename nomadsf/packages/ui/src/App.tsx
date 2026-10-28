@@ -20,6 +20,7 @@ import {
 import { AccessOverviewPage, MyAccessPage, ObjectAccessPage } from './pages/AccessReportsPage';
 import { AccessNote } from './toolAccess';
 import { CompanyPage } from './pages/CompanyPage';
+import { CsvComparePage } from './pages/CsvComparePage';
 import { CustomPermissionsPage, GroupsPage } from './pages/AccessManagePages';
 import { SchemaPage } from './pages/SchemaPage';
 import { AutomationPage } from './pages/AutomationPage';
@@ -327,6 +328,7 @@ export function App() {
             {tool === 'deployments' && <DeploymentsPage />}
             {tool === 'query' && <QueryPage />}
             {tool === 'data' && <DataPage />}
+            {tool === 'csvcompare' && <CsvComparePage />}
             {tool === 'access' && <UsersPage />}
             {tool === 'permsets' && <PermissionSetsPage />}
             {tool === 'permissions' && <PermissionsPage />}

@@ -4,6 +4,7 @@ import { useStudio } from '../context';
 import { RecordPage } from '../pages/RecordPage';
 import { DataTable } from './DataTable';
 import { UserAccessPanel } from './UserAccessPanel';
+import { UserSnapshot } from './UserSnapshot';
 
 /** Find a user by name, username, email or Id, then edit any field (the Record editor) or freeze / deactivate. */
 export function UserEditor() {
@@ -54,6 +55,8 @@ export function UserEditor() {
 
   return (
     <div className="card section">
+      {/* Snapshot first: save the chosen user, or compare a file with this org */}
+      <UserSnapshot key={chosen?.Id ?? 'none'} userId={chosen?.Id} username={chosen?.Username} />
       <h3>Find and update a user</h3>
       <div className="form">
         <input

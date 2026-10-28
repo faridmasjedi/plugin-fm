@@ -459,6 +459,17 @@
               your file already has (from an export with names for Ids) get <code>(lookup)</code> added.
             </p>
           </section>
+          <section class="tool" data-title="Compare with CSV">
+            <h3 id="csvcompare">Compare with CSV</h3>
+            <p>
+              A CSV of records — from an old org, a backup or a spreadsheet — next to this org. Choose the file, the
+              object and a field to match records by (Email, an External ID…; Ids from another org do not match), and
+              <b>Compare</b>: each row is <i>the same</i>, <i>different</i> (field by field, org now → CSV) or
+              <i>only in CSV</i>. Lookups are compared by name when the CSV has it (<code>Account.Name</code> for
+              <code>AccountId</code>). <b>Edit the CSV</b> changes rows first; <b>Make the org match the CSV</b> updates
+              what differs and inserts what is missing (you type the org name).
+            </p>
+          </section>
           <section class="tool" data-title="Schema">
             <h3 id="schema">Schema</h3>
             <div class="shot">
@@ -709,6 +720,14 @@
               from the list under it (you type the org name each time). In <b>Details › Edit</b>, lookup fields such as
               <code>ProfileId</code>, <code>UserRoleId</code> or <code>ManagerId</code> have a
               <i>Find … by name</i> box: choose one and its Id is filled in.
+            </p>
+            <p>
+              <b>Snapshot</b>: <b>Save snapshot (CSV)</b> keeps everything about a user in one file — fields, profile,
+              role and manager (by name), permission sets and groups, licenses, public groups and queues, and the
+              connected apps they sign in to (those are to check only: the user connects an app themselves). In any org
+              (a new sandbox, say), <b>Compare … with a snapshot…</b> finds the same user (username, with or without a
+              sandbox suffix) and lists every difference; tick what to change and
+              <b>Make the user match the snapshot</b>. You can edit the CSV in Excel first.
             </p>
           </section>
           <section class="tool" data-title="Permission sets &amp; groups">

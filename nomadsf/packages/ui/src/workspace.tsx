@@ -24,6 +24,7 @@ export type ToolId =
   | 'record'
   | 'data'
   | 'lookup'
+  | 'csvcompare'
   | 'fields'
   | 'schema'
   | 'backup'
@@ -70,6 +71,7 @@ export const TOOLS: Tool[] = [
   { id: 'record', label: 'Record', icon: 'ⓘ', hint: 'inspect and edit one record' },
   { id: 'data', label: 'Import / Update / Delete', icon: '⇅', hint: 'from a CSV file or a query' },
   { id: 'lookup', label: 'Lookup', icon: '⌖', hint: 'find Ids for a CSV column' },
+  { id: 'csvcompare', label: 'Compare with CSV', icon: '≍', hint: 'a CSV next to the org; make the org match it' },
   { id: 'schema', label: 'Schema', icon: '⌗', hint: 'fields, relationships, record types' },
   { id: 'fields', label: 'Field usage', icon: '▦', hint: 'how full each field is, who can see it' },
   { id: 'backup', label: 'Backup', icon: '⛁', hint: 'backups, schedules, restore' },
@@ -109,7 +111,12 @@ export type Hub = { id: string; label: string; icon: string; tools: ToolId[] };
 
 export const HUBS: Hub[] = [
   { id: 'develop', label: 'Develop', icon: '{}', tools: ['apex', 'code', 'apextests', 'logs', 'automation', 'jobs'] },
-  { id: 'data', label: 'Data', icon: '⇅', tools: ['query', 'record', 'data', 'lookup', 'schema', 'fields'] },
+  {
+    id: 'data',
+    label: 'Data',
+    icon: '⇅',
+    tools: ['query', 'record', 'data', 'lookup', 'csvcompare', 'schema', 'fields'],
+  },
   { id: 'protect', label: 'Data protection', icon: '⛁', tools: ['backup', 'lifecycle'] },
   { id: 'release', label: 'Release', icon: '⌂', tools: ['project', 'metadata', 'deployments', 'tests'] },
   {
