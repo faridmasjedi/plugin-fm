@@ -29,6 +29,7 @@ import { storage, useStudio } from '../context';
 import { monaco } from '../monaco';
 import { useProject } from '../project';
 import { askConfirm, askText } from '../components/Dialogs';
+import { MetadataSource } from '../components/MetadataSource';
 
 const KINDS: Array<{ id: CodeKind; label: string; one: string }> = [
   { id: 'ApexClass', label: 'Classes', one: 'Apex class' },
@@ -62,7 +63,7 @@ const TAG: Record<CodeStatus, string> = {
 const projectOnlyId = (name: string): string => `project:${name}`;
 
 /** Developer Console's editor: open, compile and save Apex, Visualforce, LWC and Aura source. */
-export function CodePage() {
+function ApexCodePage({ onOther }: { onOther: () => void }) {
   const studio = useStudio();
   const { client, facts } = studio;
   const [kind, setKind] = useState<CodeKind>(() => storage.get('code.kind', 'ApexClass'));
@@ -434,6 +435,13 @@ export function CodePage() {
               {k.label}
             </button>
           ))}
+          <button
+            className="tab"
+            onClick={onOther}
+            title="FlexiPages, flows, permission sets, layouts and every other type"
+          >
+            Other metadata
+          </button>
         </div>
         <span className="grow" />
         <button
@@ -713,6 +721,42 @@ export function CodePage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Code: Apex, triggers, Visualforce, LWC and Aura with the project compare; "Other metadata" opens
+ * any other type (FlexiPage, Flow, PermissionSet…) as its files.
+ */
+export function CodePage() {
+  const [other, setOther] = useState<boolean>(() => storage.get('code.other', false));
+  const show = (next: boolean) => {
+    setOther(next);
+    storage.set('code.other', next);
+  };
+  if (!other) return <ApexCodePage onOther={() => show(true)} />;
+  return (
+    <div className="page">
+      <div className="toolbar">
+        <h2>Code</h2>
+        <div className="tabs">
+          {KINDS.map((k) => (
+            <button
+              key={k.id}
+              className="tab"
+              onClick={() => {
+                storage.set('code.kind', k.id);
+                show(false);
+              }}
+            >
+              {k.label}
+            </button>
+          ))}
+          <button className="tab active">Other metadata</button>
+        </div>
+      </div>
+      <MetadataSource />
     </div>
   );
 }

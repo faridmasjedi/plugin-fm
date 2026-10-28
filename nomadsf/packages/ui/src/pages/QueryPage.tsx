@@ -3,6 +3,8 @@ import type { OnMount } from '@monaco-editor/react';
 import {
   addToSelect,
   describeGlobal,
+  explainQuery,
+  type QueryPlan,
   describeSObject,
   idColumns,
   exportSavedQueries,
@@ -200,6 +202,17 @@ export function QueryPage() {
   };
   const [relatedOpen, setRelatedOpen] = useState(false);
   const [links, setLinks] = useState<Record<string, string>>({});
+  // How Salesforce would run the query (Plan)
+  const [plans, setPlans] = useState<QueryPlan[] | null>(null);
+  const explain = async () => {
+    setPlans(null);
+    setError('');
+    try {
+      setPlans(await explainQuery(client, soql));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
   // Each load has a token; Stop or a new query changes it and the old loop ends
   const loadToken = useRef(0);
   const [error, setError] = useState('');
@@ -543,6 +556,13 @@ export function QueryPage() {
           Names for Ids
         </label>
         <button onClick={() => void allFields()}>All fields</button>
+        <button
+          disabled={tooling}
+          title="How Salesforce would run this query (an index or a full scan) and its relative cost, without running it"
+          onClick={() => void explain()}
+        >
+          Plan
+        </button>
         <button className={`primary ${running ? 'working' : ''}`} disabled={running} onClick={() => void run()}>
           {running ? 'Running…' : 'Run ⌘⏎'}
         </button>
@@ -568,6 +588,43 @@ export function QueryPage() {
         <CodeEditor language="soql" value={soql} onChange={setSoql} onMount={onMount} />
       </div>
       {error && <div className="error">{error}</div>}
+      {plans && (
+        <div className="card section">
+          <div className="form">
+            <b>Query plan</b>
+            <span className="muted">
+              {plans[0]
+                ? plans[0].relativeCost > 1
+                  ? `Slow: Salesforce would start with a ${
+                      plans[0].leadingOperationType
+                    } (cost ${plans[0].relativeCost.toFixed(
+                      2
+                    )} > 1). Filter on an indexed field (Id, Name, a lookup, an External ID…) to use an index.`
+                  : `Fine: Salesforce would start with ${
+                      plans[0].leadingOperationType
+                    } (cost ${plans[0].relativeCost.toFixed(2)}, below 1).`
+                : 'No plan returned.'}
+            </span>
+            <span className="grow" />
+            <button onClick={() => setPlans(null)}>Close</button>
+          </div>
+          <DataTable
+            columns={['leadingOperationType', 'relativeCost', 'cardinality', 'sobjectCardinality', 'fields', 'notes']}
+            rows={plans.map((p, i) => ({
+              ...p,
+              key: i,
+              relativeCost: p.relativeCost.toFixed(3),
+              fields: p.fields.join(', '),
+              notes: p.notes
+                .map((n) => `${n.description}${n.fields.length ? ` (${n.fields.join(', ')})` : ''}`)
+                .join(' · '),
+            }))}
+            rowKey="key"
+            name="query-plan"
+            note={<span>· cheapest first · cardinality: rows it expects, of sobjectCardinality in the object</span>}
+          />
+        </div>
+      )}
       {result && result.totalSize === 0 && !running && <EmptyHint />}
       {result && (
         <div className="card">

@@ -234,6 +234,12 @@
               Salesforce only accepts Apex and Visualforce changes in production through a deployment, so Save is off
               there (developer orgs allow it). Compile only still works.
             </div>
+            <p>
+              <b>Other metadata</b>: any other type — FlexiPages, flows, permission sets, layouts, custom metadata,
+              labels… Choose the type and a component to see its files; change them and <b>Validate…</b> (checks the
+              deploy without saving) or <b>Deploy</b> (you type the org name). <b>Dependencies</b> lists what it uses
+              and what uses it.
+            </p>
           </section>
           <section class="tool" data-title="Apex tests">
             <h3 id="apextests">Apex tests</h3>
@@ -355,6 +361,10 @@
                 the SELECT.
               </li>
             </ol>
+            <p>
+              <b>Plan</b> shows how Salesforce would run the query — with an index or a full scan, and its relative cost
+              (above 1 is slow) — without running it.
+            </p>
             <p>
               <b>Saved queries</b>: name a query and <b>Save query</b>; pick it again from <b>Saved…</b>.
               <b>Download file</b> / <b>Load file…</b> move them as <code>nomadsf-queries.json</code>, and
@@ -624,7 +634,10 @@
             </div>
             <p>Build a package by hand from any metadata type of the org.</p>
             <ol class="steps">
-              <li>Choose a type, tick components, <b>Add to package</b> — a package can mix types.</li>
+              <li>
+                Choose a type, tick components, <b>Add to package</b> — a package can mix types. What you ticked is
+                listed under the buttons; click a row to see the component itself (its XML or code).
+              </li>
               <li>
                 <b>Download zip</b> retrieves them; <b>package.xml</b> / <b>Copy package.xml</b> give the manifest;
                 <b>Retrieve into project</b> in the CLI app.
