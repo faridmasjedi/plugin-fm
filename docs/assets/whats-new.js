@@ -16,7 +16,7 @@ window.NOMADSF_WHATS_NEW = {
     'Users: add and remove permission sets, groups, licenses, public groups and queues',
     'Record editor: find a profile, role, manager or any lookup by name',
     'Permissions: Apex classes, Visualforce pages, custom permissions, connected apps, apps and tabs',
-    'Custom profiles: login IP ranges and hours',
+    'Profiles (standard ones too): login IP ranges',
     'New tools: Groups & queues and Custom permissions; Assigned users can remove or move people',
     'Create permission sets and permission set groups; clone profiles, permission sets and groups',
     'Record types and page layouts per profile; record types per permission set',

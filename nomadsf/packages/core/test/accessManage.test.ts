@@ -48,27 +48,26 @@ describe('profile login settings', () => {
     <userPermissions><enabled>true</enabled><name>ApiEnabled</name></userPermissions>
 </Profile>`;
 
-  it('reads IP ranges and login hours from a retrieved profile', () => {
+  it('reads IP ranges from a profile', () => {
     expect(parseLoginSettings(xml, 'Sales')).toEqual({
       fullName: 'Sales',
       ipRanges: [{ start: '10.0.0.1', end: '10.0.0.255', description: 'Office & VPN' }],
-      hours: { monday: { start: 480, end: 1080 } },
     });
   });
 
-  it('writes only IP ranges and login hours, and reads back the same', () => {
+  it('writes only IP ranges (login hours and the rest stay as they are), and reads back the same', () => {
     const settings = parseLoginSettings(xml, 'Sales');
     const out = loginSettingsXml(settings);
     expect(out).not.toContain('userPermissions');
+    expect(out).not.toContain('loginHours');
     expect(out).toContain('<description>Office &amp; VPN</description>');
     expect(parseLoginSettings(out, 'Sales')).toEqual(settings);
   });
 
-  it('refuses addresses and hours that are not valid', () => {
-    expect(() =>
-      loginSettingsXml({ ipRanges: [{ start: '10.0.0.1', end: 'x<y', description: '' }], hours: {} })
-    ).toThrow(/Not an IP address/);
-    expect(() => loginSettingsXml({ ipRanges: [], hours: { friday: { start: 600, end: 500 } } })).toThrow(/friday/);
+  it('refuses addresses that are not valid', () => {
+    expect(() => loginSettingsXml({ ipRanges: [{ start: '10.0.0.1', end: 'x<y', description: '' }] })).toThrow(
+      /Not an IP address/
+    );
   });
 });
 

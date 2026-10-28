@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   SETUP_KINDS,
-  WEEK_DAYS,
   addGroupMembers,
   apiNameFrom,
   cloneProfile,
@@ -527,20 +526,13 @@ export function TabSettingsPanel({ permissionSetId, editable }: { permissionSetI
   );
 }
 
-// ---------- Permissions › Login IP ranges & hours (custom profiles) ----------
-
-const time = (minutes: number): string =>
-  `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
-const minutesOf = (text: string): number => {
-  const [h, m] = text.split(':').map(Number);
-  return h * 60 + (m || 0);
-};
+// ---------- Permissions › Login IP ranges (every profile, standard ones too) ----------
 
 export function ProfileLoginPanel({ profileId, editable }: { profileId: string; editable: boolean }) {
   const { client, org, confirmChange, logActivity } = useStudio();
   const [settings, setSettings] = useState<ProfileLoginSettings | null>(null);
   const [draft, setDraft] = useState<ProfileLoginSettings | null>(null);
-  const [status, setStatus] = useState('Reading the profile (Metadata API)…');
+  const [status, setStatus] = useState('Reading the profile…');
   const load = () =>
     profileLoginSettings(client, profileId)
       .then((s) => {
@@ -551,6 +543,7 @@ export function ProfileLoginPanel({ profileId, editable }: { profileId: string; 
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
   useEffect(() => {
     setSettings(null);
+    setDraft(null);
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, profileId]);
@@ -558,17 +551,13 @@ export function ProfileLoginPanel({ profileId, editable }: { profileId: string; 
   const changed = useMemo(() => JSON.stringify(settings) !== JSON.stringify(draft), [settings, draft]);
   const save = async () => {
     if (!draft) return;
-    const ranges = draft.ipRanges.map((r) => `${r.start} – ${r.end}`).join(', ') || 'none';
-    if (
-      !(await confirmChange(
-        `Deploy login IP ranges (${ranges}) and login hours of profile ${draft.fullName} to ${org.label}`
-      ))
-    )
+    const ranges = draft.ipRanges.map((r) => `${r.start} – ${r.end}`).join(', ') || 'none (log in from anywhere)';
+    if (!(await confirmChange(`Deploy the login IP ranges of profile ${draft.fullName} to ${org.label}: ${ranges}`)))
       return;
     setStatus('Deploying…');
     try {
       const r = await saveProfileLoginSettings(client, draft);
-      logActivity('profile login settings', { profile: draft.fullName, success: r.success });
+      logActivity('profile login IP ranges', { profile: draft.fullName, success: r.success });
       if (!r.success) setStatus(`❌ ${r.problems.join('; ') || 'The deploy failed.'}`);
       else {
         setStatus('✓ Deployed.');
@@ -584,8 +573,10 @@ export function ProfileLoginPanel({ profileId, editable }: { profileId: string; 
     setDraft({ ...draft, ipRanges: draft.ipRanges.map((r, j) => (j === i ? { ...r, ...patch } : r)) });
   return (
     <div className="section">
-      <h4>Login IP ranges</h4>
-      <p className="muted">Users of this profile can only log in from these addresses (none: from anywhere).</p>
+      <p className="muted">
+        Users of this profile can only log in from these addresses (none: from anywhere). Standard profiles can have
+        them too.
+      </p>
       <table className="edit-table">
         <tbody>
           {draft.ipRanges.map((r, i) => (
@@ -593,6 +584,7 @@ export function ProfileLoginPanel({ profileId, editable }: { profileId: string; 
               <td>
                 <input
                   className="mono"
+                  placeholder="From"
                   value={r.start}
                   disabled={!editable}
                   onChange={(e) => setRange(i, { start: e.target.value.trim() })}
@@ -602,6 +594,7 @@ export function ProfileLoginPanel({ profileId, editable }: { profileId: string; 
               <td>
                 <input
                   className="mono"
+                  placeholder="To"
                   value={r.end}
                   disabled={!editable}
                   onChange={(e) => setRange(i, { end: e.target.value.trim() })}
@@ -638,82 +631,17 @@ export function ProfileLoginPanel({ profileId, editable }: { profileId: string; 
           >
             + IP range
           </button>
+          <button disabled={!changed} onClick={() => setDraft(settings)}>
+            Undo
+          </button>
+          <button className="primary" disabled={!changed} onClick={() => void save()}>
+            Deploy…
+          </button>
+          <span className="muted">
+            {status || 'Only the IP ranges are deployed; the rest of the profile stays as it is.'}
+          </span>
         </div>
       )}
-      <h4>Login hours</h4>
-      <p className="muted">Days without hours: any time. Times are in the org's default time zone.</p>
-      <table className="edit-table">
-        <tbody>
-          {WEEK_DAYS.map((d) => {
-            const h = draft.hours[d];
-            return (
-              <tr key={d}>
-                <td style={{ textTransform: 'capitalize' }}>{d}</td>
-                <td>
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      disabled={!editable}
-                      checked={Boolean(h)}
-                      onChange={(e) => {
-                        const hours = { ...draft.hours };
-                        if (e.target.checked) hours[d] = { start: 480, end: 1080 };
-                        else delete hours[d];
-                        setDraft({ ...draft, hours });
-                      }}
-                    />{' '}
-                    {h ? 'from' : 'any time'}
-                  </label>
-                </td>
-                {h && (
-                  <>
-                    <td>
-                      <input
-                        type="time"
-                        disabled={!editable}
-                        value={time(h.start)}
-                        onChange={(e) =>
-                          setDraft({
-                            ...draft,
-                            hours: { ...draft.hours, [d]: { ...h, start: minutesOf(e.target.value) } },
-                          })
-                        }
-                      />
-                    </td>
-                    <td>to</td>
-                    <td>
-                      <input
-                        type="time"
-                        disabled={!editable}
-                        value={time(Math.min(h.end, 1439))}
-                        onChange={(e) =>
-                          setDraft({
-                            ...draft,
-                            hours: { ...draft.hours, [d]: { ...h, end: minutesOf(e.target.value) } },
-                          })
-                        }
-                      />
-                    </td>
-                  </>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <div className="form">
-        {editable && (
-          <>
-            <button disabled={!changed} onClick={() => setDraft(settings)}>
-              Undo
-            </button>
-            <button className="primary" disabled={!changed} onClick={() => void save()}>
-              Deploy…
-            </button>
-          </>
-        )}
-        <span className="muted">{status || (editable ? '' : 'Standard profiles cannot be changed.')}</span>
-      </div>
     </div>
   );
 }

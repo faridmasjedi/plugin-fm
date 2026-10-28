@@ -235,7 +235,7 @@ export function PermissionsExplorer() {
                 ...(holder.kind !== 'Permission set group' ? [['rtypes', 'Record types']] : []),
                 ...(holder.kind === 'Profile' ? [['layouts', 'Page layouts']] : []),
                 ...(holder.kind === 'Permission set' ? [['tabs', 'Tabs']] : []),
-                ...(holder.kind === 'Profile' ? [['login', 'Login IP ranges & hours']] : []),
+                ...(holder.kind === 'Profile' ? [['login', 'Login IP ranges']] : []),
               ] as Array<[Tab, string]>
             ).map(([id, label]) => (
               <button
@@ -276,7 +276,7 @@ export function PermissionsExplorer() {
           {tab === 'login' &&
             holder.kind === 'Profile' &&
             (info?.profileId ? (
-              <ProfileLoginPanel profileId={info.profileId} editable={Boolean(info.editable && !blocked)} />
+              <ProfileLoginPanel profileId={info.profileId} editable={!blocked} />
             ) : (
               <p className="muted">Reading the profile…</p>
             ))}

@@ -2098,6 +2098,16 @@ button.metric {
   gap: 5px;
   font-size: var(--fs-sm);
 }
+/* Titles and plain text in a row of inputs sit in the middle of the row, not at its foot */
+.form > h3,
+.form > h4,
+.form > b,
+.form > span.muted,
+.form > span.pill {
+  align-self: center;
+  margin-top: 0;
+  margin-bottom: 0;
+}
 label.check,
 .form label.check {
   display: inline-flex;

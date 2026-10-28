@@ -10,7 +10,7 @@ import { makeZip, toBase64 } from './zip.js';
  * Managing access beyond object, field and system permissions: public groups and queues and their
  * members, permission set licenses, what a permission set or profile gives access to (Apex classes,
  * Visualforce pages, custom permissions, connected apps, apps, tabs), new permission sets and
- * groups, and a profile's login IP ranges and hours.
+ * groups, and a profile's login IP ranges.
  */
 
 const ID = /^[a-zA-Z0-9]{15}([a-zA-Z0-9]{3})?$/;
@@ -452,13 +452,10 @@ export const apiNameFrom = (label: string): string =>
     .replace(/^(\d)/, 'X$1')
     .slice(0, 80);
 
-// ---------- a profile's login IP ranges and hours (Metadata API) ----------
+// ---------- a profile's login IP ranges (any profile, standard ones too) ----------
 
 export type IpRange = { start: string; end: string; description: string };
-export const WEEK_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
-/** Minutes after midnight; both undefined = any time that day. */
-export type LoginHours = Partial<Record<(typeof WEEK_DAYS)[number], { start: number; end: number }>>;
-export type ProfileLoginSettings = { fullName: string; ipRanges: IpRange[]; hours: LoginHours };
+export type ProfileLoginSettings = { fullName: string; ipRanges: IpRange[] };
 
 export function parseLoginSettings(xml: string, fullName: string): ProfileLoginSettings {
   const ipRanges = xmlBlocks(xml, 'loginIpRanges').map((b) => ({
@@ -466,16 +463,10 @@ export function parseLoginSettings(xml: string, fullName: string): ProfileLoginS
     end: xmlValue(b, 'endAddress') ?? '',
     description: xmlValue(b, 'description') ?? '',
   }));
-  const hours: LoginHours = {};
-  const block = xmlBlocks(xml, 'loginHours')[0] ?? '';
-  for (const day of WEEK_DAYS) {
-    const start = xmlValue(block, `${day}Start`);
-    const end = xmlValue(block, `${day}End`);
-    if (start !== undefined && end !== undefined) hours[day] = { start: Number(start), end: Number(end) };
-  }
-  return { fullName, ipRanges, hours };
+  return { fullName, ipRanges };
 }
 
+/** A profile file with only its login IP ranges (deploying it changes nothing else). */
 export function loginSettingsXml(settings: Omit<ProfileLoginSettings, 'fullName'>): string {
   const ipv4 = /^(\d{1,3}\.){3}\d{1,3}$/;
   const ipv6 = /^[0-9a-fA-F:]+$/;
@@ -493,29 +484,13 @@ export function loginSettingsXml(settings: Omit<ProfileLoginSettings, 'fullName'
         }</startAddress>\n    </loginIpRanges>\n`
     )
     .join('');
-  const days = WEEK_DAYS.filter((d) => settings.hours[d])
-    .map((d) => {
-      const h = settings.hours[d]!;
-      if (!(h.start >= 0 && h.end <= 1440 && h.start < h.end))
-        throw new Error(`Login hours on ${d}: start before end.`);
-      return `        <${d}End>${h.end}</${d}End>\n        <${d}Start>${h.start}</${d}Start>\n`;
-    })
-    .join('');
-  const hours = days ? `    <loginHours>\n${days}    </loginHours>\n` : '';
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<Profile xmlns="http://soap.sforce.com/2006/04/metadata">\n${ranges}${hours}</Profile>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<Profile xmlns="http://soap.sforce.com/2006/04/metadata">\n${ranges}</Profile>\n`;
 }
 
-/** A profile's IP ranges and login hours, read in one Tooling API call. */
+/** A profile's IP ranges, read in one Tooling API call. */
 export async function profileLoginSettings(client: SalesforceClient, profileId: string): Promise<ProfileLoginSettings> {
   const { fullName, metadata } = await profileMetadata(client, profileId);
   const ranges = (metadata.loginIpRanges ?? []) as Array<Record<string, unknown>>;
-  const block = (metadata.loginHours ?? {}) as Record<string, unknown>;
-  const hours: LoginHours = {};
-  for (const day of WEEK_DAYS) {
-    const start = block[`${day}Start`];
-    const end = block[`${day}End`];
-    if (start != null && end != null) hours[day] = { start: Number(start), end: Number(end) };
-  }
   return {
     fullName,
     ipRanges: ranges.map((r) => ({
@@ -523,13 +498,12 @@ export async function profileLoginSettings(client: SalesforceClient, profileId: 
       end: String(r.endAddress ?? ''),
       description: String(r.description ?? ''),
     })),
-    hours,
   };
 }
 
 /**
- * Deploys only the profile's IP ranges and login hours (the rest of the profile is left as it is;
- * the ranges sent replace the old ones).
+ * Deploys only the profile's IP ranges (the rest of the profile, login hours included, is left as
+ * it is; the ranges sent replace the old ones).
  */
 export async function saveProfileLoginSettings(
   client: SalesforceClient,
