@@ -2581,3 +2581,16 @@ button.working::before {
   border-radius: 50%;
   animation: nsf-spin 0.8s linear infinite;
 }
+
+/* Query › Related fields… */
+.related-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.query-more button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}

@@ -3,22 +3,37 @@ import { sobjectForId } from './inspector.js';
 import { query, type Row } from './query.js';
 
 /**
- * Names for Id columns SOQL cannot follow (LoginHistory.UserId, polymorphic WhoId, Tooling Ids…):
- * the object comes from each Id's 3-character prefix and the names are read in batches, then
- * shown in extra columns next to the Id ("UserId → Name", "UserId → Username").
+ * Names (and any other fields) for the Id columns of a result, also where SOQL cannot follow
+ * the link (LoginHistory.UserId, polymorphic WhoId, Tooling Ids…): the object comes from each
+ * Id's 3-character prefix and the records are read in batches, then shown in extra columns next
+ * to the Id ("UserId → Name", "UserId → Username", "UserId → Profile.Name").
  */
 
 const ID = /^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/;
+/** A field or a path through lookups (Profile.Name), as typed into SOQL. */
+const FIELD_PATH = /^[A-Za-z_]\w*(\.[A-Za-z_]\w*){0,4}$/;
 const BATCH = 200;
 
 /** Extra fields worth showing for some objects, besides the name field. */
 const EXTRA: Record<string, string[]> = { User: ['Username'] };
 
 export type IdNameLookup = {
-  /** Id column -> the extra columns added after it. */
+  /** Id column -> the extra columns added after it (Name, Username, then chosen fields). */
   added: Record<string, string[]>;
-  /** 15- and 18-character Id -> values of the extra columns (by field: Name, Username…). */
+  /** 15- and 18-character Id -> values of the extra columns (Name for the name field, then by field). */
   values: Map<string, Record<string, string>>;
+  /** Id column -> the objects its Ids belong to (more than one for WhoId, WhatId…). */
+  objects: Record<string, string[]>;
+};
+
+export type IdLookupOptions = {
+  /** An earlier lookup with the same choice of fields: only Ids not seen yet are read. */
+  known?: IdNameLookup;
+  maxIds?: number;
+  /** The name field (and Username for users); default true. */
+  names?: boolean;
+  /** More fields per object, e.g. { User: ['Email', 'Profile.Name'] }. */
+  related?: Record<string, string[]>;
 };
 
 /** Columns whose values are all record Ids (the row's own Id excluded). */
@@ -36,7 +51,7 @@ export function idColumns(columns: string[], rows: Row[]): string[] {
   });
 }
 
-type NameFields = { fields: string[] } | null;
+type NameFields = { name: string; fields: string[] } | null;
 const nameFieldCache = new WeakMap<SalesforceClient, Map<string, Promise<NameFields>>>();
 
 /** Name field (+ extras) of an object, or null when it has none or cannot be queried. */
@@ -57,7 +72,7 @@ function nameFields(client: SalesforceClient, sobject: string): Promise<NameFiel
         const name = d.fields.find((f) => f.nameField)?.name;
         if (!d.queryable || !name) return null;
         const have = new Set(d.fields.map((f) => f.name));
-        return { fields: [name, ...(EXTRA[sobject] ?? []).filter((f) => have.has(f))] };
+        return { name, fields: [name, ...(EXTRA[sobject] ?? []).filter((f) => have.has(f))] };
       })
       .catch(() => null);
     cache.set(sobject, found);
@@ -73,10 +88,12 @@ export async function lookupIdNames(
   client: SalesforceClient,
   columns: string[],
   rows: Row[],
-  options: { known?: IdNameLookup; maxIds?: number } = {}
+  options: IdLookupOptions = {}
 ): Promise<IdNameLookup> {
   const values = new Map(options.known?.values);
   const added: Record<string, string[]> = { ...options.known?.added };
+  const objects: Record<string, string[]> = { ...options.known?.objects };
+  const names = options.names ?? true;
   const maxIds = options.maxIds ?? 20_000;
   const columnsWithIds = idColumns(columns, rows);
 
@@ -95,18 +112,23 @@ export async function lookupIdNames(
       }
       const sobject = objectOf.get(prefix)!;
       if (!sobject) continue;
+      objects[column] = [...new Set([...(objects[column] ?? []), sobject])];
       if (!byObject.has(sobject)) byObject.set(sobject, new Set());
       if (!byObject.get(sobject)!.has(id)) budget--;
       byObject.get(sobject)!.add(id);
     }
   }
 
-  const fieldsOf = new Map<string, string[]>();
   for (const [sobject, ids] of byObject) {
     // eslint-disable-next-line no-await-in-loop
-    const fields = (await nameFields(client, sobject))?.fields;
-    if (!fields) continue;
-    fieldsOf.set(sobject, fields);
+    const named = await nameFields(client, sobject);
+    const chosen = (options.related?.[sobject] ?? []).filter((f) => f !== 'Id' && FIELD_PATH.test(f));
+    // Read as: the name field shows as "Name"; chosen fields by their own name
+    const keys = new Map<string, string>();
+    if (names && named) named.fields.forEach((f) => keys.set(f, f === named.name ? 'Name' : f));
+    chosen.forEach((f) => keys.set(f, keys.get(f) ?? f));
+    if (!keys.size) continue;
+    const fields = [...keys.keys()];
     const list = [...ids];
     for (let i = 0; i < list.length; i += BATCH) {
       const chunk = list.slice(i, i + BATCH);
@@ -117,7 +139,9 @@ export async function lookupIdNames(
         { maxRows: BATCH }
       ).catch(() => undefined);
       for (const record of result?.rows ?? []) {
-        const entry = Object.fromEntries(fields.map((f) => [f, record[f] == null ? '' : String(record[f])]));
+        const entry = Object.fromEntries(
+          fields.map((f) => [keys.get(f)!, record[f] == null || typeof record[f] === 'object' ? '' : String(record[f])])
+        );
         const id18 = String(record.Id);
         values.set(id18, entry);
         values.set(id18.slice(0, 15), entry);
@@ -133,16 +157,15 @@ export async function lookupIdNames(
       if (entry) Object.keys(entry).forEach((f) => fields.add(f));
     }
     if (fields.size) {
-      // The name field comes first, as "Name" for every object
-      const ordered = [...fields].sort((a, b) => (a === 'Username' ? 1 : b === 'Username' ? -1 : 0));
-      added[column] = ordered;
+      // Name first, then Username, then the chosen fields in their order
+      const rank = (f: string): number => (f === 'Name' ? 0 : f === 'Username' ? 1 : 2);
+      added[column] = [...fields].sort((a, b) => rank(a) - rank(b));
     }
   }
-  return { added, values };
+  return { added, values, objects };
 }
 
-export const idNameColumn = (column: string, field: string): string =>
-  `${column} → ${field === 'Username' ? 'Username' : 'Name'}`;
+export const idNameColumn = (column: string, field: string): string => `${column} → ${field}`;
 
 /** The result with the looked-up columns placed right after each Id column. */
 export function withIdNames(columns: string[], rows: Row[], lookup: IdNameLookup): { columns: string[]; rows: Row[] } {

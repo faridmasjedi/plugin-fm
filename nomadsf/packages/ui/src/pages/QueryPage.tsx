@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import {
+  addToSelect,
   describeGlobal,
   describeSObject,
+  idColumns,
   exportSavedQueries,
   importSavedQueries,
   lookupIdNames,
@@ -23,6 +25,7 @@ import { askAi } from '../components/AiHelp';
 import { CodeEditor } from '../components/CodeEditor';
 import { DataTable, EmptyHint, download } from '../components/DataTable';
 import { QueryExport } from '../components/QueryExport';
+import { RelatedFields } from '../components/RelatedFields';
 import { storage, useStudio } from '../context';
 import { monaco } from '../monaco';
 import { useProject } from '../project';
@@ -189,6 +192,14 @@ export function QueryPage() {
   const [idNames, setIdNames] = useState<boolean>(() => storage.get('query.idNames', false));
   const [lookup, setLookup] = useState<IdNameLookup | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
+  // Fields of the records Id columns point to, chosen per object (Related fields…)
+  const [related, setRelatedState] = useState<Record<string, string[]>>(() => storage.get('query.related', {}));
+  const setRelated = (next: Record<string, string[]>) => {
+    setRelatedState(next);
+    storage.set('query.related', next);
+  };
+  const [relatedOpen, setRelatedOpen] = useState(false);
+  const [links, setLinks] = useState<Record<string, string>>({});
   // Each load has a token; Stop or a new query changes it and the old loop ends
   const loadToken = useRef(0);
   const [error, setError] = useState('');
@@ -239,25 +250,53 @@ export function QueryPage() {
         }
         const from = mainSObject(text);
         if (!from) return { suggestions: [] };
-        let list = fields.current.get(from);
-        if (!list) {
-          try {
-            list = (await describeSObject(client, from, tooling)).fields;
-            fields.current.set(from, list);
-          } catch {
-            list = [];
+        const fieldsOf = async (sobject: string): Promise<FieldSummary[]> => {
+          let list = fields.current.get(sobject);
+          if (!list) {
+            try {
+              list = (await describeSObject(client, sobject, tooling)).fields;
+            } catch {
+              list = [];
+            }
+            fields.current.set(sobject, list);
           }
+          return list;
+        };
+        // Account.Owner.| : follow each relationship from the FROM object to the object it points to
+        let sobject = from;
+        const path = /((?:[A-Za-z_]\w*\.)+)\w*$/.exec(before)?.[1];
+        for (const step of path ? path.slice(0, -1).split('.') : []) {
+          // eslint-disable-next-line no-await-in-loop
+          const link = (await fieldsOf(sobject)).find(
+            (f) => f.relationshipName?.toLowerCase() === step.toLowerCase() && f.referenceTo.length
+          );
+          if (!link) return { suggestions: [] };
+          sobject = link.referenceTo[0];
         }
+        const list = await fieldsOf(sobject);
         return {
-          suggestions: list.map((f) => ({
-            label: f.name,
-            detail: `${f.type}${f.referenceTo.length ? ` → ${f.referenceTo.join(', ')}` : ''} · ${f.label}`,
-            kind: f.referenceTo.length
-              ? monaco.languages.CompletionItemKind.Reference
-              : monaco.languages.CompletionItemKind.Field,
-            insertText: f.name,
-            range,
-          })),
+          suggestions: [
+            ...list.map((f) => ({
+              label: f.name,
+              detail: `${f.type}${f.referenceTo.length ? ` → ${f.referenceTo.join(', ')}` : ''} · ${f.label}`,
+              kind: f.referenceTo.length
+                ? monaco.languages.CompletionItemKind.Reference
+                : monaco.languages.CompletionItemKind.Field,
+              insertText: f.name,
+              range,
+            })),
+            // Relationship names (Account, Owner…): typing the dot lists that object's fields
+            ...list
+              .filter((f) => f.relationshipName && f.referenceTo.length)
+              .map((f) => ({
+                label: `${f.relationshipName}.`,
+                detail: `→ ${f.referenceTo.join(', ')} fields`,
+                kind: monaco.languages.CompletionItemKind.Module,
+                insertText: `${f.relationshipName}.`,
+                command: { id: 'editor.action.triggerSuggest', title: 'Fields' },
+                range,
+              })),
+          ],
         };
       },
     });
@@ -287,13 +326,22 @@ export function QueryPage() {
     [client]
   );
 
-  // Once rows stop loading, look up names for their Id columns (only Ids not seen before)
+  // Once rows stop loading, look up names and chosen fields for their Id columns. The same
+  // choice reuses the last lookup (only Ids not seen before); another choice reads again.
+  const lookupChoice = JSON.stringify({ idNames, related });
+  const lookupFor = useRef('');
   useEffect(() => {
-    if (!idNames || !result || loading || running) return;
+    const wanted = idNames || relatedOpen || Object.values(related).some((f) => f.length);
+    if (!wanted || !result || loading || running) return;
     let canceled = false;
+    const known = lookupFor.current === lookupChoice ? lookup ?? undefined : undefined;
     setLookingUp(true);
-    lookupIdNames(client, result.columns, result.rows, { known: lookup ?? undefined })
-      .then((found) => !canceled && setLookup(found))
+    lookupIdNames(client, result.columns, result.rows, { known, names: idNames, related })
+      .then((found) => {
+        if (canceled) return;
+        lookupFor.current = lookupChoice;
+        setLookup(found);
+      })
       .catch(() => undefined)
       .finally(() => !canceled && setLookingUp(false));
     return () => {
@@ -301,41 +349,63 @@ export function QueryPage() {
     };
     // `lookup` is an input to the next lookup, not a trigger
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, result, loading, running, idNames]);
+  }, [client, result, loading, running, lookupChoice, relatedOpen]);
+
+  // Id columns SOQL can follow from the FROM object (AccountId -> Account), for "Add to the query"
+  const sobject = result?.sobject;
+  useEffect(() => {
+    setLinks({});
+    if (!sobject || tooling) return;
+    describeSObject(client, sobject)
+      .then((d) =>
+        setLinks(
+          Object.fromEntries(
+            d.fields.filter((f) => f.relationshipName && f.referenceTo.length).map((f) => [f.name, f.relationshipName!])
+          )
+        )
+      )
+      .catch(() => undefined);
+  }, [client, sobject, tooling]);
 
   const shown = useMemo(
     () =>
-      result && idNames && lookup
+      result && lookup
         ? withIdNames(result.columns, result.rows, lookup)
         : { columns: result?.columns ?? [], rows: result?.rows ?? [] },
-    [result, idNames, lookup]
+    [result, lookup]
   );
+  const hasIds = useMemo(() => (result ? idColumns(result.columns, result.rows).length > 0 : false), [result]);
 
-  const run = useCallback(async () => {
-    const editor = editorRef.current;
-    const selection = editor?.getSelection();
-    const text = selection && !selection.isEmpty() ? editor?.getModel()?.getValueInRange(selection) ?? soql : soql;
-    if (!text.trim()) return;
-    loadToken.current++;
-    setLoading(false);
-    setRunning(true);
-    setError('');
-    try {
-      const first = await openQuery(client, text, { tooling, includeDeleted });
-      setResult(first);
-      setRanSoql(text);
-      setLookup(null);
-      const next = [text, ...history.filter((h) => h !== text)].slice(0, 30);
-      setHistory(next);
-      storage.set('query.history', next);
-      setRunning(false);
-      await loadRest(first, BATCH);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setRunning(false);
-    }
-  }, [client, soql, tooling, includeDeleted, history, loadRest]);
+  /** Runs the selected text, else the whole editor; `given`: this query instead (Add to the query). */
+  const run = useCallback(
+    async (given?: string) => {
+      const editor = editorRef.current;
+      const selection = editor?.getSelection();
+      const text =
+        given ?? (selection && !selection.isEmpty() ? editor?.getModel()?.getValueInRange(selection) ?? soql : soql);
+      if (!text.trim()) return;
+      loadToken.current++;
+      setLoading(false);
+      setRunning(true);
+      setError('');
+      try {
+        const first = await openQuery(client, text, { tooling, includeDeleted });
+        setResult(first);
+        setRanSoql(text);
+        setLookup(null);
+        const next = [text, ...history.filter((h) => h !== text)].slice(0, 30);
+        setHistory(next);
+        storage.set('query.history', next);
+        setRunning(false);
+        await loadRest(first, BATCH);
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setRunning(false);
+      }
+    },
+    [client, soql, tooling, includeDeleted, history, loadRest]
+  );
 
   const allFields = async () => {
     const from = mainSObject(soql);
@@ -528,12 +598,41 @@ export function QueryPage() {
             ) : null}
             <span className="grow" />
             {lookingUp && <span className="muted">Looking up names…</span>}
+            {hasIds && (
+              <button
+                className={relatedOpen ? 'active' : ''}
+                title="Add fields of the records the Id columns point to, e.g. AccountId → Account Industry, UserId → User Email"
+                onClick={() => setRelatedOpen(!relatedOpen)}
+              >
+                Related fields…
+              </button>
+            )}
             <QueryExport
               soql={ranSoql}
               cursor={{ ...result, columns: shown.columns, rows: shown.rows }}
               includeDeleted={includeDeleted}
             />
           </div>
+          {relatedOpen && (
+            <RelatedFields
+              client={client}
+              objects={lookup?.objects ?? {}}
+              links={links}
+              related={related}
+              onChange={setRelated}
+              onAddToQuery={(fields, target) => {
+                try {
+                  const next = addToSelect(ranSoql, fields);
+                  setRelated({ ...related, [target]: [] });
+                  setSoql(next);
+                  setRelatedOpen(false);
+                  void run(next);
+                } catch (e) {
+                  setError((e as Error).message);
+                }
+              }}
+            />
+          )}
           <DataTable
             name={result.sobject ?? 'query'}
             columns={shown.columns}

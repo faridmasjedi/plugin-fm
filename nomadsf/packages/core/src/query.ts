@@ -46,6 +46,42 @@ export function mainSObject(soql: string): string | undefined {
   return /\bfrom\s+(\w+)/i.exec(text)?.[1];
 }
 
+/**
+ * Adds fields to the top-level SELECT (before its FROM, outside subqueries and strings);
+ * fields already selected are skipped. `SELECT Id FROM Case` + Account.Name ->
+ * `SELECT Id, Account.Name FROM Case`.
+ */
+export function addToSelect(soql: string, fields: string[]): string {
+  let depth = 0;
+  let quoted = false;
+  let from = -1;
+  for (let i = 0; i < soql.length; i++) {
+    const c = soql[i];
+    if (quoted) {
+      if (c === '\\') i++;
+      else if (c === "'") quoted = false;
+    } else if (c === "'") quoted = true;
+    else if (c === '(') depth++;
+    else if (c === ')') depth--;
+    else if (depth === 0 && /\s/.test(c) && /^\s+from\s/i.test(soql.slice(i))) {
+      from = i;
+      break;
+    }
+  }
+  if (from < 0) throw new Error('The query needs a FROM clause.');
+  const select = soql.slice(0, from);
+  const have = new Set(
+    select
+      .replace(/^\s*select\s+/i, '')
+      .replace(/\([^()]*\)/g, '')
+      .split(',')
+      .map((f) => f.trim().toLowerCase())
+  );
+  const missing = [...new Set(fields)].filter((f) => !have.has(f.toLowerCase()));
+  if (!missing.length) return soql;
+  return `${select.replace(/\s+$/, '')}, ${missing.join(', ')}${soql.slice(from)}`;
+}
+
 /** A query being read page by page (Salesforce returns up to 2,000 rows per page). */
 export type QueryCursor = QueryResult & {
   /** Next page to read; undefined when every row is loaded. */

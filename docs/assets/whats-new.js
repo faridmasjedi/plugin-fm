@@ -11,6 +11,8 @@ window.NOMADSF_WHATS_NEW = {
     'Deployments show their Id; a spinner shows while NomadSF waits for Salesforce',
     'VS Code: Salesforce links with a query string (and Log in as) open the right page',
     'Apex editor suggests the names used in your code; Execute Apex asks for the org name',
+    'Query: Related fields… adds any fields of the records Id columns point to, even where SOQL cannot follow',
+    'Query editor: type Account. (or Account.Owner.) for the fields of related records',
   ],
   '2.1.0': [
     'VS Code extension works on its own: no Salesforce CLI, no sf fm plugin, no local port',

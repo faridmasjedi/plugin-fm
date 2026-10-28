@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { SalesforceClient, idColumns, lookupIdNames, withIdNames, type HttpRequest } from '../src/index.js';
+import {
+  SalesforceClient,
+  addToSelect,
+  idColumns,
+  lookupIdNames,
+  withIdNames,
+  type HttpRequest,
+} from '../src/index.js';
 
 const U1 = '005000000000001AAA';
 const U2 = '005000000000002AAA';
@@ -30,9 +37,14 @@ function fakeOrg() {
     if (r.path.endsWith('/Contact/describe') || r.path.endsWith('/Lead/describe')) return json(describe('Name'));
     const soql = decodeURIComponent(r.path.split('q=')[1] ?? '').replace(/\+/g, ' ');
     queries.push(soql);
-    const people: Record<string, Record<string, string>> = {
-      [U1]: { Name: 'Farid Masjedi', Username: 'farid@fm.plugin.com' },
-      [U2]: { Name: 'Integration User', Username: 'int@fm.plugin.com' },
+    const people: Record<string, Record<string, unknown>> = {
+      [U1]: {
+        Name: 'Farid Masjedi',
+        Username: 'farid@fm.plugin.com',
+        Email: 'farid@example.com',
+        Profile: { attributes: {}, Name: 'System Administrator' },
+      },
+      [U2]: { Name: 'Integration User', Username: 'int@fm.plugin.com', Email: 'int@example.com', Profile: null },
       [C1]: { Name: 'Ada Contact' },
       [L1]: { Name: 'Lee Lead' },
     };
@@ -84,5 +96,63 @@ describe('names for Id columns', () => {
     ];
     const shown = withIdNames(['Id', 'WhoId'], rows, await lookupIdNames(client, ['Id', 'WhoId'], rows));
     expect(shown.rows.map((r) => r['WhoId → Name'])).toEqual(['Ada Contact', 'Lee Lead', '']);
+  });
+
+  it('adds the fields chosen for an object, paths included, after the name', async () => {
+    const { client, queries } = fakeOrg();
+    const rows = [
+      { Id: '0Ya000000000001AAA', UserId: U1 },
+      { Id: '0Ya000000000002AAA', UserId: U2 },
+    ];
+    const lookup = await lookupIdNames(client, ['Id', 'UserId'], rows, {
+      related: { User: ['Email', 'Profile.Name', 'Id', 'bad field; DELETE'] },
+    });
+    expect(queries[0]).toMatch(/^SELECT Id, Name, Username, Email, Profile\.Name FROM User WHERE Id IN/);
+    expect(lookup.objects).toEqual({ UserId: ['User'] });
+    const shown = withIdNames(['Id', 'UserId'], rows, lookup);
+    expect(shown.columns).toEqual([
+      'Id',
+      'UserId',
+      'UserId → Name',
+      'UserId → Username',
+      'UserId → Email',
+      'UserId → Profile.Name',
+    ]);
+    expect(shown.rows[0]['UserId → Profile.Name']).toBe('System Administrator');
+    expect(shown.rows[1]['UserId → Profile.Name']).toBe('');
+  });
+
+  it('can leave the names out and read only the chosen fields', async () => {
+    const { client, queries } = fakeOrg();
+    const rows = [{ Id: '0Ya000000000001AAA', UserId: U1 }];
+    const lookup = await lookupIdNames(client, ['Id', 'UserId'], rows, { names: false, related: { User: ['Email'] } });
+    expect(queries[0]).toMatch(/^SELECT Id, Email FROM User/);
+    expect(withIdNames(['Id', 'UserId'], rows, lookup).columns).toEqual(['Id', 'UserId', 'UserId → Email']);
+  });
+
+  it('only finds the objects when nothing is to be read', async () => {
+    const { client, queries } = fakeOrg();
+    const rows = [
+      { Id: '00T000000000001AAA', WhoId: C1 },
+      { Id: '00T000000000002AAA', WhoId: L1 },
+    ];
+    const lookup = await lookupIdNames(client, ['Id', 'WhoId'], rows, { names: false });
+    expect(queries).toHaveLength(0);
+    expect(lookup.objects).toEqual({ WhoId: ['Contact', 'Lead'] });
+  });
+});
+
+describe('addToSelect', () => {
+  it('adds fields before the top-level FROM', () => {
+    expect(addToSelect('SELECT Id, Subject FROM Case LIMIT 5', ['Account.Name', 'Account.CreatedDate'])).toBe(
+      'SELECT Id, Subject, Account.Name, Account.CreatedDate FROM Case LIMIT 5'
+    );
+  });
+  it('skips subqueries, strings and fields already there', () => {
+    const soql = "SELECT Id, account.name, (SELECT Id FROM Contacts) FROM Account WHERE Name = ' from x'";
+    expect(addToSelect(soql, ['Account.Name', 'Owner.Name'])).toBe(
+      "SELECT Id, account.name, (SELECT Id FROM Contacts), Owner.Name FROM Account WHERE Name = ' from x'"
+    );
+    expect(addToSelect('SELECT Id\nFROM Case', ['Id'])).toBe('SELECT Id\nFROM Case');
   });
 });

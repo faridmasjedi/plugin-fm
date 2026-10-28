@@ -332,7 +332,10 @@
               ></video>
             </div>
             <ol class="steps">
-              <li>Write SOQL with autocomplete for objects and fields, or ✦ ask in plain English.</li>
+              <li>
+                Write SOQL with autocomplete for objects and fields (type <code>Account.</code> for the fields of the
+                Account a record points to, as deep as you like), or ✦ ask in plain English.
+              </li>
               <li>
                 Options: <b>Names for Ids</b> (adds a column with the name next to every Id),
                 <b>Deleted &amp; archived</b>, the <b>Tooling API</b>.
@@ -344,6 +347,12 @@
               </li>
               <li>
                 Ids: click to select, <b>⧉</b> copies, <b>↗</b> opens it in Salesforce, <b>ⓘ</b> shows all its fields.
+              </li>
+              <li>
+                <b>Related fields…</b>: for an Id column (Case.AccountId, UserLogin.UserId), tick fields of the record
+                it points to (Account Industry, User Email, Profile name); they show next to the Id and are kept for
+                every query with those Ids. When SOQL can follow the link, <b>Add to the query instead</b> puts them in
+                the SELECT.
               </li>
             </ol>
             <p>
