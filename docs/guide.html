@@ -6,7 +6,7 @@
     <title>NomadSF Guide</title>
     <meta
       name="description"
-      content="How to install and use NomadSF Studio: the hubs, data backup, restore, migration, lifecycle jobs, release tools and the sf fm CLI."
+      content="How to install and use NomadSF Studio: every hub and tab, step by step, with scenarios for everyday Salesforce jobs."
     />
     <link rel="icon" href="assets/logo.jpg" />
     <link rel="stylesheet" href="assets/site.css" />
@@ -19,6 +19,7 @@
           <a class="hide-xs" href="./#features">Features</a>
           <a href="./#download">Download</a>
           <a class="active" href="guide.html">Guide</a>
+          <a class="hide-xs" href="#scenarios">Scenarios</a>
           <a class="hide-sm" href="#safety">Safety</a>
           <a href="https://github.com/faridmasjedi/plugin-fm">GitHub</a>
         </nav>
@@ -173,41 +174,36 @@
               </tr>
             </table>
           </section>
+          <section class="tool" data-title="Messages and the Log">
+            <h2 id="messages">Messages and the Log</h2>
+            <p class="tool-lead">What a tool is doing, where you are looking — and every message in one place.</p>
+            <ul>
+              <li>
+                A message shows <b>next to the button you pressed</b>, drawn by what it is: <b>working</b> (with a
+                spinner), <b>done</b> (green ✓), a <b>problem</b> (red) or a <b>warning</b> (amber).
+              </li>
+              <li>
+                The <b>Log</b> at the bottom of the Studio keeps every message of every tab, newest first, with the
+                time, the tab and the org. Closed, it shows the last message and a count; it
+                <b>opens by itself on a problem</b>. <b>Copy</b> it for a ticket; <b>Clear</b> it when you like.
+              </li>
+              <li>The progress of one job updates one line of the Log instead of filling it.</li>
+              <li>
+                The spinner next to the org at the top shows that NomadSF is waiting for Salesforce; it stops when every
+                answer is in.
+              </li>
+            </ul>
+          </section>
         </section>
 
         <section class="hub" id="hub-develop" data-title="Develop">
           <h2 id="develop">Develop</h2>
-          <section class="tool" data-title="Execute Apex">
-            <h3 id="apex">Execute Apex</h3>
-            <div class="shot">
-              <video
-                src="media/apex.mp4"
-                poster="media/apex.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>Run anonymous Apex in the org, like the Developer Console's Execute Anonymous window.</p>
-            <ol class="steps">
-              <li>Write or paste Apex. Snippets and highlighting help; <b>History…</b> brings back your last 20.</li>
-              <li>
-                Choose log levels, then <b>Execute</b> (<kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd>), or run only the
-                selection (<kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd>).
-              </li>
-              <li>Read the result: success or the exception, compile errors marked on the line, and the debug log.</li>
-            </ol>
-            <p>
-              ✦ With an AI connected, describe what you need ("deactivate users who have not logged in for 90 days").
-            </p>
-            <div class="callout warn">
-              In a production org you confirm before it runs: anonymous Apex can change data.
-            </div>
-          </section>
           <section class="tool" data-title="Code">
             <h3 id="code">Code</h3>
+            <p class="tool-lead">
+              Open, edit and save Apex, triggers, Visualforce, LWC and Aura; see what a class uses and what uses it.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
                 src="media/code.mp4"
@@ -240,14 +236,86 @@
               there (developer orgs allow it). Compile only still works.
             </div>
             <p>
+              <b>Dependencies</b> (next to <b>Explain</b> when a class, trigger or component is open): what it uses and
+              what uses it — classes, triggers, pages, flows, objects and fields.
+            </p>
+            <p>
               <b>Other metadata</b>: any other type — FlexiPages, flows, permission sets, layouts, custom metadata,
               labels… Choose the type and a component to see its files; change them and <b>Validate…</b> (checks the
               deploy without saving) or <b>Deploy</b> (you type the org name). <b>Dependencies</b> lists what it uses
               and what uses it.
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li><b>Compile only</b> is always safe: it finds errors without saving anything.</li>
+                <li>
+                  <b>Dependencies</b> comes from Salesforce’s own dependency tracking: classes, triggers, pages, flows,
+                  objects and fields. A class named in a string (dynamic Apex) is not found — search the code for it
+                  too.
+                </li>
+                <li>
+                  Before you change a class, open <b>Dependencies</b> to see which classes and triggers use it, then run
+                  their tests in <a href="#apextests">Apex tests</a>. See the scenario
+                  <a href="#scenario-change-class">Change a class safely</a>.
+                </li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Execute Apex">
+            <h3 id="apex">Execute Apex</h3>
+            <p class="tool-lead">
+              Run anonymous Apex in the org, like the Developer Console’s Execute Anonymous window.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/apex.mp4"
+                poster="media/apex.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>Run anonymous Apex in the org, like the Developer Console's Execute Anonymous window.</p>
+            <ol class="steps">
+              <li>Write or paste Apex. Snippets and highlighting help; <b>History…</b> brings back your last 20.</li>
+              <li>
+                Choose log levels, then <b>Execute</b> (<kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd>), or run only the
+                selection (<kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd>).
+              </li>
+              <li>Read the result: success or the exception, compile errors marked on the line, and the debug log.</li>
+            </ol>
+            <p>
+              ✦ With an AI connected, describe what you need ("deactivate users who have not logged in for 90 days").
+            </p>
+            <div class="callout warn">
+              In a production org you confirm before it runs: anonymous Apex can change data.
+            </div>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  It runs as your user in the org chosen at the top, and asks first every time (in production with a
+                  warning): anonymous Apex can change data.
+                </li>
+                <li>
+                  Compile errors are marked on their line; the debug log under the result has everything the code
+                  logged.
+                </li>
+                <li>
+                  Keep long-running work out of it: anonymous Apex has the normal governor limits (use a batch job
+                  instead).
+                </li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="Apex tests">
             <h3 id="apextests">Apex tests</h3>
+            <p class="tool-lead">Run Apex tests and see the code coverage of every class.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
                 src="media/apextests.mp4"
@@ -264,9 +332,22 @@
               trace. The <b>Coverage</b> tab lists every class; click one to see covered (green) and uncovered (red)
               lines.
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Tests run in the org (Salesforce runs them, not your computer); a big run can take minutes. You can
+                  switch tabs meanwhile.
+                </li>
+                <li>Coverage is from the last runs in the org: run the tests again to refresh it.</li>
+                <li>To find which tests to run for a change, start from <a href="#code">Code › Dependencies</a>.</li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="Debug logs">
             <h3 id="logs">Debug logs</h3>
+            <p class="tool-lead">Capture debug logs of what you do in the org, then read them.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
                 src="media/logs.mp4"
@@ -283,9 +364,53 @@
               log. The log shows its debug lines, events and limits, and the raw text; ✦ explains it with an AI
               connected.
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li><b>On 30 min / On 1 h</b> adds a trace flag for your user (it asks first); it ends by itself.</li>
+                <li><b>Only mine</b> hides other people’s logs; <b>Auto-refresh</b> lists new ones as they come.</li>
+                <li>
+                  <b>Delete listed</b> removes the logs in the list from the org (it asks first). Salesforce also
+                  deletes old logs by itself.
+                </li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Jobs">
+            <h3 id="jobs">Jobs</h3>
+            <p class="tool-lead">Scheduled and background jobs of the org: what runs when, and what is running now.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/jobs.mp4"
+                poster="media/jobs.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              <b>Scheduled</b>: every scheduled job (scheduled Apex, report runs, dashboard refreshes, scheduled flows…)
+              with its next and last run and cron expression. <b>Background Apex</b>: batch, queueable and future jobs
+              of the last days with progress, errors and status. Tick jobs and <b>Stop</b> them — you type the org name
+              first.
+            </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Stopping a scheduled job deletes the schedule: it no longer runs until someone schedules it again.
+                </li>
+                <li>Background Apex covers the last days only, as Salesforce keeps it.</li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="Automation">
             <h3 id="automation">Automation</h3>
+            <p class="tool-lead">What runs when a record of an object is saved, in Salesforce’s order.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
             <div class="shot">
               <video
                 src="media/automation.mp4"
@@ -304,36 +429,41 @@
               whether each is active, and its error message or API name. Escalation and auto-response rules cannot be
               read with the API; the page says when they also apply.
             </p>
-          </section>
-          <section class="tool" data-title="Jobs">
-            <h3 id="jobs">Jobs</h3>
-            <div class="shot">
-              <video
-                src="media/jobs.mp4"
-                poster="media/jobs.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Use it when a save fails or a field changes by itself: the rule or flow doing it is on this list.
+                </li>
+                <li>
+                  Escalation and auto-response rules cannot be read with the API; the page says when they also apply.
+                </li>
+                <li>Then turn on <a href="#logs">Debug logs</a> and save the record again to see each one run.</li>
+              </ul>
             </div>
-            <p>
-              <b>Scheduled</b>: every scheduled job (scheduled Apex, report runs, dashboard refreshes, scheduled flows…)
-              with its next and last run and cron expression. <b>Background Apex</b>: batch, queueable and future jobs
-              of the last days with progress, errors and status. Tick jobs and <b>Stop</b> them — you type the org name
-              first.
-            </p>
           </section>
           <section class="tool" data-title="Events">
             <h3 id="events">Events</h3>
+            <p class="tool-lead">Listen to platform events and change data capture, and publish a platform event.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <p>
               Subscribe to a platform event or change data capture channel — new events only, or replay the last 72
               hours — and click an event for its payload. <b>Publish</b> a platform event (you type the org name).
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Listening reads only; <b>Publish</b> sends a real event that subscribers act on (it asks first).
+                </li>
+                <li>Replay the last 72 hours to see events sent before you started listening.</li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="REST Explorer">
             <h3 id="rest">REST Explorer</h3>
+            <p class="tool-lead">Any REST API call, with the answer, its status and headers.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
                 src="media/rest.mp4"
@@ -349,6 +479,13 @@
               Any REST call: method, path, body, the answer with its status and headers. Calls other than GET ask first.
               ✦ describe the call in plain English.
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>GET only reads. POST, PATCH, PUT and DELETE change the org and ask first.</li>
+                <li>Paths start at <code>/services/data/vXX.X/</code>; the version is filled in for you.</li>
+              </ul>
+            </div>
           </section>
         </section>
 
@@ -356,6 +493,8 @@
           <h2 id="data">Data</h2>
           <section class="tool" data-title="Query">
             <h3 id="query">Query</h3>
+            <p class="tool-lead">SOQL with autocomplete, a filterable table, saved queries and history.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
             <div class="shot">
               <video
                 src="media/query.mp4"
@@ -400,9 +539,24 @@
               <b>Download file</b> / <b>Load file…</b> move them as <code>nomadsf-queries.json</code>, and
               <b>Load from project</b> reads that file from your project, so a team shares queries through git.
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>The table shows up to 2,000 rows at a time; <b>Export CSV</b> uses the Bulk API for any size.</li>
+                <li>
+                  <b>Names for Ids</b> and <b>Related fields…</b> add names next to Ids even where SOQL cannot follow
+                  the link.
+                </li>
+                <li>⤓ (top right) downloads every table on the page as an Excel workbook, a zip of CSVs or JSON.</li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="Record">
             <h3 id="record">Record</h3>
+            <p class="tool-lead">
+              Every field of one record, its history, and what is around it — to edit, or to copy into another org.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
                 src="media/record.mp4"
@@ -444,9 +598,31 @@
                 controls
               ></video>
             </div>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  <b>Related</b> counts what points to the record when you open it (system relationships such as history
+                  and sharing are left out).
+                </li>
+                <li>
+                  A copy creates exactly what is ticked; lookups to records that are not copied are left empty, owners
+                  are matched by username.
+                </li>
+                <li>
+                  Lookups in <b>Edit</b> and <b>New…</b>: type part of a name, or <b>List</b> to choose from every
+                  record of that object (business hours, queues…).
+                </li>
+                <li><b>New…</b> and <b>Open a saved copy…</b> start clean: the record that was open is put away.</li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="Import / Update / Delete">
             <h3 id="data-tool">Import / Update / Delete</h3>
+            <p class="tool-lead">
+              Insert, update, upsert or delete records from a CSV, an Excel workbook or a zip, with the Bulk API.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
                 src="media/data-tool.mp4"
@@ -460,22 +636,83 @@
             </div>
             <ol class="steps">
               <li>
-                Choose a CSV file and the object. Columns are matched to fields; untick columns you don't want to send.
+                Choose the object and the operation: <b>Insert</b>, <b>Update</b>, <b>Upsert</b> (matched on Id or an
+                External ID field), <b>Delete</b> or <b>Hard delete</b>.
               </li>
               <li>
-                Choose <b>Insert</b>, <b>Update</b>, <b>Upsert</b> (with an external Id field), <b>Delete</b> or
-                <b>Hard delete</b>. Before anything runs it checks required fields, picklist values and read-only
-                fields.
+                Choose a CSV, an Excel workbook or a ⤓ zip. A workbook with several sheets shows a <b>Sheet</b> picker,
+                and the object follows the sheet’s name. Click a cell to change it before running.
               </li>
-              <li>Send it (Bulk API). The summary lists what succeeded and failed, with CSVs of both.</li>
+              <li>
+                Read the checks: every column is ticked if Salesforce will accept it for this operation, with the reason
+                when not. Ids that are not records of this org, and lookups to records that are not here, are named
+                before anything is sent.
+              </li>
+              <li>
+                <b>Run</b> (it asks for the org name). The summary counts what succeeded and failed; each failure has
+                its code, message and <b>What it means</b>. Download the successful rows and the failures as CSV.
+              </li>
             </ol>
             <p>
               <b>Delete records matching a query</b>: count what a query returns, then delete it. And
               <b>edit query results in a grid</b>: query records, change cells, and only the changed cells are sent.
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Before anything is sent, every column is checked: fields that cannot be set are unticked, and
+                  related-record columns must use a field Salesforce can find records by (<code>Owner.Username</code>,
+                  not <code>Owner.Name</code>).
+                </li>
+                <li>
+                  <b>Ids from another org</b> are flagged before you run: an Id belongs to one org, so update or upsert
+                  by Id only finds records of this org. To copy records between orgs use
+                  <a href="#record">Record › Related</a> or <a href="#migrate">Migrate</a>.
+                </li>
+                <li>
+                  <b>Upsert</b> matches on Id or a field marked External ID. When the object has none, Migrate’s “Keep
+                  the old Ids” adds one (<code>NomadSF_Old_Id__c</code>).
+                </li>
+                <li>
+                  Failures come back with <b>What it means</b> in plain words (duplicates, required fields, locked
+                  records…), on screen and in the Failures CSV.
+                </li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Compare with CSV">
+            <h3 id="csvcompare">Compare with CSV</h3>
+            <p class="tool-lead">
+              A spreadsheet of records next to the org: what is the same, what differs, what is missing — then make the
+              org match.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <p>
+              A CSV of records — from an old org, a backup or a spreadsheet — next to this org. Choose the file, the
+              object and a field to match records by (Email, an External ID…; Ids from another org do not match), and
+              <b>Compare</b>: each row is <i>the same</i>, <i>different</i> (field by field, org now → CSV) or
+              <i>only in CSV</i>. Lookups are compared by name when the CSV has it (<code>Account.Name</code> for
+              <code>AccountId</code>). <b>Edit the CSV</b> changes rows first; <b>Make the org match the CSV</b> updates
+              what differs and inserts what is missing (you type the org name).
+            </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Match on a field both sides share (Email, an External ID, a name): Ids from another org never match.
+                </li>
+                <li>
+                  Nothing changes until <b>Make the org match the CSV</b>, which asks first and lists every row that
+                  failed.
+                </li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="Lookup">
             <h3 id="lookup">Lookup</h3>
+            <p class="tool-lead">A VLOOKUP against Salesforce: your file back with the Ids or fields you need.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
             <div class="shot">
               <video
                 src="media/lookup.mp4"
@@ -493,20 +730,21 @@
               <code>Column → Found</code> and <code>Column → Field</code> — and a list of the records found. Columns
               your file already has (from an export with names for Ids) get <code>(lookup)</code> added.
             </p>
-          </section>
-          <section class="tool" data-title="Compare with CSV">
-            <h3 id="csvcompare">Compare with CSV</h3>
-            <p>
-              A CSV of records — from an old org, a backup or a spreadsheet — next to this org. Choose the file, the
-              object and a field to match records by (Email, an External ID…; Ids from another org do not match), and
-              <b>Compare</b>: each row is <i>the same</i>, <i>different</i> (field by field, org now → CSV) or
-              <i>only in CSV</i>. Lookups are compared by name when the CSV has it (<code>Account.Name</code> for
-              <code>AccountId</code>). <b>Edit the CSV</b> changes rows first; <b>Make the org match the CSV</b> updates
-              what differs and inserts what is missing (you type the org name).
-            </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Use it to turn names into Ids before a load (Account names → AccountId), or to add fields to an
+                  export.
+                </li>
+                <li>Values that match several records are shown as such; nothing is guessed.</li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="Schema">
             <h3 id="schema">Schema</h3>
+            <p class="tool-lead">Everything about an object: fields, relationships and record types.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
             <div class="shot">
               <video
                 src="media/schema.mp4"
@@ -524,9 +762,21 @@
               points to it; click an object to open it; system objects hidden unless you ask) and its
               <b>record types</b>.
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Click a field for its picklist values, formula, help text, length and whether it is required, unique
+                  or an External ID.
+                </li>
+                <li>The relationships diagram is clickable: open the object a lookup points to.</li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="Field usage">
             <h3 id="fields">Field usage</h3>
+            <p class="tool-lead">How full each field of an object is, where it is used and who can see it.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
             <div class="shot">
               <video
                 src="media/fields.mp4"
@@ -542,85 +792,16 @@
               For an object: how full every field is (records with a value), where it is used (references, for custom
               fields), and which profiles, permission sets and groups can read or edit it.
             </p>
-          </section>
-        </section>
-
-        <section class="hub" id="hub-protect" data-title="Data protection">
-          <h2 id="protect">Data protection</h2>
-          <section class="tool" data-title="Backup">
-            <h3 id="backup">Backup</h3>
-            <div class="shot">
-              <video
-                src="media/backup.mp4"
-                poster="media/backup.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li><b>Count all</b> runs one query per field: on a big object, count only the fields you need.</li>
+                <li>
+                  A field nobody fills and nothing uses is a candidate for clean-up; check
+                  <a href="#code">Dependencies</a> first.
+                </li>
+              </ul>
             </div>
-            <ol class="steps">
-              <li><b>+ New</b>, give it a name and choose the org.</li>
-              <li>
-                <b>What to back up</b>: objects you pick (tick them, type their names, or ✦ describe them), or all
-                custom / standard / all objects. Per object, a condition (which records) and the fields (all, only
-                these, all except these). <b>Count records</b> shows the size first.
-              </li>
-              <li>
-                <b>Settings</b>: incremental runs after the first full one, a schedule (daily, weekly, or every N hours,
-                days, weeks or months), the folder on your computer, files and attachments, and encryption with a
-                passphrase.
-              </li>
-              <li>
-                <b>Back up now</b>. Each run is a folder with a CSV per object and a manifest;
-                <b>Download as zip</b> works without a folder. <b>Backups &amp; restore</b> lists the runs.
-              </li>
-            </ol>
-            <div class="callout">
-              Scheduled backups run while NomadSF is open; a missed one runs once when you open it. Encrypted backups
-              can only be read with the passphrase — it cannot be recovered. In VS Code the folder is chosen with VS
-              Code's folder picker.
-            </div>
-          </section>
-          <section class="tool" data-title="Restore">
-            <h3 id="restore">Restore</h3>
-            <p>Open a run under <b>Backups &amp; restore</b>, tick the objects and <b>Compare with the org</b>:</p>
-            <ul>
-              <li><b>Changed since the backup</b>: tick values and <b>Put back</b>.</li>
-              <li>
-                <b>Deleted since the backup</b>: tick records and <b>Bring back</b>. Records still in the recycle bin
-                are undeleted with their Id; the others are created again, with the deleted records they point to, their
-                files, and the records that pointed to them re-linked.
-              </li>
-            </ul>
-          </section>
-          <section class="tool" data-title="Lifecycle">
-            <h3 id="lifecycle">Lifecycle</h3>
-            <div class="shot">
-              <video
-                src="media/lifecycle.mp4"
-                poster="media/lifecycle.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              Jobs in steps on one org: <b>Back up</b>, <b>Check</b> (stop above a limit), <b>Archive</b> (into a backup
-              folder, read back, then delete), <b>Anonymize</b> (personal fields in place), <b>Delete</b>. Start from a
-              template (retention, sandbox refresh, backup then archive) or an empty job, and schedule it like a backup.
-            </p>
-            <ul>
-              <li><b>Dry run</b> only counts.</li>
-              <li>
-                <b>Run now</b> stops before the first step that changes data and asks for approval, showing what the
-                steps before it found. You can turn approval off per job; then put a Check step first.
-              </li>
-              <li>Every run keeps a report: matched, changed, failed, who approved.</li>
-            </ul>
           </section>
         </section>
 
@@ -628,6 +809,10 @@
           <h2 id="release">Release</h2>
           <section class="tool" data-title="Project">
             <h3 id="project">Project</h3>
+            <p class="tool-lead">
+              Your Salesforce project next to the org: what differs, bring org changes in, deploy project changes out.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
                 src="media/project.mp4"
@@ -668,9 +853,18 @@
                 validation. Code deploys straight from the browser; other metadata needs the CLI app.
               </li>
             </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Choose the project once in <a href="#settings">Settings</a>; every page uses it.</li>
+                <li>Deploys and deletes ask first; a validation never changes the org.</li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="Metadata">
             <h3 id="metadata">Metadata</h3>
+            <p class="tool-lead">Build a package (or a delete package) from any metadata of the org.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
             <div class="shot">
               <video
                 src="media/metadata.mp4"
@@ -700,9 +894,20 @@
                 to use.
               </li>
             </ol>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Nothing is deployed from here: you download the zip or the manifest and deploy it with your pipeline,
+                  or from <a href="#orgdiff">Org compare</a>.
+                </li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="Deployments">
             <h3 id="deployments">Deployments</h3>
+            <p class="tool-lead">The org’s deployments and validations, their failures, and quick deploy.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
                 src="media/deployments.mp4"
@@ -719,9 +924,20 @@
               its component and test failures. A validation that succeeded with tests in the last 10 days can be
               <b>Quick deployed</b> from here (you type the org name).
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Quick deploy works for a validation that ran tests and succeeded in the last 10 days, with no change
+                  in the org since.
+                </li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="E2E tests">
             <h3 id="tests">E2E tests</h3>
+            <p class="tool-lead">Playwright scenarios of your project against the org (CLI app only).</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <p>
               Playwright scenarios of your project, run against the org by the CLI app (logged in through the frontdoor
               URL), with the HTML report. The page shows how to set Playwright up if the project has none.
@@ -733,6 +949,10 @@
           <h2 id="people">Access</h2>
           <section class="tool" data-title="Users">
             <h3 id="access">Users</h3>
+            <p class="tool-lead">
+              A user and everything they have: details, permission sets, permissions, groups, licenses, apps and logins.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
                 src="media/access.mp4"
@@ -771,9 +991,31 @@
               permissions, groups and queues, licenses, OAuth apps and login history — a sheet each (⤓ takes only the
               tab on screen).
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Every add or remove asks for the org name first, and shows straight away.</li>
+                <li>
+                  <b>Everything (workbook)</b> saves every tab of the user, a sheet each — ⤓ takes only the tab on
+                  screen.
+                </li>
+                <li>
+                  <b>Snapshot</b> compare says up front which permission sets, groups and licenses the org lacks; when
+                  the snapshot’s org is connected, <b>Create them from …</b> copies them over first.
+                </li>
+                <li>
+                  To copy a user and only some of their access to another org, use
+                  <a href="#record">Record › Related</a> on the user.
+                </li>
+              </ul>
+            </div>
           </section>
-          <section class="tool" data-title="Permission sets &amp; groups">
+          <section class="tool" data-title="Permission sets">
             <h3 id="permsets">Permission sets &amp; groups</h3>
+            <p class="tool-lead">
+              Permission sets and permission set groups: who has one, assign or remove it, create one.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
                 src="media/permsets.mp4"
@@ -791,9 +1033,21 @@
               <b>New permission set / New permission set group</b> creates one (label and API name), ready for
               Permissions.
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Assign by usernames, a profile, a role or a public group, with an expiry date if you like.</li>
+                <li>
+                  A permission set group’s permissions come from its permission sets: change them in
+                  <a href="#permissions">Permissions</a>.
+                </li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="Permissions">
             <h3 id="permissions">Permissions</h3>
+            <p class="tool-lead">What a profile, permission set or group allows — and change it.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
                 src="media/permedit.mp4"
@@ -844,9 +1098,40 @@
               <b>Clone…</b> copies a profile (to a new custom profile with the same license), a permission set or a
               permission set group under a new name; nobody is assigned.
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Standard profiles cannot be edited (only their login IP ranges); clone one first.</li>
+                <li>Changes are only sent on <b>Save</b>, which asks first and lists anything that failed.</li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Custom permissions">
+            <h3 id="custperms">Custom permissions</h3>
+            <p class="tool-lead">Custom permissions: who gives each one, grant it, create a new one.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <p>
+              Every custom permission and the permission sets, profiles and groups that give it; grant it to another
+              permission set or profile, or remove a grant. <b>New custom permission…</b> creates one (Metadata API) and
+              grants it at once to the permission sets and profiles you tick.
+            </p>
+          </section>
+          <section class="tool" data-title="Groups &amp; queues">
+            <h3 id="groups">Groups &amp; queues</h3>
+            <p class="tool-lead">Public groups and queues with their members; add or remove members.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <p>
+              Every public group and queue, with its members (users, roles, roles and subordinates, other groups) and
+              the objects a queue can own. Choose one to add members (first choose what: a user, a public group, a role
+              or a role and its subordinates) or remove them.
+            </p>
           </section>
           <section class="tool" data-title="Assigned users">
             <h3 id="assigned">Assigned users</h3>
+            <p class="tool-lead">
+              The users of a permission set, group, license, profile, role, public group or queue.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video src="media/who.mp4" poster="media/who.jpg" muted loop playsinline preload="none" controls></video>
             </div>
@@ -855,25 +1140,76 @@
               — and see its users (active only, or all). Click a user to <b>Remove</b> them from it, or, for a profile
               or role, <b>Move</b> them to another one.
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Move people from one profile or role to another here (it asks first).</li>
+              </ul>
+            </div>
           </section>
-          <section class="tool" data-title="Groups &amp; queues">
-            <h3 id="groups">Groups &amp; queues</h3>
+          <section class="tool" data-title="Object access">
+            <h3 id="objectaccess">Object access</h3>
+            <p class="tool-lead">Who can use an object (or a field), and through what.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/objectaccess.mp4"
+                poster="media/objectaccess.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <p>
-              Every public group and queue, with its members (users, roles, roles and subordinates, other groups) and
-              the objects a queue can own. Choose one to add members (first choose what: a user, a public group, a role
-              or a role and its subordinates) or remove them.
+              Choose an object (and a field, if you like): every active user who can read, create, edit, delete, view
+              all or modify all of it (and read or edit the field), and <b>through what</b> — their profile, a
+              permission set, a group, or View All Data / Modify All Data. Which records each user sees also depends on
+              sharing.
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>This is access to the object; which records each user sees also depends on sharing.</li>
+              </ul>
+            </div>
           </section>
-          <section class="tool" data-title="Custom permissions">
-            <h3 id="custperms">Custom permissions</h3>
+          <section class="tool" data-title="Overview">
+            <h3 id="accessmap">Overview (everyone’s access)</h3>
+            <p class="tool-lead">Every user and what they have, in one table with a ✓ per powerful permission.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/accessmap.mp4"
+                poster="media/accessmap.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <p>
-              Every custom permission and the permission sets, profiles and groups that give it; grant it to another
-              permission set or profile, or remove a grant. <b>New custom permission…</b> creates one (Metadata API) and
-              grants it at once to the permission sets and profiles you tick.
+              Every user (active only, or all) in one table: profile, role, license, permission sets, permission set
+              groups, permission set licenses, last login, and a ✓ for each powerful permission they get from any source
+              — Modify All Data, View All Data, Manage Users, Author Apex, Customize Application, API Enabled, Export
+              Reports. Filter a column with ✓ to see who has it; download it as CSV.
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Filter a column with ✓ (for example Modify All Data) to see who has it; download it for an access
+                  review.
+                </li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="Compare">
             <h3 id="compare">Compare</h3>
+            <p class="tool-lead">Two users, profiles, permission sets or groups side by side.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
             <div class="shot">
               <video
                 src="media/compare.mp4"
@@ -899,49 +1235,17 @@
               </li>
             </ul>
             <p>To compare with another org, use <a href="#orgaccess">Org to org › Access</a>.</p>
-          </section>
-          <section class="tool" data-title="Overview">
-            <h3 id="accessmap">Overview (everyone’s access)</h3>
-            <div class="shot">
-              <video
-                src="media/accessmap.mp4"
-                poster="media/accessmap.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>To compare with another org, use <a href="#orgaccess">Org to org › Access</a>.</li>
+              </ul>
             </div>
-            <p>
-              Every user (active only, or all) in one table: profile, role, license, permission sets, permission set
-              groups, permission set licenses, last login, and a ✓ for each powerful permission they get from any source
-              — Modify All Data, View All Data, Manage Users, Author Apex, Customize Application, API Enabled, Export
-              Reports. Filter a column with ✓ to see who has it; download it as CSV.
-            </p>
-          </section>
-          <section class="tool" data-title="Object access">
-            <h3 id="objectaccess">Object access</h3>
-            <div class="shot">
-              <video
-                src="media/objectaccess.mp4"
-                poster="media/objectaccess.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              Choose an object (and a field, if you like): every active user who can read, create, edit, delete, view
-              all or modify all of it (and read or edit the field), and <b>through what</b> — their profile, a
-              permission set, a group, or View All Data / Modify All Data. Which records each user sees also depends on
-              sharing.
-            </p>
           </section>
           <section class="tool" data-title="Your access">
             <h3 id="myaccess">Your access</h3>
+            <p class="tool-lead">What your own user may do here, tool by tool.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
             <div class="shot">
               <video
                 src="media/myaccess.mp4"
@@ -963,6 +1267,12 @@
               permissions, or <i>Author Apex</i> to save code. Salesforce still has the last word: anything else it
               refuses is shown as it comes.
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>When a tool is empty or refused, look here first: it names the permission your user is missing.</li>
+              </ul>
+            </div>
           </section>
         </section>
 
@@ -970,35 +1280,19 @@
           <h2 id="org">Org</h2>
           <section class="tool" data-title="Company">
             <h3 id="company">Company information</h3>
+            <p class="tool-lead">
+              Everything Salesforce keeps about the org: Ids, edition, instance, locale, currency and fiscal year.
+            </p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
             <p>
               Everything Salesforce keeps about the org: name and address, org Id, edition, instance, sandbox or not,
               locale, time zone, currency, fiscal year and defaults — grouped, with only filled fields by default.
             </p>
           </section>
-          <section class="tool" data-title="Connected apps">
-            <h3 id="apps">Connected apps</h3>
-            <div class="shot">
-              <video
-                src="media/apps.mp4"
-                poster="media/apps.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              Connected apps, external client apps, and every app people sign in to with OAuth (including tools such as
-              the Salesforce CLI): users, tokens, uses and last use per app. The four counts at the top are buttons:
-              <b>connected apps</b>, <b>external client apps</b>, <b>users with OAuth tokens</b> (click one for their
-              tokens) and <b>OAuth tokens</b>. Click a connected app for its users, its settings and the profiles and
-              permission sets that are <b>pre-authorized</b> to use it (add or remove them). Tick tokens and
-              <b>Revoke</b> them (you type the org name).
-            </p>
-          </section>
           <section class="tool" data-title="Org health">
             <h3 id="health">Org health</h3>
+            <p class="tool-lead">Risky access, unused things and licenses of the org at a glance.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
             <div class="shot">
               <video
                 src="media/health.mp4"
@@ -1021,9 +1315,17 @@
                 <b>Licenses</b>: every user license and permission set license, used of total; click one for its users.
               </li>
             </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Each number is a list: click it for the users, permission sets or tokens behind it.</li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="Limits">
             <h3 id="limits">Limits</h3>
+            <p class="tool-lead">The org’s limits and storage, and deleting old records by date.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
                 src="media/limits.mp4"
@@ -1041,13 +1343,24 @@
               their size). Click an object, choose dates and <b>Count</b> the records created then; <b>Delete them…</b>
               removes them with the Bulk API (you type the org name; back them up first if you may need them).
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  <b>Delete them…</b> uses the Bulk API and asks first. Back the records up with
+                  <a href="#backup">Backup</a> if you may need them.
+                </li>
+              </ul>
+            </div>
           </section>
-          <section class="tool" data-title="Activity">
-            <h3 id="activity">Activity</h3>
+          <section class="tool" data-title="Connected apps">
+            <h3 id="apps">Connected apps</h3>
+            <p class="tool-lead">Connected apps, external client apps and every app people sign in to with OAuth.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
-                src="media/activity.mp4"
-                poster="media/activity.jpg"
+                src="media/apps.mp4"
+                poster="media/apps.jpg"
                 muted
                 loop
                 playsinline
@@ -1055,10 +1368,25 @@
                 controls
               ></video>
             </div>
-            <p>Every change made from NomadSF in this browser (and, in the CLI app, the project's shared log).</p>
+            <p>
+              Connected apps, external client apps, and every app people sign in to with OAuth (including tools such as
+              the Salesforce CLI): users, tokens, uses and last use per app. The four counts at the top are buttons:
+              <b>connected apps</b>, <b>external client apps</b>, <b>users with OAuth tokens</b> (click one for their
+              tokens) and <b>OAuth tokens</b>. Click a connected app for its users, its settings and the profiles and
+              permission sets that are <b>pre-authorized</b> to use it (add or remove them). Tick tokens and
+              <b>Revoke</b> them (you type the org name).
+            </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Revoking a token signs that person out of the app; they sign in again to get a new one.</li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="Logins &amp; audit">
             <h3 id="audit">Logins &amp; audit</h3>
+            <p class="tool-lead">Login history and the setup audit trail.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
             <div class="shot">
               <video
                 src="media/audit.mp4"
@@ -1074,6 +1402,138 @@
               <b>Login history</b> (1–180 days, with usernames) and the <b>Setup audit trail</b> (7–180 days) of the
               org. Long text in a cell shows in full when you hover it.
             </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Hover a cell for its full text. Salesforce keeps the audit trail for 180 days.</li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Activity">
+            <h3 id="activity">Activity</h3>
+            <p class="tool-lead">Every change made from NomadSF in this browser.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/activity.mp4"
+                poster="media/activity.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>Every change made from NomadSF in this browser (and, in the CLI app, the project's shared log).</p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  It is kept in this browser only. For what anyone changed in setup, see
+                  <a href="#audit">Logins &amp; audit</a>.
+                </li>
+              </ul>
+            </div>
+          </section>
+        </section>
+
+        <section class="hub" id="hub-protect" data-title="Data protection">
+          <h2 id="protect">Data protection</h2>
+          <section class="tool" data-title="Backup">
+            <h3 id="backup">Backup</h3>
+            <p class="tool-lead">
+              Back up records to a folder on your computer, now or on a schedule; restore them later.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/backup.mp4"
+                poster="media/backup.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ol class="steps">
+              <li><b>+ New</b>, give it a name and choose the org.</li>
+              <li>
+                <b>What to back up</b>: objects you pick (tick them, type their names, or ✦ describe them), or all
+                custom / standard / all objects. Per object, a condition (which records) and the fields (all, only
+                these, all except these). <b>Count records</b> shows the size first.
+              </li>
+              <li>
+                <b>Settings</b>: incremental runs after the first full one, a schedule (daily, weekly, or every N hours,
+                days, weeks or months), the folder on your computer, files and attachments, and encryption with a
+                passphrase.
+              </li>
+              <li>
+                <b>Back up now</b>. Each run is a folder with a CSV per object and a manifest;
+                <b>Download as zip</b> works without a folder. <b>Backups &amp; restore</b> lists the runs.
+              </li>
+            </ol>
+            <div class="callout">
+              Scheduled backups run while NomadSF is open; a missed one runs once when you open it. Encrypted backups
+              can only be read with the passphrase — it cannot be recovered. In VS Code the folder is chosen with VS
+              Code's folder picker.
+            </div>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Backups only read the org. Restoring writes, and asks first.</li>
+                <li>An encrypted backup can only be read with its passphrase: it cannot be recovered.</li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Restore">
+            <h3 id="restore">Restore</h3>
+            <p class="tool-lead">Put back changed values and bring back deleted records from a backup run.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <p>Open a run under <b>Backups &amp; restore</b>, tick the objects and <b>Compare with the org</b>:</p>
+            <ul>
+              <li><b>Changed since the backup</b>: tick values and <b>Put back</b>.</li>
+              <li>
+                <b>Deleted since the backup</b>: tick records and <b>Bring back</b>. Records still in the recycle bin
+                are undeleted with their Id; the others are created again, with the deleted records they point to, their
+                files, and the records that pointed to them re-linked.
+              </li>
+            </ul>
+          </section>
+          <section class="tool" data-title="Lifecycle">
+            <h3 id="lifecycle">Lifecycle</h3>
+            <p class="tool-lead">Jobs in steps: back up, check, archive, anonymize, delete — on a schedule.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/lifecycle.mp4"
+                poster="media/lifecycle.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              Jobs in steps on one org: <b>Back up</b>, <b>Check</b> (stop above a limit), <b>Archive</b> (into a backup
+              folder, read back, then delete), <b>Anonymize</b> (personal fields in place), <b>Delete</b>. Start from a
+              template (retention, sandbox refresh, backup then archive) or an empty job, and schedule it like a backup.
+            </p>
+            <ul>
+              <li><b>Dry run</b> only counts.</li>
+              <li>
+                <b>Run now</b> stops before the first step that changes data and asks for approval, showing what the
+                steps before it found. You can turn approval off per job; then put a Check step first.
+              </li>
+              <li>Every run keeps a report: matched, changed, failed, who approved.</li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Start with <b>Dry run</b>: it only counts.</li>
+              </ul>
+            </div>
           </section>
         </section>
 
@@ -1081,6 +1541,8 @@
           <h2 id="between">Org to org</h2>
           <section class="tool" data-title="Two orgs">
             <h3 id="pair">Two orgs, A → B</h3>
+            <p class="tool-lead">The two orgs every Org to org tool works on: A (from) and B (into).</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
             <p>
               The tools that work on two orgs share one pair, chosen in the bar at the top of each: <b>A</b> (compare
               from, copy from) and <b>B</b> (compare with, copy and deploy into). <b>⇄</b> swaps them. The pair is
@@ -1094,39 +1556,12 @@
               difference; copying into B is turned off when your user there can't change permissions.
             </p>
           </section>
-          <section class="tool" data-title="Org compare">
-            <h3 id="orgdiff">Org compare</h3>
-            <div class="shot">
-              <video
-                src="media/orgdiff.mp4"
-                poster="media/orgdiff.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              A (the source) and B (the target) side by side — sandbox ↔ sandbox, or ↔ production: choose the metadata
-              types and <b>Compare</b>. See what is only in A, only in B, or different, and <b>Compare content</b> of
-              those in both.
-            </p>
-            <ol class="steps">
-              <li>Tick what to move (<b>Select the difference</b> ticks everything only in A or different).</li>
-              <li>
-                <b>Build package</b> retrieves the ticked components from A into a zip with
-                <code>package.xml</code> (and <code>destructiveChangesPost.xml</code> with <i>also delete</i>, for those
-                only in B).
-              </li>
-              <li>
-                Download it, or validate, deploy and quick deploy it into B with a test level — you type B's name, and a
-                production B is shown in red.
-              </li>
-            </ol>
-          </section>
           <section class="tool" data-title="Migrate">
             <h3 id="migrate">Migrate</h3>
+            <p class="tool-lead">
+              Copy records from an org, a backup or a workbook into another org, keeping every link between them.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
                 src="media/migrate.mp4"
@@ -1190,9 +1625,61 @@
                 <code>NomadSF_Old_Id__c</code> remembers each source Id; remove it afterwards with one click.
               </li>
             </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li><b>Check plan</b> reads only; nothing is written until <b>Copy</b>, which asks for B’s name.</li>
+                <li>
+                  From files: open ▸ on a sheet to tick only the rows you want; press <b>Use these files</b> again after
+                  changing the ticks.
+                </li>
+                <li>
+                  An object set to <i>Related to the ones above</i> takes only the records whose parent is copied; set
+                  it to <i>All</i> to copy it on its own.
+                </li>
+                <li>For one record and what hangs under it, <a href="#record">Record › Related</a> is quicker.</li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Org compare">
+            <h3 id="orgdiff">Org compare</h3>
+            <p class="tool-lead">
+              Metadata of A and B side by side; build a package of the difference and deploy it into B.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/orgdiff.mp4"
+                poster="media/orgdiff.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              A (the source) and B (the target) side by side — sandbox ↔ sandbox, or ↔ production: choose the metadata
+              types and <b>Compare</b>. See what is only in A, only in B, or different, and <b>Compare content</b> of
+              those in both.
+            </p>
+            <ol class="steps">
+              <li>Tick what to move (<b>Select the difference</b> ticks everything only in A or different).</li>
+              <li>
+                <b>Build package</b> retrieves the ticked components from A into a zip with
+                <code>package.xml</code> (and <code>destructiveChangesPost.xml</code> with <i>also delete</i>, for those
+                only in B).
+              </li>
+              <li>
+                Download it, or validate, deploy and quick deploy it into B with a test level — you type B's name, and a
+                production B is shown in red.
+              </li>
+            </ol>
           </section>
           <section class="tool" data-title="Access">
             <h3 id="orgaccess">Access</h3>
+            <p class="tool-lead">Users and permissions in two orgs: find, compare, copy access from A into B.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
                 src="media/orgaccess.mp4"
@@ -1230,6 +1717,8 @@
           </section>
           <section class="tool" data-title="Connected apps">
             <h3 id="orgapps">Connected apps</h3>
+            <p class="tool-lead">Connected apps in two orgs, and the people who use them in each.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
             <div class="shot">
               <video
                 src="media/orgapps.mp4"
@@ -1250,6 +1739,215 @@
           </section>
         </section>
 
+        <section class="hub" id="hub-scenarios" data-title="Scenarios">
+          <section class="tool" data-title="All scenarios">
+            <h2 id="scenarios">Scenarios</h2>
+            <p class="tool-lead">Everyday jobs that take a few tabs of NomadSF, step by step.</p>
+            <ul>
+              <li><a href="#scenario-seed-sandbox">Seed a sandbox with one customer</a></li>
+              <li><a href="#scenario-new-starter">Give a new starter the same access as a colleague</a></li>
+              <li><a href="#scenario-user-to-sandbox">Set up a user in a fresh sandbox exactly as in production</a></li>
+              <li><a href="#scenario-failed-load">Fix a data load that failed</a></li>
+              <li><a href="#scenario-spreadsheet-update">Update the org from a spreadsheet someone sent you</a></li>
+              <li><a href="#scenario-sensitive-field">Find who can see a sensitive field</a></li>
+              <li><a href="#scenario-change-class">Change a class safely</a></li>
+              <li><a href="#scenario-sandbox-to-prod">Move changes from a sandbox to production</a></li>
+              <li><a href="#scenario-save-fails">Find out why saving a record fails</a></li>
+              <li><a href="#scenario-clean-up-data">Free up storage safely</a></li>
+            </ul>
+          </section>
+          <section class="tool" data-title="Seed a sandbox">
+            <h3 id="scenario-seed-sandbox">Seed a sandbox with one customer</h3>
+            <p class="tool-lead">
+              A tester needs one real-looking Account with its Contacts and Cases in a sandbox — without copying all
+              your data.
+            </p>
+            <ol class="steps">
+              <li>In production, open the Account in <a href="#record">Data › Record</a> and choose <b>Related</b>.</li>
+              <li>Tick <b>Contacts</b> and <b>Cases</b> (all of them), or press ▸ to tick only some.</li>
+              <li>
+                Choose the sandbox under <b>Copy into</b>, keep <b>Mask personal data</b> on, press <b>Copy</b> and type
+                the sandbox’s name.
+              </li>
+              <li>
+                Check the records in the sandbox. Wrong choice? <b>Undo this copy</b> deletes exactly what was created.
+              </li>
+            </ol>
+            <div class="callout">
+              For many Accounts at once (the newest 100, with their Contacts), use
+              <a href="#migrate">Org to org › Migrate</a> with a limit and <i>Related to the ones above</i>.
+            </div>
+          </section>
+          <section class="tool" data-title="New starter’s access">
+            <h3 id="scenario-new-starter">Give a new starter the same access as a colleague</h3>
+            <p class="tool-lead">A new person joins a team and needs what their colleague has — no more.</p>
+            <ol class="steps">
+              <li>
+                <a href="#compare">Access › Compare</a>: <b>Two users</b>, the colleague and the new starter. The
+                differences are listed per tab.
+              </li>
+              <li>
+                In <a href="#access">Access › Users</a>, open the new starter and add the missing permission sets,
+                groups and queues (each asks for the org name).
+              </li>
+              <li>Compare again: it should only show what is personal (name, e-mail, logins).</li>
+            </ol>
+            <div class="callout">
+              To give the same access in another org, open the colleague in <a href="#record">Record</a> ›
+              <b>Related</b>, tick their permission sets and groups, and copy into that org (the user is created there
+              if missing).
+            </div>
+          </section>
+          <section class="tool" data-title="User in a new sandbox">
+            <h3 id="scenario-user-to-sandbox">Set up a user in a fresh sandbox exactly as in production</h3>
+            <p class="tool-lead">
+              After a sandbox refresh, a tester must have the same profile, role and access as in production.
+            </p>
+            <ol class="steps">
+              <li>
+                In production, <a href="#access">Access › Users</a>: find the user and <b>Save snapshot (CSV)</b>.
+              </li>
+              <li>
+                Switch to the sandbox. With no user chosen, <b>Compare a snapshot with this org…</b> and pick the file.
+              </li>
+              <li>
+                If it lists permission sets or licenses the sandbox lacks, press <b>Create them from production</b> (or
+                deploy them first).
+              </li>
+              <li>
+                If the user is not there, <b>Create the user…</b> with a new username; otherwise tick the differences
+                and <b>Make the user match the snapshot</b>.
+              </li>
+            </ol>
+            <div class="callout">No welcome e-mail is sent to users created this way.</div>
+          </section>
+          <section class="tool" data-title="Fix a failed load">
+            <h3 id="scenario-failed-load">Fix a data load that failed</h3>
+            <p class="tool-lead">You imported 2,000 Contacts and 140 failed.</p>
+            <ol class="steps">
+              <li>
+                In <a href="#data-tool">Import / Update / Delete</a>, read <b>What it means</b> next to each failure (or
+                open the <b>Failures CSV</b> — it has the same columns).
+              </li>
+              <li>
+                Missing or wrong lookups? Use <a href="#lookup">Lookup</a> on the failures file to turn Account names
+                into AccountId.
+              </li>
+              <li>
+                Duplicates? Update the existing records instead: Upsert on an External ID, or turn the duplicate rule
+                off for the load.
+              </li>
+              <li>Load only the fixed rows again; the summary shows what succeeded.</li>
+            </ol>
+          </section>
+          <section class="tool" data-title="Update from a spreadsheet">
+            <h3 id="scenario-spreadsheet-update">Update the org from a spreadsheet someone sent you</h3>
+            <p class="tool-lead">
+              A colleague sends a spreadsheet of Accounts with corrected phone numbers and industries.
+            </p>
+            <ol class="steps">
+              <li>
+                <a href="#csvcompare">Data › Compare with CSV</a>: choose the file and the object, and match on a field
+                both sides share (an External ID, or the name).
+              </li>
+              <li>Read the differences field by field: org now → spreadsheet.</li>
+              <li>Untick rows you don’t want, then <b>Make the org match the CSV</b> (it asks first).</li>
+            </ol>
+            <div class="callout">Never match on Ids from another org: an Id belongs to one org.</div>
+          </section>
+          <section class="tool" data-title="Who sees a field">
+            <h3 id="scenario-sensitive-field">Find who can see a sensitive field</h3>
+            <p class="tool-lead">Security asks who can read the Salary field on Contact.</p>
+            <ol class="steps">
+              <li>
+                <a href="#objectaccess">Access › Object access</a>: choose Contact and the Salary field,
+                <b>Show who</b>. Each user is listed with what gives them access.
+              </li>
+              <li>
+                <a href="#accessmap">Access › Overview</a>: filter <i>View All Data</i> and <i>Modify All Data</i> —
+                those users see every field too.
+              </li>
+              <li>
+                Remove access where it should not be, in <a href="#permissions">Permissions</a> (Edit… › Field access).
+              </li>
+              <li>
+                <a href="#health">Org › Org health</a> lists everyone with powerful permissions, to review regularly.
+              </li>
+            </ol>
+          </section>
+          <section class="tool" data-title="Change a class">
+            <h3 id="scenario-change-class">Change a class safely</h3>
+            <p class="tool-lead">You need to change an Apex class and want to know what else to test.</p>
+            <ol class="steps">
+              <li>
+                <a href="#code">Develop › Code</a>: open the class and press <b>Dependencies</b>: <i>Used by</i> lists
+                the classes, triggers, pages and flows that use it.
+              </li>
+              <li>Make the change and <b>Compile only</b> to find errors without saving.</li>
+              <li>
+                <a href="#apextests">Apex tests</a>: tick the test classes of what uses it (and the class’s own), and
+                <b>Run</b>. Check the coverage.
+              </li>
+              <li>
+                Deploy it: from your project (<a href="#project">Release › Project</a>) or from a sandbox with
+                <a href="#orgdiff">Org compare</a>.
+              </li>
+            </ol>
+          </section>
+          <section class="tool" data-title="Sandbox to production">
+            <h3 id="scenario-sandbox-to-prod">Move changes from a sandbox to production</h3>
+            <p class="tool-lead">A feature is finished in a sandbox and must go to production.</p>
+            <ol class="steps">
+              <li>
+                <a href="#orgdiff">Org to org › Org compare</a>: A = the sandbox, B = production. Choose the types and
+                <b>Compare</b>.
+              </li>
+              <li>
+                Tick what belongs to the feature (<b>Select the difference</b> ticks all of it), then
+                <b>Build package</b>.
+              </li>
+              <li>
+                Validate it into B with the test level you need — production is shown in red and asks for its name.
+              </li>
+              <li>Later, <b>Quick deploy</b> the validation from <a href="#deployments">Release › Deployments</a>.</li>
+            </ol>
+          </section>
+          <section class="tool" data-title="Why a save fails">
+            <h3 id="scenario-save-fails">Find out why saving a record fails</h3>
+            <p class="tool-lead">Users report “an error occurred” when they save a Case.</p>
+            <ol class="steps">
+              <li>
+                <a href="#automation">Develop › Automation</a>: choose Case — every validation rule, flow and trigger
+                that runs on save, in order, with its message.
+              </li>
+              <li>
+                <a href="#logs">Debug logs</a>: <b>On 30 min</b>, save the Case again, open the new log (✦ explains it).
+              </li>
+              <li>
+                <a href="#record">Record</a> › <b>History</b> shows what changed on the record and who changed it.
+              </li>
+            </ol>
+          </section>
+          <section class="tool" data-title="Free up storage">
+            <h3 id="scenario-clean-up-data">Free up storage safely</h3>
+            <p class="tool-lead">The org is close to its data storage limit.</p>
+            <ol class="steps">
+              <li>
+                <a href="#limits">Org › Limits</a> › Storage: the objects using the most, with an estimate of their
+                size.
+              </li>
+              <li>
+                Back up what you will delete with <a href="#backup">Backup</a> (a condition such as
+                <code>CreatedDate &lt; LAST_N_YEARS:3</code>).
+              </li>
+              <li>
+                Delete by date from Storage, or set up a <a href="#lifecycle">Lifecycle</a> job (archive, then delete)
+                and run it as a <b>Dry run</b> first.
+              </li>
+            </ol>
+          </section>
+        </section>
+
         <section class="hub" id="hub-setup" data-title="Settings">
           <section class="tool" data-title="Settings">
             <h2 id="settings">Settings</h2>
@@ -1267,8 +1965,7 @@
             <p>
               <b>Org</b>: the orgs you are logged in to. <b>Project</b>: a folder on this computer or a GitHub
               repository and branch. <b>AI</b> (browser extension): your own provider for the ✦ buttons — in the CLI app
-              it is on the app's AI page. <b>NomadSF CLI app</b> (optional): connect the extension to the local app for
-              CLI orgs and deploys.
+              it is on the app's AI page.
             </p>
           </section>
           <section class="tool" data-title="AI">
