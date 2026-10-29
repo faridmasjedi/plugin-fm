@@ -21,7 +21,7 @@ export function CompanyPage() {
     <div className="page">
       <div className="toolbar">
         <h2>Company information</h2>
-        <span className="muted">{org.label}</span>
+        <span className="muted">Company and org information of {org.label}</span>
         <span className="grow" />
         <label className="check">
           <input type="checkbox" checked={onlyFilled} onChange={(e) => setOnlyFilled(e.target.checked)} /> Only fields

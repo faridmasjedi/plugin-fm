@@ -421,6 +421,7 @@ function UserPicker({
         <span className="form">
           <input
             placeholder="Name, username or email"
+            style={{ minWidth: 280 }}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && matches?.length === 1 && onChange(matches[0])}

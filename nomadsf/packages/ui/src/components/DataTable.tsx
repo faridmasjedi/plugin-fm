@@ -147,15 +147,16 @@ export function DataTable({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
-        <span className="muted">
+        <span className="muted dt-count">
           {visible.length.toLocaleString()} of {rows.length.toLocaleString()} rows {note}
         </span>
-        <span className="grow" />
-        <button onClick={() => navigator.clipboard.writeText(toTsv())}>Copy</button>
-        <button onClick={() => download(`${name}.csv`, toCsv(), 'text/csv')}>CSV</button>
-        <button onClick={() => download(`${name}.json`, JSON.stringify(visible, null, 2), 'application/json')}>
-          JSON
-        </button>
+        <span className="dt-actions">
+          <button onClick={() => navigator.clipboard.writeText(toTsv())}>Copy</button>
+          <button onClick={() => download(`${name}.csv`, toCsv(), 'text/csv')}>CSV</button>
+          <button onClick={() => download(`${name}.json`, JSON.stringify(visible, null, 2), 'application/json')}>
+            JSON
+          </button>
+        </span>
       </div>
       <div className="dt-wrap">
         <table>

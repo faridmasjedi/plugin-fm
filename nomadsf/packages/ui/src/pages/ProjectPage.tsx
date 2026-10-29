@@ -34,6 +34,7 @@ export function ProjectPage({
     <div className="page">
       <div className="toolbar">
         <h2>Project</h2>
+        {!source && <span className="muted">Your Salesforce project, next to the org</span>}
         {source && (
           <span className="muted">
             <b>{source.name}</b> · {{ local: 'NomadSF app', folder: 'Folder', github: 'GitHub' }[source.kind]}

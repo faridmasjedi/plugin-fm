@@ -118,7 +118,7 @@ export function ObjectAccessPage() {
       <div className="card form">
         <label>
           Object
-          <select value={object} onChange={(e) => setObject(e.target.value)} style={{ minWidth: 260 }}>
+          <select value={object} onChange={(e) => setObject(e.target.value)} style={{ width: 320 }}>
             {!objects.some((o) => o.name === object) && <option value={object}>{object}</option>}
             {objects.map((o) => (
               <option key={o.name} value={o.name}>
@@ -129,7 +129,7 @@ export function ObjectAccessPage() {
         </label>
         <label>
           Field (optional)
-          <select value={field} onChange={(e) => setField(e.target.value)} style={{ minWidth: 240 }}>
+          <select value={field} onChange={(e) => setField(e.target.value)} style={{ width: 320 }}>
             <option value="">—</option>
             {fields.map((f) => (
               <option key={f.name} value={f.name}>

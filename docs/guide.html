@@ -142,15 +142,11 @@
               </tr>
               <tr>
                 <td><b>Develop</b></td>
-                <td>Execute Apex · Code · Apex tests · Debug Logs · Automation · Jobs</td>
+                <td>Code · Execute Apex · Apex tests · Debug logs · Jobs · Automation · Events · REST Explorer</td>
               </tr>
               <tr>
                 <td><b>Data</b></td>
-                <td>Query · Record · Import / Update / Delete · Lookup · Schema · Field usage</td>
-              </tr>
-              <tr>
-                <td><b>Data protection</b></td>
-                <td>Backup (with Restore) · Lifecycle</td>
+                <td>Query · Record · Import / Update / Delete · Compare with CSV · Lookup · Schema · Field usage</td>
               </tr>
               <tr>
                 <td><b>Release</b></td>
@@ -159,17 +155,21 @@
               <tr>
                 <td><b>Access</b></td>
                 <td>
-                  Users · Permission sets &amp; groups · Permissions · Assigned users · Compare · Access overview ·
-                  Object access · Logins &amp; audit · Your access
+                  Users · Permission sets · Permissions · Custom permissions · Groups &amp; queues — then, to review:
+                  Assigned users · Object access · Overview · Compare · Your access
                 </td>
               </tr>
               <tr>
                 <td><b>Org</b></td>
-                <td>Connected apps · Org health · Limits · Events · REST Explorer · Activity</td>
+                <td>Company · Org health · Limits · Connected apps · Logins &amp; audit · Activity</td>
+              </tr>
+              <tr>
+                <td><b>Data protection</b></td>
+                <td>Backup (with Restore) · Lifecycle</td>
               </tr>
               <tr>
                 <td><b>Org to org</b></td>
-                <td>Org compare · Migrate · Access · Connected apps — for two orgs, A → B</td>
+                <td>Migrate · Org compare · Access · Connected apps — for two orgs, A → B</td>
               </tr>
             </table>
           </section>
@@ -265,8 +265,8 @@
               lines.
             </p>
           </section>
-          <section class="tool" data-title="Debug Logs">
-            <h3 id="logs">Debug Logs</h3>
+          <section class="tool" data-title="Debug logs">
+            <h3 id="logs">Debug logs</h3>
             <div class="shot">
               <video
                 src="media/logs.mp4"
@@ -323,6 +323,31 @@
               with its next and last run and cron expression. <b>Background Apex</b>: batch, queueable and future jobs
               of the last days with progress, errors and status. Tick jobs and <b>Stop</b> them — you type the org name
               first.
+            </p>
+          </section>
+          <section class="tool" data-title="Events">
+            <h3 id="events">Events</h3>
+            <p>
+              Subscribe to a platform event or change data capture channel — new events only, or replay the last 72
+              hours — and click an event for its payload. <b>Publish</b> a platform event (you type the org name).
+            </p>
+          </section>
+          <section class="tool" data-title="REST Explorer">
+            <h3 id="rest">REST Explorer</h3>
+            <div class="shot">
+              <video
+                src="media/rest.mp4"
+                poster="media/rest.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              Any REST call: method, path, body, the answer with its status and headers. Calls other than GET ask first.
+              ✦ describe the call in plain English.
             </p>
           </section>
         </section>
@@ -875,8 +900,8 @@
             </ul>
             <p>To compare with another org, use <a href="#orgaccess">Org to org › Access</a>.</p>
           </section>
-          <section class="tool" data-title="Access overview">
-            <h3 id="accessmap">Access overview</h3>
+          <section class="tool" data-title="Overview">
+            <h3 id="accessmap">Overview (everyone’s access)</h3>
             <div class="shot">
               <video
                 src="media/accessmap.mp4"
@@ -913,24 +938,6 @@
               all or modify all of it (and read or edit the field), and <b>through what</b> — their profile, a
               permission set, a group, or View All Data / Modify All Data. Which records each user sees also depends on
               sharing.
-            </p>
-          </section>
-          <section class="tool" data-title="Logins &amp; audit">
-            <h3 id="audit">Logins &amp; audit</h3>
-            <div class="shot">
-              <video
-                src="media/audit.mp4"
-                poster="media/audit.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              <b>Login history</b> (1–180 days, with usernames) and the <b>Setup audit trail</b> (7–180 days) of the
-              org. Long text in a cell shows in full when you hover it.
             </p>
           </section>
           <section class="tool" data-title="Your access">
@@ -1035,31 +1042,6 @@
               removes them with the Bulk API (you type the org name; back them up first if you may need them).
             </p>
           </section>
-          <section class="tool" data-title="Events">
-            <h3 id="events">Events</h3>
-            <p>
-              Subscribe to a platform event or change data capture channel — new events only, or replay the last 72
-              hours — and click an event for its payload. <b>Publish</b> a platform event (you type the org name).
-            </p>
-          </section>
-          <section class="tool" data-title="REST Explorer">
-            <h3 id="rest">REST Explorer</h3>
-            <div class="shot">
-              <video
-                src="media/rest.mp4"
-                poster="media/rest.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              Any REST call: method, path, body, the answer with its status and headers. Calls other than GET ask first.
-              ✦ describe the call in plain English.
-            </p>
-          </section>
           <section class="tool" data-title="Activity">
             <h3 id="activity">Activity</h3>
             <div class="shot">
@@ -1074,6 +1056,24 @@
               ></video>
             </div>
             <p>Every change made from NomadSF in this browser (and, in the CLI app, the project's shared log).</p>
+          </section>
+          <section class="tool" data-title="Logins &amp; audit">
+            <h3 id="audit">Logins &amp; audit</h3>
+            <div class="shot">
+              <video
+                src="media/audit.mp4"
+                poster="media/audit.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              <b>Login history</b> (1–180 days, with usernames) and the <b>Setup audit trail</b> (7–180 days) of the
+              org. Long text in a cell shows in full when you hover it.
+            </p>
           </section>
         </section>
 

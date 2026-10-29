@@ -65,7 +65,7 @@ export const TOOLS: Tool[] = [
   { id: 'apex', label: 'Execute Apex', icon: '▶', hint: 'run anonymous Apex' },
   { id: 'code', label: 'Code', icon: '{}', hint: 'Apex, triggers, Visualforce, LWC, Aura' },
   { id: 'apextests', label: 'Apex tests', icon: '◎', hint: 'run tests, code coverage' },
-  { id: 'logs', label: 'Debug Logs', icon: '☰', hint: 'logs and trace flags' },
+  { id: 'logs', label: 'Debug logs', icon: '☰', hint: 'logs and trace flags' },
   { id: 'automation', label: 'Automation', icon: '↯', hint: 'what runs when a record is saved' },
   { id: 'jobs', label: 'Jobs', icon: '⏲', hint: 'scheduled and background Apex' },
   { id: 'query', label: 'Query', icon: '⌕', hint: 'SOQL with a filterable table' },
@@ -84,19 +84,24 @@ export const TOOLS: Tool[] = [
   { id: 'deployments', label: 'Deployments', icon: '⇪', hint: 'deployment history, quick deploy' },
   { id: 'tests', label: 'E2E tests', icon: '✓', hint: 'Playwright (CLI app)' },
   { id: 'access', label: 'Users', icon: '☺', hint: 'a user and everything they have' },
-  { id: 'permsets', label: 'Permission sets & groups', icon: '▣', hint: 'who has one, assign, remove' },
+  {
+    id: 'permsets',
+    label: 'Permission sets',
+    icon: '▣',
+    hint: 'permission sets and groups: who has one, assign, remove',
+  },
   { id: 'permissions', label: 'Permissions', icon: '⚿', hint: 'what a profile, set or group allows; edit' },
   { id: 'assigned', label: 'Assigned users', icon: '☷', hint: 'users of a set, group, license, profile, role' },
   { id: 'groups', label: 'Groups & queues', icon: '◎', hint: 'public groups, queues and their members' },
   { id: 'custperms', label: 'Custom permissions', icon: '✱', hint: 'who gives each one; grant it' },
   { id: 'compare', label: 'Compare', icon: '⇆', hint: 'two users, profiles or permission sets' },
-  { id: 'accessmap', label: 'Access overview', icon: '▦', hint: 'every user and what they have' },
+  { id: 'accessmap', label: 'Overview', icon: '▦', hint: 'every user and what they have' },
   { id: 'objectaccess', label: 'Object access', icon: '⛉', hint: 'who can use an object or field' },
   { id: 'audit', label: 'Logins & audit', icon: '⌛', hint: 'login history, setup audit trail' },
   { id: 'myaccess', label: 'Your access', icon: '✓', hint: 'what your user may do here' },
   { id: 'apps', label: 'Connected apps', icon: '⚷', hint: 'connected apps, OAuth usage' },
   { id: 'health', label: 'Org health', icon: '♥', hint: 'security check, licenses' },
-  { id: 'company', label: 'Company', icon: '⌂', hint: 'company information: org Id, edition, locale, fiscal year' },
+  { id: 'company', label: 'Company', icon: '◰', hint: 'company information: org Id, edition, locale, fiscal year' },
   { id: 'limits', label: 'Limits', icon: '▤', hint: 'org limits and storage' },
   { id: 'events', label: 'Events', icon: '⚡', hint: 'platform events, CDC' },
   { id: 'rest', label: 'REST Explorer', icon: '⇄', hint: 'any REST call' },
@@ -108,18 +113,24 @@ export const TOOLS: Tool[] = [
   { id: 'local-ai', label: 'AI settings', icon: '✦', hint: 'AI of the CLI app' },
 ];
 
-export type Hub = { id: string; label: string; icon: string; tools: ToolId[] };
+/** `breakBefore`: a thin divider before these tabs (Access: changing access, then reviewing it). */
+export type Hub = { id: string; label: string; icon: string; tools: ToolId[]; breakBefore?: ToolId[] };
 
+// Most-used tab first; the order of the hubs follows the work: build, data, release, access, the org
 export const HUBS: Hub[] = [
-  { id: 'develop', label: 'Develop', icon: '{}', tools: ['apex', 'code', 'apextests', 'logs', 'automation', 'jobs'] },
+  {
+    id: 'develop',
+    label: 'Develop',
+    icon: '{}',
+    tools: ['code', 'apex', 'apextests', 'logs', 'jobs', 'automation', 'events', 'rest'],
+  },
   {
     id: 'data',
     label: 'Data',
     icon: '⇅',
-    tools: ['query', 'record', 'data', 'lookup', 'csvcompare', 'schema', 'fields'],
+    tools: ['query', 'record', 'data', 'csvcompare', 'lookup', 'schema', 'fields'],
   },
-  { id: 'protect', label: 'Data protection', icon: '⛁', tools: ['backup', 'lifecycle'] },
-  { id: 'release', label: 'Release', icon: '⌂', tools: ['project', 'metadata', 'deployments', 'tests'] },
+  { id: 'release', label: 'Release', icon: '⇡', tools: ['project', 'metadata', 'deployments', 'tests'] },
   {
     id: 'people',
     label: 'Access',
@@ -128,18 +139,19 @@ export const HUBS: Hub[] = [
       'access',
       'permsets',
       'permissions',
-      'assigned',
-      'groups',
       'custperms',
-      'compare',
-      'accessmap',
+      'groups',
+      'assigned',
       'objectaccess',
-      'audit',
+      'accessmap',
+      'compare',
       'myaccess',
     ],
+    breakBefore: ['assigned'],
   },
-  { id: 'org', label: 'Org', icon: '◈', tools: ['company', 'apps', 'health', 'limits', 'events', 'rest', 'activity'] },
-  { id: 'between', label: 'Org to org', icon: '⇋', tools: ['orgdiff', 'migrate', 'orgaccess', 'orgapps'] },
+  { id: 'org', label: 'Org', icon: '◈', tools: ['company', 'health', 'limits', 'apps', 'audit', 'activity'] },
+  { id: 'protect', label: 'Data protection', icon: '⛁', tools: ['backup', 'lifecycle'] },
+  { id: 'between', label: 'Org to org', icon: '⇋', tools: ['migrate', 'orgdiff', 'orgaccess', 'orgapps'] },
   { id: 'local', label: 'Local app', icon: '☁', tools: ['local-orgs', 'local-ai'] },
   { id: 'settings', label: 'Settings', icon: '⚙', tools: ['settings'] },
 ];
@@ -420,21 +432,24 @@ export function Panes({
                   {tools.map((t) => {
                     const meta = toolOf(t)!;
                     return (
-                      <button
-                        key={t}
-                        role="tab"
-                        className={`hub-tab ${t === tool ? 'active' : ''}`}
-                        ref={
-                          t === tool ? (el) => el?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) : undefined
-                        }
-                        title={`${meta.hint} · drag to the right to open beside`}
-                        draggable
-                        onDragStart={dragTool(t)}
-                        onClick={() => ws.show(t, i)}
-                      >
-                        <span className="icon">{meta.icon}</span>
-                        {meta.label}
-                      </button>
+                      <Fragment key={t}>
+                        {hub.breakBefore?.includes(t) && <span className="hub-tab-break" aria-hidden="true" />}
+                        <button
+                          key={t}
+                          role="tab"
+                          className={`hub-tab ${t === tool ? 'active' : ''}`}
+                          ref={
+                            t === tool ? (el) => el?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) : undefined
+                          }
+                          title={`${meta.hint} · drag to the right to open beside`}
+                          draggable
+                          onDragStart={dragTool(t)}
+                          onClick={() => ws.show(t, i)}
+                        >
+                          <span className="icon">{meta.icon}</span>
+                          {meta.label}
+                        </button>
+                      </Fragment>
                     );
                   })}
                 </div>

@@ -1810,6 +1810,11 @@ nav.side .hub-label {
 .hub-tab.active .icon {
   opacity: 1;
 }
+/* Between groups of tabs (Access: changing access, then reviewing it on its own line) */
+.hub-tab-break {
+  flex-basis: 100%;
+  height: 0;
+}
 .pane-action {
   border: 0;
   background: transparent;
@@ -2678,7 +2683,7 @@ button.working::before {
 }
 
 /* A label holding a hidden file input, looking and acting like a button */
-.form label.file-button {
+label.file-button {
   display: inline-flex;
   flex-direction: row;
   align-items: center;
@@ -2693,7 +2698,7 @@ button.working::before {
   border: 1px solid var(--border);
   border-radius: 8px;
 }
-.form label.file-button:hover {
+label.file-button:hover {
   border-color: var(--accent);
 }
 
@@ -2751,4 +2756,67 @@ input.bad-input {
 }
 .belongs-to {
   margin: 0 0 6px;
+}
+
+/* ======================================================================
+   Tidy-up pass: table bars, file pickers, page descriptions, crowded tab bars
+   ====================================================================== */
+
+/* Table bar: filter · the row count and note (wraps if long) · Copy CSV JSON kept together on the right */
+.dt-count {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+.dt-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex: none;
+  margin-left: auto;
+}
+
+/* The browser's file button, drawn like ours */
+input[type='file'] {
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-width: 100%;
+}
+input[type='file']::file-selector-button {
+  height: calc(var(--h) - 10px);
+  margin-right: 10px;
+  padding: 0 12px;
+  font: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+input[type='file']::file-selector-button:hover {
+  border-color: var(--accent);
+}
+
+/* A page's description under its tab starts with a capital ("a user and…" → "A user and…") */
+.pane-body .page > .toolbar:first-child > h2 + .muted {
+  display: inline-block;
+}
+.pane-body .page > .toolbar:first-child > h2 + .muted::first-letter {
+  text-transform: uppercase;
+}
+
+/* A crowded tab bar (Access has 10 tabs, or a narrow pane) wraps to a second line: nothing is cut off */
+.pane-bar {
+  height: auto;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.hub-tabs {
+  flex: 1 1 0;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  mask-image: none;
+}
+.pane-bar > .grow {
+  display: none;
 }
