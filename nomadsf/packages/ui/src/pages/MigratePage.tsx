@@ -19,6 +19,7 @@ import {
   removeOldIdFields,
   describeBoth,
   describeData,
+  explainFailures,
   gatherRows,
   getUserInfo,
   linkReport,
@@ -64,6 +65,9 @@ type SourceChoice =
   | { kind: 'backup'; jobId: string; folder: string }
   /** Tables from a file (Excel, CSV, ⤓ zip), each matched to an object. */
   | { kind: 'files' };
+/** A failed record: where it came from, Salesforce's error, and what it means. */
+const FAILURE_COLUMNS = ['object', 'sourceId', 'Error code', 'What it means', 'Error message', 'Error fields'];
+
 type LastCopy = { at: string; source: string; created: LoadResult['created']; records: number };
 
 const download = (name: string, text: string) => downloadFile(name, text, 'text/csv');
@@ -1149,15 +1153,18 @@ export function MigratePage({
                   />
                   <button
                     onClick={() =>
-                      download('migration-failures.csv', toCsv(['object', 'sourceId', 'error'], result.failures))
+                      download(
+                        'migration-failures.csv',
+                        toCsv(FAILURE_COLUMNS, explainFailures(result.failures, 'error'))
+                      )
                     }
                   >
                     Download failures
                   </button>
                 </div>
                 <DataTable
-                  columns={['object', 'sourceId', 'error']}
-                  rows={result.failures.slice(0, 500)}
+                  columns={FAILURE_COLUMNS}
+                  rows={explainFailures(result.failures.slice(0, 500), 'error')}
                   rowKey="sourceId"
                   name="migration-failures"
                 />

@@ -6,6 +6,7 @@ import {
   copySheets,
   copyUsers,
   describeData,
+  explainError,
   filesAsSource,
   planUsers,
   prepareCopy,
@@ -174,7 +175,10 @@ export function CopyBar({ what }: { what: CopyWhat }) {
         const created = result.objects.reduce((n, o) => n + o.created, 0);
         done.push(
           `✓ ${created} created`,
-          ...result.failures.slice(0, 5).map((f) => `❌ ${f.object} ${f.sourceId}: ${f.error}`),
+          ...result.failures.slice(0, 5).map((f) => {
+            const meaning = explainError(f.error).meaning;
+            return `❌ ${f.object} ${f.sourceId}: ${f.error}${meaning ? ` — ${meaning}` : ''}`;
+          }),
           ...(result.failures.length > 5 ? [`… ${result.failures.length - 5} more failed`] : [])
         );
         setLast(created ? { target: target.id, created: result.created } : null);

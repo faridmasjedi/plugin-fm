@@ -242,7 +242,7 @@ export function DataTable({
 }
 
 const fullText = (value: unknown): string | undefined =>
-  (typeof value === 'string' || typeof value === 'number') && String(value).length > 40 ? String(value) : undefined;
+  (typeof value === 'string' || typeof value === 'number') && String(value) !== '' ? String(value) : undefined;
 
 /** Shown when Salesforce returns nothing: records the user cannot see are left out silently. */
 export function EmptyHint({ what = 'rows' }: { what?: string }) {

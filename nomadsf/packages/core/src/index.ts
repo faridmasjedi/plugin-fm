@@ -45,6 +45,7 @@ export * from './recordsCsv.js';
 export * from './workbook.js';
 export * from './relations.js';
 export * from './recordCopy.js';
+export * from './errors.js';
 export * from './userCompare.js';
 export * from './accessDetail.js';
 export * from './myAccess.js';
