@@ -1138,6 +1138,15 @@
                 object's child objects in one click, with counts.
               </li>
               <li>
+                The <b>Plan</b> table shows it all at once, each object under the one it links to (Contacts under
+                Accounts, via AccountId): which records, a SOQL condition, a <b>limit</b> (the newest N records), the
+                fields (all, only some, or all except some). From each row: <b>+ Children…</b>, <b>+ Parent…</b> (also
+                copy the records its lookups point to) or <b>Remove</b>. A related object follows the lookup it was
+                added through (<i>via AccountId → Account</i>): only the Contacts of the copied Accounts come along, not
+                every Contact owned by a copied User. Change it in the row, or choose
+                <i>via any lookup to the objects above</i>.
+              </li>
+              <li>
                 <b>Check plan</b> before anything is written. It shows the load order (parents before children), records
                 per object, fields missing in the target, masked fields, and <b>Links between records</b>: every lookup,
                 whether it is kept or lost, and a fix for each lost one (add the object, or match on a field such as

@@ -391,6 +391,72 @@ describe('migration plan and seeding', () => {
   });
 });
 
+describe('a limit per object', () => {
+  it('keeps at most that many records, the newest first, and their related records only', async () => {
+    const acc = [f('Id', 'id'), f('Name')];
+    const con = [f('Id', 'id'), f('LastName'), f('AccountId', 'reference', { referenceTo: ['Account'] })];
+    const both = { Account: { source: acc, target: acc }, Contact: { source: con, target: con } };
+    const plan = planMigration(
+      [
+        { name: 'Account', limit: 2 },
+        { name: 'Contact', relatedOnly: true, limit: 1.7 },
+      ],
+      both,
+      { mask: false }
+    );
+    expect(plan.objects.map((o) => [o.name, o.limit])).toEqual([
+      ['Account', 2],
+      ['Contact', 1],
+    ]);
+    const rows = {
+      Account: new Map(['001A', '001B', '001C'].map((Id) => [Id, { Id, Name: Id }])),
+      Contact: new Map([
+        ['003A', { Id: '003A', LastName: 'a', AccountId: '001A' }],
+        ['003B', { Id: '003B', LastName: 'b', AccountId: '001B' }],
+        ['003C', { Id: '003C', LastName: 'c', AccountId: '001C' }],
+      ]),
+    };
+    const gathered = await gatherRows({ kind: 'backup', rows }, plan);
+    expect(gathered.Account.map((r) => r.Id)).toEqual(['001C', '001B']);
+    expect(gathered.Contact.map((r) => r.Id)).toEqual(['003C']);
+  });
+});
+
+describe('related only, through the chosen lookup', () => {
+  it('follows only the lookup to the parent it was added under, not every lookup to a chosen object', async () => {
+    const acc = [f('Id', 'id'), f('Name')];
+    const usr = [f('Id', 'id'), f('LastName')];
+    const con = [
+      f('Id', 'id'),
+      f('LastName'),
+      f('AccountId', 'reference', { referenceTo: ['Account'] }),
+      f('OwnerId', 'reference', { referenceTo: ['User'] }),
+    ];
+    const both = {
+      Account: { source: acc, target: acc },
+      User: { source: usr, target: usr },
+      Contact: { source: con, target: con },
+    };
+    const rows = {
+      Account: new Map([['001A1', { Id: '001A1', Name: 'Acme' }]]),
+      User: new Map([['005U1', { Id: '005U1', LastName: 'Owner' }]]),
+      Contact: new Map([
+        ['003C1', { Id: '003C1', LastName: 'of Acme', AccountId: '001A1', OwnerId: '005U9' }],
+        ['003C2', { Id: '003C2', LastName: 'owned only', AccountId: '001A9', OwnerId: '005U1' }],
+      ]),
+    };
+    const chosen = [{ name: 'Account' }, { name: 'User' }, { name: 'Contact', relatedOnly: true, via: ['AccountId'] }];
+    const viaAccount = await gatherRows({ kind: 'backup', rows }, planMigration(chosen, both, { mask: false }));
+    expect(viaAccount.Contact.map((r) => r.Id)).toEqual(['003C1']);
+    // Without a chosen lookup: any lookup to a chosen object (as before)
+    const anyLink = await gatherRows(
+      { kind: 'backup', rows },
+      planMigration([...chosen.slice(0, 2), { name: 'Contact', relatedOnly: true }], both, { mask: false })
+    );
+    expect(anyLink.Contact.map((r) => r.Id).sort()).toEqual(['003C1', '003C2']);
+  });
+});
+
 describe('restore', () => {
   async function backupWithRuns() {
     const sink = memorySink();

@@ -33,6 +33,10 @@ export type MigrateObject = {
   relatedOnly?: boolean;
   /** Only the records other copied records point to (brought by completeParents). */
   onlyReferenced?: boolean;
+  /** At most this many records (the newest first). */
+  limit?: number;
+  /** Related only: the lookups to follow (Contact.AccountId); none = any lookup to a chosen object. */
+  via?: string[];
 };
 
 export type MigrateObjectPlan = {
@@ -46,6 +50,8 @@ export type MigrateObjectPlan = {
   relatedOnly: boolean;
   onlyReferenced: boolean;
   where?: string;
+  limit?: number;
+  via?: string[];
 };
 
 export type MigratePlan = {
@@ -92,6 +98,8 @@ export function planMigration(
       relatedOnly: Boolean(o.relatedOnly),
       onlyReferenced: Boolean(o.onlyReferenced),
       where: o.where,
+      limit: o.limit && o.limit > 0 ? Math.floor(o.limit) : undefined,
+      via: o.via?.length ? o.via : undefined,
     };
   });
   return { order, deferred, objects, schemas, missingObjects };
@@ -109,7 +117,10 @@ export async function gatherRows(
 ): Promise<Record<string, SourceRow[]>> {
   const out: Record<string, SourceRow[]> = {};
   for (const o of plan.objects) {
-    const links = o.links.filter((l) => out[l.to]).map((l) => ({ field: l.field, ids: out[l.to].map((r) => r.Id) }));
+    // Related only: through the chosen lookups (via), or else any lookup to an object gathered before
+    const links = o.links
+      .filter((l) => out[l.to] && (!o.via || o.via.includes(l.field)))
+      .map((l) => ({ field: l.field, ids: out[l.to].map((r) => r.Id) }));
     let rows: SourceRow[];
     if (o.onlyReferenced) {
       rows = [];
@@ -117,13 +128,14 @@ export async function gatherRows(
       /* eslint-disable no-await-in-loop */
       rows =
         o.relatedOnly && links.length
-          ? await fetchRelated(source.client, o.name, o.read, links, o.where)
-          : await fetchRows(source.client, o.name, o.read, o.where);
+          ? await fetchRelated(source.client, o.name, o.read, links, o.where, o.limit)
+          : await fetchRows(source.client, o.name, o.read, o.where, o.limit);
       /* eslint-enable no-await-in-loop */
     } else {
       const all = [...(source.rows[o.name]?.values() ?? [])];
       const linked = links.map((l) => ({ field: l.field, ids: new Set(l.ids) }));
       rows = o.relatedOnly && links.length ? all.filter((r) => linked.some((l) => l.ids.has(r[l.field]))) : all;
+      if (o.limit) rows = rows.sort((a, b) => (a.Id < b.Id ? 1 : -1)).slice(0, o.limit);
     }
     out[o.name] = rows;
     onProgress?.(o.name, rows.length);

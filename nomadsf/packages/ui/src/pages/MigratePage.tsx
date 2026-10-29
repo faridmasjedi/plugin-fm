@@ -56,6 +56,7 @@ import { backupFolder, backupJobs, bigStore, isLocked, jobSink, type JobRecord }
 import { ObjectSettings } from './BackupPage';
 import { askTyped } from '../components/Dialogs';
 import { OrgPairBar, usePair } from '../pair';
+import { MigrateComposer } from '../components/MigrateComposer';
 
 type SourceChoice = { kind: 'org'; org: string } | { kind: 'backup'; jobId: string; folder: string };
 type LastCopy = { at: string; source: string; created: LoadResult['created']; records: number };
@@ -249,10 +250,17 @@ export function MigratePage({
     [source.kind, sourceClient, state]
   );
   const allowed = useMemo(() => new Set((candidates ?? []).map((c) => c.name)), [candidates]);
-  const addChildren = (names: string[]) => {
+  /** Children follow the lookups they were added through (Contact via AccountId), not every lookup. */
+  const addChildren = (names: string[], via: Record<string, string[]> = {}) => {
     setChosen((list) => [
-      ...list,
-      ...names.filter((n) => !list.some((c) => c.name === n)).map((name) => ({ name, relatedOnly: true })),
+      ...list.map((c) =>
+        names.includes(c.name) && c.relatedOnly && c.via
+          ? { ...c, via: [...new Set([...c.via, ...(via[c.name] ?? [])])] }
+          : c
+      ),
+      ...names
+        .filter((n) => !list.some((c) => c.name === n))
+        .map((name) => ({ name, relatedOnly: true, via: via[name]?.length ? via[name] : undefined })),
     ]);
     setOpen('');
     setStatus(`✓ Added ${names.join(', ')} as Related only: only records linked to the copied records come along.`);
@@ -270,9 +278,8 @@ export function MigratePage({
         : [...list, { name, onlyReferenced: true }]
     );
 
-  const openSettings = async (name: string) => {
-    setOpen(open === name ? '' : name);
-    setFieldFilter('');
+  /** An object's fields from the source (for its settings, and the composer's lookups). */
+  const loadFields = async (name: string) => {
     if (fields[name]) return;
     try {
       const list =
@@ -281,6 +288,11 @@ export function MigratePage({
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
     }
+  };
+  const openSettings = async (name: string) => {
+    setOpen(open === name ? '' : name);
+    setFieldFilter('');
+    await loadFields(name);
   };
 
   const act = async (what: string, fn: () => Promise<void>) => {
@@ -586,10 +598,11 @@ export function MigratePage({
         'which records': o.onlyReferenced
           ? 'pointed to by copied records'
           : o.relatedOnly
-          ? `related (via ${o.links.map((l) => l.field).join(', ') || '—'})`
+          ? `related (via ${(o.via ?? o.links.map((l) => l.field)).join(', ') || '—'})`
           : o.where
           ? 'condition'
           : 'all',
+        limit: o.limit ? `newest ${o.limit}` : '',
         added: broughtParents[o.name] ?? 0,
       })) ?? [],
     [plan, rows, broughtParents]
@@ -679,6 +692,46 @@ export function MigratePage({
           Tick objects in any order; NomadSF loads parents first. <b>Related only</b> takes just the records that point
           to records of the objects before it (e.g. 100 Accounts, then their Contacts and Opportunities).
         </p>
+        <h4>Plan</h4>
+        <MigrateComposer
+          chosen={chosen}
+          fields={fields}
+          loadFields={loadFields}
+          setSettings={setSettings}
+          remove={(name) => setChosen((list) => list.filter((c) => c.name !== name))}
+          addParent={(name) => {
+            addReferenced(name);
+            setStatus(`✓ Added ${name}: only the records the copied ones point to come along.`);
+          }}
+          backup={source.kind === 'backup'}
+          renderFields={(name) => (
+            <ObjectSettings
+              settings={settingsOf(name)}
+              fields={fields[name]}
+              filter={fieldFilter}
+              onFilter={setFieldFilter}
+              onChange={(patch) => setSettings(name, patch)}
+              noCondition
+            />
+          )}
+          renderChildren={(name, close) =>
+            childSource && (
+              <ChildObjects
+                parent={name}
+                parentWhere={source.kind === 'org' ? settingsOf(name).where : undefined}
+                source={childSource}
+                allowed={allowed}
+                isChosen={isChosen}
+                onAdd={(names, via) => {
+                  addChildren(names, via);
+                  close();
+                }}
+                onClose={close}
+              />
+            )
+          }
+        />
+        <h4>Objects</h4>
         <ObjectPicker
           objects={candidates}
           purpose="copy"
@@ -935,6 +988,7 @@ export function MigratePage({
                 'object',
                 'records',
                 'which records',
+                'limit',
                 'added',
                 'fields',
                 'not in target',

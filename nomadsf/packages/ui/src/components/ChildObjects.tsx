@@ -28,7 +28,8 @@ export function ChildObjects({
   /** Objects that can be copied (the candidates of the source). */
   allowed: Set<string>;
   isChosen: (name: string) => boolean;
-  onAdd: (objects: string[]) => void;
+  /** `via`: each child's lookups to the parent, the ones its records are followed through. */
+  onAdd: (objects: string[], via: Record<string, string[]>) => void;
   onClose: () => void;
 }) {
   const [children, setChildren] = useState<ChildObject[] | null>(null);
@@ -141,7 +142,16 @@ export function ChildObjects({
             >
               Tick those with records
             </button>
-            <button className="primary" disabled={!addable.length} onClick={() => onAdd(addable)}>
+            <button
+              className="primary"
+              disabled={!addable.length}
+              onClick={() =>
+                onAdd(
+                  addable,
+                  Object.fromEntries(addable.map((o) => [o, children.find((c) => c.object === o)?.fields ?? []]))
+                )
+              }
+            >
               Add {addable.length || ''} as Related only
             </button>
           </div>

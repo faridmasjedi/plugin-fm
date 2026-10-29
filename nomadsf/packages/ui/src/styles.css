@@ -2696,3 +2696,26 @@ button.working::before {
 .form label.file-button:hover {
   border-color: var(--accent);
 }
+
+/* Migrate › Plan: the composer table */
+.composer-table td {
+  vertical-align: middle;
+}
+.composer-table input.mono {
+  min-width: 220px;
+}
+.composer-actions {
+  white-space: nowrap;
+}
+.composer-actions > * + * {
+  margin-left: 8px;
+}
+.composer-group {
+  padding-top: 12px;
+  font-size: var(--fs-sm);
+}
+
+.composer-via {
+  margin-left: 8px;
+  font-size: var(--fs-sm);
+}
