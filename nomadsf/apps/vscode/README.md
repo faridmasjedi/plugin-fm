@@ -12,15 +12,15 @@
 - **Your orgs, no CLI needed**: the orgs logged in to with the Salesforce CLI on this computer show up by alias; **NomadSF: Log in to an org** (or Studio → Settings) logs in to a new one in your browser and saves it where the CLI keeps it, so both see it.
 - **Every Studio tool**, grouped into hubs, with tools side by side and <kbd>⌘K</kbd> to jump:
 
-  | Hub                 | Tools                                                                                                                                      |
-  | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-  | **Develop**         | Execute Apex · Code · Apex tests with coverage · Debug Logs · Automation (what runs on save) · Jobs                                        |
-  | **Data**            | Query · Record · Import / Update / Delete · Lookup · Schema · Field usage                                                                  |
-  | **Data protection** | Backup and restore · Lifecycle jobs with approval                                                                                          |
-  | **Release**         | Project (your repository vs the org) · Metadata · Deployments · E2E tests                                                                  |
-  | **Access**          | Users · Permission sets & groups · Permissions · Assigned users · Compare · Access overview · Object access · Logins & audit · Your access |
-  | **Org**             | Connected apps · Org health · Limits · Events · REST Explorer · Activity                                                                   |
-  | **Org to org**      | Org compare · Migrate · Access · Connected apps — for one pair of orgs, A → B                                                              |
+  | Hub                 | Tools                                                                                                                                            |
+  | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+  | **Develop**         | Code (with dependencies) · Execute Apex · Apex tests · Debug logs · Jobs · Automation · Events · REST Explorer                                   |
+  | **Data**            | Query · Record (with the related tree: copy or save as Excel) · Import / Update / Delete · Compare with CSV · Lookup · Schema · Field usage      |
+  | **Release**         | Project · Metadata · Deployments · E2E tests                                                                                                     |
+  | **Access**          | Users · Permission sets · Permissions · Custom permissions · Groups & queues · Assigned users · Object access · Overview · Compare · Your access |
+  | **Org**             | Company · Org health · Limits · Connected apps · Logins & audit · Activity                                                                       |
+  | **Data protection** | Backup and restore · Lifecycle jobs with approval                                                                                                |
+  | **Org to org**      | Migrate · Org compare · Access · Connected apps — for one pair of orgs, A → B                                                                    |
 
 - **From the editor** (select text, right-click):
   - **Show all data of the selected record Id** — the record inspector for an Id in your code or logs.
