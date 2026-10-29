@@ -12,6 +12,7 @@ import { CodeEditor } from '../components/CodeEditor';
 import { LogViewer } from '../components/LogViewer';
 import { storage, useStudio } from '../context';
 import { monaco } from '../monaco';
+import { Status } from '../statusLog';
 
 const PRESETS: Record<string, { label: string; levels: LogLevels }> = {
   default: { label: 'Default (Developer Console)', levels: DEFAULT_LOG_LEVELS },
@@ -172,7 +173,7 @@ export function ExecutePage() {
       <div className="editor-box">
         <CodeEditor language="apex" value={code} onChange={setCode} onMount={onMount} />
       </div>
-      {error && <div className="error">{error}</div>}
+      <Status text={error} kind="problem" block mono />
       {result && (
         <div className="card">
           <div className="result-head">

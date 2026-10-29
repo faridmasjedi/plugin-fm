@@ -2842,6 +2842,8 @@ p.status {
   display: flex;
   margin: 0;
   width: fit-content;
+  /* Errors from Salesforce keep their lines (a SOQL error points at the column) */
+  white-space: pre-wrap;
 }
 .status-working {
   border-left-color: var(--accent);

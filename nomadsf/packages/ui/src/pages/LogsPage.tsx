@@ -13,6 +13,7 @@ import { DataTable } from '../components/DataTable';
 import { LogViewer } from '../components/LogViewer';
 import { storage, useStudio } from '../context';
 import { askConfirm } from '../components/Dialogs';
+import { Status } from '../statusLog';
 
 const fmtTime = (iso: string): string =>
   new Date(iso).toLocaleString([], {
@@ -142,7 +143,7 @@ export function LogsPage() {
           </button>
         )}
       </div>
-      {error && <div className="error">{error}</div>}
+      <Status text={error} kind="problem" block />
 
       <div className="split">
         <div className="card">
