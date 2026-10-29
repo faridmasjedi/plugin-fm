@@ -11,5 +11,8 @@
     "build": "yarn --cwd packages/ui build && yarn --cwd apps/extension build && yarn --cwd apps/vscode build",
     "test": "yarn --cwd packages/core test && yarn --cwd apps/vscode test",
     "typecheck": "yarn --cwd packages/core typecheck && yarn --cwd packages/ui typecheck && yarn --cwd apps/extension typecheck && yarn --cwd apps/vscode typecheck"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
   }
 }
