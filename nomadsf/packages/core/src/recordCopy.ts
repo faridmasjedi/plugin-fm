@@ -19,7 +19,7 @@ import {
   type MigratePlan,
   type RowSource,
 } from './migrate.js';
-import { query, type Row } from './query.js';
+import { query, soqlText, type Row } from './query.js';
 import {
   applySnapshot,
   createUserFromSnapshot,
@@ -304,7 +304,7 @@ export async function planUsers(target: SalesforceClient, users: UserCopy[], tar
     }))
   );
   const names = accessNames(users);
-  const quotedNames = (list: string[]) => list.map((n) => `'${n.replace(/'/g, "\\'")}'`).join(', ');
+  const quotedNames = (list: string[]) => list.map((n) => `'${soqlText(n)}'`).join(', ');
   const plain = names.permissionSets.filter((n) => !n.includes('__'));
   const haveSets = plain.length
     ? new Set(
@@ -373,7 +373,7 @@ export async function copyUsers(
         await query(
           target,
           `SELECT Name FROM PermissionSet WHERE NamespacePrefix = null AND Name IN (${inGroups
-            .map((n) => `'${n.replace(/'/g, "\\'")}'`)
+            .map((n) => `'${soqlText(n)}'`)
             .join(', ')})`
         )
       ).rows.map((r) => String(r.Name))

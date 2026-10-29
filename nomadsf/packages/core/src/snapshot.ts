@@ -1,7 +1,7 @@
 import type { SalesforceClient } from './client.js';
 import { findSameUser, sameUsername } from './accessCompare.js';
 import { parseCsv, toCsv } from './csv.js';
-import { query, type Row } from './query.js';
+import { query, soqlText, type Row } from './query.js';
 
 /**
  * A user "all together" in one CSV (Section, Name, Value): their fields, lookups by name (profile,
@@ -10,7 +10,6 @@ import { query, type Row } from './query.js';
  */
 
 const ID = /^005[a-zA-Z0-9]{12}([a-zA-Z0-9]{3})?$/;
-const soqlText = (s: string): string => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
 export type SnapshotSection =
   | 'info'

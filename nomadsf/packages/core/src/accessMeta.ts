@@ -1,7 +1,7 @@
 import type { SalesforceClient } from './client.js';
 import { deployZip } from './deploy.js';
 import { packageXml, retrieveZip } from './metadata.js';
-import { query } from './query.js';
+import { query, soqlText } from './query.js';
 import { escapeXml, xmlBlocks, xmlValue } from './soap.js';
 import { fromBase64, makeZip, readZip, toBase64 } from './zip.js';
 
@@ -17,7 +17,6 @@ const check = (id: string, prefix: string, what: string): string => {
   if (!ID.test(id) || !id.startsWith(prefix)) throw new Error(`Invalid ${what} Id.`);
   return id;
 };
-const soqlText = (s: string): string => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
 type Json = string | number | boolean | null | undefined | Json[] | { [key: string]: Json };
 export type MetadataJson = { [key: string]: Json };

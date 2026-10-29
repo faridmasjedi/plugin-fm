@@ -2,7 +2,7 @@ import type { SalesforceClient } from './client.js';
 import { searchUsers, type UserMatch } from './access.js';
 import { permissionSetKey } from './fieldUsage.js';
 import { usersWith, type Difference, type Holder } from './orgHealth.js';
-import { query, type Row } from './query.js';
+import { query, soqlText, type Row } from './query.js';
 import { connectedAppsReport } from './userAccess.js';
 
 /** Access compared between two orgs: the same user, who has it, every permission set, connected apps. */
@@ -25,8 +25,6 @@ export function sameUsername(a: string, b: string): boolean {
   const [bx, by] = [withoutSuffix(x), withoutSuffix(y)];
   return x === y || bx === y || x === by || bx === by;
 }
-
-const soqlText = (value: string): string => value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
 /** The user in this org with the same username as one from another org (without or with a sandbox suffix). */
 export async function findSameUser(client: SalesforceClient, username: string): Promise<UserMatch | null> {

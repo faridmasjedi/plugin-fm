@@ -5,6 +5,7 @@ import {
   loginAsPath,
   query,
   recordHistory,
+  soqlText,
   updateRecord,
   type HistoryEntry,
   type InspectedRecord,
@@ -23,8 +24,6 @@ const display = (v: unknown): string =>
   v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
 
 type UserMatch = { id: string; name: string; username: string; active: boolean };
-
-const soqlText = (s: string): string => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
 /**
  * What the search box holds: a record Id or URL as it is, a username, or a user's name
