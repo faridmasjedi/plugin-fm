@@ -34,7 +34,6 @@ import { MetadataPage } from './pages/MetadataPage';
 import { LOCAL_PAGES, LocalAppPage } from './pages/LocalAppPage';
 import { ProjectPage } from './pages/ProjectPage';
 import { SettingsPage } from './pages/SettingsPage';
-import { TestsPage } from './pages/TestsPage';
 import { RecordPage } from './pages/RecordPage';
 import { LimitsPage } from './pages/LimitsPage';
 import { RestPage } from './pages/RestPage';
@@ -269,14 +268,10 @@ export function App() {
   useLifecycleScheduler(clientFor);
   const backupRun = useBackupRun();
   const lifecycleRun = useLifecycleRun();
-  // E2E tests and the Local app tools need the NomadSF CLI app; the extension hides them without it
+  // The Local app tools need the NomadSF CLI app; the extension hides them without it
   const available = useCallback(
     (tool: ToolId): boolean =>
-      tool === 'tests'
-        ? project.localAppReady
-        : tool === 'local-orgs' || tool === 'local-ai'
-        ? project.localAppReady && LOCAL.length > 0
-        : true,
+      tool === 'local-orgs' || tool === 'local-ai' ? project.localAppReady && LOCAL.length > 0 : true,
     [project.localAppReady]
   );
 
@@ -304,8 +299,6 @@ export function App() {
           onRefreshOrgs={loadOrgs}
         />
       );
-    if (tool === 'tests')
-      return <TestsPage hostKind={host.kind} defaultOrg={host.kind === 'app' ? org?.id : undefined} />;
     if (error) return <div className="error">{error}</div>;
     if (!studio)
       return (

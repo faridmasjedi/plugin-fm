@@ -19,7 +19,7 @@ The tools are grouped into **hubs** in the sidebar, each a page with its tools a
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Develop**         | Code (with dependencies) · Execute Apex · Apex tests · Debug logs · Jobs · Automation · Events · REST Explorer                                   |
 | **Data**            | Query · Record (with the related tree: copy or save as Excel) · Import / Update / Delete · Compare with CSV · Lookup · Schema · Field usage      |
-| **Release**         | Project · Metadata · Deployments · E2E tests                                                                                                     |
+| **Release**         | Project · Metadata · Deployments                                                                                                                 |
 | **Access**          | Users · Permission sets · Permissions · Custom permissions · Groups & queues · Assigned users · Object access · Overview · Compare · Your access |
 | **Org**             | Company · Org health · Limits · Connected apps · Logins & audit · Activity                                                                       |
 | **Data protection** | Backup and restore · Lifecycle jobs with approval                                                                                                |
@@ -71,7 +71,6 @@ A hub opens on the tab used last. **Side by side**: drag a hub from the sidebar,
 - **Jobs** — **Scheduled** (CronTrigger: scheduled Apex, report runs, dashboard refreshes, scheduled flows, with next and last run and cron) and **Background Apex** (batch, queueable and future jobs of the last 1–90 days with progress, errors and status). Tick jobs and **Stop** them (`System.abortJob`, after the org name).
 - **Deployments** — the org's deployments and validations (DeployRequest): who, when, components and tests, how many failed; click one for its component and test failures. A validation that succeeded with tests in the last 10 days can be **Quick deployed** (after the org name).
 - **Metadata** — every metadata type of the org; list components (folder types such as reports and dashboards folder by folder), build a package that mixes types, then **Download zip** (Metadata API retrieve), **package.xml** (download / copy), or in the app **Retrieve into project** (`sf project retrieve start`).
-- **Local app (extension)** — when `sf fm dashboard` runs on this machine, the extension also shows its CLI orgs and AI settings, plus E2E tests and the ✦ AI buttons; without it they are hidden. Release runs, runbooks and the repository stay in the NomadSF release app (`sf fm dashboard`). Port configurable (default 7007).
 - **Tests** — Playwright scenarios of the project, run through the local app (`sf fm e2e run`), last results and the HTML report.
 - **AI help** (✦, with the AI connected on the local app's AI page; keys stay in the app):
   - **Query → Write SOQL** from a plain-English question, using the org's own objects and the fields of the objects you mention.

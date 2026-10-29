@@ -16,7 +16,7 @@
   | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
   | **Develop**         | Code (with dependencies) · Execute Apex · Apex tests · Debug logs · Jobs · Automation · Events · REST Explorer                                   |
   | **Data**            | Query · Record (with the related tree: copy or save as Excel) · Import / Update / Delete · Compare with CSV · Lookup · Schema · Field usage      |
-  | **Release**         | Project · Metadata · Deployments · E2E tests                                                                                                     |
+  | **Release**         | Project · Metadata · Deployments                                                                                                                 |
   | **Access**          | Users · Permission sets · Permissions · Custom permissions · Groups & queues · Assigned users · Object access · Overview · Compare · Your access |
   | **Org**             | Company · Org health · Limits · Connected apps · Logins & audit · Activity                                                                       |
   | **Data protection** | Backup and restore · Lifecycle jobs with approval                                                                                                |
