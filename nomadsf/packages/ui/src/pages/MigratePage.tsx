@@ -44,15 +44,13 @@ import {
   type RowSource,
   type SalesforceClient,
   type SourceRow,
-  type AccessFile,
-  type UserCopy,
 } from '@nomadsf/core';
 import { AiExplain } from '../components/AiHelp';
 import { ChildObjects } from '../components/ChildObjects';
 import { UnlockBackup } from '../components/UnlockBackup';
 import { DataTable, download as downloadFile } from '../components/DataTable';
 import { ObjectPicker } from '../components/ObjectPicker';
-import { handoff, storage, useStudio } from '../context';
+import { storage, useStudio } from '../context';
 import { orgFacts, type OrgChoice, type OrgFacts } from '../host';
 import { backupFolder, backupJobs, bigStore, isLocked, jobSink, type JobRecord } from '../backups';
 import { ObjectSettings } from './BackupPage';
@@ -60,7 +58,6 @@ import { askTyped } from '../components/Dialogs';
 import { OrgPairBar, usePair } from '../pair';
 import { MigrateComposer } from '../components/MigrateComposer';
 import { FilesSourcePanel } from '../components/FilesSourcePanel';
-import { UsersCopyPanel } from '../components/UsersCopyPanel';
 
 type SourceChoice =
   | { kind: 'org'; org: string }
@@ -89,7 +86,6 @@ export function MigratePage({
   // From org A (or a backup) into org B of the Org to org hub
   const [pair, setPair] = usePair();
   const [backup, setBackup] = useState<Exclude<SourceChoice, { kind: 'org' }> | null>(() => {
-    if (handoff.hasFile()) return { kind: 'files' };
     const from = storage.get<{ jobId: string; folder: string } | undefined>('migrate.from', undefined);
     if (!from) return null;
     storage.set('migrate.from', undefined);
@@ -126,11 +122,6 @@ export function MigratePage({
   const [warnings, setWarnings] = useState<string[]>([]);
   // Keeping every link: parents brought along, links to records already in the target
   const [withParents, setWithParents] = useState(() => storage.get('migrate.parents', true));
-  // From a basket: users with the access picked for them, and (from a workbook) their permission sets
-  const [userCopies, setUserCopies] = useState<UserCopy[]>([]);
-  const [userFiles, setUserFiles] = useState<AccessFile[]>([]);
-  // A saved basket opened from Record › Related
-  const [incomingFile, setIncomingFile] = useState<File | null>(() => handoff.takeFile());
   const [matchRules, setMatchRules] = useState<Record<string, string>>({});
   const [matchOptions, setMatchOptions] = useState<Record<string, string[]>>({});
   const [matched, setMatched] = useState<Record<string, string>>({});
@@ -177,44 +168,11 @@ export function MigratePage({
     if (plan) setStale(true);
   }, [withParents, matchRules, oldIds, withFiles, maxMB]);
 
-  // A plan handed over (Record › Related › Copy to another org): its objects, once the source is that org
-  const takePlan = (org: string): void => {
-    const pending = storage.get<{ org: string; objects: MigrateObject[]; users?: UserCopy[] } | undefined>(
-      'migrate.plan',
-      undefined
-    );
-    if (!pending || pending.org !== org) return;
-    storage.set('migrate.plan', undefined);
-    setChosen(pending.objects);
-    setUserCopies(pending.users ?? []);
-    setUserFiles([]);
-    // Exactly the records picked: nothing they point to comes along
-    setWithParents(false);
-    setStatus('From the basket: exactly the records picked. Choose B, then Check plan.');
-  };
-  useEffect(() => {
-    const take = () => {
-      const file = handoff.takeFile();
-      if (!file) return;
-      setIncomingFile(file);
-      setSource({ kind: 'files' });
-    };
-    window.addEventListener('nomadsf:migrate-file', take);
-    return () => window.removeEventListener('nomadsf:migrate-file', take);
-  });
-  useEffect(() => {
-    const take = () => source.kind === 'org' && candidates && takePlan(source.org);
-    window.addEventListener('nomadsf:migrate-plan', take);
-    return () => window.removeEventListener('nomadsf:migrate-plan', take);
-  });
-
   // What can be copied: the source org's objects, or the objects of the backup
   useEffect(() => {
     setCandidates(null);
     setState(undefined);
     setChosen([]);
-    setUserCopies([]);
-    setUserFiles([]);
     setResult(undefined);
     let canceled = false;
     void (async () => {
@@ -229,7 +187,6 @@ export function MigratePage({
           if (canceled) return;
           setFacts((x) => ({ ...x, source: f }));
           setCandidates(backupCandidates(list.sobjects));
-          takePlan(source.org);
         } else if (source.kind === 'files') {
           // The tables come from Use these files (below)
           setStatus('');
@@ -734,16 +691,9 @@ export function MigratePage({
         {source.kind === 'files' && (
           <FilesSourcePanel
             targetClient={targetId ? () => clientFor(targetId) : undefined}
-            initialFile={incomingFile ?? undefined}
-            onUse={(s, objects, notes, users) => {
+            onUse={(s, objects, notes) => {
               setState(s);
-              setChosen(
-                // A saved basket: every sheet, exactly its rows
-                users ? objects.map((name) => ({ name })) : []
-              );
-              setUserCopies(users?.users ?? []);
-              setUserFiles(users?.metadata ?? []);
-              if (users) setWithParents(false);
+              setChosen([]);
               setCandidates(
                 objects.map((name) => ({ name, label: name, custom: name.endsWith('__c'), queryable: true }))
               );
@@ -900,15 +850,6 @@ export function MigratePage({
           }
         />
       </div>
-
-      {userCopies.length > 0 && (
-        <UsersCopyPanel
-          users={userCopies}
-          metadata={userFiles}
-          sourceClient={source.kind === 'org' ? () => clientFor(source.org) : undefined}
-          target={target}
-        />
-      )}
 
       <div className="card section">
         <h3 className="step-title">

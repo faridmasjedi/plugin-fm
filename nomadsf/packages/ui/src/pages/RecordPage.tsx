@@ -16,7 +16,8 @@ import { CopyId } from '../components/CopyId';
 import { DataTable } from '../components/DataTable';
 import { NewRecord } from '../components/NewRecord';
 import { RecordPicker } from '../components/RecordPicker';
-import { RecordRelations } from '../components/RecordRelations';
+import { RecordTree } from '../components/RecordTree';
+import { SavedCopy } from '../components/SavedCopy';
 
 const display = (v: unknown): string =>
   v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
@@ -74,6 +75,8 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
   const [recent, setRecent] = useState<Array<{ id: string; label: string }>>(() => storage.get('record.recent', []));
   const [choices, setChoices] = useState<UserMatch[]>([]);
   const [creating, setCreating] = useState(false);
+  // A copy saved from Related (Save as Excel), to copy into an org
+  const [savedCopy, setSavedCopy] = useState<File | null>(null);
 
   const open = useCallback(
     async (value: string) => {
@@ -251,6 +254,19 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
           <button title="Create a record of any object" onClick={() => setCreating(true)}>
             New…
           </button>
+          <label className="file-button" title="A record and its related records saved with Related › Save as Excel">
+            Open a saved copy…
+            <input
+              type="file"
+              accept=".xlsx"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) setSavedCopy(f);
+              }}
+            />
+          </label>
           {recent.length > 0 && (
             <select className="menu-select" value="" onChange={(e) => e.target.value && void open(e.target.value)}>
               <option value="">Recent…</option>
@@ -272,6 +288,7 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
           }}
         />
       )}
+      {savedCopy && !embedded && <SavedCopy key={savedCopy.name} file={savedCopy} onClose={() => setSavedCopy(null)} />}
       {status && <p className="muted">{status}</p>}
       {choices.length > 0 && (
         <div className="card section">
@@ -324,7 +341,8 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
             </button>
           </div>
           {view === 'related' && (
-            <RecordRelations
+            <RecordTree
+              key={record.id}
               sobject={record.sobject}
               id={record.id}
               name={record.name ?? ''}

@@ -1,7 +1,24 @@
 import type { SalesforceClient } from './client.js';
 import { deployFiles } from './accessMeta.js';
-import { describeData } from './backup.js';
+import { describeData, type DataField } from './backup.js';
+import {
+  describeBoth,
+  orgMaps,
+  sameOrgMaps,
+  type LoadProgress,
+  type LoadResult,
+  type OrgMaps,
+  type SourceRow,
+} from './dataLoad.js';
 import { retrieveZip } from './metadata.js';
+import {
+  gatherRows,
+  planMigration,
+  runMigration,
+  type MigrateObject,
+  type MigratePlan,
+  type RowSource,
+} from './migrate.js';
 import { query, type Row } from './query.js';
 import {
   applySnapshot,
@@ -13,131 +30,135 @@ import {
   type ApplyOutcome,
   type SnapshotLine,
 } from './snapshot.js';
+import { getUserInfo } from './soap.js';
 import type { FileTable, Sheet } from './workbook.js';
 import { fromBase64, readZip } from './zip.js';
 
 /**
- * A basket: exactly the records someone picked (a record, some of its children, a user and some of
- * their permission sets…), to copy to another org or keep in a workbook and load again. Users go
- * with only the access that was picked; permission sets and groups missing in the target are made
- * from their metadata.
+ * Copying a record with what was ticked under it (Record › Related): exactly those records, the
+ * links between them kept, into another org — or into a workbook, and from it into any org later.
+ * A user goes with only the permission sets, groups and licenses ticked under them; permission sets
+ * and groups the target lacks are made from their metadata.
  */
 
-export type BasketItem = { object: string; id: string; name: string };
+/** Records ticked in the tree: a whole relationship (by its lookup) or single records (by Id). */
+export type CopyPick = { object: string; where: string };
 
-/** A user's access, picked as records under the user: copied with the user, by name. */
-export const USER_ACCESS = ['PermissionSetAssignment', 'PermissionSetLicenseAssign', 'GroupMember'];
-/** Copied as a user (found by username or created), not as a record. */
-export const isUserPart = (object: string): boolean => object === 'User' || USER_ACCESS.includes(object);
+/** The picks as Migrate objects, one per object (conditions joined with OR). */
+export function copyObjects(picks: CopyPick[]): MigrateObject[] {
+  const byObject = new Map<string, string[]>();
+  for (const p of picks) byObject.set(p.object, [...new Set([...(byObject.get(p.object) ?? []), p.where])]);
+  return [...byObject].map(([name, where]) => ({
+    name,
+    where: where.length === 1 ? where[0] : where.map((w) => `(${w})`).join(' OR '),
+  }));
+}
+
+/** Every field of the ticked records, per object (to save them in a workbook). */
+export async function readPicked(client: SalesforceClient, picks: CopyPick[]): Promise<Record<string, Row[]>> {
+  const out: Record<string, Row[]> = {};
+  for (const o of copyObjects(picks)) {
+    /* eslint-disable no-await-in-loop */
+    const fields = (await describeData(client, o.name))
+      .filter((f) => !['address', 'location', 'base64'].includes(f.type))
+      .map((f) => f.name);
+    out[o.name] = (
+      await query(client, `SELECT ${fields.join(', ')} FROM ${o.name} WHERE ${o.where}`, { maxRows: 50_000 })
+    ).rows;
+    /* eslint-enable no-await-in-loop */
+  }
+  return out;
+}
+
+/** Where the records come from: an org, or a saved workbook (its tables matched to objects). */
+export type CopySource =
+  | { kind: 'org'; client: SalesforceClient }
+  | { kind: 'file'; schema: Record<string, DataField[]>; rows: Record<string, Map<string, SourceRow>> };
+
+export type PreparedCopy = {
+  plan: MigratePlan;
+  rows: Record<string, SourceRow[]>;
+  maps: OrgMaps;
+  /** Records per object, in load order. */
+  counts: Array<{ object: string; records: number }>;
+};
+
+const isSandbox = async (client: SalesforceClient): Promise<boolean> =>
+  (await query(client, 'SELECT IsSandbox FROM Organization')).rows[0]?.IsSandbox === true;
+
+/**
+ * Reads what a copy will load (parents first) and how owners, record types and queues match in the
+ * target — nothing is written yet. Lookups to records outside the copy: owners by username, the rest
+ * left empty.
+ */
+export async function prepareCopy(
+  source: CopySource,
+  target: SalesforceClient,
+  objects: MigrateObject[],
+  options: { mask: boolean; onProgress?: (object: string, rows: number) => void }
+): Promise<PreparedCopy> {
+  const names = objects.map((o) => o.name);
+  const schemas = await describeBoth(source.kind === 'org' ? source.client : source.schema, target, names);
+  const plan = planMigration(objects, schemas, { mask: options.mask });
+  if (plan.missingObjects.length) throw new Error(`Not in the target org: ${plan.missingObjects.join(', ')}.`);
+  const rowSource: RowSource =
+    source.kind === 'org' ? { kind: 'org', client: source.client } : { kind: 'backup', rows: source.rows };
+  const rows = await gatherRows(rowSource, plan, options.onProgress);
+  const me = await getUserInfo(target);
+  const maps =
+    source.kind === 'org'
+      ? await orgMaps(source.client, target, {
+          sourceSandbox: await isSandbox(source.client),
+          targetSandbox: await isSandbox(target),
+          defaultOwner: me.userId,
+        })
+      : { ...sameOrgMaps(), defaultOwner: me.userId };
+  return { plan, rows, maps, counts: plan.order.map((object) => ({ object, records: rows[object]?.length ?? 0 })) };
+}
+
+/** Loads a prepared copy into the target (the result's `created` undoes it with undoLoad). */
+export function runCopy(target: SalesforceClient, copy: PreparedCopy, onProgress?: LoadProgress): Promise<LoadResult> {
+  return runMigration(target, copy.plan, copy.rows, { maps: copy.maps, onProgress });
+}
 
 /** A user to copy: their fields and lookups by name, and only the access that was picked. */
 export type UserCopy = { username: string; lines: SnapshotLine[] };
 /** A permission set or group as a Metadata API file (to create it where it is missing). */
 export type AccessFile = { type: 'PermissionSet' | 'PermissionSetGroup'; name: string; xml: string };
 
-const ID = /^[a-zA-Z0-9]{15}([a-zA-Z0-9]{3})?$/;
-const quoted = (ids: string[]): string => ids.map((id) => `'${id}'`).join(', ');
+/** A user's access as the tree shows it: permission sets, groups, licenses, public groups and queues. */
+export const ACCESS_SECTIONS: Array<{ section: SnapshotLine['Section']; label: string }> = [
+  { section: 'permissionSet', label: 'Permission sets' },
+  { section: 'permissionSetGroup', label: 'Permission set groups' },
+  { section: 'license', label: 'Permission set licenses' },
+  { section: 'group', label: 'Public groups and queues' },
+];
 
-/** The record objects of a basket as Migrate objects: exactly these Ids, nothing related. */
-export function basketObjects(items: BasketItem[]): Array<{ name: string; where: string }> {
-  const byObject = new Map<string, string[]>();
-  for (const i of items.filter((x) => !isUserPart(x.object) && ID.test(x.id)))
-    byObject.set(i.object, [...(byObject.get(i.object) ?? []), i.id]);
-  return [...byObject].map(([name, ids]) => ({ name, where: `Id IN (${quoted([...new Set(ids)])})` }));
-}
-
-const chunks = <T>(list: T[], size: number): T[][] =>
-  Array.from({ length: Math.ceil(list.length / size) }, (_, i) => list.slice(i * size, i * size + size));
-
-/** Every field of the basket's records, per object (users and their access aside). */
-export async function basketRecords(client: SalesforceClient, items: BasketItem[]): Promise<Record<string, Row[]>> {
-  const out: Record<string, Row[]> = {};
-  for (const o of basketObjects(items)) {
-    /* eslint-disable no-await-in-loop */
-    const fields = (await describeData(client, o.name))
-      .filter((f) => !['address', 'location', 'base64'].includes(f.type))
-      .map((f) => f.name);
-    const ids = items.filter((i) => i.object === o.name).map((i) => i.id);
-    out[o.name] = [];
-    for (const part of chunks([...new Set(ids)], 200))
-      out[o.name].push(
-        ...(
-          await query(client, `SELECT ${fields.join(', ')} FROM ${o.name} WHERE Id IN (${quoted(part)})`, {
-            maxRows: 50_000,
-          })
-        ).rows
-      );
-    /* eslint-enable no-await-in-loop */
-  }
-  return out;
-}
-
-/**
- * The basket's users, each with only the access picked under them (permission set assignments,
- * licenses, group memberships). Access picked without its user brings the user too.
- */
-export async function basketUsers(client: SalesforceClient, items: BasketItem[], orgLabel = ''): Promise<UserCopy[]> {
-  const access = items.filter((i) => USER_ACCESS.includes(i.object) && ID.test(i.id));
-  const picked: Array<{ user: string; line: SnapshotLine }> = [];
-  const byObject = (object: string): string[] => access.filter((a) => a.object === object).map((a) => a.id);
-  const read = async (object: string, fields: string): Promise<Row[]> =>
-    byObject(object).length
-      ? (await query(client, `SELECT ${fields} FROM ${object} WHERE Id IN (${quoted(byObject(object))})`)).rows
-      : [];
-  const [assignments, licenses, members] = await Promise.all([
-    read(
-      'PermissionSetAssignment',
-      'AssigneeId, PermissionSetGroupId, PermissionSetGroup.DeveloperName, PermissionSet.Name, PermissionSet.NamespacePrefix'
-    ),
-    read('PermissionSetLicenseAssign', 'AssigneeId, PermissionSetLicense.DeveloperName'),
-    read('GroupMember', 'UserOrGroupId, Group.DeveloperName, Group.Type'),
+/** Labels of a user's access as people know them ("Sales Ops" for Sales_Ops), by section:name. */
+export async function accessLabels(client: SalesforceClient): Promise<Record<string, string>> {
+  const read = async (soql: string): Promise<Row[]> =>
+    (await query(client, soql, { maxRows: 50_000 }).catch(() => ({ rows: [] as Row[] }))).rows;
+  const [sets, groups, licenses, publicGroups] = await Promise.all([
+    read('SELECT Name, NamespacePrefix, Label FROM PermissionSet WHERE IsOwnedByProfile = false'),
+    read('SELECT DeveloperName, MasterLabel FROM PermissionSetGroup'),
+    read('SELECT DeveloperName, MasterLabel FROM PermissionSetLicense'),
+    read("SELECT DeveloperName, Name FROM Group WHERE Type IN ('Regular', 'Queue')"),
   ]);
-  for (const a of assignments)
-    picked.push({
-      user: String(a.AssigneeId),
-      line: a.PermissionSetGroupId
-        ? { Section: 'permissionSetGroup', Name: String(a['PermissionSetGroup.DeveloperName']), Value: '' }
-        : {
-            Section: 'permissionSet',
-            Name: `${
-              a['PermissionSet.NamespacePrefix'] ? `${String(a['PermissionSet.NamespacePrefix'])}__` : ''
-            }${String(a['PermissionSet.Name'])}`,
-            Value: '',
-          },
-    });
-  for (const l of licenses)
-    picked.push({
-      user: String(l.AssigneeId),
-      line: { Section: 'license', Name: String(l['PermissionSetLicense.DeveloperName']), Value: '' },
-    });
-  for (const m of members.filter((x) => String(x.UserOrGroupId).startsWith('005')))
-    picked.push({
-      user: String(m.UserOrGroupId),
-      line: {
-        Section: 'group',
-        Name: String(m['Group.DeveloperName']),
-        Value: m['Group.Type'] === 'Queue' ? 'Queue' : 'Public group',
-      },
-    });
-  const k15 = (id: string): string => id.slice(0, 15);
-  const userIds = [
-    ...new Set([...items.filter((i) => i.object === 'User').map((i) => k15(i.id)), ...picked.map((p) => k15(p.user))]),
-  ];
-  const out: UserCopy[] = [];
-  for (const id of userIds) {
-    const full =
-      items.find((i) => i.object === 'User' && k15(i.id) === id)?.id ?? picked.find((p) => k15(p.user) === id)!.user;
-    // eslint-disable-next-line no-await-in-loop
-    const snapshot = await takeUserSnapshot(client, full, orgLabel);
-    out.push({
-      username: snapshot.find((l) => l.Section === 'info' && l.Name === 'user')?.Value ?? '',
-      lines: [
-        ...snapshot.filter((l) => ['info', 'field', 'lookup'].includes(l.Section)),
-        ...picked.filter((p) => k15(p.user) === id).map((p) => p.line),
-      ],
-    });
-  }
-  return out;
+  const ns = (r: Row) => (r.NamespacePrefix ? `${String(r.NamespacePrefix)}__` : '');
+  return Object.fromEntries([
+    ...sets.map((r) => [`permissionSet:${ns(r)}${String(r.Name)}`, String(r.Label ?? '')]),
+    ...groups.map((r) => [`permissionSetGroup:${String(r.DeveloperName)}`, String(r.MasterLabel ?? '')]),
+    ...licenses.map((r) => [`license:${String(r.DeveloperName)}`, String(r.MasterLabel ?? '')]),
+    ...publicGroups.map((r) => [`group:${String(r.DeveloperName)}`, String(r.Name ?? '')]),
+  ]);
+}
+
+/** The user with only the access ticked (the rest of their snapshot: fields and lookups by name). */
+export function userCopy(snapshot: SnapshotLine[], picked: SnapshotLine[]): UserCopy {
+  return {
+    username: snapshot.find((l) => l.Section === 'info' && l.Name === 'user')?.Value ?? '',
+    lines: [...snapshot.filter((l) => ['info', 'field', 'lookup'].includes(l.Section)), ...picked],
+  };
 }
 
 /**
@@ -192,8 +213,8 @@ const METADATA_SHEET = 'NomadSF metadata';
 /** Excel holds at most 32,767 characters in a cell: longer metadata files go over several. */
 const CELL = 32_000;
 
-/** The basket as sheets: a sheet per object, the users with their access, and the metadata. */
-export function basketSheets(bundle: {
+/** A copy as sheets: a sheet per object, the user with their access, and the metadata. */
+export function copySheets(bundle: {
   records: Record<string, Row[]>;
   users: UserCopy[];
   metadata: AccessFile[];
@@ -225,8 +246,8 @@ export function basketSheets(bundle: {
   return sheets;
 }
 
-/** A basket workbook back: the record tables, and the users and metadata sheets when there are. */
-export function fromBasketSheets(tables: FileTable[]): {
+/** A saved copy back: the record tables, and the users and metadata sheets when there are. */
+export function fromCopySheets(tables: FileTable[]): {
   tables: FileTable[];
   users: UserCopy[];
   metadata: AccessFile[];
@@ -364,7 +385,7 @@ export async function copyUsers(
   for (const type of ['PermissionSet', 'PermissionSetGroup'] as const) {
     const list = files(type);
     for (const c of create.filter((x) => x.type === type && !list.some((m) => m.name === x.name)))
-      out.failed.push({ item: `${type} ${c.name}`, error: 'its metadata is not in the basket' });
+      out.failed.push({ item: `${type} ${c.name}`, error: 'its metadata could not be read' });
     if (!list.length) continue;
     // eslint-disable-next-line no-await-in-loop
     const r = await deployFiles(

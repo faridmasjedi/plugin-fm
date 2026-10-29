@@ -2730,41 +2730,25 @@ input.bad-input {
   gap: 8px;
 }
 
-/* Record › Related: the parents tree */
+/* Record › Related: the tree to tick and the copy bar */
 .relation-tree {
   list-style: none;
   margin: 4px 0;
   padding-left: 18px;
   border-left: 1px solid var(--border);
 }
-.record-relations > .relation-tree {
-  padding-left: 4px;
+.relation-tree.root {
+  padding-left: 0;
   border-left: 0;
 }
 .relation-tree li {
   padding: 2px 0;
 }
-
-/* Record › Related: the basket and the records of a relationship */
-.basket {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin-bottom: 12px;
+.copy-bar {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 10px;
 }
-.basket-items {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding-top: 6px;
-}
-.relation-records {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.relation-record {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.belongs-to {
+  margin: 0 0 6px;
 }

@@ -3,13 +3,10 @@ import {
   describeData,
   describeGlobal,
   filesAsSource,
-  fromBasketSheets,
   readTableFile,
-  type AccessFile,
   type BackupState,
   type FileTable,
   type SalesforceClient,
-  type UserCopy,
 } from '@nomadsf/core';
 import { ObjectOptions } from './ObjectOptions';
 
@@ -20,27 +17,14 @@ import { ObjectOptions } from './ObjectOptions';
  */
 export function FilesSourcePanel({
   targetClient,
-  initialFile,
   onUse,
 }: {
   /** The target org: its objects and fields describe the files. */
   targetClient?: () => Promise<SalesforceClient>;
-  /** A saved basket opened from Record › Related. */
-  initialFile?: File;
-  /** `basket`: a saved basket (its users and their permission sets come too; every row is copied). */
-  onUse: (
-    state: BackupState,
-    objects: string[],
-    notes: string[],
-    basket?: { users: UserCopy[]; metadata: AccessFile[] }
-  ) => void;
+  onUse: (state: BackupState, objects: string[], notes: string[]) => void;
 }) {
   const [objects, setObjects] = useState<Array<{ name: string; label: string }>>([]);
-  const [file, setFile] = useState<{
-    name: string;
-    tables: FileTable[];
-    basket?: { users: UserCopy[]; metadata: AccessFile[] };
-  } | null>(null);
+  const [file, setFile] = useState<{ name: string; tables: FileTable[] } | null>(null);
   const [match, setMatch] = useState<Record<string, string>>({});
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -69,11 +53,11 @@ export function FilesSourcePanel({
   const open = async (f: File) => {
     setStatus('');
     try {
-      const read = (await readTableFile(f.name, new Uint8Array(await f.arrayBuffer()))).filter((t) => t.columns.length);
-      const saved = fromBasketSheets(read);
-      const basket = saved.tables.length < read.length ? { users: saved.users, metadata: saved.metadata } : undefined;
-      if (!saved.tables.length && !basket) throw new Error(`No table in ${f.name}.`);
-      setFile({ name: f.name, tables: saved.tables, basket });
+      const tables = (await readTableFile(f.name, new Uint8Array(await f.arrayBuffer()))).filter(
+        (t) => t.columns.length
+      );
+      if (!tables.length) throw new Error(`No table in ${f.name}.`);
+      setFile({ name: f.name, tables });
       setMatch({});
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
@@ -84,14 +68,8 @@ export function FilesSourcePanel({
     objects.find((o) => o.name.toLowerCase() === name.trim().toLowerCase())?.name;
   const chosen = (file?.tables ?? []).filter((t) => known(match[t.name] ?? ''));
 
-  useEffect(() => {
-    if (initialFile) void open(initialFile);
-    // open reads the file once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialFile]);
-
   const use = async () => {
-    if (!targetClient || (!chosen.length && !file?.basket)) return;
+    if (!targetClient || !chosen.length) return;
     setBusy(true);
     setStatus('Reading the fields of the objects…');
     try {
@@ -113,15 +91,8 @@ export function FilesSourcePanel({
         finishedAt: new Date().toISOString(),
       };
       const state = { manifest, schema: source.schema, rows: source.rows, runs: [] } as unknown as BackupState;
-      onUse(state, objectsUsed, source.notes, file!.basket);
-      setStatus(
-        file!.basket
-          ? `✓ A saved basket: ${[
-              ...objectsUsed,
-              ...(file!.basket.users.length ? [`${file!.basket.users.length} user(s)`] : []),
-            ].join(', ')}.`
-          : `✓ ${chosen.length} sheet(s) as ${objectsUsed.join(', ')}: choose what to copy below.`
-      );
+      onUse(state, objectsUsed, source.notes);
+      setStatus(`✓ ${chosen.length} sheet(s) as ${objectsUsed.join(', ')}: choose what to copy below.`);
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
     } finally {
@@ -147,13 +118,7 @@ export function FilesSourcePanel({
         </label>
         {!targetClient && <span className="muted">Choose B (copy into) first: its objects describe the files.</span>}
       </div>
-      {file?.basket && file.basket.users.length > 0 && (
-        <p className="muted">
-          A saved basket with {file.basket.users.length} user(s): {file.basket.users.map((u) => u.username).join(', ')}
-          {file.basket.metadata.length ? `, and ${file.basket.metadata.length} permission set(s) or group(s)` : ''}.
-        </p>
-      )}
-      {file && file.tables.length > 0 && (
+      {file && (
         <table className="edit-table">
           <thead>
             <tr>
@@ -190,14 +155,8 @@ export function FilesSourcePanel({
       )}
       {file && (
         <div className="form">
-          <button
-            className="primary"
-            disabled={busy || (!chosen.length && !file.basket) || !targetClient}
-            onClick={() => void use()}
-          >
-            {file.basket
-              ? 'Use this basket'
-              : `Use these files (${chosen.length} sheet${chosen.length === 1 ? '' : 's'})`}
+          <button className="primary" disabled={busy || !chosen.length || !targetClient} onClick={() => void use()}>
+            Use these files ({chosen.length} sheet{chosen.length === 1 ? '' : 's'})
           </button>
           <span className="muted">
             Sheets left empty are skipped. Lookup columns holding Ids of other sheets (AccountId…) are pointed to the

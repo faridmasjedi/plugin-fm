@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { MigrateObject, SalesforceClient, UserCopy, UserInfo } from '@nomadsf/core';
+import type { SalesforceClient, UserInfo } from '@nomadsf/core';
 import type { HostKind, OrgChoice, OrgFacts } from './host';
 
 export type Studio = {
@@ -43,32 +43,12 @@ export const InspectContext = createContext<((id: string) => void) | null>(null)
 /** Shows another tool (Query, Migrate…) in the active pane. */
 export const GoContext = createContext<((tool: string) => void) | null>(null);
 
-let pendingFile: File | null = null;
-
-/** Work handed to another tool: Query gets a SOQL, Migrate a basket (records, users) or a saved one. */
+/** Work handed to another tool: Query gets a SOQL (Record › Related › Query). */
 export const handoff = {
   query(soql: string): void {
     storage.set('query.soql', soql);
     storage.set('query.tooling', false);
     window.dispatchEvent(new CustomEvent('nomadsf:query', { detail: soql }));
-  },
-  /** Exactly these records (nothing related brought along), and users with the access picked. */
-  migrate(org: string, objects: MigrateObject[], users: UserCopy[] = []): void {
-    storage.set('migrate.plan', { org, objects, users });
-    window.dispatchEvent(new Event('nomadsf:migrate-plan'));
-  },
-  /** A saved basket (workbook) for Migrate › From files. */
-  migrateFile(file: File): void {
-    pendingFile = file;
-    window.dispatchEvent(new Event('nomadsf:migrate-file'));
-  },
-  hasFile(): boolean {
-    return pendingFile !== null;
-  },
-  takeFile(): File | null {
-    const file = pendingFile;
-    pendingFile = null;
-    return file;
   },
 };
 

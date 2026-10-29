@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   SalesforceClient,
-  basketObjects,
-  basketSheets,
-  basketUsers,
   childRecords,
   childRelations,
   childrenSoql,
+  copyObjects,
+  copySheets,
   copyUsers,
-  fromBasketSheets,
+  fromCopySheets,
   planUsers,
   recordLookups,
+  relationCounts,
+  userCopy,
   type FileTable,
   type HttpRequest,
   type UserCopy,
@@ -117,9 +118,20 @@ describe('record relations', () => {
     const access = await childRecords(client, { object: 'PermissionSetAssignment', field: 'AssigneeId' }, OWNER);
     expect(access.map((a) => a.name)).toEqual(['Permission set: Sales Ops', 'Permission set group: Support']);
   });
+
+  it('counts what points to a record when asked, leaving out empty and system relationships', async () => {
+    const { client, soql } = org();
+    const progress: string[] = [];
+    const counted = await relationCounts(client, 'Contact', CONTACT, (n, total) => progress.push(`${n}/${total}`));
+    expect(counted.map((c) => [c.object, c.count])).toEqual([['Case', 1]]);
+    expect(soql.filter((q) => q.startsWith('SELECT COUNT()'))).toEqual([
+      `SELECT COUNT() FROM Case WHERE ContactId = '${CONTACT}'`,
+    ]);
+    expect(progress).toEqual(['1/1']);
+  });
 });
 
-describe('basket', () => {
+describe('copying a record and what is ticked', () => {
   const user: UserCopy = {
     username: 'ann@acme.com',
     lines: [
@@ -131,24 +143,23 @@ describe('basket', () => {
     ],
   };
 
-  it('copies exactly the picked records: users and their access go apart', () => {
+  it('copies exactly what is ticked: a whole relationship by its lookup, single records by Id', () => {
     expect(
-      basketObjects([
-        { object: 'Account', id: ACCOUNT, name: 'Acme' },
-        { object: 'Contact', id: CONTACT, name: 'Ann' },
-        { object: 'Contact', id: '003000000000002AAA', name: 'Bob' },
-        { object: 'User', id: OWNER, name: 'Farid' },
-        { object: 'PermissionSetAssignment', id: '0Pa000000000001AAA', name: 'Sales Ops' },
+      copyObjects([
+        { object: 'Account', where: `Id = '${ACCOUNT}'` },
+        { object: 'Contact', where: `AccountId = '${ACCOUNT}'` },
+        { object: 'Contact', where: "Id = '003000000000002AAA'" },
+        { object: 'Contact', where: "Id = '003000000000002AAA'" },
       ])
     ).toEqual([
-      { name: 'Account', where: `Id IN ('${ACCOUNT}')` },
-      { name: 'Contact', where: `Id IN ('${CONTACT}', '003000000000002AAA')` },
+      { name: 'Account', where: `Id = '${ACCOUNT}'` },
+      { name: 'Contact', where: `(AccountId = '${ACCOUNT}') OR (Id = '003000000000002AAA')` },
     ]);
   });
 
   it('keeps users and long metadata files in a workbook and reads them back', () => {
     const xml = `<PermissionSet>${'x'.repeat(70_000)}</PermissionSet>`;
-    const sheets = basketSheets({
+    const sheets = copySheets({
       records: { Account: [{ Id: ACCOUNT, Name: 'Acme' }] },
       users: [user],
       metadata: [{ type: 'PermissionSet', name: 'Sales_Ops', xml }],
@@ -160,42 +171,17 @@ describe('basket', () => {
       columns: s.columns,
       rows: s.rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? '')]))),
     }));
-    const back = fromBasketSheets(asFile);
+    const back = fromCopySheets(asFile);
     expect(back.tables.map((t) => t.name)).toEqual(['Account']);
     expect(back.users).toEqual([user]);
     expect(back.metadata[0].xml).toBe(xml);
   });
 
-  it('takes a user with only the access picked under them', async () => {
-    const client = new SalesforceClient(async (r: HttpRequest) => {
-      if (r.path.endsWith('/sobjects/User/describe'))
-        return json({
-          fields: [{ name: 'Title', type: 'string', updateable: true, createable: true, referenceTo: [] }],
-        });
-      const q = soqlOf(r);
-      if (q.includes('FROM PermissionSetAssignment WHERE Id IN'))
-        return json({
-          totalSize: 1,
-          done: true,
-          records: [{ AssigneeId: OWNER, 'PermissionSet.Name': 'Sales_Ops', 'PermissionSet.NamespacePrefix': null }],
-        });
-      if (q.includes(`FROM User WHERE Id = '${OWNER}'`))
-        return json({ totalSize: 1, done: true, records: [{ Username: 'ann@acme.com', Title: 'Lead' }] });
-      // Everything else the user has (other permission sets…) is not picked
-      if (q.includes('FROM PermissionSetAssignment WHERE AssigneeId'))
-        return json({
-          totalSize: 1,
-          done: true,
-          records: [{ 'PermissionSet.Name': 'Other', 'PermissionSet.IsOwnedByProfile': false }],
-        });
-      return json({ totalSize: 0, done: true, records: [] });
-    }, '62.0');
-    const users = await basketUsers(client, [
-      { object: 'PermissionSetAssignment', id: '0Pa000000000001AAA', name: 'Permission set: Sales Ops' },
-    ]);
-    expect(users).toHaveLength(1);
-    expect(users[0].username).toBe('ann@acme.com');
-    expect(users[0].lines.filter((l) => !['info', 'field', 'lookup'].includes(l.Section))).toEqual([
+  it('takes a user with only the access ticked', () => {
+    const snapshot = [...user.lines, { Section: 'license' as const, Name: 'Sales_Console', Value: '' }];
+    const copy = userCopy(snapshot, [{ Section: 'permissionSet', Name: 'Sales_Ops', Value: '' }]);
+    expect(copy.username).toBe('ann@acme.com');
+    expect(copy.lines.filter((l) => !['info', 'field', 'lookup'].includes(l.Section))).toEqual([
       { Section: 'permissionSet', Name: 'Sales_Ops', Value: '' },
     ]);
   });

@@ -167,3 +167,34 @@ export async function childRecords(
     row: r,
   }));
 }
+
+/**
+ * How many records point to the record through each relationship (system ones aside), a few
+ * queries at a time; relationships without records are left out.
+ */
+export async function relationCounts(
+  client: SalesforceClient,
+  object: string,
+  id: string,
+  onProgress?: (done: number, total: number) => void
+): Promise<Array<ChildRelation & { count: number }>> {
+  if (!ID.test(id)) throw new Error('Invalid record Id.');
+  const relations = (await childRelations(client, object)).filter((r) => !r.system);
+  const out: Array<ChildRelation & { count: number }> = [];
+  let done = 0;
+  for (let i = 0; i < relations.length; i += 10)
+    // eslint-disable-next-line no-await-in-loop
+    await Promise.all(
+      relations.slice(i, i + 10).map(async (r) => {
+        try {
+          const n = (await query(client, `SELECT COUNT() FROM ${r.object} WHERE ${r.field} = '${id}'`)).totalSize;
+          if (n > 0) out.push({ ...r, count: n });
+        } catch {
+          // Some objects cannot be filtered this way (or are not visible to the user)
+        } finally {
+          onProgress?.(++done, relations.length);
+        }
+      })
+    );
+  return out.sort((a, b) => a.objectLabel.trim().localeCompare(b.objectLabel.trim()) || a.field.localeCompare(b.field));
+}
