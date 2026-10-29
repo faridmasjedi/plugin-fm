@@ -39,6 +39,8 @@ window.NOMADSF_WHATS_NEW = {
 
     '⤓ downloads an Excel workbook (a sheet per table); Import, Compare with CSV and Migrate read workbooks and zips',
     'Migrate from files: copy the sheets of a workbook into an org, keeping the links between them',
+    'Record › Related: parents as a tree and children per relationship; list, query, copy to another org or save them',
+    'Users: Everything (workbook), a sheet per tab; a snapshot creates the user in an org that does not have them',
   ],
   '2.1.0': [
     'VS Code extension works on its own: no Salesforce CLI, no sf fm plugin, no local port',

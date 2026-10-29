@@ -21,10 +21,11 @@ export function matches(value: unknown, filter: string): boolean {
   return v.includes(f);
 }
 
-export function download(name: string, content: string, type: string): void {
+export function download(name: string, content: string | Uint8Array, type: string): void {
   const a = document.createElement('a');
   // CSV with a UTF-8 BOM: Excel otherwise reads it as ANSI (→, é and the like turn into gibberish)
-  const body = type === 'text/csv' && !content.startsWith('\uFEFF') ? `\uFEFF${content}` : content;
+  const body =
+    typeof content === 'string' && type === 'text/csv' && !content.startsWith('\uFEFF') ? `\uFEFF${content}` : content;
   a.href = URL.createObjectURL(new Blob([body], { type }));
   a.download = name;
   a.click();

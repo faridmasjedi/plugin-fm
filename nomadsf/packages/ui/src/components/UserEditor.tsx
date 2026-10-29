@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { searchUsers, setActive, setFrozen, userLogin, type UserMatch } from '@nomadsf/core';
+import { searchUsers, setActive, setFrozen, userLogin, writeWorkbook, type UserMatch } from '@nomadsf/core';
 import { useStudio } from '../context';
 import { RecordPage } from '../pages/RecordPage';
-import { DataTable } from './DataTable';
-import { UserAccessPanel } from './UserAccessPanel';
+import { DataTable, download } from './DataTable';
+import { UserAccessPanel, userWorkbook } from './UserAccessPanel';
 import { UserSnapshot } from './UserSnapshot';
 
 /** Find a user by name, username, email or Id, then edit any field (the Record editor) or freeze / deactivate. */
@@ -53,6 +53,21 @@ export function UserEditor() {
     }
   };
 
+  const workbook = async () => {
+    if (!chosen) return;
+    setStatus('Reading every tab of the user…');
+    try {
+      download(
+        `${chosen.Username}-${new Date().toLocaleDateString('en-CA')}.xlsx`,
+        writeWorkbook(await userWorkbook(client, chosen.Id)),
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      setStatus(`✓ Workbook of ${chosen.Name}: a sheet per tab.`);
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    }
+  };
+
   return (
     <div className="card section">
       {/* Snapshot first: save the chosen user, or compare a file with this org */}
@@ -94,6 +109,12 @@ export function UserEditor() {
             </span>
             {login?.frozen && <span className="pill bad">Frozen</span>}
             <span className="grow" />
+            <button
+              title="Every tab of this user (details, access, groups, licenses, apps, logins), a sheet each"
+              onClick={() => void workbook()}
+            >
+              Everything (workbook)
+            </button>
             {login && (
               <button
                 onClick={() =>

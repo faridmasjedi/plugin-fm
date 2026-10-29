@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   SalesforceClient,
   applySnapshot,
+  createUserFromSnapshot,
+  suggestUsername,
   diffSnapshot,
   parseSnapshot,
   snapshotCsv,
@@ -91,5 +93,50 @@ describe('user snapshot', () => {
     expect(result.failed).toEqual([
       { item: 'add permissionSet Missing_Set', error: 'Permission set Missing_Set is not in this org.' },
     ]);
+  });
+
+  it('creates the user in another org with a new username, then gives them the same access', async () => {
+    const sent: string[] = [];
+    const json = (body: unknown) => ({ status: 200, headers: {}, body: JSON.stringify(body) });
+    const client = new SalesforceClient(async (r: HttpRequest) => {
+      if (r.path.endsWith('/sobjects/User/describe'))
+        return json({
+          fields: [
+            { name: 'Username', type: 'string', updateable: true, createable: true, referenceTo: [] },
+            { name: 'Title', type: 'string', updateable: true, createable: true, referenceTo: [] },
+            { name: 'CommunityNickname', type: 'string', updateable: true, createable: true, referenceTo: [] },
+            { name: 'ProfileId', type: 'reference', updateable: true, createable: true, referenceTo: ['Profile'] },
+            { name: 'UserRoleId', type: 'reference', updateable: true, createable: true, referenceTo: ['UserRole'] },
+          ],
+        });
+      if (r.method !== 'GET') {
+        sent.push(`${r.method} ${r.path.replace(/^\/services\/data\/v[\d.]+/, '')} ${r.body ?? ''}`);
+        return json({ id: r.path.endsWith('/sobjects/User') ? '005000000000009AAA' : '0Pa000000000001AAA' });
+      }
+      const soql = decodeURIComponent(r.path.split('q=')[1] ?? '').replace(/\+/g, ' ');
+      if (soql.includes("FROM Profile WHERE Name = 'Sales Manager'"))
+        return json({ totalSize: 1, done: true, records: [{ Id: '00e000000000001AAA' }] });
+      if (soql.includes("FROM PermissionSet WHERE Name = 'Sales_Ops'"))
+        return json({ totalSize: 1, done: true, records: [{ Id: '0PS000000000001AAA' }] });
+      if (soql.includes("FROM User WHERE Id = '005000000000009AAA'"))
+        return json({ totalSize: 1, done: true, records: [{ Username: 'ann@acme.com.uat' }] });
+      return json({ totalSize: 0, done: true, records: [] });
+    }, '62.0');
+    const snapshot = [
+      ...kept.filter((l) => l.Section !== 'permissionSet'),
+      line('field', 'CommunityNickname', 'ann'),
+      line('lookup', 'UserRoleId', 'Missing Role'),
+      line('permissionSet', 'Sales_Ops'),
+    ];
+    const { id, outcome } = await createUserFromSnapshot(client, snapshot, 'ann@acme.com.uat');
+    expect(id).toBe('005000000000009AAA');
+    expect(sent[0]).toBe(
+      'POST /sobjects/User {"Username":"ann@acme.com.uat","IsActive":true,"Title":"Head of Sales","ProfileId":"00e000000000001AAA"}'
+    );
+    expect(sent[1]).toBe(
+      'POST /sobjects/PermissionSetAssignment {"AssigneeId":"005000000000009AAA","PermissionSetId":"0PS000000000001AAA"}'
+    );
+    expect(outcome.failed.map((f) => f.item)).toContain('UserRoleId → Missing Role');
+    expect(suggestUsername(snapshot, 'UAT')).toBe('ann@acme.com.uat');
   });
 });

@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import {
   applySnapshot,
+  createUserFromSnapshot,
   diffSnapshot,
   parseSnapshot,
   snapshotCsv,
   snapshotUser,
+  suggestUsername,
   takeUserSnapshot,
   type SnapshotDifference,
   type SnapshotLine,
@@ -25,6 +27,8 @@ export function UserSnapshot({ userId, username }: { userId?: string; username?:
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  // The snapshot's user is not in this org: create them under a username of their own
+  const [missing, setMissing] = useState<{ username: string } | null>(null);
 
   const save = async () => {
     if (!userId) return;
@@ -42,18 +46,16 @@ export function UserSnapshot({ userId, username }: { userId?: string; username?:
     }
   };
 
-  const compareWith = async (lines: SnapshotLine[], name: string) => {
+  const compareWith = async (lines: SnapshotLine[], name: string, found?: string) => {
     setKept({ name, lines });
     setDiff(null);
+    setMissing(null);
     setStatus('Finding the user in this org…');
     try {
-      const id = userId ?? (await snapshotUser(client, lines));
+      const id = found ?? userId ?? (await snapshotUser(client, lines));
       if (!id) {
-        setStatus(
-          `❌ No user like ${lines.find((l) => l.Name === 'user')?.Value ?? '?'} in ${
-            org.label
-          } (create them first, then compare).`
-        );
+        setMissing({ username: suggestUsername(lines, org.label) });
+        setStatus(`No user like ${lines.find((l) => l.Name === 'user')?.Value ?? '?'} in ${org.label}.`);
         return;
       }
       setTarget(id);
@@ -64,6 +66,43 @@ export function UserSnapshot({ userId, username }: { userId?: string; username?:
       setStatus('');
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
+    }
+  };
+
+  const create = async () => {
+    if (!kept || !missing) return;
+    const of = (section: string) => kept.lines.filter((l) => l.Section === section).length;
+    const profile = kept.lines.find((l) => l.Section === 'lookup' && l.Name === 'ProfileId')?.Value ?? '?';
+    if (
+      !(await confirmChange(
+        `Create the user ${missing.username} in ${org.label} from ${kept.name}: profile ${profile}, ${of(
+          'permissionSet'
+        )} permission set(s), ${of('permissionSetGroup')} group(s), ${of('license')} license(s), ${of(
+          'group'
+        )} public group(s) and queue(s). No welcome e-mail is sent.`
+      ))
+    )
+      return;
+    setBusy(true);
+    setStatus('Creating the user…');
+    try {
+      const { id, outcome } = await createUserFromSnapshot(client, kept.lines, missing.username, org.label);
+      logActivity('create user from snapshot', {
+        user: missing.username,
+        file: kept.name,
+        done: outcome.done.length,
+        failed: outcome.failed.length,
+      });
+      await compareWith(kept.lines, kept.name, id);
+      setStatus(
+        `✓ Created ${missing.username} (${id}): ${outcome.done.length} done.${
+          outcome.failed.length ? ` ❌ ${outcome.failed.map((f) => `${f.item}: ${f.error}`).join('; ')}` : ''
+        }`
+      );
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -137,6 +176,23 @@ export function UserSnapshot({ userId, username }: { userId?: string; username?:
         </label>
         <span className="muted">{status}</span>
       </div>
+      {missing && kept && (
+        <div className="form">
+          <span>Create them here as</span>
+          <input
+            style={{ minWidth: 340 }}
+            value={missing.username}
+            title="Usernames are unique across every Salesforce org: the snapshot's own is taken"
+            onChange={(e) => setMissing({ username: e.target.value.trim() })}
+          />
+          <button className="primary" disabled={busy || !missing.username} onClick={() => void create()}>
+            Create the user…
+          </button>
+          <span className="muted">
+            with the snapshot's fields, profile, role, manager, permission sets, licenses, groups and queues
+          </span>
+        </div>
+      )}
       {diff &&
         (diff.length === 0 ? (
           <p className="good">✓ The user matches {kept?.name}: the same fields, profile, role, access and groups.</p>

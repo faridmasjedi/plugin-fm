@@ -2729,3 +2729,18 @@ input.bad-input {
   flex-direction: column;
   gap: 8px;
 }
+
+/* Record › Related: the parents tree */
+.relation-tree {
+  list-style: none;
+  margin: 4px 0;
+  padding-left: 18px;
+  border-left: 1px solid var(--border);
+}
+.record-relations > .relation-tree {
+  padding-left: 4px;
+  border-left: 0;
+}
+.relation-tree li {
+  padding: 2px 0;
+}

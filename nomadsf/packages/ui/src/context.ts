@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { SalesforceClient, UserInfo } from '@nomadsf/core';
+import type { MigrateObject, SalesforceClient, UserInfo } from '@nomadsf/core';
 import type { HostKind, OrgChoice, OrgFacts } from './host';
 
 export type Studio = {
@@ -39,6 +39,22 @@ export const StudioContext = createContext<Studio | null>(null);
 
 /** Opens a record in the Record inspector (from any table with Ids). */
 export const InspectContext = createContext<((id: string) => void) | null>(null);
+
+/** Shows another tool (Query, Migrate…) in the active pane. */
+export const GoContext = createContext<((tool: string) => void) | null>(null);
+
+/** Work handed to another tool: Query gets a SOQL, Migrate a plan (from the Record's relations). */
+export const handoff = {
+  query(soql: string): void {
+    storage.set('query.soql', soql);
+    storage.set('query.tooling', false);
+    window.dispatchEvent(new CustomEvent('nomadsf:query', { detail: soql }));
+  },
+  migrate(org: string, objects: MigrateObject[]): void {
+    storage.set('migrate.plan', { org, objects });
+    window.dispatchEvent(new Event('nomadsf:migrate-plan'));
+  },
+};
 
 export function useStudio(): Studio {
   const studio = useContext(StudioContext);

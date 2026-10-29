@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   coerceFieldValue,
   inspectRecord,
@@ -10,12 +10,13 @@ import {
   type InspectedRecord,
   type RecordField,
 } from '@nomadsf/core';
-import { storage, useStudio } from '../context';
+import { InspectContext, storage, useStudio } from '../context';
 import { openInOrg } from '../host';
 import { CopyId } from '../components/CopyId';
 import { DataTable } from '../components/DataTable';
 import { NewRecord } from '../components/NewRecord';
 import { RecordPicker } from '../components/RecordPicker';
+import { RecordRelations } from '../components/RecordRelations';
 
 const display = (v: unknown): string =>
   v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
@@ -65,7 +66,8 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
   const [editing, setEditing] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [status, setStatus] = useState('');
-  const [view, setView] = useState<'fields' | 'history'>('fields');
+  const [view, setView] = useState<'fields' | 'history' | 'related'>('fields');
+  const inspect = useContext(InspectContext);
   const [history, setHistory] = useState<{ object?: string; entries: HistoryEntry[] } | null>(null);
   // Another record (or the same one after a save): its history is read again
   useEffect(() => setHistory(null), [record]);
@@ -317,7 +319,20 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
             <button className={`tab ${view === 'history' ? 'active' : ''}`} onClick={() => setView('history')}>
               History
             </button>
+            <button className={`tab ${view === 'related' ? 'active' : ''}`} onClick={() => setView('related')}>
+              Related
+            </button>
           </div>
+          {view === 'related' && (
+            <RecordRelations
+              sobject={record.sobject}
+              id={record.id}
+              name={record.name ?? ''}
+              fields={record.fields}
+              // Inside Users: a related record opens in the Record tool
+              onOpen={(id) => (embedded && inspect ? inspect(id) : void open(id))}
+            />
+          )}
           {view === 'history' && (
             <RecordHistory
               sobject={record.sobject}

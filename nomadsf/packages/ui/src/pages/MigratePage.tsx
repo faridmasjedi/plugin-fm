@@ -168,6 +168,20 @@ export function MigratePage({
     if (plan) setStale(true);
   }, [withParents, matchRules, oldIds, withFiles, maxMB]);
 
+  // A plan handed over (Record › Related › Copy to another org): its objects, once the source is that org
+  const takePlan = (org: string): void => {
+    const pending = storage.get<{ org: string; objects: MigrateObject[] } | undefined>('migrate.plan', undefined);
+    if (!pending || pending.org !== org) return;
+    storage.set('migrate.plan', undefined);
+    setChosen(pending.objects);
+    setStatus(`From the record: ${pending.objects.map((o) => o.name).join(', ')}. Choose B, then Check plan.`);
+  };
+  useEffect(() => {
+    const take = () => source.kind === 'org' && candidates && takePlan(source.org);
+    window.addEventListener('nomadsf:migrate-plan', take);
+    return () => window.removeEventListener('nomadsf:migrate-plan', take);
+  });
+
   // What can be copied: the source org's objects, or the objects of the backup
   useEffect(() => {
     setCandidates(null);
@@ -187,6 +201,7 @@ export function MigratePage({
           if (canceled) return;
           setFacts((x) => ({ ...x, source: f }));
           setCandidates(backupCandidates(list.sobjects));
+          takePlan(source.org);
         } else if (source.kind === 'files') {
           // The tables come from Use these files (below)
           setStatus('');

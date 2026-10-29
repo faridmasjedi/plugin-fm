@@ -396,6 +396,13 @@
               field changes — when, which field, from, to and by whom — for objects with field history tracking on.
             </p>
             <p>
+              <b>Related</b> shows everything around the record: its <b>parents</b> as a tree (the records its lookups
+              point to, and theirs — a Contact's Account, the Account's owner and parent…) and its <b>children</b>,
+              counted per relationship (Cases through ContactId…). <b>Show</b> lists them, <b>Query</b> opens them in
+              Query, <b>Copy to another org…</b> opens Migrate with the record and the ticked children (the records they
+              point to come along), and <b>Workbook</b> saves the record, its parents and children, a sheet each.
+            </p>
+            <p>
               <b>Me</b> opens your own user; a user's name finds them too. <b>New…</b> creates a record of any object:
               required fields first, picklists as lists, lookups found by name.
             </p>
@@ -728,7 +735,14 @@
               connected apps they sign in to (those are to check only: the user connects an app themselves). In any org
               (a new sandbox, say), <b>Compare … with a snapshot…</b> finds the same user (username, with or without a
               sandbox suffix) and lists every difference; tick what to change and
-              <b>Make the user match the snapshot</b>. You can edit the CSV in Excel first.
+              <b>Make the user match the snapshot</b>. You can edit the CSV in Excel first. When the user is not in that
+              org, <b>Create the user…</b> makes them under a new username (usernames are unique across every org), with
+              the same fields, profile, role, manager and access; no welcome e-mail is sent.
+            </p>
+            <p>
+              <b>Everything (workbook)</b> next to a user saves every tab — details, permission sets and groups, system
+              permissions, groups and queues, licenses, OAuth apps and login history — a sheet each (⤓ takes only the
+              tab on screen).
             </p>
           </section>
           <section class="tool" data-title="Permission sets &amp; groups">
