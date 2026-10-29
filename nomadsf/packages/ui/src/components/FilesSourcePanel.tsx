@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
   describeData,
   describeGlobal,
@@ -28,13 +28,22 @@ export function FilesSourcePanel({
   const [match, setMatch] = useState<Record<string, string>>({});
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  // B's objects are read (until then a typed object is not marked wrong)
+  const [loaded, setLoaded] = useState(false);
+  // Rows taken out (sheet#row), and the sheets opened to pick rows
+  const [off, setOff] = useState<Set<string>>(new Set());
+  const [opened, setOpened] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setObjects([]);
+    setLoaded(false);
     if (!targetClient) return;
     void targetClient()
       .then((c) => describeGlobal(c))
-      .then((list) => setObjects(list.map((o) => ({ name: o.name, label: o.label }))))
+      .then((list) => {
+        setObjects(list.map((o) => ({ name: o.name, label: o.label })));
+        setLoaded(true);
+      })
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
   }, [targetClient]);
 
@@ -59,6 +68,8 @@ export function FilesSourcePanel({
       if (!tables.length) throw new Error(`No table in ${f.name}.`);
       setFile({ name: f.name, tables });
       setMatch({});
+      setOff(new Set());
+      setOpened(new Set());
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
     }
@@ -66,7 +77,21 @@ export function FilesSourcePanel({
 
   const known = (name: string): string | undefined =>
     objects.find((o) => o.name.toLowerCase() === name.trim().toLowerCase())?.name;
-  const chosen = (file?.tables ?? []).filter((t) => known(match[t.name] ?? ''));
+  const rowKey = (t: FileTable, i: number) => `${t.name}#${i}`;
+  const picked = (t: FileTable) => t.rows.filter((_, i) => !off.has(rowKey(t, i)));
+  const chosen = (file?.tables ?? [])
+    .filter((t) => known(match[t.name] ?? ''))
+    .map((t) => ({ ...t, rows: picked(t) }))
+    .filter((t) => t.rows.length);
+  const toggle = (keys: string[], on: boolean) => {
+    const next = new Set(off);
+    for (const k of keys)
+      if (on) next.delete(k);
+      else next.add(k);
+    setOff(next);
+  };
+  const nameOf = (r: Record<string, string>) =>
+    r.Name || r.CaseNumber || r.Subject || r.Title || [r.FirstName, r.LastName].filter(Boolean).join(' ') || r.Id || '';
 
   const use = async () => {
     if (!targetClient || !chosen.length) return;
@@ -92,7 +117,11 @@ export function FilesSourcePanel({
       };
       const state = { manifest, schema: source.schema, rows: source.rows, runs: [] } as unknown as BackupState;
       onUse(state, objectsUsed, source.notes);
-      setStatus(`✓ ${chosen.length} sheet(s) as ${objectsUsed.join(', ')}: choose what to copy below.`);
+      setStatus(
+        `✓ ${chosen
+          .map((t) => `${t.rows.length} ${known(match[t.name])}`)
+          .join(', ')}: choose what to copy below (change the ticks above, then Use these files again).`
+      );
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
     } finally {
@@ -116,7 +145,11 @@ export function FilesSourcePanel({
             }}
           />
         </label>
-        {!targetClient && <span className="muted">Choose B (copy into) first: its objects describe the files.</span>}
+        {!targetClient ? (
+          <span className="muted">Choose B (copy into) first: its objects describe the files.</span>
+        ) : (
+          !loaded && <span className="muted">Reading the objects of B…</span>
+        )}
       </div>
       {file && (
         <table className="edit-table">
@@ -130,25 +163,83 @@ export function FilesSourcePanel({
           </thead>
           <tbody>
             {file.tables.map((t) => (
-              <tr key={t.name}>
-                <td>{t.name}</td>
-                <td>{t.rows.length.toLocaleString()}</td>
-                <td>
-                  <input
-                    list={`files-objects-${t.name}`}
-                    placeholder="skip"
-                    value={match[t.name] ?? ''}
-                    onChange={(e) => setMatch({ ...match, [t.name]: e.target.value })}
-                    className={match[t.name] && !known(match[t.name]) ? 'bad-input' : ''}
-                  />
-                  <ObjectOptions id={`files-objects-${t.name}`} objects={objects} typed={match[t.name] ?? ''} />
-                </td>
-                <td className="muted">
-                  {t.columns.some((c) => c.toLowerCase() === 'id')
-                    ? '✓ lookups to it are kept'
-                    : 'none: nothing can point to these'}
-                </td>
-              </tr>
+              <Fragment key={t.name}>
+                <tr>
+                  <td>
+                    <button
+                      className="link"
+                      title="Pick the rows to copy"
+                      onClick={() => {
+                        const next = new Set(opened);
+                        if (next.has(t.name)) next.delete(t.name);
+                        else next.add(t.name);
+                        setOpened(next);
+                      }}
+                    >
+                      {opened.has(t.name) ? '▾' : '▸'}
+                    </button>{' '}
+                    {t.name}
+                  </td>
+                  <td>
+                    {picked(t).length === t.rows.length
+                      ? t.rows.length.toLocaleString()
+                      : `${picked(t).length.toLocaleString()} of ${t.rows.length.toLocaleString()}`}
+                  </td>
+                  <td>
+                    <input
+                      list={`files-objects-${t.name}`}
+                      placeholder="skip"
+                      value={match[t.name] ?? ''}
+                      onChange={(e) => setMatch({ ...match, [t.name]: e.target.value })}
+                      className={loaded && match[t.name] && !known(match[t.name]) ? 'bad-input' : ''}
+                    />
+                    <ObjectOptions id={`files-objects-${t.name}`} objects={objects} typed={match[t.name] ?? ''} />
+                  </td>
+                  <td className="muted">
+                    {t.columns.some((c) => c.toLowerCase() === 'id')
+                      ? '✓ lookups to it are kept'
+                      : 'none: nothing can point to these'}
+                  </td>
+                </tr>
+                {opened.has(t.name) && (
+                  <tr>
+                    <td colSpan={4}>
+                      <ul className="relation-tree root">
+                        <li>
+                          <label className="check">
+                            <input
+                              type="checkbox"
+                              checked={picked(t).length === t.rows.length}
+                              onChange={(e) =>
+                                toggle(
+                                  t.rows.map((_, i) => rowKey(t, i)),
+                                  e.target.checked
+                                )
+                              }
+                            />{' '}
+                            All {t.rows.length.toLocaleString()}
+                          </label>
+                        </li>
+                        {t.rows.slice(0, 500).map((r, i) => (
+                          <li key={rowKey(t, i)}>
+                            <label className="check">
+                              <input
+                                type="checkbox"
+                                checked={!off.has(rowKey(t, i))}
+                                onChange={(e) => toggle([rowKey(t, i)], e.target.checked)}
+                              />{' '}
+                              {nameOf(r)} <span className="muted mono">{r.Id}</span>
+                            </label>
+                          </li>
+                        ))}
+                        {t.rows.length > 500 && (
+                          <li className="muted">The first 500 rows are listed; All covers every row.</li>
+                        )}
+                      </ul>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -156,7 +247,7 @@ export function FilesSourcePanel({
       {file && (
         <div className="form">
           <button className="primary" disabled={busy || !chosen.length || !targetClient} onClick={() => void use()}>
-            Use these files ({chosen.length} sheet{chosen.length === 1 ? '' : 's'})
+            Use these files ({chosen.reduce((n, t) => n + t.rows.length, 0).toLocaleString()} rows)
           </button>
           <span className="muted">
             Sheets left empty are skipped. Lookup columns holding Ids of other sheets (AccountId…) are pointed to the
