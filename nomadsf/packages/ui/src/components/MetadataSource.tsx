@@ -1,18 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  dependenciesOf,
   deployComponent,
   describeMetadata,
   listMetadata,
   retrieveComponent,
   type ComponentFile,
-  type Dependency,
   type MetadataComponent,
   type MetadataType,
 } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
 import { CodeEditor } from './CodeEditor';
-import { DataTable } from './DataTable';
+import { Dependencies } from './Dependencies';
 
 /** Types people open most, first in the list. */
 const COMMON = [
@@ -63,7 +61,6 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [fileIndex, setFileIndex] = useState(0);
   const [view, setView] = useState<'source' | 'deps'>('source');
-  const [deps, setDeps] = useState<{ uses: Dependency[]; usedBy: Dependency[] } | null>(null);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -95,7 +92,6 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
     setFiles(null);
     setDrafts({});
     setFileIndex(0);
-    setDeps(null);
     if (!chosen) return;
     setStatus(`Retrieving ${chosen.fullName}…`);
     // The component's own type: the list may already show another one
@@ -108,13 +104,6 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
     // `type` is read from the component
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, chosen]);
-
-  useEffect(() => {
-    if (view !== 'deps' || !chosen?.id || deps) return;
-    dependenciesOf(client, chosen.id)
-      .then(setDeps)
-      .catch((e: Error) => setStatus(`❌ ${e.message}`));
-  }, [client, view, chosen, deps]);
 
   const typeList = useMemo(() => {
     const names = types.map((t) => t.xmlName);
@@ -293,26 +282,8 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
                     )}
                   </>
                 )
-              ) : !deps ? (
-                <p className="muted">Reading dependencies…</p>
               ) : (
-                <>
-                  <h4>Uses ({deps.uses.length})</h4>
-                  <DataTable
-                    columns={['type', 'name', 'namespace']}
-                    rows={deps.uses}
-                    rowKey="id"
-                    name={`${chosen.fullName}-uses`}
-                  />
-                  <h4>Used by ({deps.usedBy.length})</h4>
-                  <DataTable
-                    columns={['type', 'name', 'namespace']}
-                    rows={deps.usedBy}
-                    rowKey="id"
-                    name={`${chosen.fullName}-used-by`}
-                    note={<span>· tracked by Salesforce for code, flows, pages, objects and fields</span>}
-                  />
-                </>
+                <Dependencies id={chosen.id!} name={chosen.fullName} />
               )}
             </>
           )}

@@ -276,6 +276,53 @@ export function fromCopySheets(tables: FileTable[]): {
 
 // ---------- into the target ----------
 
+/** "In field: recordType - no RecordType named Case.Escalation found" → Case.Escalation */
+const MISSING = /no \w+ named (\S+?) found/g;
+
+/** The file without the entries naming a component (a record type's visibility, a field's access…). */
+export function withoutEntries(xml: string, names: string[]): string {
+  let out = xml;
+  for (const name of names) {
+    const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // An entry is a block with child elements, one of which holds exactly the name
+    out = out.replace(
+      new RegExp(`\\n?[ \\t]*<(\\w+)>(?:(?!</?\\1>)[\\s\\S])*?<\\w+>${esc}</\\w+>(?:(?!</?\\1>)[\\s\\S])*?</\\1>`, 'g'),
+      ''
+    );
+  }
+  return out;
+}
+
+/**
+ * Deploys permission sets or groups; when the target lacks something they mention (a record type,
+ * a field, a class, an app…), those entries are left out and the deploy is tried again, so the
+ * rest of the access still arrives.
+ */
+export async function deployAccessFiles(
+  target: SalesforceClient,
+  type: AccessFile['type'],
+  files: AccessFile[]
+): Promise<{ success: boolean; problems: string[]; leftOut: string[] }> {
+  let current = files;
+  const leftOut: string[] = [];
+  for (let attempt = 0; attempt < 4; attempt++) {
+    // eslint-disable-next-line no-await-in-loop
+    const r = await deployFiles(
+      target,
+      type,
+      current.map((m) => ({ fullName: m.name, xml: m.xml }))
+    );
+    if (r.success) return { success: true, problems: [], leftOut };
+    const missing = [...new Set(r.problems.flatMap((p) => [...p.matchAll(MISSING)].map((m) => m[1])))].filter(
+      (n) => !leftOut.includes(n)
+    );
+    if (!missing.length) return { success: false, problems: r.problems, leftOut };
+    leftOut.push(...missing);
+    current = current.map((m) => ({ ...m, xml: withoutEntries(m.xml, missing) }));
+  }
+  return { success: false, problems: ['Too many missing components to leave out.'], leftOut };
+}
+
 export type UserPlan = {
   username: string;
   /** The same user in the target (username, with or without a sandbox suffix). */
@@ -388,12 +435,14 @@ export async function copyUsers(
       out.failed.push({ item: `${type} ${c.name}`, error: 'its metadata could not be read' });
     if (!list.length) continue;
     // eslint-disable-next-line no-await-in-loop
-    const r = await deployFiles(
-      target,
-      type,
-      list.map((m) => ({ fullName: m.name, xml: m.xml }))
-    );
-    if (r.success) out.done.push(...list.map((m) => `created ${type} ${m.name}`));
+    const r = await deployAccessFiles(target, type, list);
+    if (r.success)
+      out.done.push(
+        ...list.map(
+          (m) =>
+            `created ${type} ${m.name}${r.leftOut.length ? ` (without ${r.leftOut.join(', ')}: not in this org)` : ''}`
+        )
+      );
     else out.failed.push(...list.map((m) => ({ item: `create ${type} ${m.name}`, error: r.problems.join('; ') })));
   }
   for (const u of users) {

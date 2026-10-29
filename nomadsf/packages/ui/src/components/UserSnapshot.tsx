@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import {
+  accessFiles,
   applySnapshot,
   createUserFromSnapshot,
+  deployAccessFiles,
+  planUsers,
+  type AccessPlan,
   diffSnapshot,
   parseSnapshot,
   snapshotCsv,
@@ -20,7 +24,7 @@ import { DataTable, download } from './DataTable';
  * then make the user the same again. The CSV can be edited in Excel first.
  */
 export function UserSnapshot({ userId, username }: { userId?: string; username?: string }) {
-  const { client, org, confirmChange, logActivity } = useStudio();
+  const { client, org, orgs, clientFor, confirmChange, logActivity } = useStudio();
   const [kept, setKept] = useState<{ name: string; lines: SnapshotLine[] } | null>(null);
   const [target, setTarget] = useState<string | null>(null);
   const [diff, setDiff] = useState<SnapshotDifference[] | null>(null);
@@ -29,6 +33,12 @@ export function UserSnapshot({ userId, username }: { userId?: string; username?:
   const [busy, setBusy] = useState(false);
   // The snapshot's user is not in this org: create them under a username of their own
   const [missing, setMissing] = useState<{ username: string } | null>(null);
+  // Permission sets, groups and licenses of the snapshot this org does not have
+  const [absent, setAbsent] = useState<AccessPlan | null>(null);
+  const missingNames = new Set([...(absent?.create.map((c) => c.name) ?? []), ...(absent?.noLicense ?? [])]);
+  // The org the snapshot was taken in, when it is connected: missing permission sets come from it
+  const takenIn = kept?.lines.find((l) => l.Section === 'info' && l.Name === 'org')?.Value;
+  const sourceOrg = orgs.find((o) => o.label === takenIn && o.id !== org.id);
 
   const save = async () => {
     if (!userId) return;
@@ -50,6 +60,10 @@ export function UserSnapshot({ userId, username }: { userId?: string; username?:
     setKept({ name, lines });
     setDiff(null);
     setMissing(null);
+    setAbsent(null);
+    void planUsers(client, [{ username: '', lines }], org.label)
+      .then(setAbsent)
+      .catch(() => undefined);
     setStatus('Finding the user in this org…');
     try {
       const id = found ?? userId ?? (await snapshotUser(client, lines));
@@ -99,6 +113,42 @@ export function UserSnapshot({ userId, username }: { userId?: string; username?:
           outcome.failed.length ? ` ❌ ${outcome.failed.map((f) => `${f.item}: ${f.error}`).join('; ')}` : ''
         }`
       );
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createAbsent = async () => {
+    if (!absent || !sourceOrg || !kept) return;
+    const names = absent.create.map((c) => c.name).join(', ');
+    if (!(await confirmChange(`Create ${names} in ${org.label}, copied from ${sourceOrg.label}`))) return;
+    setBusy(true);
+    try {
+      setStatus(`Reading ${names} from ${sourceOrg.label}…`);
+      const files = await accessFiles(await clientFor(sourceOrg.id), {
+        permissionSets: absent.create.filter((c) => c.type === 'PermissionSet').map((c) => c.name),
+        groups: absent.create.filter((c) => c.type === 'PermissionSetGroup').map((c) => c.name),
+      });
+      const notes: string[] = [];
+      for (const type of ['PermissionSet', 'PermissionSetGroup'] as const) {
+        const list = files.filter((f) => f.type === type);
+        if (!list.length) continue;
+        setStatus(`Deploying ${list.map((f) => f.name).join(', ')}…`);
+        // eslint-disable-next-line no-await-in-loop
+        const r = await deployAccessFiles(client, type, list);
+        notes.push(
+          r.success
+            ? `✓ ${list.map((f) => f.name).join(', ')}${
+                r.leftOut.length ? ` (without ${r.leftOut.join(', ')}: not in this org)` : ''
+              }`
+            : `❌ ${r.problems.join('; ')}`
+        );
+      }
+      logActivity('create permission sets from snapshot', { from: sourceOrg.label, names });
+      await compareWith(kept.lines, kept.name, target ?? undefined);
+      setStatus(notes.join(' · '));
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
     } finally {
@@ -193,6 +243,30 @@ export function UserSnapshot({ userId, username }: { userId?: string; username?:
           </span>
         </div>
       )}
+      {absent && (absent.create.length > 0 || absent.noLicense.length > 0) && (
+        <div className="form">
+          <span className="bad">
+            Not in {org.label}:{' '}
+            {[
+              ...absent.create.map(
+                (c) => `${c.type === 'PermissionSet' ? 'permission set' : 'permission set group'} ${c.name}`
+              ),
+              ...absent.noLicense.map((l) => `license ${l}`),
+            ].join(', ')}
+            . Assigning them fails until they exist here.
+          </span>
+          {absent.create.length > 0 &&
+            (sourceOrg ? (
+              <button disabled={busy} onClick={() => void createAbsent()}>
+                Create them from {sourceOrg.label}…
+              </button>
+            ) : (
+              <span className="muted">
+                Deploy them first (Release), or connect {takenIn || 'the snapshot’s org'} to copy them.
+              </span>
+            ))}
+        </div>
+      )}
       {diff &&
         (diff.length === 0 ? (
           <p className="good">✓ The user matches {kept?.name}: the same fields, profile, role, access and groups.</p>
@@ -200,7 +274,10 @@ export function UserSnapshot({ userId, username }: { userId?: string; username?:
           <>
             <DataTable
               columns={['section', 'name', 'snapshot', 'org', 'action']}
-              rows={diff.map((d) => ({ ...d }))}
+              rows={diff.map((d) => ({
+                ...d,
+                action: missingNames.has(d.name) && !d.extra ? `${d.action} (not in this org yet)` : d.action,
+              }))}
               rowKey="key"
               name="snapshot-differences"
               selected={picked}

@@ -19,7 +19,8 @@ const user: FieldRule[] = [
   f('Username', { idLookup: true }),
   f('CreatedDate', { createable: false, updateable: false }),
   f('Federation_Id__c', { externalId: true }),
-  f('ProfileId', { type: 'reference', relationshipName: 'Profile' }),
+  f('ProfileId', { type: 'reference', relationshipName: 'Profile', referenceTo: ['Profile'] }),
+  f('ManagerId', { type: 'reference', relationshipName: 'Manager', referenceTo: ['User'] }),
   f('Initial__c', { updateable: false }),
 ];
 const ok = (report: ReturnType<typeof checkColumns>) => Object.fromEntries(report.columns.map((c) => [c.column, c.ok]));
@@ -95,5 +96,13 @@ describe('changed records', () => {
       { Id: '001C', Phone: '#N/A' },
     ]);
     expect(out.cells).toBe(2);
+  });
+
+  it('a related record is found only by an External ID or unique field of its object', () => {
+    const r = checkColumns(user, ['Id', 'Manager.Name', 'Manager.Username'], 'upsert', 'Id', { User: user });
+    expect(ok(r)).toEqual({ Id: true, 'Manager.Name': false, 'Manager.Username': true });
+    expect(r.columns.find((c) => c.column === 'Manager.Name')!.reason).toBe(
+      'User records cannot be found by Name: use Manager.Id or Manager.Username or Manager.Federation_Id__c.'
+    );
   });
 });

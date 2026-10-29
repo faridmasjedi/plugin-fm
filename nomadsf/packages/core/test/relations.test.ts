@@ -12,6 +12,7 @@ import {
   recordLookups,
   relationCounts,
   userCopy,
+  withoutEntries,
   type FileTable,
   type HttpRequest,
   type UserCopy,
@@ -240,5 +241,31 @@ describe('copying a record and what is ticked', () => {
       'POST /sobjects/PermissionSetAssignment',
       'POST /sobjects/PermissionSetAssignment',
     ]);
+  });
+
+  it('leaves out the entries of a permission set that name what the target lacks', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Case.Reason__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <label>Testing PSG</label>
+    <recordTypeVisibilities>
+        <recordType>Case.Test_Escalation_Case</recordType>
+        <visible>true</visible>
+    </recordTypeVisibilities>
+    <recordTypeVisibilities>
+        <recordType>Case.Other</recordType>
+        <visible>true</visible>
+    </recordTypeVisibilities>
+</PermissionSet>`;
+    const out = withoutEntries(xml, ['Case.Test_Escalation_Case']);
+    expect(out).not.toContain('Test_Escalation_Case');
+    expect(out).toContain('<recordType>Case.Other</recordType>');
+    expect(out).toContain('<field>Case.Reason__c</field>');
+    expect(out).toContain('<label>Testing PSG</label>');
+    expect(withoutEntries(out, ['Case.Reason__c'])).not.toContain('fieldPermissions');
   });
 });

@@ -17,6 +17,8 @@ export type FieldRule = {
   externalId: boolean;
   idLookup: boolean;
   relationshipName?: string;
+  /** For a lookup: the objects it points to. */
+  referenceTo?: string[];
 };
 
 export async function fieldRules(client: SalesforceClient, sobject: string): Promise<FieldRule[]> {
@@ -35,6 +37,7 @@ export async function fieldRules(client: SalesforceClient, sobject: string): Pro
     externalId: f.externalId,
     idLookup: f.idLookup,
     relationshipName: f.relationshipName ?? undefined,
+    referenceTo: f.referenceTo ?? [],
   }));
 }
 
@@ -55,7 +58,9 @@ export function checkColumns(
   rules: FieldRule[],
   columns: string[],
   operation: IngestOperation,
-  externalIdField?: string
+  externalIdField?: string,
+  /** Fields of the objects that relationship columns (Owner.Username) point to, when read. */
+  related: Record<string, FieldRule[]> = {}
 ): ColumnReport {
   const byName = new Map(rules.map((r) => [r.name.toLowerCase(), r]));
   const relationships = new Map(
@@ -97,9 +102,28 @@ export function checkColumns(
           : operation === 'update'
           ? lookup.updateable
           : lookup.createable || lookup.updateable;
-      return allowed
-        ? { column, ok: true, label: lookup.label, reason: 'Related record matched by this field' }
-        : { column, ok: false, label: lookup.label, reason: `${lookup.label} cannot be set on ${operation}.` };
+      if (!allowed)
+        return { column, ok: false, label: lookup.label, reason: `${lookup.label} cannot be set on ${operation}.` };
+      // Salesforce finds the related record only by an External ID or a unique lookup field (Owner.Username)
+      const target = lookup.referenceTo?.[0];
+      const targetFields = target ? related[target] : undefined;
+      const field = column.slice(relationship.length + 1).toLowerCase();
+      const match = targetFields?.find((f) => f.name.toLowerCase() === field);
+      if (targetFields && !(match && (match.externalId || match.idLookup || match.name === 'Id'))) {
+        const usable = targetFields
+          .filter((f) => f.externalId || f.idLookup)
+          .map((f) => `${relationship}.${f.name}`)
+          .slice(0, 3);
+        return {
+          column,
+          ok: false,
+          label: lookup.label,
+          reason: `${target} records cannot be found by ${match?.name ?? field}${
+            usable.length ? `: use ${usable.join(' or ')}` : ''
+          }.`,
+        };
+      }
+      return { column, ok: true, label: lookup.label, reason: 'Related record matched by this field' };
     }
     const rule = byName.get(lower);
     if (!rule) return { column, ok: false, reason: 'Not a field of this object (check the API name).' };

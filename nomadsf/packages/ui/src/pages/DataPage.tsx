@@ -63,9 +63,33 @@ export function DataPage() {
       .then(setRules)
       .catch(() => setRules(null));
   }, [client, knownObject]);
+  // Objects that relationship columns (Owner.Username) point to: which of their fields can find a record
+  const [related, setRelated] = useState<Record<string, FieldRule[]>>({});
+  useEffect(() => {
+    if (!rules || !file) return;
+    const targets = [
+      ...new Set(
+        file.columns
+          .filter((c) => c.includes('.'))
+          .map((c) => rules.find((r) => r.relationshipName?.toLowerCase() === c.split('.')[0].toLowerCase()))
+          .map((r) => r?.referenceTo?.[0])
+          .filter((t): t is string => Boolean(t) && !related[t!])
+      ),
+    ];
+    if (!targets.length) return;
+    let canceled = false;
+    void Promise.all(targets.map(async (t) => [t, await fieldRules(client, t).catch(() => [])] as const)).then(
+      (list) => !canceled && setRelated((now) => ({ ...now, ...Object.fromEntries(list) }))
+    );
+    return () => {
+      canceled = true;
+    };
+    // related only grows; reading it here avoids asking again
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, rules, file]);
   const report = useMemo(
-    () => (rules && file ? checkColumns(rules, file.columns, operation, externalId || undefined) : null),
-    [rules, file, operation, externalId]
+    () => (rules && file ? checkColumns(rules, file.columns, operation, externalId || undefined, related) : null),
+    [rules, file, operation, externalId, related]
   );
   useEffect(() => {
     if (report) setSendColumns(new Set(report.columns.filter((c) => c.ok).map((c) => c.column)));

@@ -22,7 +22,8 @@ const soqlText = (s: string): string => s.replace(/\\/g, '\\\\').replace(/'/g, "
 
 /**
  * Find a record by name for a lookup field (ProfileId, UserRoleId, ManagerId…): type part of the
- * name, choose one, and its Id is filled in. Polymorphic lookups choose the object first.
+ * name (or List them all, for a name you do not know), choose one, and its Id is filled in.
+ * Polymorphic lookups choose the object first.
  */
 export function RecordPicker({
   client,
@@ -38,8 +39,23 @@ export function RecordPicker({
   const [found, setFound] = useState<Array<{ id: string; name: string }>>([]);
   const [status, setStatus] = useState('');
 
+  // Every record of the object, by name (BusinessHours, a queue…: when the name is not known)
+  const listAll = async () => {
+    setText('');
+    setStatus('Reading…');
+    try {
+      const field = await nameFieldOf(client, sobject);
+      const r = await query(client, `SELECT Id, ${field} FROM ${sobject} ORDER BY ${field} LIMIT 200`);
+      setFound(r.rows.map((row) => ({ id: String(row.Id), name: String(row[field] ?? row.Id) })));
+      setStatus(r.rows.length ? (r.rows.length === 200 ? 'the first 200: type to narrow' : '') : 'None');
+    } catch (e) {
+      setStatus((e as Error).message);
+    }
+  };
+
   useEffect(() => {
     const term = text.trim();
+    if (term.length < 2) return;
     setFound([]);
     if (term.length < 2 || !/^\w+$/.test(sobject)) return;
     let canceled = false;
@@ -81,6 +97,9 @@ export function RecordPicker({
         onChange={(e) => setText(e.target.value)}
         title={`Type part of a ${sobject} name and choose it: its Id goes in the field`}
       />
+      <button type="button" className="link" title={`Every ${sobject}, to choose one`} onClick={() => void listAll()}>
+        List
+      </button>
       {found.length > 0 && (
         <select
           value=""

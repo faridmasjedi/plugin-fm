@@ -80,6 +80,8 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
   const open = useCallback(
     async (value: string) => {
       setStatus('Loading…');
+      // Another record: a saved copy that was open is done with
+      setSavedCopy(null);
       setEditing(false);
       setEdits({});
       setChoices([]);
