@@ -57,8 +57,13 @@ import { ObjectSettings } from './BackupPage';
 import { askTyped } from '../components/Dialogs';
 import { OrgPairBar, usePair } from '../pair';
 import { MigrateComposer } from '../components/MigrateComposer';
+import { FilesSourcePanel } from '../components/FilesSourcePanel';
 
-type SourceChoice = { kind: 'org'; org: string } | { kind: 'backup'; jobId: string; folder: string };
+type SourceChoice =
+  | { kind: 'org'; org: string }
+  | { kind: 'backup'; jobId: string; folder: string }
+  /** Tables from a file (Excel, CSV, ⤓ zip), each matched to an object. */
+  | { kind: 'files' };
 type LastCopy = { at: string; source: string; created: LoadResult['created']; records: number };
 
 const download = (name: string, text: string) => downloadFile(name, text, 'text/csv');
@@ -80,7 +85,7 @@ export function MigratePage({
   const studio = useStudio();
   // From org A (or a backup) into org B of the Org to org hub
   const [pair, setPair] = usePair();
-  const [backup, setBackup] = useState<Extract<SourceChoice, { kind: 'backup' }> | null>(() => {
+  const [backup, setBackup] = useState<Exclude<SourceChoice, { kind: 'org' }> | null>(() => {
     const from = storage.get<{ jobId: string; folder: string } | undefined>('migrate.from', undefined);
     if (!from) return null;
     storage.set('migrate.from', undefined);
@@ -88,7 +93,7 @@ export function MigratePage({
   });
   const source = useMemo<SourceChoice>(() => backup ?? { kind: 'org', org: pair.a }, [backup, pair.a]);
   const setSource = (next: SourceChoice) => {
-    if (next.kind === 'backup') return setBackup(next);
+    if (next.kind !== 'org') return setBackup(next);
     setBackup(null);
     setPair({ a: next.org, b: pair.b === next.org ? '' : pair.b });
   };
@@ -138,7 +143,8 @@ export function MigratePage({
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const target = orgs.find((o) => o.id === targetId);
-  const sourceKey = source.kind === 'org' ? `org:${source.org}` : `backup:${source.jobId}`;
+  const sourceKey =
+    source.kind === 'org' ? `org:${source.org}` : source.kind === 'backup' ? `backup:${source.jobId}` : 'files';
   const job = source.kind === 'backup' ? backupJobs.list().find((j) => j.id === source.jobId) : undefined;
   const targetProduction = facts.target ? !facts.target.isSandbox : false;
   const sourceProduction =
@@ -181,6 +187,9 @@ export function MigratePage({
           if (canceled) return;
           setFacts((x) => ({ ...x, source: f }));
           setCandidates(backupCandidates(list.sobjects));
+        } else if (source.kind === 'files') {
+          // The tables come from Use these files (below)
+          setStatus('');
         } else {
           const handle = await backupFolder(source.jobId);
           const theJob = backupJobs.list().find((j) => j.id === source.jobId);
@@ -283,7 +292,7 @@ export function MigratePage({
     if (fields[name]) return;
     try {
       const list =
-        source.kind === 'backup' ? state?.schema[name] ?? [] : await describeData(await clientFor(source.org), name);
+        source.kind !== 'org' ? state?.schema[name] ?? [] : await describeData(await clientFor(source.org), name);
       setFields((f) => ({ ...f, [name]: list }));
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
@@ -530,6 +539,10 @@ export function MigratePage({
   /** Where the files come from: the source org, or the backup run. */
   const filesSource = async (): Promise<FileSource> => {
     if (source.kind === 'org') return orgFileSource(await clientFor(source.org));
+    if (source.kind === 'files')
+      throw new Error(
+        'Salesforce Files and attachments come from an org or a backup, not from spreadsheets: untick them.'
+      );
     const theJob = backupJobs.list().find((j) => j.id === source.jobId)!;
     const sink = await jobSink(theJob);
     return backupFileSource(sink, jobFolder(theJob), await backupFilesAt(sink, jobFolder(theJob), state?.runs ?? []));
@@ -623,10 +636,11 @@ export function MigratePage({
           <label>
             From
             <select
-              value={source.kind === 'org' ? `org:${source.org}` : 'backup'}
+              value={source.kind === 'org' ? `org:${source.org}` : source.kind}
               onChange={(e) => {
                 const v = e.target.value;
-                if (v === 'backup') {
+                if (v === 'files') setSource({ kind: 'files' });
+                else if (v === 'backup') {
                   const first = backupJobs.list()[0];
                   if (first) setSource({ kind: 'backup', jobId: first.id, folder: '' });
                 } else setSource({ kind: 'org', org: v.slice(4) });
@@ -634,6 +648,7 @@ export function MigratePage({
             >
               <option value={`org:${pair.a}`}>A — {orgs.find((o) => o.id === pair.a)?.label}</option>
               {backupJobs.list().length > 0 && <option value="backup">A backup…</option>}
+              <option value="files">Files (Excel, CSV or zip)…</option>
             </select>
           </label>
           {source.kind === 'backup' && (
@@ -673,6 +688,19 @@ export function MigratePage({
             </span>
           )}
         </div>
+        {source.kind === 'files' && (
+          <FilesSourcePanel
+            targetClient={targetId ? () => clientFor(targetId) : undefined}
+            onUse={(s, objects, notes) => {
+              setState(s);
+              setChosen([]);
+              setCandidates(
+                objects.map((name) => ({ name, label: name, custom: name.endsWith('__c'), queryable: true }))
+              );
+              setStatus(notes.length ? `Using the files. ${notes.join(' · ')}` : '✓ Using the files.');
+            }}
+          />
+        )}
         {source.kind === 'backup' && job && state && (
           <p className="muted" style={{ margin: 0 }}>
             {job.name}: {state.manifest.org.name} as of {new Date(state.manifest.finishedAt).toLocaleString()} (
@@ -703,7 +731,7 @@ export function MigratePage({
             addReferenced(name);
             setStatus(`✓ Added ${name}: only the records the copied ones point to come along.`);
           }}
-          backup={source.kind === 'backup'}
+          backup={source.kind !== 'org'}
           renderFields={(name) => (
             <ObjectSettings
               settings={settingsOf(name)}
@@ -742,7 +770,7 @@ export function MigratePage({
             setChosen((list) => {
               const merged = replace ? picks : [...list.filter((c) => !picks.some((p) => p.name === c.name)), ...picks];
               // A backup has no SOQL: conditions are dropped
-              return merged.map((p) => (source.kind === 'backup' ? { ...p, where: undefined } : p));
+              return merged.map((p) => (source.kind !== 'org' ? { ...p, where: undefined } : p));
             })
           }
           renderTags={(o) => {
@@ -816,7 +844,7 @@ export function MigratePage({
                     filter={fieldFilter}
                     onFilter={setFieldFilter}
                     onChange={(patch) => setSettings(o.name, patch)}
-                    noCondition={source.kind === 'backup'}
+                    noCondition={source.kind !== 'org'}
                   />
                 ))
           }
@@ -897,7 +925,7 @@ export function MigratePage({
           {sourceProduction && !mask && <span className="bad">Production data unmasked</span>}
           <span className="grow" />
           <button
-            disabled={busy || !chosen.length || !target || sameOrg || (source.kind === 'backup' && !state)}
+            disabled={busy || !chosen.length || !target || sameOrg || (source.kind !== 'org' && !state)}
             onClick={() => void check()}
           >
             Check plan

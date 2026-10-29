@@ -576,3 +576,45 @@ export function capacityWarnings(
     );
   return out;
 }
+
+// ---------- tables from files as a source (Excel, CSV, ⤓ zip) ----------
+
+export type FilesSource = {
+  rows: Record<string, Map<string, SourceRow>>;
+  schema: Record<string, DataField[]>;
+  /** Columns left out (not fields of the object), and tables without an Id column. */
+  notes: string[];
+};
+
+/**
+ * Tables matched to objects, as a backup-like source: columns become the object's fields
+ * (whatever their case; others are left out), rows are keyed by their Id column so lookups
+ * between the files still connect. Rows without an Id get one of their own: they load, but
+ * nothing can point to them.
+ */
+export function filesAsSource(
+  tables: Array<{ name: string; object: string; columns: string[]; rows: Array<Record<string, string>> }>,
+  schemas: Record<string, DataField[]>
+): FilesSource {
+  const out: FilesSource = { rows: {}, schema: {}, notes: [] };
+  for (const t of tables) {
+    const fields = schemas[t.object] ?? [];
+    const byLower = new Map(fields.map((f) => [f.name.toLowerCase(), f.name]));
+    const mapped = t.columns.map((c) => [c, byLower.get(c.trim().toLowerCase())] as const);
+    const left = mapped.filter(([, f]) => !f).map(([c]) => c);
+    if (left.length) out.notes.push(`${t.name}: not fields of ${t.object}, left out: ${left.join(', ')}`);
+    const idColumn = mapped.find(([, f]) => f === 'Id')?.[0];
+    if (!idColumn) out.notes.push(`${t.name}: no Id column — its records load, but other records cannot point to them`);
+    out.schema[t.object] = fields;
+    const rows = out.rows[t.object] ?? new Map<string, SourceRow>();
+    t.rows.forEach((r, i) => {
+      const row: SourceRow = {};
+      for (const [column, field] of mapped) if (field) row[field] = r[column] ?? '';
+      const id = (idColumn && r[idColumn]?.trim()) || `file-${t.object}-${rows.size + i + 1}`;
+      row.Id = id;
+      rows.set(id, row);
+    });
+    out.rows[t.object] = rows;
+  }
+  return out;
+}

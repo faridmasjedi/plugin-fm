@@ -36,6 +36,9 @@ window.NOMADSF_WHATS_NEW = {
     'Data › Compare with CSV: a CSV next to the org, field by field; update and insert to match it',
 
     'Migrate › Plan: every object with its children and parents in one table; condition, limit and fields per object',
+
+    '⤓ downloads an Excel workbook (a sheet per table); Import, Compare with CSV and Migrate read workbooks and zips',
+    'Migrate from files: copy the sheets of a workbook into an org, keeping the links between them',
   ],
   '2.1.0': [
     'VS Code extension works on its own: no Salesforce CLI, no sf fm plugin, no local port',

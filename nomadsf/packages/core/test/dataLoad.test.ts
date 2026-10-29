@@ -17,6 +17,7 @@ import {
   maskValue,
   memorySink,
   orgMaps,
+  filesAsSource,
   planMigration,
   previewRestore,
   restoreDeleted,
@@ -454,6 +455,44 @@ describe('related only, through the chosen lookup', () => {
       planMigration([...chosen.slice(0, 2), { name: 'Contact', relatedOnly: true }], both, { mask: false })
     );
     expect(anyLink.Contact.map((r) => r.Id).sort()).toEqual(['003C1', '003C2']);
+  });
+});
+
+describe('files as a source', () => {
+  it('turns sheets matched to objects into rows keyed by Id, fields matched whatever their case', async () => {
+    const acc = [f('Id', 'id'), f('Name')];
+    const con = [f('Id', 'id'), f('LastName'), f('AccountId', 'reference', { referenceTo: ['Account'] })];
+    const source = filesAsSource(
+      [
+        {
+          name: 'Accounts',
+          object: 'Account',
+          columns: ['ID', 'name', 'Rating (old)'],
+          rows: [{ ID: '001A', name: 'Acme', 'Rating (old)': 'Hot' }],
+        },
+        {
+          name: 'Contacts',
+          object: 'Contact',
+          columns: ['LastName', 'AccountId'],
+          rows: [{ LastName: 'Lee', AccountId: '001A' }],
+        },
+      ],
+      { Account: acc, Contact: con }
+    );
+    expect([...source.rows.Account.values()]).toEqual([{ Id: '001A', Name: 'Acme' }]);
+    expect([...source.rows.Contact.values()]).toEqual([{ Id: 'file-Contact-1', LastName: 'Lee', AccountId: '001A' }]);
+    expect(source.notes).toEqual([
+      'Accounts: not fields of Account, left out: Rating (old)',
+      'Contacts: no Id column — its records load, but other records cannot point to them',
+    ]);
+    // Related only still follows the links between the files
+    const plan = planMigration(
+      [{ name: 'Account' }, { name: 'Contact', relatedOnly: true, via: ['AccountId'] }],
+      { Account: { source: acc, target: acc }, Contact: { source: con, target: con } },
+      { mask: false }
+    );
+    const gathered = await gatherRows({ kind: 'backup', rows: source.rows }, plan);
+    expect(gathered.Contact.map((r) => r.LastName)).toEqual(['Lee']);
   });
 });
 
