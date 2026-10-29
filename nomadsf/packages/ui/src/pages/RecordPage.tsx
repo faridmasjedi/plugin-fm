@@ -74,14 +74,24 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
   const [recent, setRecent] = useState<Array<{ id: string; label: string }>>(() => storage.get('record.recent', []));
   const [choices, setChoices] = useState<UserMatch[]>([]);
   const [creating, setCreating] = useState(false);
+  // New… and Open a saved copy start clean: the record that was open is put away
+  const clear = () => {
+    setRecord(null);
+    setInput('');
+    setChoices([]);
+    setStatus('');
+    setEditing(false);
+    setEdits({});
+  };
   // A copy saved from Related (Save as Excel), to copy into an org
   const [savedCopy, setSavedCopy] = useState<File | null>(null);
 
   const open = useCallback(
     async (value: string) => {
       setStatus('Loading…');
-      // Another record: a saved copy that was open is done with
+      // Another record: a saved copy or a new record that was open is done with
       setSavedCopy(null);
+      setCreating(false);
       setEditing(false);
       setEdits({});
       setChoices([]);
@@ -252,7 +262,14 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
               Me
             </button>
           )}
-          <button title="Create a record of any object" onClick={() => setCreating(true)}>
+          <button
+            title="Create a record of any object"
+            onClick={() => {
+              clear();
+              setSavedCopy(null);
+              setCreating(true);
+            }}
+          >
             New…
           </button>
           <label className="file-button" title="A record and its related records saved with Related › Save as Excel">
@@ -264,7 +281,10 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 e.target.value = '';
-                if (f) setSavedCopy(f);
+                if (!f) return;
+                clear();
+                setCreating(false);
+                setSavedCopy(f);
               }}
             />
           </label>
