@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   SalesforceClient,
   addGroupMembers,
+  listGroups,
   apiNameFrom,
   loginSettingsXml,
   setupAccessOf,
@@ -82,6 +83,40 @@ describe('managing access', () => {
     expect(rows.map((r) => [r.kind, r.name, r.label])).toEqual([
       ['ApexClass', 'AccountService', 'AccountService'],
       ['CustomPermission', 'acme__Approve_Refunds', 'Approve refunds'],
+    ]);
+  });
+});
+
+describe('groups and queues', () => {
+  it('lists queues whoever owns them, and leaves out personal groups', async () => {
+    const { client } = fakeOrg({
+      'FROM Group WHERE': [
+        {
+          Id: '00G000000000001AAA',
+          Name: 'Tier 1 Support',
+          DeveloperName: 'Tier_1_Support',
+          Type: 'Queue',
+          OwnerId: U1,
+        },
+        {
+          Id: '00G000000000002AAA',
+          Name: 'Support Team',
+          DeveloperName: 'Support_Team',
+          Type: 'Regular',
+          OwnerId: '00D000000000001AAA',
+        },
+        {
+          Id: '00G000000000003AAA',
+          Name: 'My favourites',
+          DeveloperName: 'My_favourites',
+          Type: 'Regular',
+          OwnerId: U2,
+        },
+      ],
+    });
+    expect((await listGroups(client)).map((g) => `${g.Kind}: ${g.Name}`)).toEqual([
+      'Public group: Support Team',
+      'Queue: Tier 1 Support',
     ]);
   });
 });
