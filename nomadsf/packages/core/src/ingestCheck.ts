@@ -1,5 +1,7 @@
 import type { SalesforceClient } from './client.js';
 import type { IngestOperation } from './bulk.js';
+import { sobjectForId } from './inspector.js';
+import { query } from './query.js';
 
 /**
  * Before a Bulk insert / update / upsert / delete: which columns of the file Salesforce will
@@ -197,4 +199,41 @@ export function changedRecords(
     }
   }
   return { columns: ['Id', ...editable.filter((c) => changedColumns.has(c))], rows: out, cells };
+}
+
+/**
+ * Which of these Ids are not records of this org (Ids copied from another org, or deleted records),
+ * read in a few queries grouped by object. Values that are not Ids are left out.
+ */
+export async function idsNotInOrg(client: SalesforceClient, ids: string[]): Promise<string[]> {
+  const ID = /^[a-zA-Z0-9]{15}([a-zA-Z0-9]{3})?$/;
+  const k15 = (id: string) => id.slice(0, 15);
+  const byPrefix = new Map<string, string[]>();
+  for (const id of new Set(ids.filter((x) => ID.test(x))))
+    byPrefix.set(id.slice(0, 3), [...(byPrefix.get(id.slice(0, 3)) ?? []), id]);
+  const missing: string[] = [];
+  for (const [prefix, list] of byPrefix) {
+    /* eslint-disable no-await-in-loop */
+    const object = await sobjectForId(client, `${prefix}000000000000`).catch(() => '');
+    // A key prefix this org does not know: none of them are here
+    if (!object) {
+      missing.push(...list);
+      continue;
+    }
+    const found = new Set<string>();
+    for (let i = 0; i < list.length; i += 200) {
+      const part = list.slice(i, i + 200);
+      const rows = await query(
+        client,
+        `SELECT Id FROM ${object} WHERE Id IN (${part.map((x) => `'${x}'`).join(', ')})`,
+        {
+          maxRows: 200,
+        }
+      ).catch(() => ({ rows: [] as Array<Record<string, unknown>> }));
+      rows.rows.forEach((r) => found.add(k15(String(r.Id))));
+    }
+    missing.push(...list.filter((id) => !found.has(k15(id))));
+    /* eslint-enable no-await-in-loop */
+  }
+  return missing;
 }

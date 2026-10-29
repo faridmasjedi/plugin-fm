@@ -4,6 +4,7 @@ import {
   checkColumns,
   deleteByQuery,
   fieldRules,
+  idsNotInOrg,
   describeGlobal,
   mainSObject,
   type FileTable,
@@ -87,6 +88,40 @@ export function DataPage() {
     // related only grows; reading it here avoids asking again
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, rules, file]);
+  // Ids in the file that are not records of this org (a file from another org): said before sending
+  const [foreignIds, setForeignIds] = useState<Array<{ column: string; missing: number; of: number }>>([]);
+  useEffect(() => {
+    setForeignIds([]);
+    if (!rules || !file || !rows.length) return;
+    const idColumns = file.columns.filter(
+      (c) =>
+        (c.toLowerCase() === 'id' && operation !== 'insert') ||
+        rules.some((r) => r.name === c && (r.referenceTo?.length ?? 0) > 0)
+    );
+    if (!idColumns.length) return;
+    let canceled = false;
+    const values = Object.fromEntries(
+      idColumns.map((c) => [c, [...new Set(rows.map((r) => r.values[c]).filter(Boolean))].slice(0, 200)])
+    );
+    void idsNotInOrg(client, Object.values(values).flat())
+      .then((missing) => {
+        if (canceled) return;
+        const gone = new Set(missing);
+        setForeignIds(
+          idColumns
+            .map((column) => ({
+              column,
+              missing: values[column].filter((v) => gone.has(v)).length,
+              of: values[column].length,
+            }))
+            .filter((x) => x.missing > 0)
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      canceled = true;
+    };
+  }, [client, rules, file, rows, operation]);
   const report = useMemo(
     () => (rules && file ? checkColumns(rules, file.columns, operation, externalId || undefined, related) : null),
     [rules, file, operation, externalId, related]
@@ -268,6 +303,12 @@ export function DataPage() {
                         </option>
                       ))}
                   </select>
+                  {rules && !rules.some((r) => r.externalId) && (
+                    <span className="muted" style={{ fontWeight: 'normal' }}>
+                      {knownObject} has no External ID field, so only Id can match. To match records copied from another
+                      org, Migrate’s “Keep the old Ids” adds one (NomadSF_Old_Id__c).
+                    </span>
+                  )}
                 </label>
               )}
               <TableFileInput
@@ -290,6 +331,15 @@ export function DataPage() {
                         {p}
                       </div>
                     ))}
+                    {foreignIds
+                      .filter((f) => sendColumns.has(f.column))
+                      .map((f) => (
+                        <div key={f.column} className="error">
+                          {f.column.toLowerCase() === 'id'
+                            ? `${f.missing} of ${f.of} Ids are not records of ${org.label}: they come from another org (or were deleted). Update and upsert by Id only find records of this org; to copy records between orgs use Record › Open a saved copy or Org to org › Migrate.`
+                            : `${f.column}: ${f.missing} of ${f.of} values point to records not in ${org.label} (Ids from another org?). Those rows fail: untick the column, or fix the values.`}
+                        </div>
+                      ))}
                     <b>Columns to send</b>
                     <div className="column-list">
                       {report.columns.map((c) => (
