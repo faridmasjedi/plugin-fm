@@ -130,8 +130,9 @@
                 that tab again with a clean page.
               </li>
               <li>
-                <b>⤓</b> on a pane downloads every table on the page as you see it (filters and sorting applied): in one
-                CSV, a zip with a CSV per table, or JSON.
+                <b>⤓</b> on a pane downloads every table on the page as you see it (filters and sorting applied): an
+                <b>Excel workbook</b> with a sheet per table, a zip with a CSV per table, or JSON. The workbook and the
+                zip load back into Import / Update / Delete, Compare with CSV and Migrate.
               </li>
             </ul>
             <table class="hub-table">
@@ -1128,8 +1129,10 @@
             </p>
             <ol class="steps">
               <li>
-                <b>From</b>: org A of the bar, or a backup run. <b>Into</b>: org B. Choose them in the bar at the top
-                (the same two orgs for every tool of the hub).
+                <b>From</b>: org A of the bar, a backup run, or <b>Files</b> — an Excel workbook, a CSV or a ⤓ zip:
+                match each sheet to an object of B (sheets named after an object are matched already) and
+                <b>Use these files</b>; lookup columns holding Ids of other sheets are pointed to the new records.
+                <b>Into</b>: org B. Choose them in the bar at the top (the same two orgs for every tool of the hub).
               </li>
               <li>
                 <b>What to copy</b>: tick objects. Per object: <i>All</i> records (or a condition),

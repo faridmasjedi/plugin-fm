@@ -1,7 +1,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { writeWorkbook } from '@nomadsf/core';
 import { storage } from './context';
 import { openExternal } from './embed';
-import { PageTables, PageTablesProvider, tablesCsv, tablesZip } from './pageTables';
+import { PageTables, PageTablesProvider, tablesZip } from './pageTables';
 import { download } from './components/DataTable';
 
 /**
@@ -567,12 +568,19 @@ export function QuickJump({ ws, available }: { ws: WorkspaceState; available: (t
   );
 }
 
-/** ⤓ in a pane: every table on the page in one CSV, or a zip with a CSV per table. */
+/** ⤓ in a pane: every table on the page in an Excel workbook (a sheet each), a zip of CSVs, or JSON. */
 function PageDownload({ tables, name }: { tables: PageTables; name: string }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState('');
   const file = `${name.replace(/[^\w-]+/g, '-')}-${new Date().toLocaleDateString('en-CA')}`;
-  const take = (as: 'csv' | 'zip' | 'json') => {
+  const save = (bytes: Uint8Array, name: string, type: string) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type }));
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  const take = (as: 'xlsx' | 'zip' | 'json') => {
     setOpen(false);
     const list = tables.visible();
     if (!list.length) {
@@ -580,20 +588,15 @@ function PageDownload({ tables, name }: { tables: PageTables; name: string }) {
       setTimeout(() => setNote(''), 2500);
       return;
     }
-    if (as === 'csv') download(`${file}.csv`, tablesCsv(list), 'text/csv');
+    if (as === 'xlsx')
+      save(writeWorkbook(list), `${file}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     else if (as === 'json')
       download(
         `${file}.json`,
         JSON.stringify(Object.fromEntries(list.map((t) => [t.name, t.rows])), null, 2),
         'application/json'
       );
-    else {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([tablesZip(list)], { type: 'application/zip' }));
-      a.download = `${file}.zip`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    }
+    else save(tablesZip(list), `${file}.zip`, 'application/zip');
   };
   return (
     <span className="page-download">
@@ -603,7 +606,7 @@ function PageDownload({ tables, name }: { tables: PageTables; name: string }) {
       {note && <span className="muted">{note}</span>}
       {open && (
         <span className="page-download-menu">
-          <button onClick={() => take('csv')}>All tables in one CSV</button>
+          <button onClick={() => take('xlsx')}>Excel workbook (a sheet per table)</button>
           <button onClick={() => take('zip')}>A zip with a CSV per table</button>
           <button onClick={() => take('json')}>All tables as JSON</button>
         </span>

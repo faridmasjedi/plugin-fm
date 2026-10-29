@@ -45,11 +45,6 @@ export function useRegisterTable(element: RefObject<HTMLElement | null>, read: (
 
 const fileName = (name: string): string => name.replace(/[^\w.-]+/g, '-').replace(/^-|-$/g, '') || 'table';
 
-/** One CSV: each table under its name, a blank line between them (opens in Excel as one sheet). */
-export function tablesCsv(tables: PageTable[]): string {
-  return tables.map((t) => `"${t.name.replace(/"/g, '""')}"\n${toCsv(t.columns, t.rows)}`).join('\n\n');
-}
-
 /** A zip with one CSV per table (with a byte-order mark, so Excel reads accents). */
 export function tablesZip(tables: PageTable[]): Uint8Array {
   const seen = new Map<string, number>();

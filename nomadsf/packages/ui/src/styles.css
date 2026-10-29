@@ -2719,3 +2719,13 @@ button.working::before {
   margin-left: 8px;
   font-size: var(--fs-sm);
 }
+
+/* Migrate › From files: an object name that is not in the org */
+input.bad-input {
+  border-color: var(--bad);
+}
+.files-source {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

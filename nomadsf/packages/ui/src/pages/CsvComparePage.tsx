@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   applyCsv,
   compareCsv,
   describeGlobal,
-  parseCsv,
+  type FileTable,
   planCsv,
   type CsvPlan,
   type CsvRowResult,
@@ -13,6 +13,7 @@ import { useStudio } from '../context';
 import { DataTable } from '../components/DataTable';
 import { EditableGrid, type GridRow } from '../components/EditableGrid';
 import { ObjectOptions } from '../components/ObjectOptions';
+import { TableFileInput } from '../components/TableFileInput';
 
 /**
  * Data › Compare with CSV: a CSV of records (from an old org, a backup, a spreadsheet) next to this
@@ -62,18 +63,20 @@ export function CsvComparePage() {
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
   }, [client, known, file]);
 
-  const open = async (f: File) => {
-    const parsed = parseCsv(await f.text());
+  const guessed = useRef<string | undefined>(undefined);
+  const open = (parsed: FileTable, fileName: string) => {
     const loaded = parsed.rows.map((values, id) => ({ id, values }));
-    setFile({ name: f.name, columns: parsed.columns });
+    setFile({ name: fileName, columns: parsed.columns });
     setRows(loaded);
     setOriginal(new Map(loaded.map((r) => [r.id, r.values])));
     setIncluded(new Set(loaded.map((r) => r.id)));
     setResults(null);
     setStatus('');
-    // A file named after its object (Query's downloads are): fill it in
-    const guess = f.name.replace(/\.csv$/i, '').split(/[-_ ]/)[0];
-    if (!object && objects.some((o) => o.name === guess)) setObject(guess);
+    // A sheet or file named after its object (Query's downloads are): fill it in
+    const guess = objects.find((o) => o.name.toLowerCase() === parsed.name.split(/[-_ ]/)[0].toLowerCase());
+    // Switching sheets switches the object too, unless one was chosen by hand
+    if (guess && (!object || object === guessed.current)) setObject(guess.name);
+    guessed.current = guess?.name;
   };
 
   const compare = async () => {
@@ -150,14 +153,7 @@ export function CsvComparePage() {
       </div>
       <div className="card section">
         <div className="form">
-          <label>
-            CSV file
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              onChange={(e) => e.target.files?.[0] && void open(e.target.files[0])}
-            />
-          </label>
+          <TableFileInput label="CSV or Excel file" onTable={open} onError={(m) => setStatus(`❌ ${m}`)} />
           <label>
             Object
             <input

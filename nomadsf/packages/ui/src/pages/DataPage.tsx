@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   bulkIngest,
   checkColumns,
@@ -6,7 +6,7 @@ import {
   fieldRules,
   describeGlobal,
   mainSObject,
-  parseCsv,
+  type FileTable,
   query,
   toCsv,
   type FieldRule,
@@ -18,6 +18,7 @@ import { IngestSummary } from '../components/IngestSummary';
 import { QueryEditTab } from '../components/QueryEditTab';
 import { storage, useStudio } from '../context';
 import { ObjectOptions } from '../components/ObjectOptions';
+import { TableFileInput } from '../components/TableFileInput';
 
 const OPERATIONS: Array<[IngestOperation, string]> = [
   ['insert', 'Insert'],
@@ -72,10 +73,15 @@ export function DataPage() {
   }, [report, file]);
   const columnsToSend = (file?.columns ?? []).filter((c) => sendColumns.has(c));
 
-  const openFile = async (f: File) => {
-    const table = parseCsv(await f.text());
+  /** A sheet or CSV to load; a sheet named after an object (⤓ from Query) fills in the object. */
+  const guessed = useRef<string | undefined>(undefined);
+  const openTable = (table: FileTable, fileName: string) => {
     const loaded = table.rows.map((values, id) => ({ id, values }));
-    setFile({ name: f.name, columns: table.columns });
+    setFile({ name: fileName, columns: table.columns });
+    const guess = objects.find((o) => o.toLowerCase() === table.name.split(/[-_ ]/)[0].toLowerCase());
+    // Switching sheets switches the object too, unless one was chosen by hand
+    if (guess && (!object || object === guessed.current)) setObject(guess);
+    guessed.current = guess;
     setRows(loaded);
     setOriginal(new Map(loaded.map((r) => [r.id, r.values])));
     setIncluded(new Set(loaded.map((r) => r.id)));
@@ -240,18 +246,11 @@ export function DataPage() {
                   </select>
                 </label>
               )}
-              <label>
-                CSV file
-                <input
-                  type="file"
-                  accept=".csv,text/csv"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void openFile(f);
-                    e.target.value = '';
-                  }}
-                />
-              </label>
+              <TableFileInput
+                label="CSV or Excel file"
+                onTable={openTable}
+                onError={(m) => setIngestStatus(`❌ ${m}`)}
+              />
             </div>
             {file && (
               <>

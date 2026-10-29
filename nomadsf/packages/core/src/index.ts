@@ -42,6 +42,7 @@ export * from './develop.js';
 export * from './orgInfo.js';
 export * from './snapshot.js';
 export * from './recordsCsv.js';
+export * from './workbook.js';
 export * from './userCompare.js';
 export * from './accessDetail.js';
 export * from './myAccess.js';
