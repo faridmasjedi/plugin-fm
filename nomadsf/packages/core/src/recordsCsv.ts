@@ -1,6 +1,6 @@
 import type { SalesforceClient } from './client.js';
 import type { CsvTable } from './csv.js';
-import { query, type Row } from './query.js';
+import { query, soqlText, type Row } from './query.js';
 
 /**
  * A CSV of records next to an org: each CSV row matched to a record by a key field, compared field
@@ -31,8 +31,6 @@ export type CsvColumn = {
 };
 
 export type CsvPlan = { sobject: string; key: string; columns: CsvColumn[]; ignored: string[]; keyFields: string[] };
-
-const soqlText = (s: string): string => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
 /** Which CSV columns can be compared and set: fields of the object, and Relationship.Name for its lookups. */
 export async function planCsv(

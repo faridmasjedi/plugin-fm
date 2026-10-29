@@ -43,6 +43,7 @@ import {
 import { useStudio } from '../context';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { ManagedList, type Choice } from '../components/ManagedList';
+import { Status } from '../statusLog';
 
 const fail = (r: { errors: string[] }): void => {
   if (r.errors.length) throw new Error(r.errors.join('; '));
@@ -119,7 +120,7 @@ export function GroupsPage() {
           <option value="Queue">Queues</option>
         </select>
       </div>
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
       {!groups ? (
         <p className="muted">Reading…</p>
       ) : (
@@ -207,7 +208,7 @@ export function CustomPermissionsPage() {
         <span className="muted">who gives each one; grant it to a permission set or profile</span>
       </div>
       <NewCustomPermission holders={all ?? []} onCreated={() => void loadList()} />
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
       {!list ? (
         <p className="muted">Reading…</p>
       ) : list.length === 0 ? (
@@ -303,7 +304,7 @@ function NewCustomPermission({ holders, onCreated }: { holders: PermissionHolder
     return (
       <div className="form">
         <button onClick={() => setOpen(true)}>New custom permission…</button>
-        {status && <span className="muted">{status}</span>}
+        {status && <Status text={status} />}
       </div>
     );
   return (
@@ -357,7 +358,7 @@ function NewCustomPermission({ holders, onCreated }: { holders: PermissionHolder
         <button className="primary" disabled={!label.trim() || !apiName} onClick={() => void create()}>
           Create…
         </button>
-        {status && <span className="muted">{status}</span>}
+        {status && <Status text={status} />}
       </div>
     </div>
   );
@@ -422,7 +423,7 @@ export function SetupAccessPanel({
         ))}
       </div>
       <p className="muted">{SETUP_HELP[kind]}</p>
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
       {!rows ? (
         <p className="muted">Reading…</p>
       ) : (
@@ -568,7 +569,7 @@ export function ProfileLoginPanel({ profileId, editable }: { profileId: string; 
     }
   };
 
-  if (!draft) return <p className="muted">{status}</p>;
+  if (!draft) return <Status text={status} block />;
   const setRange = (i: number, patch: Partial<ProfileLoginSettings['ipRanges'][number]>) =>
     setDraft({ ...draft, ipRanges: draft.ipRanges.map((r, j) => (j === i ? { ...r, ...patch } : r)) });
   return (
@@ -701,7 +702,7 @@ export function NewPermissionSet({ onCreated }: { onCreated: () => void }) {
       <button className="primary" disabled={!label.trim() || !apiName} onClick={() => void create()}>
         Create…
       </button>
-      {status && <span className="muted">{status}</span>}
+      {status && <Status text={status} />}
     </div>
   );
 }

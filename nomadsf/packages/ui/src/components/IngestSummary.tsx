@@ -1,4 +1,4 @@
-import { parseCsv, type IngestResult } from '@nomadsf/core';
+import { explainFailures, parseCsv, toCsv, type IngestResult } from '@nomadsf/core';
 import { DataTable, download } from './DataTable';
 
 const saveFile = (name: string, content: string): void => download(name, content, 'text/csv');
@@ -15,7 +15,19 @@ export function IngestSummary({
   orgLabel: string;
   object: string;
 }) {
-  const failed = parseCsv(result.failedCsv);
+  // Salesforce's error split into code, message and fields, with what it means
+  const parsed = parseCsv(result.failedCsv);
+  const failed = {
+    columns: [
+      'Error code',
+      'What it means',
+      'Error message',
+      'Error fields',
+      ...parsed.columns.filter((c) => c !== 'sf__Error'),
+      'sf__Error',
+    ],
+    rows: explainFailures(parsed.rows),
+  };
   return (
     <div className="section">
       <div className="metrics">
@@ -41,7 +53,11 @@ export function IngestSummary({
           Successful rows CSV
         </button>
         {result.failed > 0 && (
-          <button onClick={() => saveFile(`${orgLabel}-${object}-failures-${stamp()}.csv`, result.failedCsv)}>
+          <button
+            onClick={() =>
+              saveFile(`${orgLabel}-${object}-failures-${stamp()}.csv`, toCsv(failed.columns, failed.rows))
+            }
+          >
             Failures CSV
           </button>
         )}

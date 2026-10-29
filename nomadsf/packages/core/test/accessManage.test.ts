@@ -4,7 +4,6 @@ import {
   addGroupMembers,
   apiNameFrom,
   loginSettingsXml,
-  parseLoginSettings,
   setupAccessOf,
   type HttpRequest,
 } from '../src/index.js';
@@ -33,35 +32,14 @@ function fakeOrg(answers: Record<string, unknown[]>) {
 }
 
 describe('profile login settings', () => {
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<Profile xmlns="http://soap.sforce.com/2006/04/metadata">
-    <custom>true</custom>
-    <loginHours>
-        <mondayEnd>1080</mondayEnd>
-        <mondayStart>480</mondayStart>
-    </loginHours>
-    <loginIpRanges>
-        <description>Office &amp; VPN</description>
-        <endAddress>10.0.0.255</endAddress>
-        <startAddress>10.0.0.1</startAddress>
-    </loginIpRanges>
-    <userPermissions><enabled>true</enabled><name>ApiEnabled</name></userPermissions>
-</Profile>`;
-
-  it('reads IP ranges from a profile', () => {
-    expect(parseLoginSettings(xml, 'Sales')).toEqual({
-      fullName: 'Sales',
+  it('writes only IP ranges: login hours and the rest of the profile stay as they are', () => {
+    const out = loginSettingsXml({
       ipRanges: [{ start: '10.0.0.1', end: '10.0.0.255', description: 'Office & VPN' }],
     });
-  });
-
-  it('writes only IP ranges (login hours and the rest stay as they are), and reads back the same', () => {
-    const settings = parseLoginSettings(xml, 'Sales');
-    const out = loginSettingsXml(settings);
     expect(out).not.toContain('userPermissions');
     expect(out).not.toContain('loginHours');
     expect(out).toContain('<description>Office &amp; VPN</description>');
-    expect(parseLoginSettings(out, 'Sales')).toEqual(settings);
+    expect(out).toContain('<startAddress>10.0.0.1</startAddress>');
   });
 
   it('refuses addresses that are not valid', () => {

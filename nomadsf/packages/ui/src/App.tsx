@@ -3,7 +3,8 @@ import { getUserInfo, type SalesforceClient, type UserInfo } from '@nomadsf/core
 import { detectHost, openInOrg, orgFacts, type OrgChoice, type OrgFacts } from './host';
 import { useBusy } from './busy';
 import { setLinkHandler } from './embed';
-import { InspectContext, StudioContext, activityLog, storage, type Studio } from './context';
+import { GoContext, InspectContext, StudioContext, activityLog, storage, type Studio } from './context';
+import { LogDrawer } from './statusLog';
 import { toggleTheme } from './theme';
 import { ExecutePage } from './pages/ExecutePage';
 import { LogsPage } from './pages/LogsPage';
@@ -320,48 +321,50 @@ export function App() {
       <StudioContext.Provider value={studio}>
         <PairContext.Provider value={pair}>
           <InspectContext.Provider value={inspect}>
-            <AccessNote tool={tool} />
-            {tool === 'apex' && <ExecutePage />}
-            {tool === 'logs' && <LogsPage />}
-            {tool === 'automation' && <AutomationPage />}
-            {tool === 'jobs' && <JobsPage />}
-            {tool === 'deployments' && <DeploymentsPage />}
-            {tool === 'query' && <QueryPage />}
-            {tool === 'data' && <DataPage />}
-            {tool === 'csvcompare' && <CsvComparePage />}
-            {tool === 'access' && <UsersPage />}
-            {tool === 'permsets' && <PermissionSetsPage />}
-            {tool === 'permissions' && <PermissionsPage />}
-            {tool === 'assigned' && <AssignedUsersPage />}
-            {tool === 'groups' && <GroupsPage />}
-            {tool === 'custperms' && <CustomPermissionsPage />}
-            {tool === 'compare' && <ComparePage />}
-            {tool === 'accessmap' && <AccessOverviewPage />}
-            {tool === 'objectaccess' && <ObjectAccessPage />}
-            {tool === 'audit' && <LoginsAuditPage />}
-            {tool === 'myaccess' && <MyAccessPage />}
-            {tool === 'schema' && <SchemaPage />}
-            {tool === 'apps' && <ConnectedAppsPage />}
-            {tool === 'health' && <OrgHealthPage />}
-            {tool === 'metadata' && <MetadataPage />}
-            {tool === 'activity' && <ActivityPage />}
-            {tool === 'record' && <RecordPage initialId={inspectId} />}
-            {tool === 'limits' && <LimitsPage />}
-            {tool === 'company' && <CompanyPage />}
-            {tool === 'rest' && <RestPage />}
-            {tool === 'code' && <CodePage />}
-            {tool === 'backup' && (
-              <BackupPage orgs={orgs} clientFor={clientFor} onOpenMigrate={() => setPage('migrate')} />
-            )}
-            {tool === 'migrate' && <MigratePage orgs={orgs} clientFor={clientFor} />}
-            {tool === 'lifecycle' && <LifecyclePage orgs={orgs} clientFor={clientFor} />}
-            {tool === 'events' && <EventsPage />}
-            {tool === 'fields' && <FieldUsagePage />}
-            {tool === 'lookup' && <LookupPage />}
-            {tool === 'orgdiff' && <OrgComparePage orgs={orgs} />}
-            {tool === 'apextests' && <ApexTestsPage />}
-            {tool === 'orgaccess' && <OrgAccessPage />}
-            {tool === 'orgapps' && <OrgAppsPage />}
+            <GoContext.Provider value={setPage as (tool: string) => void}>
+              <AccessNote tool={tool} />
+              {tool === 'apex' && <ExecutePage />}
+              {tool === 'logs' && <LogsPage />}
+              {tool === 'automation' && <AutomationPage />}
+              {tool === 'jobs' && <JobsPage />}
+              {tool === 'deployments' && <DeploymentsPage />}
+              {tool === 'query' && <QueryPage />}
+              {tool === 'data' && <DataPage />}
+              {tool === 'csvcompare' && <CsvComparePage />}
+              {tool === 'access' && <UsersPage />}
+              {tool === 'permsets' && <PermissionSetsPage />}
+              {tool === 'permissions' && <PermissionsPage />}
+              {tool === 'assigned' && <AssignedUsersPage />}
+              {tool === 'groups' && <GroupsPage />}
+              {tool === 'custperms' && <CustomPermissionsPage />}
+              {tool === 'compare' && <ComparePage />}
+              {tool === 'accessmap' && <AccessOverviewPage />}
+              {tool === 'objectaccess' && <ObjectAccessPage />}
+              {tool === 'audit' && <LoginsAuditPage />}
+              {tool === 'myaccess' && <MyAccessPage />}
+              {tool === 'schema' && <SchemaPage />}
+              {tool === 'apps' && <ConnectedAppsPage />}
+              {tool === 'health' && <OrgHealthPage />}
+              {tool === 'metadata' && <MetadataPage />}
+              {tool === 'activity' && <ActivityPage />}
+              {tool === 'record' && <RecordPage initialId={inspectId} />}
+              {tool === 'limits' && <LimitsPage />}
+              {tool === 'company' && <CompanyPage />}
+              {tool === 'rest' && <RestPage />}
+              {tool === 'code' && <CodePage />}
+              {tool === 'backup' && (
+                <BackupPage orgs={orgs} clientFor={clientFor} onOpenMigrate={() => setPage('migrate')} />
+              )}
+              {tool === 'migrate' && <MigratePage orgs={orgs} clientFor={clientFor} />}
+              {tool === 'lifecycle' && <LifecyclePage orgs={orgs} clientFor={clientFor} />}
+              {tool === 'events' && <EventsPage />}
+              {tool === 'fields' && <FieldUsagePage />}
+              {tool === 'lookup' && <LookupPage />}
+              {tool === 'orgdiff' && <OrgComparePage orgs={orgs} />}
+              {tool === 'apextests' && <ApexTestsPage />}
+              {tool === 'orgaccess' && <OrgAccessPage />}
+              {tool === 'orgapps' && <OrgAppsPage />}
+            </GoContext.Provider>
           </InspectContext.Provider>
         </PairContext.Provider>
       </StudioContext.Provider>
@@ -431,6 +434,7 @@ export function App() {
         </nav>
         <main>
           <Panes ws={ws} available={available} render={render} />
+          <LogDrawer />
         </main>
         <QuickJump ws={ws} available={available} />
       </div>

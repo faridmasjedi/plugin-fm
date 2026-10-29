@@ -1,28 +1,30 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   coerceFieldValue,
   inspectRecord,
   loginAsPath,
   query,
   recordHistory,
+  soqlText,
   updateRecord,
   type HistoryEntry,
   type InspectedRecord,
   type RecordField,
 } from '@nomadsf/core';
-import { storage, useStudio } from '../context';
+import { InspectContext, storage, useStudio } from '../context';
 import { openInOrg } from '../host';
 import { CopyId } from '../components/CopyId';
 import { DataTable } from '../components/DataTable';
 import { NewRecord } from '../components/NewRecord';
 import { RecordPicker } from '../components/RecordPicker';
+import { RecordTree } from '../components/RecordTree';
+import { SavedCopy } from '../components/SavedCopy';
+import { Status } from '../statusLog';
 
 const display = (v: unknown): string =>
   v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
 
 type UserMatch = { id: string; name: string; username: string; active: boolean };
-
-const soqlText = (s: string): string => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
 /**
  * What the search box holds: a record Id or URL as it is, a username, or a user's name
@@ -65,17 +67,32 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
   const [editing, setEditing] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [status, setStatus] = useState('');
-  const [view, setView] = useState<'fields' | 'history'>('fields');
+  const [view, setView] = useState<'fields' | 'history' | 'related'>('fields');
+  const inspect = useContext(InspectContext);
   const [history, setHistory] = useState<{ object?: string; entries: HistoryEntry[] } | null>(null);
   // Another record (or the same one after a save): its history is read again
   useEffect(() => setHistory(null), [record]);
   const [recent, setRecent] = useState<Array<{ id: string; label: string }>>(() => storage.get('record.recent', []));
   const [choices, setChoices] = useState<UserMatch[]>([]);
   const [creating, setCreating] = useState(false);
+  // New… and Open a saved copy start clean: the record that was open is put away
+  const clear = () => {
+    setRecord(null);
+    setInput('');
+    setChoices([]);
+    setStatus('');
+    setEditing(false);
+    setEdits({});
+  };
+  // A copy saved from Related (Save as Excel), to copy into an org
+  const [savedCopy, setSavedCopy] = useState<File | null>(null);
 
   const open = useCallback(
     async (value: string) => {
       setStatus('Loading…');
+      // Another record: a saved copy or a new record that was open is done with
+      setSavedCopy(null);
+      setCreating(false);
       setEditing(false);
       setEdits({});
       setChoices([]);
@@ -246,9 +263,32 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
               Me
             </button>
           )}
-          <button title="Create a record of any object" onClick={() => setCreating(true)}>
+          <button
+            title="Create a record of any object"
+            onClick={() => {
+              clear();
+              setSavedCopy(null);
+              setCreating(true);
+            }}
+          >
             New…
           </button>
+          <label className="file-button" title="A record and its related records saved with Related › Save as Excel">
+            Open a saved copy…
+            <input
+              type="file"
+              accept=".xlsx"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (!f) return;
+                clear();
+                setCreating(false);
+                setSavedCopy(f);
+              }}
+            />
+          </label>
           {recent.length > 0 && (
             <select className="menu-select" value="" onChange={(e) => e.target.value && void open(e.target.value)}>
               <option value="">Recent…</option>
@@ -270,7 +310,8 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
           }}
         />
       )}
-      {status && <p className="muted">{status}</p>}
+      {savedCopy && !embedded && <SavedCopy key={savedCopy.name} file={savedCopy} onClose={() => setSavedCopy(null)} />}
+      {status && <Status text={status} block />}
       {choices.length > 0 && (
         <div className="card section">
           <DataTable
@@ -317,7 +358,20 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
             <button className={`tab ${view === 'history' ? 'active' : ''}`} onClick={() => setView('history')}>
               History
             </button>
+            <button className={`tab ${view === 'related' ? 'active' : ''}`} onClick={() => setView('related')}>
+              Related
+            </button>
           </div>
+          {view === 'related' && (
+            <RecordTree
+              key={record.id}
+              sobject={record.sobject}
+              id={record.id}
+              name={record.name ?? ''}
+              // Inside Users: a related record opens in the Record tool
+              onOpen={(id) => (embedded && inspect ? inspect(id) : void open(id))}
+            />
+          )}
           {view === 'history' && (
             <RecordHistory
               sobject={record.sobject}

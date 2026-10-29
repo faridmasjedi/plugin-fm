@@ -17,6 +17,7 @@ import {
 import { storage } from '../context';
 import { DataTable, EmptyHint } from './DataTable';
 import { DiffTable } from './DiffTable';
+import { Status } from '../statusLog';
 
 type Tab = 'details' | 'profile' | 'sets' | 'groups' | 'queues' | 'role' | 'oauth' | 'logins';
 const TABS: Array<[Tab, string]> = [
@@ -84,7 +85,7 @@ export function UserComparison({ userA, userB, ...sides }: Sides & { userA: stri
       .catch((e: Error) => setSharingStatus(`❌ ${e.message}`));
   }, [needsSharing, sharing, sharingStatus, client, clientB, userA, userB]);
 
-  if (!result) return <p className="muted">{status}</p>;
+  if (!result) return <Status text={status} block />;
   const note = ` · A = ${labelA}, B = ${labelB}`;
   const items = (area: UserItem['area']) => result.items.filter((i) => i.area === area);
   // Unknown ("not read in A/B") is not a difference
@@ -160,7 +161,7 @@ export function UserComparison({ userA, userB, ...sides }: Sides & { userA: stri
         <>
           <h4>Groups &amp; queues they are in</h4>
           <ItemTable list={items('Group / queue')} note={note} name="users-groups" />
-          {sharingStatus && <p className="muted">{sharingStatus}</p>}
+          {sharingStatus && <Status text={sharingStatus} block />}
           {sharing && (
             <>
               <h4>Queues and the objects they handle</h4>
@@ -182,7 +183,7 @@ export function UserComparison({ userA, userB, ...sides }: Sides & { userA: stri
       )}
       {tab === 'role' && (
         <>
-          {sharingStatus && <p className="muted">{sharingStatus}</p>}
+          {sharingStatus && <Status text={sharingStatus} block />}
           {sharing && (
             <>
               <DataTable
@@ -356,7 +357,7 @@ function AccessCompare({
     () => (section?.rows ?? []).filter((r) => !both || !differencesOnly || r.differs || unreadable),
     [section, differencesOnly, both, unreadable]
   );
-  if (!sections || !section) return <p className="muted">{status}</p>;
+  if (!sections || !section) return <Status text={status} block />;
   const copyable = twoOrgs && canCopy && both && !unreadable && COPYABLE.includes(section.title);
   const diffs: Difference[] = copyable
     ? rows.map((r) => ({

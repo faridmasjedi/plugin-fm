@@ -1,5 +1,5 @@
 import type { SalesforceClient } from './client.js';
-import { query, type QueryResult, type Row } from './query.js';
+import { query, soqlText, type QueryResult, type Row } from './query.js';
 
 /** Access: login history, setup audit trail, permission set (group) assignments. */
 
@@ -183,8 +183,6 @@ export type UserMatch = {
   IsActive: boolean;
   LastLoginDate?: string;
 };
-
-const soqlText = (value: string): string => value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
 /** Users by Id, username, email or (part of the) name; at most 50. */
 export async function searchUsers(client: SalesforceClient, text: string): Promise<UserMatch[]> {

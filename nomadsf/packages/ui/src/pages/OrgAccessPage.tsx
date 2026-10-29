@@ -6,6 +6,7 @@ import { UserComparison } from '../components/UserComparison';
 import { WhoHasIt } from '../components/WhoHasIt';
 import { storage } from '../context';
 import { OrgPairBar, usePairClients } from '../pair';
+import { Status } from '../statusLog';
 
 type Tab = 'find' | 'compare' | 'who';
 
@@ -114,7 +115,7 @@ function FindUser({
         <button className="primary" disabled={!text.trim()} onClick={() => void find()}>
           Find
         </button>
-        <span className="muted">{status}</span>
+        <Status text={status} />
       </div>
       {rows &&
         (rows.length === 0 ? (

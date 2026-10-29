@@ -5,6 +5,7 @@ import { useAccessOf } from '../access';
 import { storage, useStudio } from '../context';
 import { NEEDS, permissionLabel, toolAccess } from '../toolAccess';
 import { TOOLS, hubOf, type ToolId } from '../workspace';
+import { Status } from '../statusLog';
 
 /** Access › Access overview: every user with what they have; filter any column, export it. */
 export function AccessOverviewPage() {
@@ -38,7 +39,7 @@ export function AccessOverviewPage() {
         </label>
         <button onClick={() => void load()}>Refresh</button>
       </div>
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
       {rows &&
         (rows.length === 0 ? (
           <EmptyHint what="users" />
@@ -118,7 +119,7 @@ export function ObjectAccessPage() {
       <div className="card form">
         <label>
           Object
-          <select value={object} onChange={(e) => setObject(e.target.value)} style={{ minWidth: 260 }}>
+          <select value={object} onChange={(e) => setObject(e.target.value)} style={{ width: 320 }}>
             {!objects.some((o) => o.name === object) && <option value={object}>{object}</option>}
             {objects.map((o) => (
               <option key={o.name} value={o.name}>
@@ -129,7 +130,7 @@ export function ObjectAccessPage() {
         </label>
         <label>
           Field (optional)
-          <select value={field} onChange={(e) => setField(e.target.value)} style={{ minWidth: 240 }}>
+          <select value={field} onChange={(e) => setField(e.target.value)} style={{ width: 320 }}>
             <option value="">—</option>
             {fields.map((f) => (
               <option key={f.name} value={f.name}>
@@ -141,7 +142,7 @@ export function ObjectAccessPage() {
         <button className="primary" onClick={() => void check()}>
           Show who
         </button>
-        <span className="muted">{status}</span>
+        <Status text={status} />
       </div>
       {result &&
         (result.rows.length === 0 ? (

@@ -88,7 +88,7 @@ export function LogsPage() {
   return (
     <div className="page">
       <div className="toolbar">
-        <h2>Debug Logs</h2>
+        <h2>Debug logs</h2>
         <span className="grow" />
         <label className="check">
           <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> Only mine

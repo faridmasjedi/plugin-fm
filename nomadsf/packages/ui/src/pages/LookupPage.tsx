@@ -18,6 +18,7 @@ import { DataTable } from '../components/DataTable';
 import { useStudio } from '../context';
 import { askConfirm } from '../components/Dialogs';
 import { ObjectOptions } from '../components/ObjectOptions';
+import { Status } from '../statusLog';
 
 /** Field types a file value can be matched on (text-like, Ids and numbers). */
 const MATCHABLE = new Set(['string', 'email', 'id', 'reference', 'phone', 'url', 'picklist', 'int', 'double']);
@@ -298,7 +299,7 @@ export function LookupPage() {
               about {queries} API call{queries === 1 ? '' : 's'} · read-only
             </span>
           )}
-          {status && <span className="muted">{status}</span>}
+          {status && <Status text={status} />}
         </div>
       </div>
 

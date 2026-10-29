@@ -1,7 +1,7 @@
 import type { SalesforceClient } from './client.js';
 import { findSameUser, sameUsername } from './accessCompare.js';
 import { parseCsv, toCsv } from './csv.js';
-import { query, type Row } from './query.js';
+import { query, soqlText, type Row } from './query.js';
 
 /**
  * A user "all together" in one CSV (Section, Name, Value): their fields, lookups by name (profile,
@@ -10,7 +10,6 @@ import { query, type Row } from './query.js';
  */
 
 const ID = /^005[a-zA-Z0-9]{12}([a-zA-Z0-9]{3})?$/;
-const soqlText = (s: string): string => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
 export type SnapshotSection =
   | 'info'
@@ -247,6 +246,30 @@ export async function snapshotUser(client: SalesforceClient, snapshot: SnapshotL
   return (await findSameUser(client, username))?.Id ?? null;
 }
 
+const fieldValue = (f: FieldInfo, value: string): unknown =>
+  value === ''
+    ? null
+    : f.type === 'boolean'
+    ? /^true$/i.test(value)
+    : ['double', 'int', 'currency', 'percent'].includes(f.type)
+    ? Number(value)
+    : value;
+
+/** The Id in this org of what a snapshot lookup names (a profile, a role, a manager's username…). */
+async function lookupId(client: SalesforceClient, f: FieldInfo, name: string): Promise<string> {
+  const target = f.referenceTo.includes('User') && name.includes('@') ? 'User' : f.referenceTo[0];
+  if (target === 'User') {
+    const user = await findSameUser(client, name);
+    if (!user) throw new Error(`no user ${name} in this org`);
+    return user.Id;
+  }
+  const row = (
+    await query(client, `SELECT Id FROM ${target} WHERE ${nameFieldOf(target)} = '${soqlText(name)}' LIMIT 1`)
+  ).rows[0];
+  if (!row) throw new Error(`${target} ${name} is not in this org.`);
+  return String(row.Id);
+}
+
 export type ApplyOutcome = { done: string[]; failed: Array<{ item: string; error: string }> };
 
 /** Makes the user match the snapshot for the differences chosen (names are looked up in this org). */
@@ -279,14 +302,7 @@ export async function applySnapshot(
       continue;
     }
     if (d.section === 'field') {
-      patch[d.name] =
-        d.snapshot === ''
-          ? null
-          : f.type === 'boolean'
-          ? /^true$/i.test(d.snapshot)
-          : ['double', 'int', 'currency', 'percent'].includes(f.type)
-          ? Number(d.snapshot)
-          : d.snapshot;
+      patch[d.name] = fieldValue(f, d.snapshot);
       continue;
     }
     if (!d.snapshot) {
@@ -295,16 +311,7 @@ export async function applySnapshot(
     }
     // eslint-disable-next-line no-await-in-loop
     await attempt(`${d.name} → ${d.snapshot}`, async () => {
-      const target = f.referenceTo.includes('User') && d.snapshot.includes('@') ? 'User' : f.referenceTo[0];
-      if (target === 'User') {
-        const user = await findSameUser(client, d.snapshot);
-        if (!user) throw new Error(`no user ${d.snapshot} in this org`);
-        patch[d.name] = user.Id;
-      } else
-        patch[d.name] = await one(
-          `SELECT Id FROM ${target} WHERE ${nameFieldOf(target)} = '${soqlText(d.snapshot)}' LIMIT 1`,
-          `${target} ${d.snapshot}`
-        );
+      patch[d.name] = await lookupId(client, f, d.snapshot);
     });
   }
   if (Object.keys(patch).length)
@@ -325,7 +332,11 @@ export async function applySnapshot(
       item: `app ${d.name}`,
       error: 'only the user can connect an app (revoke one in Org › Connected apps)',
     });
-  for (const d of differences.filter((x) => !['field', 'lookup'].includes(x.section) && !x.checkOnly)) {
+  // Licenses first: a permission set may need one
+  const access = differences
+    .filter((x) => !['field', 'lookup'].includes(x.section) && !x.checkOnly)
+    .sort((a, b) => Number(b.section === 'license') - Number(a.section === 'license'));
+  for (const d of access) {
     const item = `${d.extra ? 'remove' : 'add'} ${d.section} ${d.name}`;
     // eslint-disable-next-line no-await-in-loop
     await attempt(item, async () => {
@@ -394,4 +405,59 @@ export async function applySnapshot(
     });
   }
   return out;
+}
+
+/** Fields a new user cannot take from another user: unique across Salesforce, or set by Salesforce. */
+const NOT_COPIED = /^(Username|CommunityNickname|FederationIdentifier|Name|IsActive)$/;
+
+/**
+ * Creates the snapshot's user in this org (usernames are unique across every org, so the new one
+ * is given), then assigns their permission sets, groups, licenses, public groups and queues.
+ * Salesforce sends no welcome e-mail to users created this way.
+ */
+export async function createUserFromSnapshot(
+  client: SalesforceClient,
+  snapshot: SnapshotLine[],
+  username: string,
+  orgLabel = ''
+): Promise<{ id: string; outcome: ApplyOutcome }> {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username)) throw new Error('The username must look like an e-mail.');
+  const fields = (await userFields(client)).filter((f) => f.createable);
+  const record: Row = { Username: username, IsActive: true };
+  const skipped: ApplyOutcome['failed'] = [];
+  for (const l of snapshot.filter((x) => x.Section === 'field' && x.Value !== '' && !NOT_COPIED.test(x.Name))) {
+    const f = fields.find((x) => x.name === l.Name);
+    if (f) record[l.Name] = fieldValue(f, l.Value);
+  }
+  for (const l of snapshot.filter((x) => x.Section === 'lookup' && x.Value !== '')) {
+    const f = fields.find((x) => x.name === l.Name);
+    if (!f) continue;
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      record[l.Name] = await lookupId(client, f, l.Value);
+    } catch (e) {
+      // The profile is needed; a missing role or manager only leaves the field empty
+      if (l.Name === 'ProfileId') throw new Error(`Profile ${l.Value}: ${(e as Error).message}`);
+      skipped.push({ item: `${l.Name} → ${l.Value}`, error: (e as Error).message });
+    }
+  }
+  if (!record.ProfileId) throw new Error('The snapshot has no profile.');
+  const created = await client.rest<{ id: string }>('POST', '/sobjects/User', record);
+  const outcome: ApplyOutcome = { done: ['created the user'], failed: skipped };
+  const access = diffSnapshot(snapshot, await takeUserSnapshot(client, created.id, orgLabel)).filter(
+    (d) => !['field', 'lookup'].includes(d.section) && !d.extra && !d.checkOnly
+  );
+  if (access.length) {
+    const r = await applySnapshot(client, created.id, access);
+    outcome.done.push(...r.done);
+    outcome.failed.push(...r.failed);
+  }
+  return { id: created.id, outcome };
+}
+
+/** A free username for the snapshot's user in another org: theirs with the org's name after it. */
+export function suggestUsername(snapshot: SnapshotLine[], orgLabel: string): string {
+  const original = snapshot.find((l) => l.Section === 'info' && l.Name === 'user')?.Value ?? '';
+  const suffix = orgLabel.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return original && suffix && !original.endsWith(`.${suffix}`) ? `${original}.${suffix}` : original;
 }

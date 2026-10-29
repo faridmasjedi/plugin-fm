@@ -203,12 +203,9 @@ export function MetadataPage() {
               placeholder={`Filter ${types.length} types…`}
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
+              style={{ width: 280 }}
             />
-            <select
-              value={type}
-              onChange={(e) => e.target.value && void list(e.target.value)}
-              style={{ minWidth: 240 }}
-            >
+            <select value={type} onChange={(e) => e.target.value && void list(e.target.value)} style={{ width: 280 }}>
               <option value="">Choose a type…</option>
               {shownTypes.map((t) => (
                 <option key={t.xmlName} value={t.xmlName}>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AI_PRESETS, aiTest, type AiProvider, type AiSettings } from '@nomadsf/core';
 import { aiUsable, loadExtensionAi, openRouterSignIn, requestProviderAccess, saveExtensionAi } from '../extensionAi';
+import { Status } from '../statusLog';
 
 const PROVIDERS = Object.keys(AI_PRESETS) as AiProvider[];
 
@@ -158,7 +159,7 @@ export function AiSettingsCard() {
             get a key ↗
           </a>
         )}
-        <span className="muted">{status}</span>
+        <Status text={status} />
       </div>
       {provider === 'ollama' && (
         <p className="muted" style={{ margin: 0 }}>

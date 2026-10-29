@@ -3,12 +3,11 @@ import { GitHubCard } from '../components/GitHubCard';
 import { OrgSettings } from '../components/OrgSettings';
 import { AiSettingsCard } from '../components/AiSettingsCard';
 import type { HostKind, OrgChoice } from '../host';
-import { storage } from '../context';
-import { localAppEnabled, useProject } from '../project';
+import { useProject } from '../project';
 
 const SOURCE_LABEL = { local: 'NomadSF app', folder: 'Folder on this computer', github: 'GitHub' } as const;
 
-/** Settings: the org and the Salesforce project every page uses, and (extension) where the NomadSF CLI app runs. */
+/** Settings: the org and the Salesforce project every page uses, and the AI. */
 export function SettingsPage({
   hostKind,
   onOpenProject,
@@ -27,8 +26,6 @@ export function SettingsPage({
   const project = useProject();
   const { source, info } = project;
   const [switchPath, setSwitchPath] = useState('');
-  const [port, setPort] = useState<number>(() => storage.get('local.port', 7007));
-  const [useLocalApp, setUseLocalApp] = useState(localAppEnabled);
 
   return (
     <div className="page">
@@ -150,58 +147,6 @@ export function SettingsPage({
           <GitHubCard hostKind={hostKind} embedded />
         </div>
       </div>
-
-      {hostKind === 'extension' && (
-        <div className="card section">
-          <h3>NomadSF CLI app (optional)</h3>
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={useLocalApp}
-              onChange={(e) => {
-                setUseLocalApp(e.target.checked);
-                storage.set('local.enabled', e.target.checked);
-                // Look for it (or stop looking) right away
-                location.reload();
-              }}
-            />{' '}
-            Use the NomadSF CLI app on this computer
-          </label>
-          <p className="muted" style={{ margin: 0 }}>
-            {!useLocalApp
-              ? 'Off: the extension works on its own and never contacts the app. Switch it on if you run sf fm dashboard, for CLI orgs, AI help, E2E tests, restore and deploy.'
-              : project.localAvailable
-              ? `Found on this computer (port ${port}): CLI orgs, AI settings, E2E tests, restore and deploy are available.`
-              : `Not running on port ${port}. Start it with the command below; the Studio finds it when you come back to this tab.`}
-          </p>
-          {useLocalApp && (
-            <div className="form">
-              <label>
-                Port
-                <input
-                  type="number"
-                  min={1024}
-                  max={65535}
-                  value={port}
-                  onChange={(e) => setPort(Number(e.target.value))}
-                  style={{ width: 110 }}
-                />
-              </label>
-              <button
-                disabled={port === storage.get('local.port', 7007)}
-                onClick={() => {
-                  storage.set('local.port', port);
-                  // The Studio looks for the app on start
-                  location.reload();
-                }}
-              >
-                Save and reconnect
-              </button>
-              <code className="muted">sf fm dashboard --port {port}</code>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

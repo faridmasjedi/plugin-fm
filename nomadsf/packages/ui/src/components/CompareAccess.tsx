@@ -15,6 +15,7 @@ import { storage, useStudio } from '../context';
 import { DataTable } from './DataTable';
 import { DiffTable } from './DiffTable';
 import { UserComparison } from './UserComparison';
+import { Status } from '../statusLog';
 
 type Kind = PermissionHolder['kind'];
 type Mode = 'users' | Kind | 'all';
@@ -226,7 +227,7 @@ export function CompareAccess({ between }: { between?: OrgSides }) {
         <button className="primary" disabled={!ready} onClick={() => void compare()}>
           Compare
         </button>
-        <span className="muted">{status}</span>
+        <Status text={status} />
       </div>
       {shownMode === 'users' && usersShown && clientB && (
         <UserComparison
@@ -351,7 +352,7 @@ function Overview({
           <h4>
             {pair.kind} {pair.name}
           </h4>
-          {status && <p className="muted">{status}</p>}
+          {status && <Status text={status} block />}
           {diff &&
             (diff.length === 0 ? (
               <p className="good">✓ The same system permissions, object and field access in both orgs.</p>
@@ -421,6 +422,7 @@ function UserPicker({
         <span className="form">
           <input
             placeholder="Name, username or email"
+            style={{ minWidth: 280 }}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && matches?.length === 1 && onChange(matches[0])}

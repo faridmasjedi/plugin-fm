@@ -222,6 +222,15 @@ export function QueryPage() {
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
 
   useEffect(() => storage.set('query.soql', soql), [soql]);
+  // A SOQL handed over while the page is open (Record › Related › Query)
+  useEffect(() => {
+    const take = (e: Event) => {
+      setTooling(false);
+      setSoql((e as CustomEvent<string>).detail);
+    };
+    window.addEventListener('nomadsf:query', take);
+    return () => window.removeEventListener('nomadsf:query', take);
+  }, []);
   useEffect(() => {
     storage.set('query.tooling', tooling);
     objects.current = [];

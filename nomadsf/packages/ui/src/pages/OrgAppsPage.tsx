@@ -3,6 +3,7 @@ import { appUsersInBoth, compareConnectedApps, type AppComparison, type AppUser 
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { UserComparison } from '../components/UserComparison';
 import { OrgPairBar, usePairClients } from '../pair';
+import { Status } from '../statusLog';
 
 type Show = 'all' | AppComparison['status'];
 
@@ -61,7 +62,7 @@ export function OrgAppsPage() {
       <OrgPairBar />
       {error && <p className="bad-text">{error}</p>}
       {!b && <p className="muted">Choose the other org (B) above.</p>}
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
       {apps && (
         <>
           <div className="segmented" role="group" aria-label="Show">

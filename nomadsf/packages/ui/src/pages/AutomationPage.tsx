@@ -3,6 +3,7 @@ import { describeGlobal, saveOrder, type SaveStep, type SObjectSummary } from '@
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { ObjectOptions } from '../components/ObjectOptions';
+import { Status } from '../statusLog';
 
 /** What runs when a record of an object is saved, in Salesforce's order of execution. */
 export function AutomationPage() {
@@ -60,7 +61,7 @@ export function AutomationPage() {
         <label className="check">
           <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Active only
         </label>
-        <span className="muted">{status}</span>
+        <Status text={status} />
       </div>
       {result && (
         <>

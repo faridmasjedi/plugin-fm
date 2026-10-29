@@ -19,6 +19,7 @@ import {
   removeOldIdFields,
   describeBoth,
   describeData,
+  explainFailures,
   gatherRows,
   getUserInfo,
   linkReport,
@@ -58,12 +59,16 @@ import { askTyped } from '../components/Dialogs';
 import { OrgPairBar, usePair } from '../pair';
 import { MigrateComposer } from '../components/MigrateComposer';
 import { FilesSourcePanel } from '../components/FilesSourcePanel';
+import { Status } from '../statusLog';
 
 type SourceChoice =
   | { kind: 'org'; org: string }
   | { kind: 'backup'; jobId: string; folder: string }
   /** Tables from a file (Excel, CSV, ⤓ zip), each matched to an object. */
   | { kind: 'files' };
+/** A failed record: where it came from, Salesforce's error, and what it means. */
+const FAILURE_COLUMNS = ['object', 'sourceId', 'Error code', 'What it means', 'Error message', 'Error fields'];
+
 type LastCopy = { at: string; source: string; created: LoadResult['created']; records: number };
 
 const download = (name: string, text: string) => downloadFile(name, text, 'text/csv');
@@ -143,6 +148,8 @@ export function MigratePage({
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const target = orgs.find((o) => o.id === targetId);
+  // One function per target: the files panel reads B's objects again only when B changes
+  const filesTarget = useMemo(() => (targetId ? () => clientFor(targetId) : undefined), [targetId, clientFor]);
   const sourceKey =
     source.kind === 'org' ? `org:${source.org}` : source.kind === 'backup' ? `backup:${source.jobId}` : 'files';
   const job = source.kind === 'backup' ? backupJobs.list().find((j) => j.id === source.jobId) : undefined;
@@ -690,7 +697,7 @@ export function MigratePage({
         </div>
         {source.kind === 'files' && (
           <FilesSourcePanel
-            targetClient={targetId ? () => clientFor(targetId) : undefined}
+            targetClient={filesTarget}
             onUse={(s, objects, notes) => {
               setState(s);
               setChosen([]);
@@ -954,7 +961,7 @@ export function MigratePage({
             </button>
           )}
         </div>
-        {status && <p className="muted">{status}</p>}
+        {status && <Status text={status} block />}
         {oldIds && fieldStatus.length > 0 && (
           <p className="muted old-ids">
             <b>{OLD_ID_FIELD}</b>:{' '}
@@ -1064,7 +1071,9 @@ export function MigratePage({
                             <span className="good">✓ kept</span>
                           ) : l.inCopy ? (
                             withParents ? (
-                              <span className="muted">not in the source any more (deleted?)</span>
+                              <span className="muted">
+                                {source.kind === 'files' ? 'not in the files' : 'not in the source any more (deleted?)'}
+                              </span>
                             ) : (
                               <button className="link" onClick={() => setWithParents(true)}>
                                 Bring the records they point to
@@ -1145,15 +1154,18 @@ export function MigratePage({
                   />
                   <button
                     onClick={() =>
-                      download('migration-failures.csv', toCsv(['object', 'sourceId', 'error'], result.failures))
+                      download(
+                        'migration-failures.csv',
+                        toCsv(FAILURE_COLUMNS, explainFailures(result.failures, 'error'))
+                      )
                     }
                   >
                     Download failures
                   </button>
                 </div>
                 <DataTable
-                  columns={['object', 'sourceId', 'error']}
-                  rows={result.failures.slice(0, 500)}
+                  columns={FAILURE_COLUMNS}
+                  rows={explainFailures(result.failures.slice(0, 500), 'error')}
                   rowKey="sourceId"
                   name="migration-failures"
                 />

@@ -3,7 +3,7 @@ import { deployZip } from './deploy.js';
 import { profileMetadata } from './accessMeta.js';
 import { packageXml } from './metadata.js';
 import { query, type Row } from './query.js';
-import { escapeXml, xmlBlocks, xmlValue } from './soap.js';
+import { escapeXml } from './soap.js';
 import { makeZip, toBase64 } from './zip.js';
 
 /**
@@ -462,15 +462,6 @@ export const apiNameFrom = (label: string): string =>
 
 export type IpRange = { start: string; end: string; description: string };
 export type ProfileLoginSettings = { fullName: string; ipRanges: IpRange[] };
-
-export function parseLoginSettings(xml: string, fullName: string): ProfileLoginSettings {
-  const ipRanges = xmlBlocks(xml, 'loginIpRanges').map((b) => ({
-    start: xmlValue(b, 'startAddress') ?? '',
-    end: xmlValue(b, 'endAddress') ?? '',
-    description: xmlValue(b, 'description') ?? '',
-  }));
-  return { fullName, ipRanges };
-}
 
 /** A profile file with only its login IP ranges (deploying it changes nothing else). */
 export function loginSettingsXml(settings: Omit<ProfileLoginSettings, 'fullName'>): string {

@@ -5,6 +5,7 @@ import {
   assignLicense,
   deleteByIds,
   effectivePermissions,
+  inspectRecord,
   listGroups,
   listPermissionSetLicenses,
   listPermissionSets,
@@ -13,6 +14,8 @@ import {
   userAccess,
   userLogins,
   type AccessTarget,
+  type SalesforceClient,
+  type Sheet,
   type EffectivePermission,
   type GroupInfo,
   type LicenseInfo,
@@ -36,6 +39,48 @@ const TABS: Array<[Tab, string]> = [
   ['oauth', 'OAuth apps'],
   ['logins', 'Login history'],
 ];
+
+const LOGIN_COLUMNS = [
+  'LoginTime',
+  'Status',
+  'LoginType',
+  'Application',
+  'SourceIp',
+  'CountryIso',
+  'Browser',
+  'Platform',
+  'LoginUrl',
+];
+
+/** Every tab of a user, a sheet each (Details, permission sets… login history): ⤓ takes only the open one. */
+export async function userWorkbook(client: SalesforceClient, userId: string): Promise<Sheet[]> {
+  const [record, access, system, logins] = await Promise.all([
+    inspectRecord(client, userId),
+    userAccess(client, userId),
+    effectivePermissions(client, userId),
+    userLogins(client, userId),
+  ]);
+  const value = (v: unknown): string =>
+    v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
+  return [
+    {
+      name: 'Details',
+      columns: ['Label', 'API name', 'Value'],
+      rows: record.fields.map((f) => ({ Label: f.label, 'API name': f.name, Value: value(f.value) })),
+    },
+    { name: 'Permission set groups', columns: ['Label', 'Name', 'ExpirationDate'], rows: access.permissionSetGroups },
+    { name: 'Permission sets', columns: ['Label', 'Name', 'ExpirationDate'], rows: access.permissionSets },
+    {
+      name: 'System permissions',
+      columns: ['label', 'api', 'grantedBy'],
+      rows: system.map((p) => ({ ...p, grantedBy: p.grantedBy.join(' · ') })),
+    },
+    { name: 'Groups & queues', columns: ['Name', 'Kind', 'DeveloperName', 'Member', 'Owner'], rows: access.groups },
+    { name: 'Licenses', columns: ['Label', 'Name', 'Status', 'ExpirationDate'], rows: access.licenses },
+    { name: 'OAuth apps', columns: ['App', 'Uses', 'LastUsed', 'Connected'], rows: access.oauthApps },
+    { name: 'Login history', columns: LOGIN_COLUMNS, rows: logins },
+  ];
+}
 
 /** What a user has: permission sets and groups, combined system permissions, groups, licenses, OAuth apps, logins. */
 export function UserAccessPanel({ userId, label, details }: { userId: string; label: string; details: ReactNode }) {
@@ -227,17 +272,7 @@ export function UserAccessPanel({ userId, label, details }: { userId: string; la
         <EmptyHint what="logins" />
       ) : (
         <DataTable
-          columns={[
-            'LoginTime',
-            'Status',
-            'LoginType',
-            'Application',
-            'SourceIp',
-            'CountryIso',
-            'Browser',
-            'Platform',
-            'LoginUrl',
-          ]}
+          columns={LOGIN_COLUMNS}
           rows={logins}
           rowKey="__none"
           name={name('logins')}

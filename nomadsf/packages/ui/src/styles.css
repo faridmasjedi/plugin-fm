@@ -1810,6 +1810,11 @@ nav.side .hub-label {
 .hub-tab.active .icon {
   opacity: 1;
 }
+/* Between groups of tabs (Access: changing access, then reviewing it on its own line) */
+.hub-tab-break {
+  flex-basis: 100%;
+  height: 0;
+}
 .pane-action {
   border: 0;
   background: transparent;
@@ -2678,7 +2683,7 @@ button.working::before {
 }
 
 /* A label holding a hidden file input, looking and acting like a button */
-.form label.file-button {
+label.file-button {
   display: inline-flex;
   flex-direction: row;
   align-items: center;
@@ -2693,7 +2698,7 @@ button.working::before {
   border: 1px solid var(--border);
   border-radius: 8px;
 }
-.form label.file-button:hover {
+label.file-button:hover {
   border-color: var(--accent);
 }
 
@@ -2728,4 +2733,261 @@ input.bad-input {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* Record › Related: the tree to tick and the copy bar */
+.relation-tree {
+  list-style: none;
+  margin: 4px 0;
+  padding-left: 18px;
+  border-left: 1px solid var(--border);
+}
+.relation-tree.root {
+  padding-left: 0;
+  border-left: 0;
+}
+.relation-tree li {
+  padding: 2px 0;
+}
+.copy-bar {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 10px;
+}
+.belongs-to {
+  margin: 0 0 6px;
+}
+
+/* ======================================================================
+   Tidy-up pass: table bars, file pickers, page descriptions, crowded tab bars
+   ====================================================================== */
+
+/* Table bar: filter · the row count and note (wraps if long) · Copy CSV JSON kept together on the right */
+.dt-count {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+.dt-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex: none;
+  margin-left: auto;
+}
+
+/* The browser's file button, drawn like ours */
+input[type='file'] {
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-width: 100%;
+}
+input[type='file']::file-selector-button {
+  height: calc(var(--h) - 10px);
+  margin-right: 10px;
+  padding: 0 12px;
+  font: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+input[type='file']::file-selector-button:hover {
+  border-color: var(--accent);
+}
+
+/* A page's description under its tab starts with a capital ("a user and…" → "A user and…") */
+.pane-body .page > .toolbar:first-child > h2 + .muted {
+  display: inline-block;
+}
+.pane-body .page > .toolbar:first-child > h2 + .muted::first-letter {
+  text-transform: uppercase;
+}
+
+/* A crowded tab bar (Access has 10 tabs, or a narrow pane) wraps to a second line: nothing is cut off */
+.pane-bar {
+  height: auto;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.hub-tabs {
+  flex: 1 1 0;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  mask-image: none;
+}
+.pane-bar > .grow {
+  display: none;
+}
+
+/* ======================================================================
+   Messages: next to what started them (a tinted line with a kind), and the Log at the bottom
+   ====================================================================== */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border-left: 3px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+p.status {
+  display: flex;
+  margin: 0;
+  width: fit-content;
+}
+.status-working {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+.status-done {
+  border-left-color: var(--good);
+  background: var(--good-soft);
+}
+.status-problem {
+  border-left-color: var(--bad);
+  background: var(--bad-soft);
+}
+.status-warning {
+  border-left-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+}
+.status-spin {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  border-right-color: transparent;
+  animation: status-spin 0.8s linear infinite;
+}
+@keyframes status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .status-spin {
+    animation: none;
+  }
+}
+
+/* The Log: a bar under the panes; open, the last 300 messages, newest first */
+.log-drawer {
+  flex: none;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  font-size: var(--fs-sm);
+}
+.log-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  padding: 0 12px;
+}
+.log-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+}
+.log-count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.log-problems {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bad-soft);
+  color: var(--bad);
+  font-weight: 600;
+}
+.log-last {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-left: 8px;
+  border-left: 3px solid var(--border);
+}
+.log-last.status-done {
+  border-left-color: var(--good);
+}
+.log-last.status-problem {
+  border-left-color: var(--bad);
+}
+.log-last.status-working {
+  border-left-color: var(--accent);
+}
+.log-last.status-warning {
+  border-left-color: var(--warn);
+}
+.log-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 8px;
+  max-height: 220px;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+}
+.log-row {
+  display: grid;
+  grid-template-columns: 72px 150px 150px 1fr;
+  gap: 10px;
+  padding: 3px 12px 3px 9px;
+  border-left: 3px solid transparent;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.log-row.status-done {
+  border-left-color: var(--good);
+}
+.log-row.status-problem {
+  border-left-color: var(--bad);
+  background: var(--bad-soft);
+}
+.log-row.status-warning {
+  border-left-color: var(--warn);
+}
+.log-row.status-working {
+  border-left-color: var(--accent);
+}
+.log-time,
+.log-tool,
+.log-org {
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.log-text {
+  overflow-wrap: anywhere;
+}
+@container pane (max-width: 700px) {
+  .log-row {
+    grid-template-columns: 72px 1fr;
+  }
+  .log-tool,
+  .log-org {
+    display: none;
+  }
 }

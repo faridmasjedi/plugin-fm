@@ -22,6 +22,7 @@ import { DataTable, download as downloadFile } from './DataTable';
 import { storage, useStudio } from '../context';
 import { isLocked, jobSink, type JobRecord } from '../backups';
 import { UnlockBackup } from './UnlockBackup';
+import { Status } from '../statusLog';
 
 const download = (name: string, text: string) => downloadFile(name, text, 'text/csv');
 
@@ -354,7 +355,7 @@ export function RestorePanel({
         </button>
         {onCopyElsewhere && <button onClick={onCopyElsewhere}>Copy into another org…</button>}
       </div>
-      {status && <p className="muted status-line">{status}</p>}
+      {status && <Status text={status} block />}
       {previews.length > 0 && changedRows.length > 0 && (
         <>
           <h3>Changed since the backup ({new Set(changedRows.map((r) => `${r.object}:${r.Id}`)).size} records)</h3>

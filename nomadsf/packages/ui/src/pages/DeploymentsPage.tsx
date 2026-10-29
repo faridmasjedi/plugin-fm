@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { deployDetails, deployHistory, quickDeploy, type DeployOutcome, type Row } from '@nomadsf/core';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { useStudio } from '../context';
+import { Status } from '../statusLog';
 
 /** Recent deployments and validations, their failures, and quick deploy of a recent validation. */
 export function DeploymentsPage() {
@@ -58,7 +59,7 @@ export function DeploymentsPage() {
         <span className="grow" />
         <button onClick={() => void load()}>Refresh</button>
       </div>
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
       {rows &&
         (rows.length === 0 ? (
           <EmptyHint what="deployments" />

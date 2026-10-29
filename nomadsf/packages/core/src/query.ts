@@ -162,6 +162,9 @@ export async function query(client: SalesforceClient, soql: string, options: Que
   };
 }
 
+/** A value inside a SOQL string literal: backslashes and quotes escaped. */
+export const soqlText = (value: string): string => value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
 /** Parent-to-child subqueries ("(SELECT … FROM Contacts)") are not supported by Bulk API 2.0. */
 export function bulkCompatible(soql: string, tooling: boolean): boolean {
   return !tooling && !/\(\s*select\b/i.test(soql);

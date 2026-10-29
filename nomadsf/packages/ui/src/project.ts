@@ -94,8 +94,8 @@ const supportsFolders = (): boolean =>
 export const localAppBase = (kind: HostKind): string =>
   kind === 'app' ? '' : `http://127.0.0.1:${storage.get('local.port', 7007)}`;
 
-/** The extension only looks for the NomadSF CLI app when it is switched on in Settings (no failed requests otherwise). */
-export const localAppEnabled = (): boolean => storage.get('local.enabled', false);
+/** The browser extension works on its own: it never looks for the NomadSF CLI app (that runs its own Studio). */
+export const localAppEnabled = (): boolean => false;
 
 async function localProject(base: string): Promise<{ current: RecentProject; recent: RecentProject[] } | undefined> {
   // base '' = inside the app itself, which is always there

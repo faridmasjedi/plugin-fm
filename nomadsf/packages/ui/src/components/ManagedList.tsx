@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import type { Row } from '@nomadsf/core';
 import { useStudio } from '../context';
 import { EmptyHint } from './DataTable';
+import { Status } from '../statusLog';
 
 /** `kind`: what it is (User, Role…), when the list offers several kinds to choose from first. */
 export type Choice = { id: string; label: string; detail?: string; kind?: string };
@@ -160,7 +161,7 @@ export function ManagedList({
           {extra}
         </div>
       )}
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
     </div>
   );
 }

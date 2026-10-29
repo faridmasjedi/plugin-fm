@@ -21,10 +21,11 @@ export function matches(value: unknown, filter: string): boolean {
   return v.includes(f);
 }
 
-export function download(name: string, content: string, type: string): void {
+export function download(name: string, content: string | Uint8Array, type: string): void {
   const a = document.createElement('a');
   // CSV with a UTF-8 BOM: Excel otherwise reads it as ANSI (→, é and the like turn into gibberish)
-  const body = type === 'text/csv' && !content.startsWith('\uFEFF') ? `\uFEFF${content}` : content;
+  const body =
+    typeof content === 'string' && type === 'text/csv' && !content.startsWith('\uFEFF') ? `\uFEFF${content}` : content;
   a.href = URL.createObjectURL(new Blob([body], { type }));
   a.download = name;
   a.click();
@@ -146,15 +147,16 @@ export function DataTable({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
-        <span className="muted">
+        <span className="muted dt-count">
           {visible.length.toLocaleString()} of {rows.length.toLocaleString()} rows {note}
         </span>
-        <span className="grow" />
-        <button onClick={() => navigator.clipboard.writeText(toTsv())}>Copy</button>
-        <button onClick={() => download(`${name}.csv`, toCsv(), 'text/csv')}>CSV</button>
-        <button onClick={() => download(`${name}.json`, JSON.stringify(visible, null, 2), 'application/json')}>
-          JSON
-        </button>
+        <span className="dt-actions">
+          <button onClick={() => navigator.clipboard.writeText(toTsv())}>Copy</button>
+          <button onClick={() => download(`${name}.csv`, toCsv(), 'text/csv')}>CSV</button>
+          <button onClick={() => download(`${name}.json`, JSON.stringify(visible, null, 2), 'application/json')}>
+            JSON
+          </button>
+        </span>
       </div>
       <div className="dt-wrap">
         <table>
@@ -241,7 +243,7 @@ export function DataTable({
 }
 
 const fullText = (value: unknown): string | undefined =>
-  (typeof value === 'string' || typeof value === 'number') && String(value).length > 40 ? String(value) : undefined;
+  (typeof value === 'string' || typeof value === 'number') && String(value) !== '' ? String(value) : undefined;
 
 /** Shown when Salesforce returns nothing: records the user cannot see are left out silently. */
 export function EmptyHint({ what = 'rows' }: { what?: string }) {

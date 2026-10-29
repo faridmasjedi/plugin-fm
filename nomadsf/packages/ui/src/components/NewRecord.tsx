@@ -3,6 +3,7 @@ import { coerceFieldValue, createRecord, describeGlobal } from '@nomadsf/core';
 import { useStudio } from '../context';
 import { ObjectOptions } from './ObjectOptions';
 import { RecordPicker } from './RecordPicker';
+import { Status } from '../statusLog';
 
 type CreateField = {
   name: string;
@@ -192,7 +193,7 @@ export function NewRecord({ onCreated, onClose }: { onCreated: (id: string) => v
         <span className="grow" />
         <button onClick={onClose}>Close</button>
       </div>
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
       {sobject && !fields && !status && <p className="muted">Reading {sobject}…</p>}
       {fields && (
         <>

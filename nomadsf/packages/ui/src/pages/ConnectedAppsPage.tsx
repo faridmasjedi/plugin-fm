@@ -15,6 +15,7 @@ import {
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { ManagedList } from '../components/ManagedList';
 import { storage, useStudio } from '../context';
+import { Status } from '../statusLog';
 
 type View = 'connected' | 'external' | 'users' | 'tokens';
 
@@ -166,7 +167,7 @@ export function ConnectedAppsPage() {
         <span className="grow" />
         <button onClick={() => void load()}>Refresh</button>
       </div>
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
       {report && (
         <>
           <div className="metrics">
@@ -283,7 +284,7 @@ function AppDetails({ appId }: { appId: string }) {
     : [];
   return (
     <>
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
       <h4>Settings</h4>
       {!details ? (
         <p className="muted">Reading…</p>

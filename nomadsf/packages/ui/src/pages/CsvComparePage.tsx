@@ -14,6 +14,7 @@ import { DataTable } from '../components/DataTable';
 import { EditableGrid, type GridRow } from '../components/EditableGrid';
 import { ObjectOptions } from '../components/ObjectOptions';
 import { TableFileInput } from '../components/TableFileInput';
+import { Status } from '../statusLog';
 
 /**
  * Data › Compare with CSV: a CSV of records (from an old org, a backup, a spreadsheet) next to this
@@ -190,7 +191,7 @@ export function CsvComparePage() {
             lookups are compared by name when the CSV has it (Account.Name for AccountId).
           </p>
         )}
-        {status && <p className="muted">{status}</p>}
+        {status && <Status text={status} block />}
       </div>
       {editing && file && (
         <EditableGrid

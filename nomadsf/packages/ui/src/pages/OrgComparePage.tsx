@@ -20,6 +20,7 @@ import { storage, useStudio } from '../context';
 import { detectHost, orgFacts, type OrgChoice, type OrgFacts } from '../host';
 import { OrgPairBar, usePair } from '../pair';
 import { askTyped } from '../components/Dialogs';
+import { Status } from '../statusLog';
 
 const LEVELS: Array<{ id: TestLevel; label: string }> = [
   { id: 'NoTestRun', label: 'No tests (sandboxes only)' },
@@ -288,7 +289,7 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
         )}
       </div>
 
-      {status && statusAt === 'top' && <p className="muted">{status}</p>}
+      {status && statusAt === 'top' && <Status text={status} block />}
 
       {rows && (
         <div className="card section">
@@ -354,7 +355,7 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
                 >
                   Build package
                 </button>
-                {status && statusAt === 'package' && <span className="muted">{status}</span>}
+                {status && statusAt === 'package' && <Status text={status} />}
               </div>
               <p className="muted" style={{ margin: 0 }}>
                 Build package retrieves the ticked components from A into a zip with <code>package.xml</code> (and{' '}
@@ -428,7 +429,7 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
                 <button className={checkOnly ? '' : 'danger'} disabled={busy} onClick={deploy}>
                   {checkOnly ? 'Validate' : 'Deploy'} on {target?.label}
                 </button>
-                {status && statusAt === 'deploy' && <span className="muted">{status}</span>}
+                {status && statusAt === 'deploy' && <Status text={status} />}
               </div>
             </div>
           )}
