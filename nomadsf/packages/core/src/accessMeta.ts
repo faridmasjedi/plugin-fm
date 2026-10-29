@@ -48,6 +48,7 @@ export function metadataToXml(type: string, metadata: MetadataJson): string {
 const FOLDERS: Record<string, [string, string]> = {
   Profile: ['profiles', 'profile'],
   PermissionSet: ['permissionsets', 'permissionset'],
+  PermissionSetGroup: ['permissionsetgroups', 'permissionsetgroup'],
   CustomPermission: ['customPermissions', 'customPermission'],
 };
 

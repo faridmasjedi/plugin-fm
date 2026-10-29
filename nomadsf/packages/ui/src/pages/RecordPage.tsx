@@ -328,7 +328,6 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
               sobject={record.sobject}
               id={record.id}
               name={record.name ?? ''}
-              fields={record.fields}
               // Inside Users: a related record opens in the Record tool
               onOpen={(id) => (embedded && inspect ? inspect(id) : void open(id))}
             />

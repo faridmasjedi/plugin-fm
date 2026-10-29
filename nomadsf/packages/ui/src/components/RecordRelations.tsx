@@ -1,46 +1,70 @@
 import { Fragment, useContext, useEffect, useState } from 'react';
 import {
   childRecords,
+  childRelations,
   childrenSoql,
-  flattenParents,
-  recordChildren,
-  recordParents,
-  writeWorkbook,
+  recordLookups,
   type ChildRelation,
-  type MigrateObject,
-  type ParentNode,
-  type RecordField,
-  type Row,
-  type Sheet,
+  type RecordLookup,
 } from '@nomadsf/core';
+import { basket, useBasket } from '../basket';
 import { GoContext, handoff, useStudio } from '../context';
-import { usePair } from '../pair';
+import { BasketPanel } from './BasketPanel';
 import { CopyId } from './CopyId';
-import { DataTable, download } from './DataTable';
 
 const keyOf = (c: Pick<ChildRelation, 'object' | 'field'>): string => `${c.object}.${c.field}`;
-const display = (v: unknown): string =>
-  v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
 
-/** The parents tree: each lookup with the record it points to, and that record's own lookups under it. */
-function ParentTree({ nodes, onOpen }: { nodes: ParentNode[]; onOpen: (id: string) => void }) {
+/** The records a record points to; ▸ shows what each of those points to (read when opened). */
+function Lookups({ object, id, onOpen }: { object: string; id: string; onOpen: (id: string) => void }) {
+  const { client, org } = useStudio();
+  const items = useBasket(org.id);
+  const [list, setList] = useState<RecordLookup[] | null>(null);
+  const [error, setError] = useState('');
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let canceled = false;
+    recordLookups(client, object, id)
+      .then((l) => !canceled && setList(l))
+      .catch((e: Error) => !canceled && setError(e.message));
+    return () => {
+      canceled = true;
+    };
+  }, [client, object, id]);
+  if (error) return <p className="bad">❌ {error}</p>;
+  if (!list) return <p className="muted">Reading…</p>;
+  if (!list.length) return <p className="muted">Nothing: no lookup has a value.</p>;
   return (
     <ul className="relation-tree">
-      {nodes.map((n) => (
-        <li key={`${n.field}-${n.id}`}>
-          <span className="mono muted" title={n.fieldLabel}>
-            {n.field}
-          </span>{' '}
-          → <b>{n.object}</b> ·{' '}
-          {n.repeated ? (
-            <span className="muted">shown above</span>
+      {list.map((l) => (
+        <li key={l.field}>
+          <button
+            className="link"
+            title="What this record points to"
+            onClick={() => {
+              const next = new Set(open);
+              if (next.has(l.field)) next.delete(l.field);
+              else next.add(l.field);
+              setOpen(next);
+            }}
+          >
+            {open.has(l.field) ? '▾' : '▸'}
+          </button>{' '}
+          <span className="muted">{l.label}</span> →{' '}
+          <button className="link" title="Open this record" onClick={() => onOpen(l.id)}>
+            {l.name || l.id}
+          </button>{' '}
+          <span className="muted">({l.object})</span> <CopyId id={l.id} />{' '}
+          {items.some((i) => i.id === l.id) ? (
+            <span className="muted">✓ in the basket</span>
           ) : (
-            <button className="link" onClick={() => onOpen(n.id)} title="Open this record">
-              {n.name || n.id}
+            <button
+              className="link"
+              onClick={() => basket.add(org.id, [{ object: l.object, id: l.id, name: l.name || l.id }])}
+            >
+              + Basket
             </button>
-          )}{' '}
-          <CopyId id={n.id} />
-          {n.parents.length > 0 && <ParentTree nodes={n.parents} onOpen={onOpen} />}
+          )}
+          {open.has(l.field) && <Lookups object={l.object} id={l.id} onOpen={onOpen} />}
         </li>
       ))}
     </ul>
@@ -48,254 +72,183 @@ function ParentTree({ nodes, onOpen }: { nodes: ParentNode[]; onOpen: (id: strin
 }
 
 /**
- * Record › Related: the records this one points to (parents, grandparents…) and the records that
- * point to it (children, per relationship). Children can be listed, queried, copied to another
- * org with the record (Migrate), and everything goes in one workbook.
+ * Record › Related: what the record points to, and what points to it. Nothing is read until asked:
+ * Show lists a relationship's records, Query opens them in Query. Records ticked go in the basket,
+ * which is copied to another org or saved as a workbook (and opened again later).
  */
 export function RecordRelations({
   sobject,
   id,
   name,
-  fields,
   onOpen,
 }: {
   sobject: string;
   id: string;
   name: string;
-  fields: RecordField[];
   onOpen: (id: string) => void;
 }) {
   const { client, org } = useStudio();
   const go = useContext(GoContext);
-  const [pair, setPair] = usePair();
-  const [audit, setAudit] = useState(false);
-  const [parents, setParents] = useState<ParentNode[] | null>(null);
-  const [children, setChildren] = useState<ChildRelation[] | null>(null);
+  const items = useBasket(org.id);
+  const [relations, setRelations] = useState<ChildRelation[] | null>(null);
+  const [filter, setFilter] = useState('');
   const [system, setSystem] = useState(false);
-  const [empty, setEmpty] = useState(false);
-  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState('');
-  const [list, setList] = useState<Row[] | null>(null);
+  const [list, setList] = useState<Array<{ id: string; name: string }> | null>(null);
+  const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState('');
-  const [progress, setProgress] = useState('');
 
   useEffect(() => {
     let canceled = false;
-    setParents(null);
-    recordParents(client, sobject, id, { audit })
-      .then((t) => !canceled && setParents(t.parents))
-      .catch((e: Error) => !canceled && setStatus(`❌ ${e.message}`));
-    return () => {
-      canceled = true;
-    };
-  }, [client, sobject, id, audit]);
-
-  useEffect(() => {
-    let canceled = false;
-    setChildren(null);
-    setPicked(new Set());
+    setRelations(null);
     setOpen('');
-    setProgress('');
-    recordChildren(client, sobject, id, {
-      system,
-      onProgress: (done, total) => !canceled && setProgress(`${done} of ${total}`),
-    })
-      .then((c) => !canceled && setChildren(c))
+    childRelations(client, sobject)
+      .then((r) => !canceled && setRelations(r))
       .catch((e: Error) => !canceled && setStatus(`❌ ${e.message}`));
     return () => {
       canceled = true;
     };
-  }, [client, sobject, id, system]);
+  }, [client, sobject]);
 
-  const shown = (children ?? []).filter((c) => empty || c.count > 0);
-  const chosen = shown.filter((c) => picked.has(keyOf(c)));
+  const needle = filter.trim().toLowerCase();
+  const shown = (relations ?? []).filter(
+    (r) =>
+      (system || !r.system) && (!needle || `${r.objectLabel} ${r.object} ${r.field}`.toLowerCase().includes(needle))
+  );
 
-  const show = async (c: ChildRelation) => {
-    if (open === keyOf(c)) return setOpen('');
-    setOpen(keyOf(c));
+  const show = async (r: ChildRelation) => {
+    if (open === keyOf(r)) return setOpen('');
+    setOpen(keyOf(r));
     setList(null);
+    setTicked(new Set());
     try {
-      setList(await childRecords(client, c, id, 200));
+      setList(await childRecords(client, r, id, 200));
     } catch (e) {
+      setList([]);
       setStatus(`❌ ${(e as Error).message}`);
     }
   };
 
-  const toQuery = async (c: ChildRelation) => {
+  const toQuery = async (r: ChildRelation) => {
     try {
-      handoff.query(await childrenSoql(client, c, id, 2000));
+      handoff.query(await childrenSoql(client, r, id, 2000));
       go?.('query');
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
     }
   };
 
-  // The record, then the children ticked (only those linked through the ticked lookup); parents come
-  // along with Migrate's "Bring the records they point to". A user is not copied (Migrate matches
-  // owners by username; Users › Snapshot copies a user): their records are, by condition.
-  const toMigrate = () => {
-    const objects: MigrateObject[] = sobject === 'User' ? [] : [{ name: sobject, where: `Id = '${id}'` }];
-    for (const c of chosen.filter((x) => x.object !== sobject)) {
-      const same = objects.find((o) => o.name === c.object);
-      if (sobject === 'User')
-        if (same) same.where = `${same.where} OR ${c.field} = '${id}'`;
-        else objects.push({ name: c.object, where: `${c.field} = '${id}'` });
-      else if (same) same.via = [...(same.via ?? []), c.field];
-      else objects.push({ name: c.object, relatedOnly: true, via: [c.field] });
-    }
-    handoff.migrate(org.id, objects);
-    setPair({ a: org.id, b: pair.b === org.id ? '' : pair.b });
-    go?.('migrate');
-  };
-
-  const workbook = async () => {
-    setStatus('Reading the related records…');
-    try {
-      const sheets: Sheet[] = [
-        {
-          name: sobject,
-          columns: ['Label', 'API name', 'Type', 'Value'],
-          rows: fields.map((f) => ({ Label: f.label, 'API name': f.name, Type: f.type, Value: display(f.value) })),
-        },
-        { name: 'Parents', columns: ['Level', 'Path', 'Object', 'Id', 'Name'], rows: flattenParents(parents ?? []) },
-        {
-          name: 'Children',
-          columns: ['Object', 'Through', 'Relationship', 'Records'],
-          rows: shown.map((c) => ({
-            Object: c.object,
-            Through: c.field,
-            Relationship: c.relationship,
-            Records: c.count,
-          })),
-        },
-      ];
-      // The records of the ticked relationships, or of every one shown with records
-      for (const c of (chosen.length ? chosen : shown).filter((x) => x.count > 0)) {
-        // eslint-disable-next-line no-await-in-loop
-        const rows = await childRecords(client, c, id, 2000);
-        sheets.push({ name: `${c.object} ${c.field}`, columns: rows[0] ? Object.keys(rows[0]) : ['Id'], rows });
-      }
-      download(
-        `${sobject}-${name || id}-related.xlsx`.replace(/[\\/:*?"<>|]/g, '_'),
-        writeWorkbook(sheets),
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      );
-      setStatus(`✓ Workbook with ${sheets.length} sheets.`);
-    } catch (e) {
-      setStatus(`❌ ${(e as Error).message}`);
-    }
+  const addTicked = (r: ChildRelation) => {
+    basket.add(
+      org.id,
+      (list ?? []).filter((x) => ticked.has(x.id)).map((x) => ({ object: r.object, id: x.id, name: x.name }))
+    );
+    setTicked(new Set());
   };
 
   return (
     <div className="record-relations">
+      <BasketPanel />
       <div className="form">
-        <button disabled={!parents || !children} onClick={() => void workbook()}>
-          Workbook (this record, parents, children)
-        </button>
-        <button
-          disabled={!chosen.length}
-          title="Migrate with this record and the ticked children; the records they point to come along"
-          onClick={toMigrate}
-        >
-          Copy to another org… ({chosen.length})
-        </button>
+        {items.some((i) => i.id === id) ? (
+          <span className="muted">✓ This record is in the basket</span>
+        ) : (
+          <button onClick={() => basket.add(org.id, [{ object: sobject, id, name: name || id }])}>
+            + Add this record to the basket
+          </button>
+        )}
         <span className="muted">{status}</span>
       </div>
 
-      <h4>Parents: what this record points to</h4>
-      <label className="check">
-        <input type="checkbox" checked={audit} onChange={(e) => setAudit(e.target.checked)} /> Created by / Last
-        modified by
-      </label>
-      {!parents ? (
-        <p className="muted">Reading…</p>
-      ) : parents.length === 0 ? (
-        <p className="muted">No lookup of this record has a value.</p>
-      ) : (
-        <ParentTree nodes={parents} onOpen={onOpen} />
-      )}
+      <h4>Points to</h4>
+      <Lookups object={sobject} id={id} onOpen={onOpen} />
 
-      <h4>Children: what points to this record</h4>
+      <h4>Pointed to by</h4>
       <div className="form">
+        <input placeholder="Filter: contacts, cases…" value={filter} onChange={(e) => setFilter(e.target.value)} />
         <label className="check">
-          <input type="checkbox" checked={system} onChange={(e) => setSystem(e.target.checked)} /> System relations
-          (history, feed, sharing, created by: slow on users)
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={empty} onChange={(e) => setEmpty(e.target.checked)} /> Relationships without
-          records
+          <input type="checkbox" checked={system} onChange={(e) => setSystem(e.target.checked)} /> Also history, feed,
+          sharing, created by
         </label>
       </div>
-      {!children ? (
-        <p className="muted">Counting the records of every relationship… {progress}</p>
+      {!relations ? (
+        <p className="muted">Reading…</p>
       ) : shown.length === 0 ? (
-        <p className="muted">No records point to this one{system ? '' : ' (system relations aside)'}.</p>
+        <p className="muted">No relationship{needle ? ' matches' : ''}.</p>
       ) : (
         <table className="edit-table relation-children">
-          <thead>
-            <tr>
-              <th>
-                <input
-                  type="checkbox"
-                  title="Tick every relationship with records"
-                  checked={shown.filter((c) => c.count > 0).every((c) => picked.has(keyOf(c)))}
-                  onChange={(e) =>
-                    setPicked(e.target.checked ? new Set(shown.filter((c) => c.count > 0).map(keyOf)) : new Set())
-                  }
-                />
-              </th>
-              <th>Object</th>
-              <th>Through</th>
-              <th>Records</th>
-              <th />
-            </tr>
-          </thead>
           <tbody>
-            {shown.map((c) => (
-              <Fragment key={keyOf(c)}>
+            {shown.map((r) => (
+              <Fragment key={keyOf(r)}>
                 <tr>
                   <td>
-                    <input
-                      type="checkbox"
-                      checked={picked.has(keyOf(c))}
-                      onChange={(e) => {
-                        const next = new Set(picked);
-                        if (e.target.checked) next.add(keyOf(c));
-                        else next.delete(keyOf(c));
-                        setPicked(next);
-                      }}
-                    />
+                    <b>{r.objectLabel}</b>{' '}
+                    <span className="muted mono">
+                      {r.object}.{r.field}
+                    </span>
                   </td>
-                  <td>
-                    <b>{c.object}</b> {c.relationship && <span className="muted">({c.relationship})</span>}
-                  </td>
-                  <td className="mono">{c.field}</td>
-                  <td>{c.count.toLocaleString()}</td>
                   <td className="composer-actions">
-                    {c.count > 0 && (
-                      <button className="link" onClick={() => void show(c)}>
-                        {open === keyOf(c) ? 'Hide' : 'Show'}
-                      </button>
-                    )}
-                    <button className="link" title="Open these records in Query" onClick={() => void toQuery(c)}>
+                    <button className="link" onClick={() => void show(r)}>
+                      {open === keyOf(r) ? 'Hide' : 'Show'}
+                    </button>
+                    <button className="link" title="Open these records in Query" onClick={() => void toQuery(r)}>
                       Query
                     </button>
                   </td>
                 </tr>
-                {open === keyOf(c) && (
+                {open === keyOf(r) && (
                   <tr>
-                    <td colSpan={5}>
+                    <td colSpan={2}>
                       {!list ? (
                         <p className="muted">Reading…</p>
+                      ) : list.length === 0 ? (
+                        <p className="muted">No records.</p>
                       ) : (
-                        <DataTable
-                          columns={list[0] ? Object.keys(list[0]) : ['Id']}
-                          rows={list}
-                          rowKey="Id"
-                          name={`${c.object}-${c.field}`}
-                          onRowClick={(row) => onOpen(String(row.Id))}
-                          note={<span>· newest first, at most 200 · click one to open it</span>}
-                        />
+                        <div className="relation-records">
+                          <label className="check">
+                            <input
+                              type="checkbox"
+                              checked={list.every((x) => ticked.has(x.id) || items.some((i) => i.id === x.id))}
+                              onChange={(e) =>
+                                setTicked(
+                                  e.target.checked
+                                    ? new Set(list.filter((x) => !items.some((i) => i.id === x.id)).map((x) => x.id))
+                                    : new Set()
+                                )
+                              }
+                            />{' '}
+                            All {list.length}
+                            {list.length === 200 ? ' (the newest 200; Query for more)' : ''}
+                          </label>
+                          {list.map((x) => {
+                            const inside = items.some((i) => i.id === x.id);
+                            return (
+                              <div key={x.id} className="relation-record">
+                                <input
+                                  type="checkbox"
+                                  disabled={inside}
+                                  checked={inside || ticked.has(x.id)}
+                                  onChange={(e) => {
+                                    const next = new Set(ticked);
+                                    if (e.target.checked) next.add(x.id);
+                                    else next.delete(x.id);
+                                    setTicked(next);
+                                  }}
+                                />
+                                <button className="link" onClick={() => onOpen(x.id)} title="Open this record">
+                                  {x.name}
+                                </button>
+                                <span className="muted mono">{x.id}</span>
+                                {inside && <span className="muted">✓ in the basket</span>}
+                              </div>
+                            );
+                          })}
+                          <div className="form">
+                            <button className="primary" disabled={!ticked.size} onClick={() => addTicked(r)}>
+                              + Add {ticked.size || ''} to the basket
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </td>
                   </tr>

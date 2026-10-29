@@ -2744,3 +2744,27 @@ input.bad-input {
 .relation-tree li {
   padding: 2px 0;
 }
+
+/* Record › Related: the basket and the records of a relationship */
+.basket {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+.basket-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 6px;
+}
+.relation-records {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.relation-record {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

@@ -1,61 +1,59 @@
 import { describe, expect, it } from 'vitest';
 import {
   SalesforceClient,
+  basketObjects,
+  basketSheets,
+  basketUsers,
+  childRecords,
+  childRelations,
   childrenSoql,
-  flattenParents,
-  recordChildren,
-  recordParents,
+  copyUsers,
+  fromBasketSheets,
+  planUsers,
+  recordLookups,
+  type FileTable,
   type HttpRequest,
+  type UserCopy,
 } from '../src/index.js';
 
 const json = (body: unknown) => ({ status: 200, headers: {}, body: JSON.stringify(body) });
 const ref = (name: string, to: string[]) => ({ name, label: name, type: 'reference', referenceTo: to });
 const text = (name: string, nameField = false) => ({ name, label: name, type: 'string', referenceTo: [], nameField });
+const soqlOf = (r: HttpRequest): string => decodeURIComponent(r.path.split('q=')[1] ?? '').replace(/\+/g, ' ');
 
 const CONTACT = '003000000000001AAA';
 const ACCOUNT = '001000000000001AAA';
 const OWNER = '005000000000001AAA';
 
-/** Contact → Account → (Owner, Parent = the same account again); Created by everywhere. */
 function org(): { client: SalesforceClient; soql: string[] } {
   const soql: string[] = [];
   const describes: Record<string, unknown> = {
     Contact: {
       name: 'Contact',
-      label: 'Contact',
       fields: [text('Name', true), ref('AccountId', ['Account']), ref('CreatedById', ['User'])],
       childRelationships: [
-        { childSObject: 'Case', field: 'ContactId', relationshipName: 'Cases' },
-        { childSObject: 'ContactHistory', field: 'ContactId', relationshipName: 'Histories' },
-        { childSObject: 'Secret__c', field: 'Contact__c', relationshipName: 'Secrets__r' },
-        { childSObject: 'Broken__c', field: 'Contact__c', relationshipName: 'Broken__r' },
-        { childSObject: 'Hidden', field: 'ContactId', relationshipName: null },
-        { childSObject: 'Case', field: 'CreatedById', relationshipName: null },
+        { childSObject: 'Case', field: 'ContactId' },
+        { childSObject: 'Case', field: 'ContactId' },
+        { childSObject: 'ContactHistory', field: 'ContactId' },
+        { childSObject: 'Secret__c', field: 'Contact__c' },
       ],
     },
-    Account: {
-      name: 'Account',
-      label: 'Account',
-      fields: [text('Name', true), ref('OwnerId', ['User', 'Group']), ref('ParentId', ['Account'])],
-      childRelationships: [],
-    },
+    Account: { name: 'Account', fields: [text('Name', true), ref('OwnerId', ['User', 'Group'])] },
     User: {
       name: 'User',
-      label: 'User',
-      fields: [text('Name', true), ref('ManagerId', ['User'])],
-      childRelationships: [],
+      fields: [text('Name', true)],
+      childRelationships: [
+        { childSObject: 'Account', field: 'OwnerId' },
+        { childSObject: 'PermissionSetAssignment', field: 'AssigneeId' },
+      ],
     },
-    Case: {
-      name: 'Case',
-      label: 'Case',
-      fields: [text('CaseNumber', true), text('CreatedDate')],
-      childRelationships: [],
-    },
+    Case: { name: 'Case', fields: [text('CaseNumber', true), text('CreatedDate')] },
+    PermissionSetAssignment: { name: 'PermissionSetAssignment', fields: [text('Id')] },
   };
   const records: Record<string, Record<string, unknown>> = {
     [CONTACT]: { Name: 'Ann', AccountId: ACCOUNT, CreatedById: OWNER },
-    [ACCOUNT]: { Name: 'Acme', OwnerId: OWNER, ParentId: ACCOUNT },
-    [OWNER]: { Name: 'Farid', ManagerId: null },
+    [ACCOUNT]: { Name: 'Acme', OwnerId: OWNER },
+    [OWNER]: { Name: 'Farid' },
   };
   const client = new SalesforceClient(async (r: HttpRequest) => {
     const path = r.path.replace(/^\/services\/data\/v[\d.]+/, '');
@@ -63,18 +61,24 @@ function org(): { client: SalesforceClient; soql: string[] } {
     if (described) return json(describes[described]);
     if (path === '/sobjects')
       return json({
-        sobjects: ['Contact', 'Account', 'User', 'Case', 'ContactHistory', 'Broken__c', 'Hidden'].map((name) => ({
+        sobjects: ['Contact', 'Account', 'User', 'Case', 'ContactHistory', 'PermissionSetAssignment'].map((name) => ({
           name,
+          label: name === 'PermissionSetAssignment' ? 'Permission Set Assignment' : name,
           queryable: true,
           keyPrefix: { Account: '001', User: '005', Contact: '003' }[name],
         })),
       });
-    const q = decodeURIComponent(r.path.split('q=')[1] ?? '').replace(/\+/g, ' ');
+    const q = soqlOf(r);
     soql.push(q);
-    if (q.startsWith('SELECT COUNT()')) {
-      if (q.includes('Broken__c')) return { status: 400, headers: {}, body: '[{"message":"no"}]' };
-      return json({ totalSize: q.includes('FROM Case') ? 3 : 2, done: true, records: [] });
-    }
+    if (q.includes('FROM PermissionSetAssignment'))
+      return json({
+        totalSize: 2,
+        done: true,
+        records: [
+          { Id: '0Pa000000000001AAA', 'PermissionSet.Label': 'Sales Ops' },
+          { Id: '0Pa000000000002AAA', 'PermissionSetGroup.MasterLabel': 'Support' },
+        ],
+      });
     const id = /Id = '(\w+)'/.exec(q)?.[1] ?? '';
     return json({ totalSize: 1, done: true, records: [records[id] ?? {}] });
   }, '62.0');
@@ -82,51 +86,173 @@ function org(): { client: SalesforceClient; soql: string[] } {
 }
 
 describe('record relations', () => {
-  it('follows lookups up, without Created by, and stops at a record already shown', async () => {
+  it('lists the lookups with a value and their names, Created by aside', async () => {
     const { client } = org();
-    const tree = await recordParents(client, 'Contact', CONTACT);
-    expect(tree.name).toBe('Ann');
-    expect(tree.parents).toHaveLength(1);
-    const account = tree.parents[0];
-    expect(account).toMatchObject({ field: 'AccountId', object: 'Account', id: ACCOUNT, name: 'Acme' });
-    // OwnerId points to User or Group: the Id says which
-    expect(account.parents.map((p) => [p.field, p.object, p.name, p.repeated ?? false])).toEqual([
-      ['OwnerId', 'User', 'Farid', false],
-      ['ParentId', 'Account', '', true],
+    expect(await recordLookups(client, 'Contact', CONTACT)).toEqual([
+      { field: 'AccountId', label: 'AccountId', object: 'Account', id: ACCOUNT, name: 'Acme' },
     ]);
-    expect(flattenParents(tree.parents).map((r) => `${r.Level} ${r.Path} ${r.Name}`)).toEqual([
-      '1 AccountId Acme',
-      '2 AccountId.OwnerId Farid',
-      '2 AccountId.ParentId (shown above)',
-    ]);
-
-    const withAudit = await recordParents(client, 'Contact', CONTACT, { audit: true, depth: 1 });
-    expect(withAudit.parents.map((p) => p.field)).toEqual(['AccountId', 'CreatedById']);
-    expect(withAudit.parents.every((p) => p.parents.length === 0)).toBe(true);
+    // OwnerId points to User or Group: the Id tells which
+    expect((await recordLookups(client, 'Account', ACCOUNT))[0]).toMatchObject({ object: 'User', name: 'Farid' });
   });
 
-  it('counts the children per relationship, skipping what cannot be read', async () => {
-    const { client } = org();
-    const children = await recordChildren(client, 'Contact', CONTACT);
-    // No relationship name (like OwnerId on a user) is still a relationship
-    expect(children.map((c) => [c.object, c.field, c.count])).toEqual([
-      ['Case', 'ContactId', 3],
-      ['Hidden', 'ContactId', 2],
-    ]);
-    const progress: string[] = [];
-    const all = await recordChildren(client, 'Contact', CONTACT, {
-      system: true,
-      onProgress: (n, total) => progress.push(`${n}/${total}`),
-    });
-    expect(all.map((c) => [c.object, c.field, c.system])).toEqual([
+  it('lists relationships without reading their records; a user’s access first', async () => {
+    const { client, soql } = org();
+    const list = await childRelations(client, 'Contact');
+    expect(list.map((c) => [c.object, c.field, c.system])).toEqual([
       ['Case', 'ContactId', false],
-      ['Case', 'CreatedById', true],
       ['ContactHistory', 'ContactId', true],
-      ['Hidden', 'ContactId', false],
     ]);
-    expect(progress.at(-1)).toBe('5/5');
+    expect(soql).toEqual([]);
+    expect((await childRelations(client, 'User')).map((c) => [c.objectLabel, c.access])).toEqual([
+      ['Permission Set Assignment', true],
+      ['Account', false],
+    ]);
+  });
+
+  it('reads the records of one relationship when asked, named by what they give', async () => {
+    const { client } = org();
     expect(await childrenSoql(client, { object: 'Case', field: 'ContactId' }, CONTACT, 50)).toBe(
       `SELECT Id, CaseNumber, CreatedDate FROM Case WHERE ContactId = '${CONTACT}' ORDER BY CreatedDate DESC LIMIT 50`
     );
+    const access = await childRecords(client, { object: 'PermissionSetAssignment', field: 'AssigneeId' }, OWNER);
+    expect(access.map((a) => a.name)).toEqual(['Permission set: Sales Ops', 'Permission set group: Support']);
+  });
+});
+
+describe('basket', () => {
+  const user: UserCopy = {
+    username: 'ann@acme.com',
+    lines: [
+      { Section: 'info', Name: 'user', Value: 'ann@acme.com' },
+      { Section: 'field', Name: 'Title', Value: 'Lead' },
+      { Section: 'lookup', Name: 'ProfileId', Value: 'Sales' },
+      { Section: 'permissionSet', Name: 'Sales_Ops', Value: '' },
+      { Section: 'permissionSetGroup', Name: 'Support', Value: '' },
+    ],
+  };
+
+  it('copies exactly the picked records: users and their access go apart', () => {
+    expect(
+      basketObjects([
+        { object: 'Account', id: ACCOUNT, name: 'Acme' },
+        { object: 'Contact', id: CONTACT, name: 'Ann' },
+        { object: 'Contact', id: '003000000000002AAA', name: 'Bob' },
+        { object: 'User', id: OWNER, name: 'Farid' },
+        { object: 'PermissionSetAssignment', id: '0Pa000000000001AAA', name: 'Sales Ops' },
+      ])
+    ).toEqual([
+      { name: 'Account', where: `Id IN ('${ACCOUNT}')` },
+      { name: 'Contact', where: `Id IN ('${CONTACT}', '003000000000002AAA')` },
+    ]);
+  });
+
+  it('keeps users and long metadata files in a workbook and reads them back', () => {
+    const xml = `<PermissionSet>${'x'.repeat(70_000)}</PermissionSet>`;
+    const sheets = basketSheets({
+      records: { Account: [{ Id: ACCOUNT, Name: 'Acme' }] },
+      users: [user],
+      metadata: [{ type: 'PermissionSet', name: 'Sales_Ops', xml }],
+    });
+    expect(sheets.map((s) => s.name)).toEqual(['Account', 'NomadSF users', 'NomadSF metadata']);
+    expect(sheets[2].columns).toEqual(['Type', 'Name', 'Xml1', 'Xml2', 'Xml3']);
+    const asFile: FileTable[] = sheets.map((s) => ({
+      name: s.name,
+      columns: s.columns,
+      rows: s.rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? '')]))),
+    }));
+    const back = fromBasketSheets(asFile);
+    expect(back.tables.map((t) => t.name)).toEqual(['Account']);
+    expect(back.users).toEqual([user]);
+    expect(back.metadata[0].xml).toBe(xml);
+  });
+
+  it('takes a user with only the access picked under them', async () => {
+    const client = new SalesforceClient(async (r: HttpRequest) => {
+      if (r.path.endsWith('/sobjects/User/describe'))
+        return json({
+          fields: [{ name: 'Title', type: 'string', updateable: true, createable: true, referenceTo: [] }],
+        });
+      const q = soqlOf(r);
+      if (q.includes('FROM PermissionSetAssignment WHERE Id IN'))
+        return json({
+          totalSize: 1,
+          done: true,
+          records: [{ AssigneeId: OWNER, 'PermissionSet.Name': 'Sales_Ops', 'PermissionSet.NamespacePrefix': null }],
+        });
+      if (q.includes(`FROM User WHERE Id = '${OWNER}'`))
+        return json({ totalSize: 1, done: true, records: [{ Username: 'ann@acme.com', Title: 'Lead' }] });
+      // Everything else the user has (other permission sets…) is not picked
+      if (q.includes('FROM PermissionSetAssignment WHERE AssigneeId'))
+        return json({
+          totalSize: 1,
+          done: true,
+          records: [{ 'PermissionSet.Name': 'Other', 'PermissionSet.IsOwnedByProfile': false }],
+        });
+      return json({ totalSize: 0, done: true, records: [] });
+    }, '62.0');
+    const users = await basketUsers(client, [
+      { object: 'PermissionSetAssignment', id: '0Pa000000000001AAA', name: 'Permission set: Sales Ops' },
+    ]);
+    expect(users).toHaveLength(1);
+    expect(users[0].username).toBe('ann@acme.com');
+    expect(users[0].lines.filter((l) => !['info', 'field', 'lookup'].includes(l.Section))).toEqual([
+      { Section: 'permissionSet', Name: 'Sales_Ops', Value: '' },
+    ]);
+  });
+
+  it('in the target: finds what is missing, makes it from its file, then the user', async () => {
+    const sent: string[] = [];
+    const target = new SalesforceClient(async (r: HttpRequest) => {
+      const path = r.path.replace(/^\/services\/data\/v[\d.]+/, '');
+      if (r.path.includes('/services/Soap/m/')) {
+        sent.push('deploy');
+        if ((r.body ?? '').includes('checkDeployStatus'))
+          return {
+            status: 200,
+            headers: {},
+            body: '<result><done>true</done><success>true</success><status>Succeeded</status><id>0Af000000000001AAA</id></result>',
+          };
+        return { status: 200, headers: {}, body: '<result><id>0Af000000000001AAA</id></result>' };
+      }
+      if (path.endsWith('/sobjects/User/describe'))
+        return json({
+          fields: [
+            { name: 'Title', type: 'string', updateable: true, createable: true, referenceTo: [] },
+            { name: 'ProfileId', type: 'reference', updateable: true, createable: true, referenceTo: ['Profile'] },
+          ],
+        });
+      if (r.method !== 'GET') {
+        sent.push(`${r.method} ${path}`);
+        return json({ id: path.endsWith('/sobjects/User') ? '005000000000009AAA' : '0Pa000000000009AAA' });
+      }
+      const q = soqlOf(r);
+      if (q.includes('FROM PermissionSet WHERE NamespacePrefix = null AND Name IN'))
+        return json({ totalSize: 0, done: true, records: [] });
+      if (q.includes('FROM PermissionSetGroup WHERE DeveloperName IN'))
+        return json({ totalSize: 1, done: true, records: [{ DeveloperName: 'Support' }] });
+      if (q.includes("FROM Profile WHERE Name = 'Sales'"))
+        return json({ totalSize: 1, done: true, records: [{ Id: '00e000000000001AAA' }] });
+      if (q.includes("FROM PermissionSet WHERE Name = 'Sales_Ops'"))
+        return json({ totalSize: 1, done: true, records: [{ Id: '0PS000000000001AAA' }] });
+      if (q.includes("FROM PermissionSetGroup WHERE DeveloperName = 'Support'"))
+        return json({ totalSize: 1, done: true, records: [{ Id: '0PG000000000001AAA' }] });
+      if (q.includes("FROM User WHERE Id = '005000000000009AAA'"))
+        return json({ totalSize: 1, done: true, records: [{ Username: 'ann@acme.com.uat' }] });
+      return json({ totalSize: 0, done: true, records: [] });
+    }, '62.0');
+    const plan = await planUsers(target, [user], 'UAT');
+    expect(plan.users).toEqual([{ username: 'ann@acme.com', suggested: 'ann@acme.com.uat', access: 2 }]);
+    expect(plan.create).toEqual([{ type: 'PermissionSet', name: 'Sales_Ops' }]);
+    const out = await copyUsers(target, [user], plan, {
+      usernames: {},
+      metadata: [{ type: 'PermissionSet', name: 'Sales_Ops', xml: '<PermissionSet/>' }],
+    });
+    expect(out.failed).toEqual([]);
+    expect(out.done[0]).toBe('created PermissionSet Sales_Ops');
+    expect(sent.filter((s) => s !== 'deploy')).toEqual([
+      'POST /sobjects/User',
+      'POST /sobjects/PermissionSetAssignment',
+      'POST /sobjects/PermissionSetAssignment',
+    ]);
   });
 });
