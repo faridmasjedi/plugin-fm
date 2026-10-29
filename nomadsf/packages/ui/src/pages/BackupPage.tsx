@@ -92,8 +92,10 @@ export function BackupPage({
 }) {
   const studio = useStudio();
   const [jobs, setJobs] = useState<JobRecord[]>(() => backupJobs.list());
-  const [draft, setDraft] = useState<JobRecord>(() => jobs[0] ?? fresh(studio.org.id));
-  const [saved, setSaved] = useState(() => JSON.stringify(jobs[0] ?? null));
+  // The first job, or a new one: an untouched new draft has nothing to lose (no "discard changes?")
+  const [first] = useState<JobRecord>(() => jobs[0] ?? fresh(studio.org.id));
+  const [draft, setDraft] = useState<JobRecord>(first);
+  const [saved, setSaved] = useState(() => JSON.stringify(first));
   const [candidates, setCandidates] = useState<DataObject[] | null>(null);
   const [open, setOpen] = useState('');
   const [fields, setFields] = useState<Record<string, DataField[]>>({});
@@ -117,7 +119,9 @@ export function BackupPage({
   };
   const run = useBackupRun();
   const running = run && run.jobId === draft.id && !run.done && !run.error ? run : null;
+  // Changed since opened (asks before discarding), or new and never saved (Save is on)
   const dirty = JSON.stringify(draft) !== saved;
+  const unsaved = dirty || !jobs.some((j) => j.id === draft.id);
   const last = lastRuns()[draft.id];
 
   // The objects of the job's org
@@ -367,8 +371,8 @@ export function BackupPage({
                 </select>
               </label>
               <span className="grow" />
-              <button disabled={!dirty} onClick={() => void act('', async () => (save(), setStatus('✓ Saved.')))}>
-                {dirty ? 'Save' : 'Saved'}
+              <button disabled={!unsaved} onClick={() => void act('', async () => (save(), setStatus('✓ Saved.')))}>
+                {unsaved ? 'Save' : 'Saved'}
               </button>
               {jobs.some((j) => j.id === draft.id) && (
                 <button
