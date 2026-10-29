@@ -7,6 +7,7 @@ import {
   type DataField,
   type RowSource,
 } from '@nomadsf/core';
+import { Status } from '../statusLog';
 
 /**
  * The objects that point to a parent being copied (Contacts, Cases, Opportunities of
@@ -83,7 +84,7 @@ export function ChildObjects({
           Close
         </button>
       </div>
-      {error && <p className="bad">{error}</p>}
+      <Status text={error} kind="problem" block />
       {children === null && !error && <p className="muted">Looking for objects that point to {parent}…</p>}
       {children && !children.length && <p className="muted">No other object points to {parent} here.</p>}
       {children && children.length > 0 && (

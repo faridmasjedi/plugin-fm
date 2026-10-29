@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { BackupJob } from '@nomadsf/core';
 import { unlockJob } from '../backups';
+import { Status } from '../statusLog';
 
 /** Asks for the passphrase of an encrypted backup; optionally keeps the key on this computer. */
 export function UnlockBackup({
@@ -50,7 +51,7 @@ export function UnlockBackup({
       <button className="primary" disabled={!passphrase || busy} onClick={() => void unlock()}>
         {busy ? 'Checking…' : 'Unlock'}
       </button>
-      {error && <span className="bad">{error}</span>}
+      <Status text={error} kind="problem" />
     </div>
   );
 }

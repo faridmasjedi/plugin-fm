@@ -10,6 +10,7 @@ import {
 } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
 import { DataTable } from '../components/DataTable';
+import { Status } from '../statusLog';
 
 const Usage = ({ used, max }: { used: number; max: number }) => {
   const percent = max ? Math.round((used / max) * 100) : 0;
@@ -83,7 +84,7 @@ function StorageView() {
     }
   };
 
-  if (!report) return <p className="muted">{status || 'Reading storage…'}</p>;
+  if (!report) return status ? <Status text={status} block /> : <p className="muted">Reading storage…</p>;
   return (
     <>
       <table className="org-limits card">
@@ -145,10 +146,14 @@ function StorageView() {
               </>
             )}
           </div>
-          <p className="muted">
-            {status ||
-              'Empty dates: no limit on that side. For deletes on a schedule, with a backup and an approval step, use Data protection › Lifecycle.'}
-          </p>
+          {status ? (
+            <Status text={status} block />
+          ) : (
+            <p className="muted">
+              Empty dates: no limit on that side. For deletes on a schedule, with a backup and an approval step, use
+              Data protection › Lifecycle.
+            </p>
+          )}
         </div>
       )}
     </>
@@ -206,7 +211,7 @@ export function LimitsPage() {
         {tab === 'limits' && <button onClick={() => void load()}>Refresh</button>}
       </div>
       {tab === 'storage' && <StorageView />}
-      {tab === 'limits' && error && <div className="error">{error}</div>}
+      {tab === 'limits' && <Status text={error} kind="problem" block />}
       {tab === 'limits' && limits === null && !error && <p className="muted">Loading…</p>}
       <div className="card" hidden={tab !== 'limits'}>
         <table className="org-limits">

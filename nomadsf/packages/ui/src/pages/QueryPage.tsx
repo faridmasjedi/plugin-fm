@@ -31,6 +31,7 @@ import { RelatedFields } from '../components/RelatedFields';
 import { storage, useStudio } from '../context';
 import { monaco } from '../monaco';
 import { useProject } from '../project';
+import { Status } from '../statusLog';
 
 /** Rows kept in the browser before asking to load more (memory guard). */
 const BATCH = 100_000;
@@ -113,7 +114,7 @@ function SavedQueries({
             Delete
           </button>
         )}
-        {message && <span className="muted">{message}</span>}
+        <Status text={message} />
         <span className="grow" />
         <button
           disabled={!saved.length}
@@ -596,7 +597,7 @@ export function QueryPage() {
       <div className="editor-box small">
         <CodeEditor language="soql" value={soql} onChange={setSoql} onMount={onMount} />
       </div>
-      {error && <div className="error">{error}</div>}
+      <Status text={error} kind="problem" block mono />
       {plans && (
         <div className="card section">
           <div className="form">

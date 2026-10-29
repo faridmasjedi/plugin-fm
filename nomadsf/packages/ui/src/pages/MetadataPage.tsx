@@ -14,6 +14,7 @@ import { DataTable } from '../components/DataTable';
 import { ComponentPreview } from '../components/MetadataSource';
 import { useStudio } from '../context';
 import { useProject } from '../project';
+import { Status } from '../statusLog';
 
 const keyOf = (c: Pick<MetadataComponent, 'type' | 'fullName'>): string => `${c.type}:${c.fullName}`;
 
@@ -240,9 +241,7 @@ export function MetadataPage() {
               Child types: {current.childXmlNames.join(', ')}
             </p>
           )}
-          <p className="muted" style={{ margin: 0 }}>
-            {status}
-          </p>
+          <Status text={status} block />
           {components.length > 0 && (
             <DataTable
               columns={['fullName', 'type', 'lastModifiedDate', 'lastModifiedByName', 'manageableState']}
