@@ -3,6 +3,7 @@ import { describeGlobal, objectSchema, type SchemaField, type SchemaInfo, type S
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { ObjectOptions } from '../components/ObjectOptions';
+import { Status } from '../statusLog';
 
 type Tab = 'fields' | 'relationships' | 'recordTypes';
 const yes = (v: boolean): string => (v ? '✓' : '');
@@ -104,7 +105,7 @@ export function SchemaPage() {
             } · you can ${schema.access || 'not access it'}`}
           </span>
         )}
-        <span className="muted">{status}</span>
+        <Status text={status} />
       </div>
       {schema && (
         <>

@@ -25,6 +25,7 @@ import {
 import { useStudio } from '../context';
 import { askTyped } from './Dialogs';
 import { download } from './DataTable';
+import { Status } from '../statusLog';
 
 /** What is ticked: records of this org (by condition), or rows of a saved copy; and a user, if any. */
 export type CopyWhat = {
@@ -268,7 +269,7 @@ export function CopyBar({ what }: { what: CopyWhat }) {
           {userPlan.noLicense.length > 0 && ` ${target.label} has no ${userPlan.noLicense.join(', ')} license.`}
         </p>
       )}
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
     </div>
   );
 }

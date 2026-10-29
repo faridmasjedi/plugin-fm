@@ -9,6 +9,7 @@ import {
 } from '@nomadsf/core';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
+import { Status } from '../statusLog';
 
 type Tab = 'security' | 'licenses';
 
@@ -99,7 +100,7 @@ export function OrgHealthPage() {
           </button>
         ))}
       </div>
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
 
       {tab === 'security' && report && (
         <>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { query, type SalesforceClient } from '@nomadsf/core';
+import { Status } from '../statusLog';
 
 const nameFields = new WeakMap<SalesforceClient, Map<string, Promise<string>>>();
 
@@ -117,7 +118,7 @@ export function RecordPicker({
           ))}
         </select>
       )}
-      {status && <span className="muted">{status}</span>}
+      {status && <Status text={status} />}
     </span>
   );
 }

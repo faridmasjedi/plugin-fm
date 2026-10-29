@@ -4,6 +4,7 @@ import { storage } from './context';
 import { openExternal } from './embed';
 import { PageTables, PageTablesProvider, tablesZip } from './pageTables';
 import { download } from './components/DataTable';
+import { ToolContext } from './statusLog';
 
 /**
  * The Studio's layout: tools grouped into hubs (Develop, Data, Data protection, Release, Access, Org, and
@@ -483,7 +484,9 @@ export function Panes({
               <div className="pane-body">
                 {kept.map((t) => (
                   <div key={`${t}:${resets[`${pane.key}:${t}`] ?? 0}`} className="tool-view" hidden={t !== tool}>
-                    <PageTablesProvider tables={tablesOf(`${pane.key}:${t}`)}>{render(t, i)}</PageTablesProvider>
+                    <ToolContext.Provider value={toolOf(t)?.label ?? t}>
+                      <PageTablesProvider tables={tablesOf(`${pane.key}:${t}`)}>{render(t, i)}</PageTablesProvider>
+                    </ToolContext.Provider>
                   </div>
                 ))}
               </div>

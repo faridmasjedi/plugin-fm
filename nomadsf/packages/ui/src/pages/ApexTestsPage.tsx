@@ -16,6 +16,7 @@ import { CodeEditor } from '../components/CodeEditor';
 import { DataTable } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { monaco } from '../monaco';
+import { Status } from '../statusLog';
 
 type Tab = 'run' | 'coverage';
 
@@ -144,7 +145,7 @@ export function ApexTestsPage() {
         )}
         {tab === 'coverage' && <button onClick={() => void loadCoverage()}>Refresh</button>}
       </div>
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
 
       {tab === 'run' && (
         <div className="split">

@@ -33,6 +33,7 @@ import {
 } from '../lifecycle';
 import { ScheduleEditor } from './BackupPage';
 import { askConfirm, askTyped } from '../components/Dialogs';
+import { Status } from '../statusLog';
 
 type Tab = 'steps' | 'settings' | 'runs';
 type Template = 'blank' | 'retention' | 'sandbox' | 'backup-archive';
@@ -515,7 +516,7 @@ export function LifecyclePage({
                 </div>
               </div>
             )}
-            {status && <p className="muted status-line">{status}</p>}
+            {status && <Status text={status} block />}
           </div>
 
           <div className="tabs page-tabs">

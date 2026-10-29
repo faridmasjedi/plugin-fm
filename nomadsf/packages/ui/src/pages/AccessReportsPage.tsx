@@ -5,6 +5,7 @@ import { useAccessOf } from '../access';
 import { storage, useStudio } from '../context';
 import { NEEDS, permissionLabel, toolAccess } from '../toolAccess';
 import { TOOLS, hubOf, type ToolId } from '../workspace';
+import { Status } from '../statusLog';
 
 /** Access › Access overview: every user with what they have; filter any column, export it. */
 export function AccessOverviewPage() {
@@ -38,7 +39,7 @@ export function AccessOverviewPage() {
         </label>
         <button onClick={() => void load()}>Refresh</button>
       </div>
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
       {rows &&
         (rows.length === 0 ? (
           <EmptyHint what="users" />
@@ -141,7 +142,7 @@ export function ObjectAccessPage() {
         <button className="primary" onClick={() => void check()}>
           Show who
         </button>
-        <span className="muted">{status}</span>
+        <Status text={status} />
       </div>
       {result &&
         (result.rows.length === 0 ? (

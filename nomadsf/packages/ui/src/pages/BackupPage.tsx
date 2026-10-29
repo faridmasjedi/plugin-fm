@@ -48,6 +48,7 @@ import {
   type JobRecord,
 } from '../backups';
 import { askConfirm } from '../components/Dialogs';
+import { Status } from '../statusLog';
 
 const SCOPES: Array<{ id: BackupScope; label: string }> = [
   { id: 'picked', label: 'Objects I pick' },
@@ -450,7 +451,7 @@ export function BackupPage({
                 }}
               />
             )}
-            {status && <p className="muted status-line">{status}</p>}
+            {status && <Status text={status} block />}
             {last && !last.ok && last.message && <p className="bad status-line">Last run failed: {last.message}</p>}
           </div>
 

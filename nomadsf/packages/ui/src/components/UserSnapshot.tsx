@@ -17,6 +17,7 @@ import {
 } from '@nomadsf/core';
 import { useStudio } from '../context';
 import { DataTable, download } from './DataTable';
+import { Status } from '../statusLog';
 
 /**
  * Access › Users: a user "all together" in one CSV (fields, profile, role, manager, permission sets,
@@ -224,7 +225,7 @@ export function UserSnapshot({ userId, username }: { userId?: string; username?:
             }}
           />
         </label>
-        <span className="muted">{status}</span>
+        <Status text={status} />
       </div>
       {missing && kept && (
         <div className="form">

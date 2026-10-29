@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { abortJob, asyncJobs, scheduledJobs, type Row } from '@nomadsf/core';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
+import { Status } from '../statusLog';
 
 type Tab = 'scheduled' | 'background';
 
@@ -104,7 +105,7 @@ export function JobsPage() {
         <button className="danger" disabled={selected.size === 0} onClick={() => void stop()}>
           Stop {selected.size || ''} selected…
         </button>
-        <span className="muted">{status}</span>
+        <Status text={status} />
       </div>
       {rows &&
         (rows.length === 0 ? (

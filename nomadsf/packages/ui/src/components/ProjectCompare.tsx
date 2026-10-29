@@ -19,6 +19,7 @@ import {
 import { DataTable } from './DataTable';
 import type { Studio } from '../context';
 import { localAppBase, useProject } from '../project';
+import { Status } from '../statusLog';
 
 type Where = 'only in org' | 'only in project' | 'both' | 'different' | 'same';
 type CompareRow = { key: string; type: string; name: string; where: Where };
@@ -402,7 +403,7 @@ export function ProjectCompare({
           </label>
         ))}
       </div>
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
 
       {rows && (
         <>

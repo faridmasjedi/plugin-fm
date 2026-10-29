@@ -31,6 +31,7 @@ import { useProject } from '../project';
 import { askConfirm, askText } from '../components/Dialogs';
 import { MetadataSource } from '../components/MetadataSource';
 import { Dependencies } from '../components/Dependencies';
+import { Status } from '../statusLog';
 
 const KINDS: Array<{ id: CodeKind; label: string; one: string }> = [
   { id: 'ApexClass', label: 'Classes', one: 'Apex class' },
@@ -484,7 +485,7 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
           only still work.
         </p>
       )}
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
       {kind === 'ApexClass' && !apexLocked && (
         <AiAsk
           task="write-class"

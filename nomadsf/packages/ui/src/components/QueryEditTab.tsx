@@ -12,6 +12,7 @@ import {
 import { storage, useStudio } from '../context';
 import { IngestSummary } from './IngestSummary';
 import { EditableGrid, type GridRow } from './EditableGrid';
+import { Status } from '../statusLog';
 
 /** Records loaded for editing at most (bigger jobs: export, edit the CSV, use the CSV tab). */
 const MAX_ROWS = 10_000;
@@ -171,7 +172,7 @@ export function QueryEditTab() {
             </button>
           </>
         )}
-        <span className="muted">{status}</span>
+        <Status text={status} />
       </div>
       {rows.length > 0 && (
         <EditableGrid

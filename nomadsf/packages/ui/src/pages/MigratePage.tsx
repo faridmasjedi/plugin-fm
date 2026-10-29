@@ -59,6 +59,7 @@ import { askTyped } from '../components/Dialogs';
 import { OrgPairBar, usePair } from '../pair';
 import { MigrateComposer } from '../components/MigrateComposer';
 import { FilesSourcePanel } from '../components/FilesSourcePanel';
+import { Status } from '../statusLog';
 
 type SourceChoice =
   | { kind: 'org'; org: string }
@@ -960,7 +961,7 @@ export function MigratePage({
             </button>
           )}
         </div>
-        {status && <p className="muted">{status}</p>}
+        {status && <Status text={status} block />}
         {oldIds && fieldStatus.length > 0 && (
           <p className="muted old-ids">
             <b>{OLD_ID_FIELD}</b>:{' '}

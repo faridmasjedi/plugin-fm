@@ -10,6 +10,7 @@ import {
 } from '@nomadsf/core';
 import { CodeEditor } from '../components/CodeEditor';
 import { storage, useStudio } from '../context';
+import { Status } from '../statusLog';
 
 const MAX_EVENTS = 500;
 
@@ -114,7 +115,7 @@ export function EventsPage() {
           Clear
         </button>
       </div>
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
       {channels.length === 0 && !status && <p className="muted">Finding channels…</p>}
       <div className="split">
         <div className="card">

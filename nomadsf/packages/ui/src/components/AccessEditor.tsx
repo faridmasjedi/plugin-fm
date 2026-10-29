@@ -19,6 +19,7 @@ import {
 } from '@nomadsf/core';
 import { useStudio } from '../context';
 import { ObjectOptions } from './ObjectOptions';
+import { Status } from '../statusLog';
 
 type EditableField = { name: string; label: string; type: string; editable: boolean };
 
@@ -211,7 +212,7 @@ export function AccessEditor({
           Save {changes.size || ''} change(s)…
         </button>
       </div>
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
 
       <h4>Object access</h4>
       <table className="edit-table">

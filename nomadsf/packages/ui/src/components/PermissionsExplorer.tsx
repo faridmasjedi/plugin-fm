@@ -23,6 +23,7 @@ import {
   TabSettingsPanel,
 } from '../pages/AccessManagePages';
 import { cannotChangePermissions, useAccessOf } from '../access';
+import { Status } from '../statusLog';
 
 type Tab = 'all' | 'objects' | 'fields' | 'system' | 'setup' | 'rtypes' | 'layouts' | 'tabs' | 'login';
 const yes = (v: boolean): string => (v ? '✓' : '');
@@ -179,7 +180,7 @@ export function PermissionsExplorer() {
         {holder && info && !info.editable && info.kind !== 'Permission set group' && (
           <span className="muted">{info.reason}</span>
         )}
-        <span className="muted">{status}</span>
+        <Status text={status} />
       </div>
       {holder && info && cloning && (
         <CloneHolder

@@ -5,6 +5,7 @@ import { RecordPage } from '../pages/RecordPage';
 import { DataTable, download } from './DataTable';
 import { UserAccessPanel, userWorkbook } from './UserAccessPanel';
 import { UserSnapshot } from './UserSnapshot';
+import { Status } from '../statusLog';
 
 /** Find a user by name, username, email or Id, then edit any field (the Record editor) or freeze / deactivate. */
 export function UserEditor() {
@@ -84,7 +85,7 @@ export function UserEditor() {
         <button className="primary" disabled={!text.trim()} onClick={() => void search()}>
           Find
         </button>
-        <span className="muted">{status}</span>
+        <Status text={status} />
       </div>
       {matches && matches.length > 1 && (
         <DataTable

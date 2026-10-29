@@ -4,6 +4,7 @@ import { DataTable } from '../components/DataTable';
 import { ProjectCompare } from '../components/ProjectCompare';
 import { useProject } from '../project';
 import { storage, type Studio } from '../context';
+import { Status } from '../statusLog';
 
 /** The Salesforce project (repository): package directories, types, manifests, compare with the org. */
 export function ProjectPage({
@@ -71,7 +72,7 @@ export function ProjectPage({
 
       {project.loading && <p className="muted">Reading the project…</p>}
       {project.error && <div className="error">{project.error}</div>}
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
 
       {info && (
         <>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { DataTable } from '../components/DataTable';
 import { localAppBase } from '../project';
 import type { HostKind } from '../host';
+import { Status } from '../statusLog';
 
 type RunStage = {
   id: string;
@@ -82,7 +83,7 @@ export function TestsPage({ hostKind, defaultOrg }: { hostKind: HostKind; defaul
         <span className="grow" />
         <button onClick={() => void load()}>Refresh</button>
       </div>
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
       {specs !== null && !hasConfig && (
         <div className="card section">
           <h3>No Playwright setup in this project yet</h3>

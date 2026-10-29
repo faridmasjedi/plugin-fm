@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { companyInformation, type InfoField } from '@nomadsf/core';
 import { useStudio } from '../context';
 import { DataTable } from '../components/DataTable';
+import { Status } from '../statusLog';
 
 /** Org › Company information: every field of the Organization record, grouped. */
 export function CompanyPage() {
@@ -28,7 +29,7 @@ export function CompanyPage() {
           with a value
         </label>
       </div>
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
       {!fields && !status && <p className="muted">Reading…</p>}
       {groups.map((g) => (
         <div key={g} className="card section">

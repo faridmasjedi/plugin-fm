@@ -16,6 +16,7 @@ import {
 import { storage, useStudio } from '../context';
 import { DataTable, EmptyHint } from './DataTable';
 import type { OrgSides } from './CompareAccess';
+import { Status } from '../statusLog';
 
 /** Assigned users: the users of a permission set, group, license, profile, role, public group or queue — in this org, or in two orgs. */
 export function WhoHasIt({ between }: { between?: OrgSides }) {
@@ -159,7 +160,7 @@ export function WhoHasIt({ between }: { between?: OrgSides }) {
           <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Active users
           only
         </label>
-        <span className="muted">{status}</span>
+        <Status text={status} />
       </div>
       {holder &&
         users &&

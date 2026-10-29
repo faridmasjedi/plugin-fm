@@ -20,6 +20,7 @@ import { QueryEditTab } from '../components/QueryEditTab';
 import { storage, useStudio } from '../context';
 import { ObjectOptions } from '../components/ObjectOptions';
 import { TableFileInput } from '../components/TableFileInput';
+import { Status } from '../statusLog';
 
 const OPERATIONS: Array<[IngestOperation, string]> = [
   ['insert', 'Insert'],
@@ -385,7 +386,7 @@ export function DataPage() {
               >
                 Run on {toSend.length.toLocaleString()} row(s), {columnsToSend.length} column(s)…
               </button>
-              <span className="muted">{ingestStatus}</span>
+              <Status text={ingestStatus} />
             </div>
             {ingest && <IngestSummary result={ingest} orgLabel={org.label} object={object} />}
           </div>
@@ -409,7 +410,7 @@ export function DataPage() {
                 <button className="danger" onClick={() => void runDelete()}>
                   Delete…
                 </button>
-                <span className="muted">{deleteStatus}</span>
+                <Status text={deleteStatus} />
               </div>
               {deleteResult && (
                 <IngestSummary

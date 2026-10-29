@@ -19,6 +19,7 @@ import { NewRecord } from '../components/NewRecord';
 import { RecordPicker } from '../components/RecordPicker';
 import { RecordTree } from '../components/RecordTree';
 import { SavedCopy } from '../components/SavedCopy';
+import { Status } from '../statusLog';
 
 const display = (v: unknown): string =>
   v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
@@ -310,7 +311,7 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
         />
       )}
       {savedCopy && !embedded && <SavedCopy key={savedCopy.name} file={savedCopy} onClose={() => setSavedCopy(null)} />}
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
       {choices.length > 0 && (
         <div className="card section">
           <DataTable

@@ -9,6 +9,7 @@ import {
   type SalesforceClient,
 } from '@nomadsf/core';
 import { ObjectOptions } from './ObjectOptions';
+import { Status } from '../statusLog';
 
 /**
  * Migrate › From files: an Excel workbook, a CSV or a ⤓ zip; each sheet matched to an object of the
@@ -255,7 +256,7 @@ export function FilesSourcePanel({
           </span>
         </div>
       )}
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
     </div>
   );
 }

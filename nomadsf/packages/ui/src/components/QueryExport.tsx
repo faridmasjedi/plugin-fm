@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { bulkCompatible, bulkQuery, toCsvFiles, type QueryCursor } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
 import { download } from './DataTable';
+import { Status } from '../statusLog';
 
 const SIZES = [10_000, 50_000, 100_000, 500_000, 1_000_000];
 
@@ -85,7 +86,7 @@ export function QueryExport({
       <button disabled={busy} onClick={() => (viaBulk ? void exportBulk() : exportLoaded())}>
         {viaBulk ? `Export all ${cursor.totalSize.toLocaleString()} rows to CSV` : 'Export CSV'}
       </button>
-      {status && <span className="muted">{status}</span>}
+      {status && <Status text={status} />}
     </div>
   );
 }

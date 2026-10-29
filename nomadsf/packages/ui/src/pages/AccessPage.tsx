@@ -18,6 +18,7 @@ import { WhoHasIt } from '../components/WhoHasIt';
 import { CompareAccess } from '../components/CompareAccess';
 import { storage, useStudio } from '../context';
 import { NewPermissionSet } from './AccessManagePages';
+import { Status } from '../statusLog';
 
 type By = 'usernames' | 'profile' | 'role' | 'publicGroup';
 const BY_LABEL: Record<By, string> = {
@@ -143,7 +144,7 @@ export function LoginsAuditPage() {
               Load
             </button>
           </div>
-          {logStatus && <p className="muted">{logStatus}</p>}
+          {logStatus && <Status text={logStatus} block />}
           {log && log.title === 'Login history' && log.result.rows.length === 0 && <EmptyHint what="entries" />}
           {log && log.title === 'Login history' && (
             <div className="card section">
@@ -180,7 +181,7 @@ export function LoginsAuditPage() {
               Load
             </button>
           </div>
-          {logStatus && <p className="muted">{logStatus}</p>}
+          {logStatus && <Status text={logStatus} block />}
           {log && log.title === 'Setup audit trail' && log.result.rows.length === 0 && <EmptyHint what="entries" />}
           {log && log.title === 'Setup audit trail' && (
             <div className="card section">

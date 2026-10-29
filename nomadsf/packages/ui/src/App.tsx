@@ -4,6 +4,7 @@ import { detectHost, openInOrg, orgFacts, type OrgChoice, type OrgFacts } from '
 import { useBusy } from './busy';
 import { setLinkHandler } from './embed';
 import { GoContext, InspectContext, StudioContext, activityLog, storage, type Studio } from './context';
+import { LogDrawer } from './statusLog';
 import { toggleTheme } from './theme';
 import { ExecutePage } from './pages/ExecutePage';
 import { LogsPage } from './pages/LogsPage';
@@ -433,6 +434,7 @@ export function App() {
         </nav>
         <main>
           <Panes ws={ws} available={available} render={render} />
+          <LogDrawer />
         </main>
         <QuickJump ws={ws} available={available} />
       </div>

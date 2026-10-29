@@ -13,6 +13,7 @@ import {
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { ObjectOptions } from '../components/ObjectOptions';
+import { Status } from '../statusLog';
 
 /** How full each field is, and what references a custom field, before changing or deleting it. */
 export function FieldUsagePage() {
@@ -152,7 +153,7 @@ export function FieldUsagePage() {
           </button>
         )}
       </div>
-      {status && <p className="muted">{status}</p>}
+      {status && <Status text={status} block />}
       {fields && (
         <p className="muted">
           {total.toLocaleString()} {sobject} records · {fields.length} fields

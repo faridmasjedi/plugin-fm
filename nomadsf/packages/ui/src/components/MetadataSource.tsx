@@ -11,6 +11,7 @@ import {
 import { storage, useStudio } from '../context';
 import { CodeEditor } from './CodeEditor';
 import { Dependencies } from './Dependencies';
+import { Status } from '../statusLog';
 
 /** Types people open most, first in the list. */
 const COMMON = [
@@ -177,7 +178,7 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
             ))}
           </select>
         </label>
-        <span className="muted">{status}</span>
+        <Status text={status} />
       </div>
       {type === 'Profile' && (
         <p className="muted">

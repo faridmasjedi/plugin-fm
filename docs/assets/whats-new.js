@@ -41,6 +41,8 @@ window.NOMADSF_WHATS_NEW = {
     'Migrate from files: copy the sheets of a workbook into an org, keeping the links between them',
     'Record › Related: a record and what points to it as a tree; tick, then copy to another org or save as Excel to copy later',
     'Users: Everything (workbook), a sheet per tab; a snapshot creates the user in an org that does not have them',
+    'Messages show next to what started them (working, done, problem) and in a Log at the bottom of the Studio, which opens on a problem',
+    'Browser extension: no CLI app setting; it works on its own',
     'Tidier Studio: Events and REST Explorer in Develop, Logins & audit in Org, Access tabs in two rows (change, then review); tables, file pickers and tab bars line up',
   ],
   '2.1.0': [
