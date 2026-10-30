@@ -119,6 +119,14 @@ function errorFrom(response: HttpResponse): SalesforceError {
   } catch {
     // not JSON (e.g. a SOAP fault or an HTML error page)
   }
+  // A web page instead of an API answer: the org's address no longer leads to an org (a deleted or
+  // expired scratch org answers 420 with Salesforce's "Error Page")
+  if (/^\s*<(!doctype html|html)/i.test(response.body))
+    return new SalesforceError(
+      `Salesforce answered with a web page, not data (HTTP ${response.status}). The org may no longer exist ` +
+        '(a deleted or expired scratch org) or its address changed. Log in to it again, or choose another org.',
+      response.status
+    );
   const fault = /<faultstring>([\s\S]*?)<\/faultstring>/.exec(response.body)?.[1];
   const code = /<faultcode>(?:[\w-]+:)?([\s\S]*?)<\/faultcode>/.exec(response.body)?.[1];
   return withHint(fault ?? (response.body.slice(0, 300) || `HTTP ${response.status}`), response.status, code);
