@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NomadSF Cheat Sheet</title>
+    <meta
+      name="description"
+      content="Everyday Salesforce jobs and where to do them in NomadSF Studio: the hub, the tab, and a link to the guide."
+    />
+    <link rel="icon" href="assets/logo.jpg" />
+    <link rel="stylesheet" href="assets/site.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="wrap">
+        <a class="brand" href="./"><img src="assets/logo.jpg" alt="" />NomadSF</a>
+        <nav>
+          <a class="hide-xs" href="./#features">Features</a>
+          <a href="./#download">Download</a>
+          <a href="guide.html">Guide</a>
+          <a class="active" href="cheatsheet.html">Cheat sheet</a>
+          <a class="hide-xs" href="https://github.com/faridmasjedi/plugin-fm">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="wrap doc cheat">
+      <h1>Cheat sheet</h1>
+      <p class="lead">
+        What you want to do, and where it is in the Studio. Each row opens that tool's section of the
+        <a href="guide.html">guide</a>.
+      </p>
+      <div class="cheat-bar">
+        <input type="search" placeholder="What do you want to do? e.g. permission, csv, deploy" aria-label="Search" />
+        <span class="cheat-key">
+          <span class="badge read">reads only</span><span class="badge ask">asks for the org name</span>
+        </span>
+        <button type="button" class="btn cheat-print">Print</button>
+      </div>
+      <p class="cheat-none" hidden>Nothing matches. Try another word, or <a href="guide.html">search the guide</a>.</p>
+
+      <section class="cheat-group">
+        <h2>Users &amp; access</h2>
+        <div class="cheat-list">
+          <a class="cheat-row" href="guide.html#access">
+            <span class="job">See everything a user has: permission sets, groups, licenses, apps, logins</span>
+            <span class="where">Access › Users</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#access">
+            <span class="job">Give a user a permission set, a license or a group — or take it away</span>
+            <span class="where">Access › Users</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#permsets">
+            <span class="job">Who has a permission set or group; create a new one</span>
+            <span class="where">Access › Permission sets</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#permissions">
+            <span class="job">What a profile or permission set allows — and change it</span>
+            <span class="where">Access › Permissions</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#objectaccess">
+            <span class="job">Why can't someone see an object or field? Who can, and through what</span>
+            <span class="where">Access › Object access</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#compare">
+            <span class="job">Compare two users, profiles or permission sets side by side</span>
+            <span class="where">Access › Compare</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#accessmap">
+            <span class="job">Every user with powerful permissions (Modify All Data, View All…) in one table</span>
+            <span class="where">Access › Overview</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#groups">
+            <span class="job">Add someone to a public group or queue</span>
+            <span class="where">Access › Groups &amp; queues</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#assigned">
+            <span class="job">All users of a license, profile, role, permission set or queue</span>
+            <span class="where">Access › Assigned users</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#custperms">
+            <span class="job">Who gives a custom permission; grant it or create one</span>
+            <span class="where">Access › Custom permissions</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#myaccess">
+            <span class="job">What may my own user do in this org?</span>
+            <span class="where">Access › Your access</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#audit">
+            <span class="job">Who logged in, and who changed setup</span>
+            <span class="where">Org › Logins &amp; audit</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#orgaccess">
+            <span class="job">Copy a user's access from one org into another</span>
+            <span class="where">Org to org › Access</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#record">
+            <span class="job">Copy a user into another org with their permission sets</span>
+            <span class="where">Data › Record › Related</span><span class="badge ask">asks</span>
+          </a>
+        </div>
+      </section>
+      <section class="cheat-group">
+        <h2>Data</h2>
+        <div class="cheat-list">
+          <a class="cheat-row" href="guide.html#query">
+            <span class="job">Run a SOQL query, filter the table, download CSV or JSON</span>
+            <span class="where">Data › Query</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#query">
+            <span class="job">Write a query in plain English (with AI connected)</span>
+            <span class="where">Data › Query</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#query">
+            <span class="job">Export a big result with the Bulk API</span>
+            <span class="where">Data › Query</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#record">
+            <span class="job">See every field of a record, by Id, link or username — and edit it</span>
+            <span class="where">Data › Record</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#record">
+            <span class="job">Who changed a field, when, and from what</span>
+            <span class="where">Data › Record › History</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#record">
+            <span class="job">Everything linked to a record, as a tree to copy or save as Excel</span>
+            <span class="where">Data › Record › Related</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#record">
+            <span class="job">Log in as a user</span>
+            <span class="where">Data › Record</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#data-tool">
+            <span class="job">Insert, update, upsert or delete records from a CSV, Excel or zip</span>
+            <span class="where">Data › Import / Update / Delete</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#csvcompare">
+            <span class="job">A spreadsheet next to the org: what differs — then make the org match</span>
+            <span class="where">Data › Compare with CSV</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#lookup">
+            <span class="job">Turn names into Ids before a load (a VLOOKUP against Salesforce)</span>
+            <span class="where">Data › Lookup</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#schema">
+            <span class="job">An object's fields, relationships and record types</span>
+            <span class="where">Data › Schema</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#fields">
+            <span class="job">Which fields nobody fills, where a field is used, who can see it</span>
+            <span class="where">Data › Field usage</span><span class="badge read">reads</span>
+          </a>
+        </div>
+      </section>
+      <section class="cheat-group">
+        <h2>Code &amp; debugging</h2>
+        <div class="cheat-list">
+          <a class="cheat-row" href="guide.html#code">
+            <span class="job">Open, edit and save Apex, triggers, Visualforce, LWC or Aura</span>
+            <span class="where">Develop › Code</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#code">
+            <span class="job">What a class uses, and what uses it</span>
+            <span class="where">Develop › Code › Dependencies</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#apex">
+            <span class="job">Run anonymous Apex</span>
+            <span class="where">Develop › Execute Apex</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#apextests">
+            <span class="job">Run Apex tests and see the coverage of every class</span>
+            <span class="where">Develop › Apex tests</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#logs">
+            <span class="job">Turn on debug logs for yourself, then read the new log</span>
+            <span class="where">Develop › Debug logs</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#jobs">
+            <span class="job">Scheduled and background jobs — and stop one</span>
+            <span class="where">Develop › Jobs</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#automation">
+            <span class="job">What runs when a record is saved, in order</span>
+            <span class="where">Develop › Automation</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#events">
+            <span class="job">Listen to platform events or change data capture; publish an event</span>
+            <span class="where">Develop › Events</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#rest">
+            <span class="job">Any REST API call</span>
+            <span class="where">Develop › REST Explorer</span><span class="badge ask">asks</span>
+          </a>
+        </div>
+      </section>
+      <section class="cheat-group">
+        <h2>Deploying</h2>
+        <div class="cheat-list">
+          <a class="cheat-row" href="guide.html#project">
+            <span class="job">Your project next to the org: what differs, bring changes in or deploy them out</span>
+            <span class="where">Release › Project</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#metadata">
+            <span class="job">Build a package.xml or a destructiveChanges.xml from the org</span>
+            <span class="where">Release › Metadata</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#metadata">
+            <span class="job">Download any metadata as a zip</span>
+            <span class="where">Release › Metadata</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#deployments">
+            <span class="job">Recent deployments and validations, and why they failed</span>
+            <span class="where">Release › Deployments</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#deployments">
+            <span class="job">Quick deploy a validation that passed</span>
+            <span class="where">Release › Deployments</span><span class="badge ask">asks</span>
+          </a>
+        </div>
+      </section>
+      <section class="cheat-group">
+        <h2>Org checks</h2>
+        <div class="cheat-list">
+          <a class="cheat-row" href="guide.html#company">
+            <span class="job">The org's Id, edition, instance, locale, currency and fiscal year</span>
+            <span class="where">Org › Company</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#health">
+            <span class="job">Risky permissions, inactive users, unused licenses</span>
+            <span class="where">Org › Org health</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#limits">
+            <span class="job">API limits and storage used, by object</span>
+            <span class="where">Org › Limits</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#limits">
+            <span class="job">Delete old records of an object by date</span>
+            <span class="where">Org › Limits › Storage</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#apps">
+            <span class="job">Connected apps, who uses them; revoke an OAuth token</span>
+            <span class="where">Org › Connected apps</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#activity">
+            <span class="job">Every change made from NomadSF in this browser</span>
+            <span class="where">Org › Activity</span><span class="badge read">reads</span>
+          </a>
+        </div>
+      </section>
+      <section class="cheat-group">
+        <h2>Between two orgs</h2>
+        <div class="cheat-list">
+          <a class="cheat-row" href="guide.html#migrate">
+            <span class="job">Copy records into another org, keeping every link</span>
+            <span class="where">Org to org › Migrate</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#migrate">
+            <span class="job">Load a workbook or CSV files into an org, linked together</span>
+            <span class="where">Org to org › Migrate</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#orgdiff">
+            <span class="job">What is different between two orgs — and deploy the difference</span>
+            <span class="where">Org to org › Org compare</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#orgaccess">
+            <span class="job">Compare users or permission sets between a sandbox and production</span>
+            <span class="where">Org to org › Access</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#orgapps">
+            <span class="job">Connected apps in two orgs, and who uses them in each</span>
+            <span class="where">Org to org › Connected apps</span><span class="badge read">reads</span>
+          </a>
+        </div>
+      </section>
+      <section class="cheat-group">
+        <h2>Backups &amp; clean-up</h2>
+        <div class="cheat-list">
+          <a class="cheat-row" href="guide.html#backup">
+            <span class="job">Back up records to a folder on your computer, now or on a schedule</span>
+            <span class="where">Data protection › Backup</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#restore">
+            <span class="job">Put back changed values, or bring back deleted records</span>
+            <span class="where">Data protection › Backup</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#lifecycle">
+            <span class="job">Archive, anonymize or delete old records in steps, with approval</span>
+            <span class="where">Data protection › Lifecycle</span><span class="badge ask">asks</span>
+          </a>
+        </div>
+      </section>
+      <p class="cheat-more">
+        Jobs that take several tabs, step by step: the <a href="guide.html#scenarios">scenarios</a> in the guide.
+      </p>
+    </div>
+
+    <script>
+      // Filters the rows as you type: every word must appear in the row (job or place)
+      (() => {
+        const input = document.querySelector('.cheat-bar input');
+        const rows = [...document.querySelectorAll('.cheat-row')];
+        const groups = [...document.querySelectorAll('.cheat-group')];
+        const none = document.querySelector('.cheat-none');
+        input.addEventListener('input', () => {
+          const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+          rows.forEach((r) => (r.hidden = !words.every((w) => r.textContent.toLowerCase().includes(w))));
+          groups.forEach((g) => (g.hidden = !g.querySelector('.cheat-row:not([hidden])')));
+          none.hidden = groups.some((g) => !g.hidden);
+        });
+        document.querySelector('.cheat-print').addEventListener('click', () => print());
+      })();
+    </script>
+  </body>
+</html>
