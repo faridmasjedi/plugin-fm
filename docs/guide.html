@@ -2075,8 +2075,15 @@
               and it runs the local app (<code>sf fm dashboard</code>) that the VS Code extension shows with
               <b>Open the app</b>.
             </p>
+            <div class="callout">
+              The plugin is not published yet, so it cannot be installed with <code>sf plugins install</code> for now.
+              Build it from source instead. The browser and VS Code extensions do not need it.
+            </div>
             <pre>
-  sf plugins install https://github.com/faridmasjedi/plugin-fm
+  git clone https://github.com/faridmasjedi/plugin-fm
+  cd plugin-fm &amp;&amp; yarn &amp;&amp; yarn build
+  cd nomadsf &amp;&amp; yarn install &amp;&amp; yarn build &amp;&amp; cd ..
+  sf plugins link .
   sf fm dashboard --open</pre
             >
             <table class="hub-table">
