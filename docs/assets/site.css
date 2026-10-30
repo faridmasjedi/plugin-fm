@@ -748,3 +748,132 @@ a.eyebrow:hover {
 .hub-tabs a {
   padding: 8px 10px 10px;
 }
+
+/* Cheat sheet: a job per row, where it is, and whether it changes the org */
+.cheat h1 {
+  margin: 0 0 6px;
+}
+.cheat-bar {
+  position: sticky;
+  top: 61px;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin: 24px 0 8px;
+  padding: 12px 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.cheat-bar input {
+  flex: 1 1 280px;
+  min-width: 0;
+  font: inherit;
+  font-size: 15px;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+}
+.cheat-bar input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.cheat-key .badge:first-child {
+  margin-left: 0;
+}
+.cheat-print {
+  padding: 8px 14px;
+}
+.cheat-none,
+.cheat-more {
+  color: var(--muted);
+}
+.cheat-more {
+  margin-top: 32px;
+}
+.cheat-row[hidden],
+.cheat-group[hidden] {
+  display: none;
+}
+section.cheat-group {
+  padding: 0;
+  border: 0;
+}
+.top nav a {
+  white-space: nowrap;
+}
+.cheat-group h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 28px 0 8px;
+}
+.cheat-list {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel);
+}
+.cheat-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px 64px;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 14px;
+  color: var(--text);
+}
+/* A line above every shown row that follows another shown row */
+.cheat-row:not([hidden]) ~ .cheat-row {
+  border-top: 1px solid var(--border);
+}
+.cheat-row:hover {
+  background: var(--accent-soft);
+  text-decoration: none;
+}
+.cheat-row .where {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.cheat-row .badge {
+  margin: 0;
+  justify-self: end;
+}
+@media (max-width: 720px) {
+  .cheat-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 12px;
+  }
+  .cheat-row .job {
+    grid-column: 1 / -1;
+  }
+}
+@media print {
+  .top,
+  .cheat-bar input,
+  .cheat-print,
+  .cheat-none,
+  .cheat-more {
+    display: none;
+  }
+  .cheat-bar {
+    position: static;
+    border: 0;
+    padding: 0;
+  }
+  .doc {
+    padding: 0;
+  }
+  .cheat-row {
+    break-inside: avoid;
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+  .cheat-group h2 {
+    break-after: avoid;
+  }
+}
