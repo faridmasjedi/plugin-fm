@@ -21,13 +21,16 @@ export type ProxyResponse = { status: number; headers: Record<string, string>; b
 
 type Auth = Awaited<ReturnType<typeof AuthInfo.listAllAuthorizations>>[number];
 
-/** Every login of the CLI, by alias when it has one (the same list as `sf org list`). */
+/**
+ * Every login of the CLI, by alias when it has one (the same list as `sf org list`). An expired
+ * scratch org stays in the CLI's files until it is logged out, so it is named as expired.
+ */
 export function toChoices(auths: Auth[]): OrgChoice[] {
   return auths.map((auth) => {
     const name = auth.aliases?.[0] ?? auth.username;
     return {
       id: name,
-      label: name,
+      label: auth.isExpired === true ? `${name} (expired)` : name,
       type: auth.isDevHub ? 'Dev Hub' : auth.isScratchOrg ? 'Scratch' : auth.isSandbox ? 'Sandbox' : 'Production',
       instanceUrl: auth.instanceUrl,
     };

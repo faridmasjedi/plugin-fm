@@ -6,13 +6,13 @@ describe('Studio orgs in VS Code', () => {
   it('lists the CLI logins by alias, with their kind', () => {
     const auths = [
       { username: 'a@x.com', aliases: ['dev'], isDevHub: true, instanceUrl: 'https://a.my.salesforce.com' },
-      { username: 'b@x.com', aliases: [], isScratchOrg: true },
+      { username: 'b@x.com', aliases: [], isScratchOrg: true, isExpired: true },
       { username: 'c@x.com', isSandbox: true },
       { username: 'd@x.com' },
     ] as unknown as Parameters<typeof toChoices>[0];
     expect(toChoices(auths)).toEqual([
       { id: 'dev', label: 'dev', type: 'Dev Hub', instanceUrl: 'https://a.my.salesforce.com' },
-      { id: 'b@x.com', label: 'b@x.com', type: 'Scratch', instanceUrl: undefined },
+      { id: 'b@x.com', label: 'b@x.com (expired)', type: 'Scratch', instanceUrl: undefined },
       { id: 'c@x.com', label: 'c@x.com', type: 'Sandbox', instanceUrl: undefined },
       { id: 'd@x.com', label: 'd@x.com', type: 'Production', instanceUrl: undefined },
     ]);
