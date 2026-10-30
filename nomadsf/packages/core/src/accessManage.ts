@@ -79,17 +79,10 @@ export async function listGroups(client: SalesforceClient): Promise<GroupInfo[]>
   const [groups, counts, objects] = await Promise.all([
     query(
       client,
-      "SELECT Id, Name, DeveloperName, Type, Email FROM Group WHERE Type IN ('Regular', 'Queue') AND OwnerId NOT IN (SELECT Id FROM User) ORDER BY Type, Name",
-      { maxRows: 50_000 }
-    ).catch(() =>
-      // Some orgs refuse the semi-join on OwnerId: personal groups are dropped below instead
-      query(
-        client,
-        "SELECT Id, Name, DeveloperName, Type, Email, OwnerId FROM Group WHERE Type IN ('Regular', 'Queue')",
-        {
-          maxRows: 50_000,
-        }
-      )
+      "SELECT Id, Name, DeveloperName, Type, Email, OwnerId FROM Group WHERE Type IN ('Regular', 'Queue')",
+      {
+        maxRows: 50_000,
+      }
     ),
     query(client, 'SELECT GroupId, COUNT(Id) n FROM GroupMember GROUP BY GroupId', { maxRows: 50_000 }).catch(() => ({
       rows: [] as Row[],
@@ -105,8 +98,10 @@ export async function listGroups(client: SalesforceClient): Promise<GroupInfo[]>
     list.push(String(r.SobjectType));
     queueObjects.set(String(r.QueueId), list);
   }
+  // A public group owned by a user is someone's personal group; a queue is a queue whoever owns it
+  // (deploying one makes the deploying user its owner)
   return groups.rows
-    .filter((g) => !String(g.OwnerId ?? '').startsWith('005'))
+    .filter((g) => g.Type === 'Queue' || !String(g.OwnerId ?? '').startsWith('005'))
     .map((g) => ({
       Id: String(g.Id),
       Kind: g.Type === 'Queue' ? ('Queue' as const) : ('Public group' as const),

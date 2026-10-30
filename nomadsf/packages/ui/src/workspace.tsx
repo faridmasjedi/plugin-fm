@@ -35,7 +35,6 @@ export type ToolId =
   | 'project'
   | 'metadata'
   | 'orgdiff'
-  | 'tests'
   | 'access'
   | 'apps'
   | 'health'
@@ -83,7 +82,6 @@ export const TOOLS: Tool[] = [
   { id: 'metadata', label: 'Metadata', icon: '◫', hint: 'retrieve, package.xml' },
   { id: 'orgdiff', label: 'Org compare', icon: '⇋', hint: 'differences between two orgs, deploy' },
   { id: 'deployments', label: 'Deployments', icon: '⇪', hint: 'deployment history, quick deploy' },
-  { id: 'tests', label: 'E2E tests', icon: '✓', hint: 'Playwright (CLI app)' },
   { id: 'access', label: 'Users', icon: '☺', hint: 'a user and everything they have' },
   {
     id: 'permsets',
@@ -131,7 +129,7 @@ export const HUBS: Hub[] = [
     icon: '⇅',
     tools: ['query', 'record', 'data', 'csvcompare', 'lookup', 'schema', 'fields'],
   },
-  { id: 'release', label: 'Release', icon: '⇡', tools: ['project', 'metadata', 'deployments', 'tests'] },
+  { id: 'release', label: 'Release', icon: '⇡', tools: ['project', 'metadata', 'deployments'] },
   {
     id: 'people',
     label: 'Access',

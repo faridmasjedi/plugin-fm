@@ -81,18 +81,20 @@ export function LookupPage() {
       .catch(() => setIdOf(undefined));
   }, [client, values]);
 
-  // Fields of the chosen object; the name field is chosen to start with (related fields belong to one object)
+  // Fields of the chosen object once it is one of the org's (not every letter typed on the way);
+  // the name field is chosen to start with (related fields belong to one object)
+  const known = objects.find((o) => o.name.toLowerCase() === sobject.trim().toLowerCase())?.name;
   useEffect(() => {
     setFields([]);
     setRelated('');
-    if (!/^\w+$/.test(sobject)) return;
-    lookupFields(client, sobject)
+    if (!known) return;
+    lookupFields(client, known)
       .then((list) => {
         setFields(list);
         setChosen(new Set(list.filter((f) => f.nameField).map((f) => f.name)));
       })
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
-  }, [client, sobject]);
+  }, [client, known]);
 
   const open = async (file: File) => {
     setStatus('');

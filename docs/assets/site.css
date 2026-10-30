@@ -697,3 +697,54 @@ a.eyebrow:hover {
   text-decoration: none;
   filter: brightness(1.05);
 }
+
+/* A tool of the guide: what it is for, whether it changes the org, and what to know */
+.tool-lead {
+  font-size: 16px;
+  color: var(--text);
+  margin: 4px 0 6px;
+}
+.tool-meta {
+  margin: 0 0 14px;
+}
+.tool-meta .badge {
+  margin-left: 0;
+}
+.badge.read {
+  color: var(--good);
+  background: color-mix(in srgb, var(--good) 12%, transparent);
+}
+.badge.ask {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+.good-to-know {
+  margin: 22px 0 6px;
+  padding: 14px 18px 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.good-to-know h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.good-to-know ul {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.good-to-know li {
+  margin: 4px 0;
+}
+
+/* Eleven hubs: the hub tabs wrap rather than hide some behind a scroll */
+.hub-tabs {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+.hub-tabs a {
+  padding: 8px 10px 10px;
+}
