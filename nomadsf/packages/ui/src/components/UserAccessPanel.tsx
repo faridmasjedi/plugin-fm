@@ -25,6 +25,7 @@ import {
 import { storage, useStudio } from '../context';
 import { DataTable, EmptyHint } from './DataTable';
 import { ManagedList } from './ManagedList';
+import { Status } from '../statusLog';
 
 const fail = (r: { errors: string[] }): void => {
   if (r.errors.length) throw new Error(r.errors.join('; '));
@@ -148,7 +149,7 @@ export function UserAccessPanel({ userId, label, details }: { userId: string; la
     storage.set('user.tab', next);
   };
   const name = (what: string) => `${label}-${what}`;
-  const loading = <p className="muted">{status || 'Reading…'}</p>;
+  const loading = status ? <Status text={status} block /> : <p className="muted">Reading…</p>;
 
   return (
     <>

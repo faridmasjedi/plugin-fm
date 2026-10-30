@@ -13,6 +13,7 @@ import { storage } from '../context';
 import { currentGitHub, githubClientId, githubToken, lastRepo, type GitHubConnection } from '../github';
 import { useProject } from '../project';
 import type { HostKind } from '../host';
+import { Status } from '../statusLog';
 
 /** Connect GitHub, then open any repository and branch as the project. */
 export function GitHubCard({ hostKind, embedded = false }: { hostKind: HostKind; embedded?: boolean }) {
@@ -226,7 +227,7 @@ export function GitHubCard({ hostKind, embedded = false }: { hostKind: HostKind;
           )}
         </>
       )}
-      {message && <p className="muted">{message}</p>}
+      <Status text={message} block />
     </div>
   );
 }

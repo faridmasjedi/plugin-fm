@@ -89,11 +89,23 @@ export const ToolContext = createContext('');
  * A tool's message, next to what started it, and into the Log. `block` for a line of its own
  * (under a form), inline otherwise.
  */
-export function Status({ text, block = false }: { text: string; block?: boolean }) {
+export function Status({
+  text,
+  block = false,
+  kind: given,
+  mono = false,
+}: {
+  text: string;
+  block?: boolean;
+  kind?: StatusKind;
+  /** Code-like text (a SOQL error points at its column). */
+  mono?: boolean;
+}) {
   const tool = useContext(ToolContext);
   const studio = useContext(StudioContext);
   const source = useId();
-  const kind = statusKind(text);
+  // An error shown as such (a SOQL or Apex error) is a problem whatever its first character
+  const kind = given ?? statusKind(text);
   useEffect(() => {
     if (text.trim()) statusLog.add({ tool, org: studio?.org.label ?? '', kind, text: text.trim(), source });
     else statusLog.finish(source);
@@ -105,7 +117,7 @@ export function Status({ text, block = false }: { text: string; block?: boolean 
   if (!text) return null;
   const Tag = block ? 'p' : 'span';
   return (
-    <Tag className={`status status-${kind}`} role={kind === 'problem' ? 'alert' : 'status'}>
+    <Tag className={`status status-${kind}${mono ? ' mono' : ''}`} role={kind === 'problem' ? 'alert' : 'status'}>
       {kind === 'working' && <span className="status-spin" aria-hidden="true" />}
       {text}
     </Tag>

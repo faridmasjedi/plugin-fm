@@ -11,6 +11,7 @@ import { orgFacts } from '../host';
 import { DataTable } from './DataTable';
 import { askTyped } from './Dialogs';
 import { cannotChangePermissions, useAccessOf } from '../access';
+import { Status } from '../statusLog';
 
 /**
  * The differences; comparing permission sets or profiles of two orgs, tick some and copy A's access into B
@@ -87,9 +88,11 @@ export function DiffTable({
           >
             Copy A&apos;s access into B ({picked.size})…
           </button>
-          <span className={blocked && !status ? 'bad-text' : 'muted'}>
-            {status || blocked || 'tick the differences to make B like A'}
-          </span>
+          {status ? (
+            <Status text={status} />
+          ) : (
+            <span className={blocked ? 'bad-text' : 'muted'}>{blocked || 'tick the differences to make B like A'}</span>
+          )}
         </div>
       )}
     </>

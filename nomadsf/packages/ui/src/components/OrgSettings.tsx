@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { checkOrg, type HostKind, type OrgCheck, type OrgChoice } from '../host';
 import { call } from '../embed';
+import { Status } from '../statusLog';
 
 const kindOf = (check: OrgCheck | undefined, org: OrgChoice): string => {
   if (check?.ok) {
@@ -129,7 +130,7 @@ export function OrgSettings({
         )}
         <button onClick={onRefreshOrgs}>Refresh</button>
       </div>
-      {loginError && <div className="error">{loginError}</div>}
+      <Status text={loginError} kind="problem" block />
     </div>
   );
 }
