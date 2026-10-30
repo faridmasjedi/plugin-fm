@@ -51,7 +51,7 @@ Details: [nomadsf/STUDIO.md](nomadsf/STUDIO.md).
 
 This repository also ships a Salesforce CLI plugin for release pipelines, and the local app it runs (`sf fm dashboard`, also shown by the VS Code extension's **Open the app**):
 
-> The plugin is not published yet, so it cannot be installed with `sf plugins install` for now. The browser and VS Code extensions do not need it.
+> The plugin is not published yet, so it cannot be installed with `sf plugins install` for now. Build it from source instead (see [Development](#development)). The browser and VS Code extensions do not need it.
 
 ```bash
 # the image with the Salesforce CLI, the plugin, Code Analyzer and Java
@@ -76,6 +76,7 @@ CI/CD setup and deployment hooks: [CI_CD_USAGE.md](CI_CD_USAGE.md). Releasing an
 ```bash
 git clone https://github.com/faridmasjedi/plugin-fm
 cd plugin-fm && yarn && yarn build        # the CLI plugin
+sf plugins link .                         # use this build as `sf fm`
 cd nomadsf && yarn install && yarn build  # the Studio, the extension (nomadsf/apps/extension/dist) and VS Code
 yarn test
 ```

@@ -2077,8 +2077,15 @@
             </p>
             <div class="callout">
               The plugin is not published yet, so it cannot be installed with <code>sf plugins install</code> for now.
-              The browser and VS Code extensions do not need it.
+              Build it from source instead. The browser and VS Code extensions do not need it.
             </div>
+            <pre>
+  git clone https://github.com/faridmasjedi/plugin-fm
+  cd plugin-fm &amp;&amp; yarn &amp;&amp; yarn build
+  cd nomadsf &amp;&amp; yarn install &amp;&amp; yarn build &amp;&amp; cd ..
+  sf plugins link .
+  sf fm dashboard --open</pre
+            >
             <table class="hub-table">
               <tr>
                 <th>Command</th>
