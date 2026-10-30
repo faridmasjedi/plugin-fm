@@ -352,11 +352,7 @@ export function PermissionSetsPage() {
             ))}
           </select>
         </div>
-        {status && (
-          <p className="muted" style={{ margin: 0 }}>
-            {status}
-          </p>
-        )}
+        <Status text={status} block />
         {target && (
           <div className="grid2">
             <div className="section">

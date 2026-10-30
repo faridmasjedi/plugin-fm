@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { parseDataPicks, parseObjectList, type ObjectPick } from '@nomadsf/core';
 import { AiAsk } from './AiHelp';
 import { useProject } from '../project';
+import { Status } from '../statusLog';
 
 export type PickerObject = { name: string; label: string; custom: boolean };
 
@@ -92,7 +93,7 @@ export function ObjectPicker({
         </span>
         {toolbar}
       </div>
-      {message && <p className="muted picker-message">{message}</p>}
+      <Status text={message} block />
 
       {mode === 'type' && (
         <div className="picker-type">
