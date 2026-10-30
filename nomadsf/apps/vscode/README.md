@@ -46,11 +46,7 @@
 ## Requirements
 
 - Nothing but VS Code 1.95 or later. Orgs logged in to with the Salesforce CLI show up by themselves; without the CLI, log in with **NomadSF: Log in to an org**.
-- Optional, for **NomadSF: Open the app** (release runs, runbooks, AI): the [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) with the NomadSF plugin, in a Salesforce DX project (a folder with `sfdx-project.json`):
-
-  ```bash
-  sf plugins install https://github.com/faridmasjedi/plugin-fm
-  ```
+- **NomadSF: Open the app** (release runs, runbooks, AI) needs the NomadSF plugin for the Salesforce CLI, which is not published yet. Everything else works without it.
 
 Prefer the browser? The **browser extension** offers the same Studio with your browser's Salesforce login — see the [download page](https://faridmasjedi.github.io/plugin-fm/#download).
 
@@ -62,13 +58,7 @@ Prefer the browser? The **browser extension** offers the same Studio with your b
 
 ## Keeping it up to date
 
-The Studio ships with the extension: install a newer `nomadsf-vscode.vsix` to update it. **NomadSF: Open the app** shows the local app of the `sf fm` plugin; when that plugin is older than the extension, NomadSF says so and offers **Update the plugin** — it runs:
-
-```bash
-sf plugins install https://github.com/faridmasjedi/plugin-fm
-```
-
-Then **NomadSF: Stop the local app** and open the app again.
+The Studio ships with the extension: install a newer `nomadsf-vscode.vsix` to update it.
 
 ## Commands
 

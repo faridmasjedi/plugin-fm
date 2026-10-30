@@ -51,10 +51,10 @@ Details: [nomadsf/STUDIO.md](nomadsf/STUDIO.md).
 
 This repository also ships a Salesforce CLI plugin for release pipelines, and the local app it runs (`sf fm dashboard`, also shown by the VS Code extension's **Open the app**):
 
+> The plugin is not published yet, so it cannot be installed with `sf plugins install` for now. The browser and VS Code extensions do not need it.
+
 ```bash
-sf plugins install https://github.com/faridmasjedi/plugin-fm
-sf fm dashboard --open
-# or the image with the Salesforce CLI, the plugin, Code Analyzer and Java
+# the image with the Salesforce CLI, the plugin, Code Analyzer and Java
 docker pull ghcr.io/faridmasjedi/nomadsf:latest
 ```
 
