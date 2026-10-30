@@ -36,6 +36,7 @@ export function RelatedFields({
   objects,
   links,
   related,
+  finding,
   onChange,
   onAddToQuery,
 }: {
@@ -46,6 +47,8 @@ export function RelatedFields({
   links: Record<string, string>;
   /** Fields chosen per object. */
   related: Record<string, string[]>;
+  /** Still working out which objects the Id columns point to. */
+  finding?: boolean;
   onChange: (next: Record<string, string[]>) => void;
   /** The fields go into the SELECT instead; the object's choice is cleared (no double columns). */
   onAddToQuery: (fields: string[], sobject: string) => void;
@@ -77,7 +80,8 @@ export function RelatedFields({
   const toggle = (field: string, on: boolean) =>
     onChange({ ...related, [sobject]: on ? [...chosen, field] : chosen.filter((f) => f !== field) });
 
-  if (!columns.length) return <p className="muted">No Id columns in this result.</p>;
+  if (!columns.length)
+    return <p className="muted">{finding ? 'Finding the Id columns…' : 'No Id columns in this result.'}</p>;
   const link = links[column];
   return (
     <div className="related-fields">

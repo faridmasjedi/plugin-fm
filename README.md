@@ -2,7 +2,7 @@
 
 **A Salesforce workbench in your browser** — Execute Apex, SOQL, code, debug logs, metadata and org compare, plus data backup, restore, migration and lifecycle jobs. It uses the Salesforce login you already have in Chrome or Edge: no CLI, nothing to install on the org, nothing sent anywhere but Salesforce.
 
-[![Latest release](https://img.shields.io/github/v/release/faridmasjedi/plugin-fm?label=latest%20release&color=0b5cff)](https://github.com/faridmasjedi/plugin-fm/releases/latest) [![CI](https://github.com/faridmasjedi/plugin-fm/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/faridmasjedi/plugin-fm/actions/workflows/ci.yml) [![License](https://img.shields.io/github/license/faridmasjedi/plugin-fm?color=667085)](LICENSE.txt)
+[![Latest release](https://img.shields.io/badge/download-latest%20release-0b5cff)](https://github.com/faridmasjedi/plugin-fm/releases/latest) [![CI](https://github.com/faridmasjedi/plugin-fm/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/faridmasjedi/plugin-fm/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-667085)](LICENSE.txt)
 
 **[📖 Website and guide](https://faridmasjedi.github.io/plugin-fm/)** · **[⬇ Download](https://faridmasjedi.github.io/plugin-fm/#download)** · [Releases](https://github.com/faridmasjedi/plugin-fm/releases)
 

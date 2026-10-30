@@ -2702,15 +2702,25 @@ label.file-button:hover {
   border-color: var(--accent);
 }
 
-/* Migrate › Plan: the composer table */
+/* Migrate › Plan: the composer table, kept inside the pane (a wide one scrolls on its own) */
+.composer {
+  max-width: 100%;
+  overflow-x: auto;
+}
 .composer-table td {
   vertical-align: middle;
 }
 .composer-table input.mono {
-  min-width: 220px;
+  width: 100%;
+  min-width: 160px;
 }
+.composer-table button.link,
 .composer-actions {
   white-space: nowrap;
+}
+/* The select is as wide as its longest option ("Account (via ParentId)") unless capped */
+.composer-actions select {
+  max-width: 130px;
 }
 .composer-actions > * + * {
   margin-left: 8px;
