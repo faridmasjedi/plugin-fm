@@ -39,4 +39,12 @@ describe('access hints', () => {
     );
     await expect(soap.soap('metadata', '<x/>')).rejects.toThrow(/may not have permission/);
   });
+
+  it('says an org that answers with a web page may no longer exist', async () => {
+    const gone = new SalesforceClient(
+      async () => ({ status: 420, headers: {}, body: '<!DOCTYPE HTML>\n<html lang=en-US><title>Error Page</title>' }),
+      '62.0'
+    );
+    await expect(gone.soap('metadata', '<x/>')).rejects.toThrow(/may no longer exist/);
+  });
 });
