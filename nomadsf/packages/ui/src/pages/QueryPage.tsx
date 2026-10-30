@@ -195,6 +195,7 @@ export function QueryPage() {
   const [idNames, setIdNames] = useState<boolean>(() => storage.get('query.idNames', false));
   const [lookup, setLookup] = useState<IdNameLookup | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
+  const [lookupFailed, setLookupFailed] = useState(false);
   // Fields of the records Id columns point to, chosen per object (Related fields…)
   const [related, setRelatedState] = useState<Record<string, string[]>>(() => storage.get('query.related', {}));
   const setRelated = (next: Record<string, string[]>) => {
@@ -359,13 +360,14 @@ export function QueryPage() {
     let canceled = false;
     const known = lookupFor.current === lookupChoice ? lookup ?? undefined : undefined;
     setLookingUp(true);
+    setLookupFailed(false);
     lookupIdNames(client, result.columns, result.rows, { known, names: idNames, related })
       .then((found) => {
         if (canceled) return;
         lookupFor.current = lookupChoice;
         setLookup(found);
       })
-      .catch(() => undefined)
+      .catch(() => !canceled && setLookupFailed(true))
       .finally(() => !canceled && setLookingUp(false));
     return () => {
       canceled = true;
@@ -684,7 +686,7 @@ export function QueryPage() {
             <RelatedFields
               client={client}
               objects={lookup?.objects ?? {}}
-              finding={lookingUp || !lookup}
+              finding={lookingUp || (!lookup && !lookupFailed)}
               links={links}
               related={related}
               onChange={setRelated}
