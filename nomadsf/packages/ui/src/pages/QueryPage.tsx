@@ -684,6 +684,7 @@ export function QueryPage() {
             <RelatedFields
               client={client}
               objects={lookup?.objects ?? {}}
+              finding={lookingUp || !lookup}
               links={links}
               related={related}
               onChange={setRelated}

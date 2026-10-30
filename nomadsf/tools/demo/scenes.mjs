@@ -45,13 +45,35 @@ export const scenes = [
     name: 'query',
     hash: 'query',
     run: async (h) => {
-      await h.code('SELECT Name, Industry, Customer_Tier__c, AnnualRevenue FROM Account ORDER BY AnnualRevenue DESC');
+      await h.code('SELECT Name, Title, AccountId FROM Contact ORDER BY Name');
       await h.page.keyboard.press('Escape');
       await h.click('Run');
       await h.until('rows');
       await h.pause(1200);
-      await h.type(h.page.locator('.dt-filter').first(), 'Tech');
+      // Fields of the Account each AccountId points to, as new columns (once the Id columns are known)
+      await h.page.getByText('Looking up names…').waitFor({ state: 'detached', timeout: 60000 });
+      await h.click('Related fields…');
+      const panel = h.page.locator('.related-fields');
+      await panel.locator('.field-checks label').first().waitFor({ timeout: 60000 });
+      await h.pause(800);
+      for (const [filter, field] of [
+        ['Industry', 'Industry'],
+        ['Tier', 'Customer_Tier__c'],
+      ]) {
+        await h.type(panel.locator('input[placeholder^="Filter"]'), filter);
+        await h.press(
+          panel
+            .locator('label.check', { has: h.page.locator('.mono', { hasText: new RegExp(`^${field}$`) }) })
+            .locator('input')
+        );
+      }
+      await h.settle();
       await h.pause(1500);
+      // Or straight into the SOQL: Account.Industry, Account.Customer_Tier__c, and run again
+      await h.click('Add to the query instead');
+      await h.until('rows');
+      await h.settle();
+      await h.pause(1800);
     },
   },
   {
