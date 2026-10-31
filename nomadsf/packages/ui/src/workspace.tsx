@@ -55,9 +55,7 @@ export type ToolId =
   | 'audit'
   | 'myaccess'
   | 'orgapps'
-  | 'settings'
-  | 'local-orgs'
-  | 'local-ai';
+  | 'settings';
 
 export type Tool = { id: ToolId; label: string; icon: string; hint: string };
 
@@ -108,8 +106,6 @@ export const TOOLS: Tool[] = [
   { id: 'orgaccess', label: 'Access', icon: '⚿', hint: 'users and permissions in two orgs' },
   { id: 'orgapps', label: 'Connected apps', icon: '⚷', hint: 'connected apps in two orgs' },
   { id: 'settings', label: 'Settings', icon: '⚙', hint: 'org, project, AI' },
-  { id: 'local-orgs', label: 'CLI orgs', icon: '☁', hint: 'orgs of the CLI app' },
-  { id: 'local-ai', label: 'AI settings', icon: '✦', hint: 'AI of the CLI app' },
 ];
 
 /** `breakBefore`: a thin divider before these tabs (Access: changing access, then reviewing it). */
@@ -151,7 +147,6 @@ export const HUBS: Hub[] = [
   { id: 'org', label: 'Org', icon: '◈', tools: ['company', 'health', 'limits', 'apps', 'audit', 'activity'] },
   { id: 'protect', label: 'Data protection', icon: '⛁', tools: ['backup', 'lifecycle'] },
   { id: 'between', label: 'Org to org', icon: '⇋', tools: ['migrate', 'orgdiff', 'orgaccess', 'orgapps'] },
-  { id: 'local', label: 'Local app', icon: '☁', tools: ['local-orgs', 'local-ai'] },
   { id: 'settings', label: 'Settings', icon: '⚙', tools: ['settings'] },
 ];
 
@@ -162,7 +157,7 @@ export const toolOf = (id: string): Tool | undefined => TOOLS.find((t) => t.id =
 
 /** The guide's section for a tool (the website, docs/guide.html). */
 const GUIDE = 'https://faridmasjedi.github.io/plugin-fm/guide.html';
-const GUIDE_ANCHOR: Partial<Record<ToolId, string>> = { data: 'data-tool', 'local-orgs': 'cli', 'local-ai': 'ai' };
+const GUIDE_ANCHOR: Partial<Record<ToolId, string>> = { data: 'data-tool' };
 export const guideUrl = (tool: ToolId): string => `${GUIDE}#${GUIDE_ANCHOR[tool] ?? tool}`;
 export const hubOf = (tool: ToolId): Hub => HUBS.find((h) => h.tools.includes(tool)) ?? HUBS[0];
 export const isTool = (id: string): id is ToolId => Boolean(toolOf(id));
@@ -275,18 +270,10 @@ export const dragTool = (tool: ToolId) => (e: React.DragEvent) => {
 };
 
 /** The sidebar: one entry per hub; drag one into the panes area to open it beside. */
-export function HubNav({
-  ws,
-  available,
-  hasLocal,
-}: {
-  ws: WorkspaceState;
-  available: (tool: ToolId) => boolean;
-  hasLocal: boolean;
-}) {
+export function HubNav({ ws, available }: { ws: WorkspaceState; available: (tool: ToolId) => boolean }) {
   const activeHub = hubOf(ws.panes[ws.active]?.tool ?? 'apex').id;
   const openHubs = new Set(ws.panes.map((p) => hubOf(p.tool).id));
-  const hubs = HUBS.filter((h) => h.id !== 'settings' && (h.id !== 'local' || hasLocal) && h.tools.some(available));
+  const hubs = HUBS.filter((h) => h.id !== 'settings' && h.tools.some(available));
   const entry = (h: Hub) => (
     <button
       key={h.id}

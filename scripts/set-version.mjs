@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Sets one version on everything a release ships: the sf fm plugin, the browser extension,
-// the VS Code extension and the desktop app. The release workflow runs it with the tag's
+// Sets one version on everything a release ships: the sf fm plugin, the browser extension
+// and the VS Code extension. The release workflow runs it with the tag's
 // version (v1.1.0 → 1.1.0); run it by hand to sync main: node scripts/set-version.mjs 1.1.0
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -13,22 +13,7 @@ if (!/^\d+\.\d+\.\d+$/.test(version)) {
   process.exit(1);
 }
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const files = [
-  'package.json',
-  'nomadsf/apps/extension/package.json',
-  'nomadsf/apps/vscode/package.json',
-  'nomadsf/apps/desktop/package.json',
-];
-// package-lock.json files (npm projects outside the yarn workspaces) carry the version twice
-const locks = ['nomadsf/apps/desktop/package-lock.json'];
-for (const file of locks) {
-  const path = join(root, file);
-  const lock = JSON.parse(readFileSync(path, 'utf8'));
-  lock.version = version;
-  if (lock.packages?.['']) lock.packages[''].version = version;
-  writeFileSync(path, `${JSON.stringify(lock, null, 2)}\n`);
-  console.log(`${file}: ${version}`);
-}
+const files = ['package.json', 'nomadsf/apps/extension/package.json', 'nomadsf/apps/vscode/package.json'];
 for (const file of files) {
   const path = join(root, file);
   const text = readFileSync(path, 'utf8');
