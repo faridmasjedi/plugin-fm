@@ -124,13 +124,16 @@ export type SourceComponent = {
   siblings?: string;
   labels?: boolean;
   object?: string;
+  /** The source folder of the type (classes, objects…) and its path, e.g. force-app/main/default/classes. */
+  typeFolder?: string;
+  base?: string;
 };
 
 /**
  * The component a file belongs to, or undefined when it is not metadata (README, jest config, a folder Salesforce does
  * not know).
  */
-export function resolveComponent(path: string, packageDirs: string[]): SourceComponent | undefined {
+function resolveInner(path: string, packageDirs: string[]): SourceComponent | undefined {
   const dir = packageDirs.find((d) => path.startsWith(`${d}/`));
   if (!dir) return undefined;
   const parts = path.slice(dir.length + 1).split('/');
@@ -201,6 +204,19 @@ export function resolveComponent(path: string, packageDirs: string[]): SourceCom
   if (file.endsWith('-meta.xml'))
     return { type, name: metaName(file).replace(/\.(cls|trigger|page|component)$/, ''), xml: path };
   return { type, name: file.replace(/\.[^.]+$/, ''), xml: `${path}-meta.xml` };
+}
+
+/**
+ * The component a file belongs to, or undefined when it is not metadata (README, jest config, a folder Salesforce does
+ * not know). It also says the type's folder, for building the Metadata API zip.
+ */
+export function resolveComponent(path: string, packageDirs: string[]): SourceComponent | undefined {
+  const found = resolveInner(path, packageDirs);
+  if (!found) return undefined;
+  const dir = packageDirs.find((d) => path.startsWith(`${d}/`)) ?? '';
+  const parts = path.slice(dir.length + 1).split('/');
+  const at = parts.findIndex((p) => SOURCE_TYPES[p]);
+  return { ...found, typeFolder: parts[at], base: `${dir}/${parts.slice(0, at + 1).join('/')}` };
 }
 
 /** The labels of a CustomLabels file: name → its <labels> block, to compare them one by one. */

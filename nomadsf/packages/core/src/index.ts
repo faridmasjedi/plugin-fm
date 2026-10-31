@@ -55,3 +55,4 @@ export * from './operations.js';
 export * from './sourcePackage.js';
 export * from './gitFolder.js';
 export * from './compareEngine.js';
+export * from './sourceConvert.js';
