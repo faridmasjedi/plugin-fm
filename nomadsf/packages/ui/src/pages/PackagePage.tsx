@@ -3,6 +3,7 @@ import {
   CompareEngine,
   analyzeProject,
   checkComponentsWithOrg,
+  isRemoval,
   componentFilePaths,
   projectSideFiles,
   pairCodeFiles,
@@ -60,8 +61,17 @@ const HOW: Array<{ id: CompareHow; label: string; hint: string }> = [
     hint: 'Target as it is now against Source: also undoes what Target has and Source does not.',
   },
 ];
-const CHANGES: Change[] = ['added', 'changed', 'deleted'];
-const CHANGE_TONE: Record<Change, string> = { added: 'good', changed: 'warn', deleted: 'bad' };
+const CHANGES: Change[] = ['added', 'changed', 'deleted', 'unchanged', 'only in target'];
+const CHANGE_TONE: Record<Change, string> = {
+  added: 'good',
+  changed: 'warn',
+  deleted: 'bad',
+  unchanged: '',
+  'only in target': 'bad',
+};
+/** The offered components (other labels) you added: what the engine sends besides the package's own. */
+const included = (pkg: ComparedPackage, excluded: Set<string>): string[] =>
+  pkg.optional.filter((k) => !excluded.has(k));
 const STATUS_TONE: Record<PackageFile['status'], string> = { A: 'good', M: 'warn', D: 'bad' };
 const FILE_GROUPS: Array<{ group: PackageFileGroup; label: string; hint: string; always?: boolean }> = [
   { group: 'deploy', label: 'Changed / added', hint: 'go into package.xml', always: true },
@@ -260,7 +270,7 @@ function ModePanel({
     try {
       const result = await engine.compare({ source: sourceRef, target: targetRef, how, forceignore });
       setPkg(result);
-      setExcluded(new Set());
+      setExcluded(new Set(result.optional));
       setKept(new Set());
       setChanges(new Set());
       setFilter('');
@@ -294,7 +304,7 @@ function ModePanel({
         forceignore,
       });
       setPkg(result);
-      setExcluded(new Set());
+      setExcluded(new Set(result.optional));
       setKept(new Set());
       setChanges(new Set());
       setFilter('');
@@ -561,13 +571,17 @@ function ModePanel({
       {pkg && pkg.components.length > 0 && (mode === 'branches' || mode === 'manifest') && (
         <ReleasePanel
           from={pkg.source}
-          deployCount={pkg.components.filter((c) => c.change !== 'deleted' && !excluded.has(keyOf(c))).length}
-          removeCount={pkg.components.filter((c) => c.change === 'deleted' && !excluded.has(keyOf(c))).length}
+          deployCount={pkg.components.filter((c) => !isRemoval(c.change) && !excluded.has(keyOf(c))).length}
+          removeCount={pkg.components.filter((c) => isRemoval(c.change) && !excluded.has(keyOf(c))).length}
           build={async (removeWhen) => {
-            const built = await engine.metadataZip(pkg.id, { exclude: [...excluded], removeWhen });
+            const built = await engine.metadataZip(pkg.id, {
+              exclude: [...excluded],
+              include: included(pkg, excluded),
+              removeWhen,
+            });
             return { zip: built.zip, notConverted: built.notConverted };
           }}
-          findTests={() => engine.findTests(pkg.id, [...excluded])}
+          findTests={() => engine.findTests(pkg.id, [...excluded], included(pkg, excluded))}
           zipName={`${pkg.source.replace(/[^\w.-]+/g, '-')}-deployable.zip`}
         />
       )}
@@ -595,7 +609,7 @@ function ModePanel({
 /** What the org has of a component of the manifest (for a deletion: whether there is anything to delete). */
 function orgPill(change: Change, status: OrgCheck['status'] | undefined): React.ReactNode {
   if (!status) return <span className="muted">—</span>;
-  if (change === 'deleted')
+  if (isRemoval(change))
     return status === 'only in org' || status === 'same' || status === 'different' ? (
       <span className="pill">in the org</span>
     ) : (
@@ -650,8 +664,8 @@ function PackageCard(props: {
   );
   const count = (change: Change): number => components.filter((c) => c.change === change).length;
   const kept2 = components.filter((c) => !excluded.has(keyOf(c)));
-  const deploy = kept2.filter((c) => c.change !== 'deleted');
-  const remove = kept2.filter((c) => c.change === 'deleted');
+  const deploy = kept2.filter((c) => !isRemoval(c.change));
+  const remove = kept2.filter((c) => isRemoval(c.change));
   const toggle = (key: string, on: boolean): void => {
     const next = new Set(excluded);
     if (on) next.delete(key);
@@ -676,7 +690,11 @@ function PackageCard(props: {
 
   const save = async (files: boolean): Promise<void> => {
     try {
-      const { bytes, name } = await engine.download(pkg.id, { files, exclude: [...excluded] });
+      const { bytes, name } = await engine.download(pkg.id, {
+        files,
+        exclude: [...excluded],
+        include: included(pkg, excluded),
+      });
       download(name, bytes, 'application/zip');
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
@@ -804,7 +822,7 @@ function PackageCard(props: {
               new Map(
                 components
                   .filter((c) => !excluded.has(keyOf(c)))
-                  .map((c) => [keyOf(c), c.change === 'deleted' ? ('delete' as const) : ('deploy' as const)])
+                  .map((c) => [keyOf(c), isRemoval(c.change) ? ('delete' as const) : ('deploy' as const)])
               )
             }
             onActions={(next) => {
@@ -816,7 +834,7 @@ function PackageCard(props: {
               setExcluded(out);
             }}
             // What changed decides it: a deleted component can only be deleted, the others only deployed
-            allowed={(c, a) => (a === 'delete') === (c.change === 'deleted')}
+            allowed={(c, a) => (a === 'delete') === isRemoval(c.change)}
             tone={(st) => CHANGE_TONE[st as Change] ?? ''}
             hideFilter
             renderName={(c) => {

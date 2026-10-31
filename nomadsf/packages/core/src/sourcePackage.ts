@@ -265,7 +265,14 @@ export function similarity(a: string, b: string): number {
   return common / Math.max(x.length, y.length, 1);
 }
 
-export type PackageChange = 'added' | 'changed' | 'deleted';
+/**
+ * What brings a component into the package: added, changed or deleted between the two sides — or, offered for you to
+ * choose (custom labels: every label is listed), unchanged on the source side, or only in the target.
+ */
+export type PackageChange = 'added' | 'changed' | 'deleted' | 'unchanged' | 'only in target';
+
+/** A change that goes into destructiveChanges.xml (the others into package.xml). */
+export const isRemoval = (change: PackageChange): boolean => change === 'deleted' || change === 'only in target';
 
 export type PackageComponent = {
   type: string;

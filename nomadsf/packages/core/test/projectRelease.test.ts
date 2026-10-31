@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   projectComponentFiles,
+  projectLabels,
   projectMetadataZip,
   projectTests,
   readZip,
@@ -19,6 +20,8 @@ const files: Record<string, string> = {
   [`${d}/classes/Secret.cls-meta.xml`]: '<ApexClass/>',
   [`${d}/layouts/Account-Main.layout-meta.xml`]: '<Layout/>',
   [`${d}/objects/Account/fields/Score__c.field-meta.xml`]: '<CustomField><fullName>Score__c</fullName></CustomField>',
+  [`${d}/labels/CustomLabels.labels-meta.xml`]:
+    '<CustomLabels><labels><fullName>Hello</fullName></labels><labels><fullName>Bye</fullName></labels></CustomLabels>',
   [`${d}/objects/Case/validationRules/Need.validationRule-meta.xml`]:
     '<ValidationRule><fullName>Need</fullName></ValidationRule>',
 };
@@ -88,6 +91,10 @@ describe('a package from the project on disk', () => {
     expect((await projectComponentFiles({ fs, info }, { type: 'Flow', name: 'Nope' }, '62.0')).problem).toBe(
       'no source file for it'
     );
+  });
+
+  it('lists every custom label of the project', async () => {
+    expect(await projectLabels(fs, info)).toEqual(['Bye', 'Hello']);
   });
 
   it('finds the tests that reach its classes', async () => {

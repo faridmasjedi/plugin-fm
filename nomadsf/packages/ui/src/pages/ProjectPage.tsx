@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   checkComponentsWithOrg,
   componentFilePaths,
   folderBytes,
   parsePackageXml,
+  projectLabels,
   projectMetadataZip,
   projectTests,
   type ProjectTypeSummary,
@@ -37,6 +38,23 @@ export function ProjectPage({
   const [actions, setActions] = useState<Map<string, RowAction>>(new Map());
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const { source, info } = project;
+  // The labels file is its labels: opening CustomLabels lists each one (type CustomLabel)
+  const [labels, setLabels] = useState<string[]>();
+  useEffect(() => {
+    setLabels(undefined);
+    if (type?.type !== 'CustomLabels' || !source || !info) return;
+    let canceled = false;
+    projectLabels(source.fs, info)
+      .then((names) => !canceled && setLabels(names))
+      .catch(() => undefined);
+    return () => {
+      canceled = true;
+    };
+  }, [type, source, info]);
+  const shown: ProjectTypeSummary | null =
+    type?.type === 'CustomLabels' && labels
+      ? { ...type, type: 'CustomLabel', names: labels, count: labels.length }
+      : type;
   const keyOf = (t: string, name: string): string => `${t}:${name}`;
   const listed = (kind: RowAction): Array<{ type: string; name: string }> =>
     [...actions]
@@ -176,6 +194,8 @@ export function ProjectPage({
                         if (column !== 'action') return undefined;
                         const t = dir.types.find((x) => x.type === row.type);
                         if (!t) return undefined;
+                        if (t.type === 'CustomLabels')
+                          return <span className="muted small">open it: label by label</span>;
                         const chosen = t.names.filter((n) => actions.has(keyOf(t.type, n))).length;
                         return (
                           <span className="type-action">
@@ -215,7 +235,7 @@ export function ProjectPage({
               </div>
 
               <div className="card section">
-                {!type ? (
+                {!shown ? (
                   <p className="muted">
                     Click a type to see its components or put them in a package. To compare with the org, open the
                     Compare tab.
@@ -223,12 +243,12 @@ export function ProjectPage({
                 ) : (
                   <>
                     <h3>
-                      {type.type} <span className="muted">({type.count} in the project)</span>
+                      {shown.type} <span className="muted">({shown.count} in the project)</span>
                     </h3>
                     <div className="form">
                       <button
                         onClick={() =>
-                          setActions(withAction(actions, type.names, 'deploy', (n) => keyOf(type.type, n)))
+                          setActions(withAction(actions, shown.names, 'deploy', (n) => keyOf(shown.type, n)))
                         }
                       >
                         Add all to package
@@ -236,7 +256,7 @@ export function ProjectPage({
                       <button
                         className="danger"
                         onClick={() =>
-                          setActions(withAction(actions, type.names, 'delete', (n) => keyOf(type.type, n)))
+                          setActions(withAction(actions, shown.names, 'delete', (n) => keyOf(shown.type, n)))
                         }
                       >
                         All as destructive changes
@@ -246,8 +266,8 @@ export function ProjectPage({
                         title="Retrieve these from the org in Release › Metadata"
                         onClick={() => {
                           project.openPackage({
-                            label: `${type.type} from ${info.name}`,
-                            types: [{ type: type.type, members: type.names }],
+                            label: `${shown.type} from ${info.name}`,
+                            types: [{ type: shown.type, members: shown.names }],
                           });
                           onOpenMetadata();
                         }}
@@ -262,23 +282,23 @@ export function ProjectPage({
                           deployable={ticked.size}
                           deletable={ticked.size}
                           ticked={ticked.size}
-                          onSet={(a) => setActions(withAction(actions, [...ticked], a, (n) => keyOf(type.type, n)))}
+                          onSet={(a) => setActions(withAction(actions, [...ticked], a, (n) => keyOf(shown.type, n)))}
                         />
                       </div>
                     )}
                     <DataTable
                       columns={['name', 'action']}
-                      rows={type.names.map((name) => ({ name, action: actions.get(keyOf(type.type, name)) ?? '' }))}
+                      rows={shown.names.map((name) => ({ name, action: actions.get(keyOf(shown.type, name)) ?? '' }))}
                       rowKey="name"
-                      name={`${type.type}-components`}
+                      name={`${shown.type}-components`}
                       selected={ticked}
                       onSelectedChange={setTicked}
                       renderCell={(column, row) =>
                         column === 'action' ? (
                           <RowActionSelect
-                            value={actions.get(keyOf(type.type, String(row.name)))}
+                            value={actions.get(keyOf(shown.type, String(row.name)))}
                             onChange={(a) =>
-                              setActions(withAction(actions, [String(row.name)], a, (n) => keyOf(type.type, n)))
+                              setActions(withAction(actions, [String(row.name)], a, (n) => keyOf(shown.type, n)))
                             }
                           />
                         ) : undefined

@@ -136,7 +136,9 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
       if (!clients.source || !clients.target) throw new Error('Choose two different orgs.');
       storage.set('orgdiff.types', [...chosen]);
       setPkg(null);
-      const result = await compareOrgs(clients.source, clients.target, [...chosen].sort(), (done, total, type) =>
+      // The labels file is every label: compared one by one (CustomLabel)
+      const types = [...new Set([...chosen].map((t) => (t === 'CustomLabels' ? 'CustomLabel' : t)))].sort();
+      const result = await compareOrgs(clients.source, clients.target, types, (done, total, type) =>
         setStatus(`Listing ${type} (${done + 1} of ${total})…`)
       );
       setRows(result.rows);

@@ -208,6 +208,7 @@ describe('compare & package on a folder', () => {
       'CustomField:Account.Score__c': 'added',
       'CustomLabel:Added': 'added',
       'CustomLabel:Changed': 'changed',
+      'CustomLabel:Kept': 'unchanged',
       'CustomLabel:Removed': 'deleted',
       // the object goes, and its field with it (not listed on its own)
       'CustomObject:Legacy__c': 'deleted',
@@ -332,6 +333,10 @@ describe('compare & package on a folder', () => {
     expect(text('package.xml')).toContain('<version>62.0</version>');
     expect(notConverted.map((c) => c.type)).toEqual(['ExperienceBundle']);
     expect(deployed.some((c) => c.name === 'Newer')).toBe(true);
+    // Every other label is offered, left out until added
+    expect(pkg.optional).toEqual(['CustomLabel:Kept']);
+    const withKept = await readZip((await engine.metadataZip(pkg.id, { include: ['CustomLabel:Kept'] })).zip);
+    expect(new TextDecoder().decode(withKept.get('labels/CustomLabels.labels'))).toContain('<fullName>Kept</fullName>');
   });
 
   it('finds the tests for the package from the source commit', async () => {
@@ -362,6 +367,8 @@ describe('compare & package on a folder', () => {
       'ApexClass:Newer': 'changed',
       'ApexClass:Old': 'deleted',
       'CustomLabel:Added': 'changed',
+      'CustomLabel:Changed': 'unchanged',
+      'CustomLabel:Kept': 'unchanged',
       'LightningComponentBundle:cssGone': 'changed',
       'LightningComponentBundle:nested': 'changed',
     });

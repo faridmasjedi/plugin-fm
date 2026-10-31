@@ -10,6 +10,7 @@ import {
   fromBase64,
   listCode,
   listMetadata,
+  projectLabels,
   projectCodeIndex,
   projectMetadataZip,
   projectTests,
@@ -123,10 +124,12 @@ export function ProjectCompare({
     try {
       for (const [i, t] of list.entries()) {
         setStatus(`Listing ${t.type} in ${studio.org.label}… ${i + 1}/${list.length}`);
+        // The labels file is every label, one by one: each in the project, and each only in the org
+        const type = t.type === 'CustomLabels' ? 'CustomLabel' : t.type;
         // eslint-disable-next-line no-await-in-loop
-        const listed = (await listMetadata(studio.client, t.type, FOLDER_BASED.has(t.type))).filter(
-          (c) => c.type === t.type
-        );
+        const names = type === 'CustomLabel' && fs ? new Set(await projectLabels(fs, info)) : t.names;
+        // eslint-disable-next-line no-await-in-loop
+        const listed = (await listMetadata(studio.client, type, FOLDER_BASED.has(type))).filter((c) => c.type === type);
         // Components of installed packages (or another namespace, e.g. Salesforce's own) are not yours to restore or delete
         const own = listed.filter(
           (c) =>
@@ -135,10 +138,10 @@ export function ProjectCompare({
         );
         managed += listed.length - own.length;
         const inOrg = new Set(own.map((c) => c.fullName));
-        for (const name of new Set([...inOrg, ...t.names])) {
+        for (const name of new Set([...inOrg, ...names])) {
           const where: Where =
-            inOrg.has(name) && t.names.has(name) ? 'both' : inOrg.has(name) ? 'only in org' : 'only in project';
-          out.push({ key: `${t.type}:${name}`, type: t.type, name, where });
+            inOrg.has(name) && names.has(name) ? 'both' : inOrg.has(name) ? 'only in org' : 'only in project';
+          out.push({ key: `${type}:${name}`, type, name, where });
         }
       }
       setRows(out.sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name)));
