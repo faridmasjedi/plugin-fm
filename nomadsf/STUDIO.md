@@ -7,7 +7,6 @@ A Salesforce developer workbench in the spirit of the Developer Console and Sale
 | **Browser extension** (Chrome, Edge) | the browser's own Salesforce session (`sid` cookie of the org you are on) — no CLI needed  | ✅ released (zip)          |
 | **VS Code extension**                | the Studio in an editor tab, on its own, with the Salesforce CLI's logins                  | ✅ released (.vsix)        |
 | **Local app** — `sf fm dashboard`    | through the local server with the Salesforce CLI's login; the token never reaches the page | ✅ with the `sf fm` plugin |
-| **Desktop app** (Electron)           | the local app in its own window                                                            | build from source (below)  |
 
 Website and guide: <https://faridmasjedi.github.io/plugin-fm/>.
 
@@ -71,8 +70,7 @@ A hub opens on the tab used last. **Side by side**: drag a hub from the sidebar,
 - **Jobs** — **Scheduled** (CronTrigger: scheduled Apex, report runs, dashboard refreshes, scheduled flows, with next and last run and cron) and **Background Apex** (batch, queueable and future jobs of the last 1–90 days with progress, errors and status). Tick jobs and **Stop** them (`System.abortJob`, after the org name).
 - **Deployments** — the org's deployments and validations (DeployRequest): who, when, components and tests, how many failed; click one for its component and test failures. A validation that succeeded with tests in the last 10 days can be **Quick deployed** (after the org name).
 - **Metadata** — every metadata type of the org; list components (folder types such as reports and dashboards folder by folder), build a package that mixes types, then **Download zip** (Metadata API retrieve), **package.xml** (download / copy), or in the app **Retrieve into project** (`sf project retrieve start`).
-- **Tests** — Playwright scenarios of the project, run through the local app (`sf fm e2e run`), last results and the HTML report.
-- **AI help** (✦, with the AI connected on the local app's AI page; keys stay in the app):
+- **AI help** (✦, with your own AI provider connected in Settings › AI in the browser extension; in `sf fm dashboard`, its AI page):
   - **Query → Write SOQL** from a plain-English question, using the org's own objects and the fields of the objects you mention.
   - **Explain with AI** on any debug log (errors, limits, likely fix; long logs are cut down to the telling lines first).
   - **Explain failures with AI** for failed Apex tests.
@@ -109,20 +107,7 @@ The extension asks for `cookies`, access to `127.0.0.1` / `localhost` (the local
 
 - The Studio ships with the extension (`dist/studio`, the `packages/ui` build) and is the webview page itself. **NomadSF** in the status bar opens it in an editor tab.
 - Orgs: the Salesforce CLI's logins, read by the extension with `@salesforce/core` (bundled, `apps/vscode/src/orgs.ts`); the Studio's requests go through the extension, which adds the token (only `/services/*` and CometD, like the app's proxy). **NomadSF: Log in to an org** runs the CLI's browser login and saves it where the CLI keeps it. Salesforce pages open logged in through the org's front door.
-- Commands (⇧⌘P → NomadSF): _Open Studio_, _Open Studio page…_, _Log in to an org_, _Open the app_ (the local app of the plugin: runs and approvals, runbooks, AI), _Stop the local app_. In the editor (right-click on a selection): **Show all data of the selected record Id** and **Run the selected SOQL in Studio**.
-- Settings (for _Open the app_ only): `nomadsf.port` (7007), `nomadsf.sfCommand` (`sf`), `nomadsf.autoStart`. Works in remote windows and Codespaces (the port is forwarded).
-
-### Desktop app
-
-`nomadsf/apps/desktop` (Electron, kept out of the yarn workspaces so normal installs do not download Electron):
-
-```bash
-cd nomadsf/apps/desktop && npm install
-npm start          # choose a Salesforce project folder; the app opens in its own window
-npm run dist       # installers: dmg / zip (macOS), NSIS (Windows), AppImage (Linux)
-```
-
-It starts `sf fm dashboard` for the project on a free port, finds `sf` through your login shell's PATH (also when started from the Dock), remembers the last project (**File → Open Salesforce project…**, ⌘O to switch), and has **Go → Runs / Studio / Orgs / AI**. Only the local app opens inside the window; sign-ins and Salesforce links open in your browser. Quitting stops the local app.
+- Commands (⇧⌘P → NomadSF): _Open Studio_, _Open Studio page…_, _Log in to an org_, _Open the guide_. In the editor (right-click on a selection): **Show all data of the selected record Id** and **Run the selected SOQL in Studio**. No settings: it needs no local app or CLI.
 
 ## Develop
 
@@ -139,4 +124,4 @@ yarn typecheck
 yarn --cwd packages/ui dev   # Studio with hot reload; /api is proxied to a running `sf fm dashboard`
 ```
 
-The core talks to Salesforce through a **transport**: `proxyTransport` (NomadSF app: the local server adds the token), `fetchTransport` (extension: session id). VS Code and the desktop app will add their own transport, so the core and the UI stay the same everywhere.
+The core talks to Salesforce through a **transport**: `proxyTransport` (NomadSF app: the local server adds the token), `fetchTransport` (extension: session id). VS Code adds its own transport (through the extension), so the core and the UI stay the same everywhere.

@@ -46,9 +46,6 @@ jobs:
       - run: yarn build
       - name: VS Code extension
         run: yarn --cwd apps/vscode package
-      - name: Desktop app helpers
-        working-directory: nomadsf/apps/desktop
-        run: node --test test/app.test.js
       # No Actions artifacts (limited storage): the zip is described in the job summary and,
       # on main, published to the rolling pre-release "extension-latest".
       - name: Extension package

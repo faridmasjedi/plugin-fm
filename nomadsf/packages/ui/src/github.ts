@@ -42,7 +42,7 @@ export async function currentGitHub(hostKind: HostKind): Promise<GitHubConnectio
   if (token) return { mode: 'token', api: tokenTransport(token) };
   // The extension connects with a token or "Sign in with GitHub" only; the app uses its gh login
   if (hostKind !== 'app') return undefined;
-  const base = localAppBase(hostKind);
+  const base = localAppBase(hostKind) ?? '';
   try {
     const res = await fetch(`${base}/api/github/status`, { cache: 'no-store' });
     if (res.ok && ((await res.json()) as { cli?: boolean }).cli) return { mode: 'app', api: appTransport(base) };
