@@ -3177,15 +3177,80 @@ details.compare-file-group > summary {
 .compare-table td:first-child {
   width: 28px;
 }
+/* Compare & package forms: a label over each control, controls the same height, the action at the end of a row */
 .compare-manifest {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 10px;
-  margin: 12px 0;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 16px;
+  align-items: end;
+  margin: 4px 0 12px;
 }
-.compare-manifest label {
-  display: grid;
-  gap: 4px;
+.compare-manifest label,
+.compare-go label,
+.compare-refs label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.compare-manifest label > span,
+.compare-go label > span,
+.compare-refs label > span {
+  font-weight: 600;
+  color: var(--text);
+}
+.compare-manifest label i {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--muted);
+}
+.compare-manifest select,
+.compare-go select,
+.compare-go input,
+.compare-refs select {
+  width: 100%;
+  box-sizing: border-box;
+  height: 34px;
+}
+.compare-manifest input[type='file'] {
+  width: 100%;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 4px 6px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12.5px;
+}
+.compare-manifest input[type='file']::file-selector-button {
+  margin-right: 10px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+.compare-go {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+  margin-top: 4px;
+}
+.compare-go label {
+  flex: 0 1 300px;
+}
+.compare-go .compare-hint {
+  flex: 1 1 260px;
+  padding-bottom: 8px;
+  font-size: 12.5px;
+}
+.compare-go > button {
+  height: 34px;
 }
 
 /* Validate and deploy (every package): a head with what goes, label | controls rows, then the actions */
@@ -3275,4 +3340,88 @@ select.row-action.delete {
 }
 .compare-mode[hidden] {
   display: none;
+}
+
+/* A compare by type: one line per type you open (counts, what is chosen, all to package / destructive) */
+.grouped-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.grouped-actions .group {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.grouped-actions .group.open {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.grouped-actions .group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+}
+.grouped-actions .group.open .group-head {
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+.grouped-actions .group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: none;
+  padding: 2px 0;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+.grouped-actions .group-toggle .caret {
+  width: 12px;
+  color: var(--muted);
+}
+.grouped-actions .group-status,
+.grouped-actions .group-chosen,
+.grouped-actions .group-buttons {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.grouped-actions .group-buttons button {
+  padding: 3px 10px;
+  font-size: 12.5px;
+}
+.grouped-actions .group-rows {
+  width: 100%;
+  margin: 0;
+}
+.grouped-actions .group-rows td {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+}
+.grouped-actions .group-rows tr:first-child td {
+  border-top: 0;
+}
+.grouped-actions .group-rows td:first-child {
+  width: 55%;
+  overflow-wrap: anywhere;
+}
+.grouped-actions .group-rows .group-action {
+  width: 190px;
+  text-align: right;
+}
+.grouped-actions .group-rows tr.deploy td:first-child {
+  box-shadow: inset 3px 0 0 var(--good);
+}
+.grouped-actions .group-rows tr.delete td:first-child {
+  box-shadow: inset 3px 0 0 var(--bad);
+}
+.type-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }

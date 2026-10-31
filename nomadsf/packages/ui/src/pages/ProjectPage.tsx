@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { parsePackageXml, type ProjectTypeSummary } from '@nomadsf/core';
+import { folderBytes, parsePackageXml, projectMetadataZip, projectTests, type ProjectTypeSummary } from '@nomadsf/core';
 import { DataTable } from '../components/DataTable';
 import { ProjectCompare } from '../components/ProjectCompare';
+import { ReleasePanel } from '../components/ReleasePanel';
+import { RowActionBar, RowActionSelect, withAction, type RowAction } from '../components/RowActions';
 import { useProject } from '../project';
 import { storage, type Studio } from '../context';
 import { Status } from '../statusLog';
@@ -22,7 +24,22 @@ export function ProjectPage({
   const [type, setType] = useState<ProjectTypeSummary | null>(null);
   const [status, setStatus] = useState('');
   const [tab, setTab] = useState<'overview' | 'compare'>(() => storage.get('project.tab', 'overview'));
+  // Overview: components put into a package or made destructive changes (type:name → action), and the ticked ones
+  const [actions, setActions] = useState<Map<string, RowAction>>(new Map());
+  const [ticked, setTicked] = useState<Set<string>>(new Set());
   const { source, info } = project;
+  const keyOf = (t: string, name: string): string => `${t}:${name}`;
+  const listed = (kind: RowAction): Array<{ type: string; name: string }> =>
+    [...actions]
+      .filter(([, a]) => a === kind)
+      .map(([key]) => ({ type: key.slice(0, key.indexOf(':')), name: key.slice(key.indexOf(':') + 1) }));
+  const toDeploy = listed('deploy');
+  /** A whole type's action: the same for every component of it, else none (some chosen one by one). */
+  const typeAction = (t: ProjectTypeSummary): RowAction | undefined => {
+    const first = actions.get(keyOf(t.type, t.names[0] ?? ''));
+    return first && t.names.every((n) => actions.get(keyOf(t.type, n)) === first) ? first : undefined;
+  };
+  const toDelete = listed('delete');
 
   const openManifest = async (path: string) => {
     const text = source ? await source.fs.readText(path) : undefined;
@@ -142,12 +159,32 @@ export function ProjectPage({
                       )}
                     </h3>
                     <DataTable
-                      columns={['type', 'count', 'folder']}
-                      rows={dir.types.map((t) => ({ ...t, key: `${dir.path}:${t.type}` }))}
+                      columns={['type', 'count', 'action']}
+                      rows={dir.types.map((t) => ({ ...t, key: `${dir.path}:${t.type}`, action: typeAction(t) ?? '' }))}
                       rowKey="key"
                       name={`${dir.path}-types`}
+                      renderCell={(column, row) => {
+                        if (column !== 'action') return undefined;
+                        const t = dir.types.find((x) => x.type === row.type);
+                        if (!t) return undefined;
+                        const chosen = t.names.filter((n) => actions.has(keyOf(t.type, n))).length;
+                        return (
+                          <span className="type-action">
+                            <RowActionSelect
+                              value={typeAction(t)}
+                              onChange={(a) => setActions(withAction(actions, t.names, a, (n) => keyOf(t.type, n)))}
+                            />
+                            {chosen > 0 && !typeAction(t) && (
+                              <span className="muted small">
+                                {chosen}/{t.names.length}
+                              </span>
+                            )}
+                          </span>
+                        );
+                      }}
                       onRowClick={(row) => {
                         setType(dir.types.find((t) => t.type === row.type) ?? null);
+                        setTicked(new Set());
                       }}
                       note={<span>· click a type</span>}
                     />
@@ -181,6 +218,23 @@ export function ProjectPage({
                     </h3>
                     <div className="form">
                       <button
+                        onClick={() =>
+                          setActions(withAction(actions, type.names, 'deploy', (n) => keyOf(type.type, n)))
+                        }
+                      >
+                        Add all to package
+                      </button>
+                      <button
+                        className="danger"
+                        onClick={() =>
+                          setActions(withAction(actions, type.names, 'delete', (n) => keyOf(type.type, n)))
+                        }
+                      >
+                        All as destructive changes
+                      </button>
+                      <span className="grow" />
+                      <button
+                        title="Retrieve these from the org in Release › Metadata"
                         onClick={() => {
                           project.openPackage({
                             label: `${type.type} from ${info.name}`,
@@ -189,19 +243,74 @@ export function ProjectPage({
                           onOpenMetadata();
                         }}
                       >
-                        Add all to package
+                        Open in Metadata ›
                       </button>
                     </div>
+                    {ticked.size > 0 && (
+                      <div className="form">
+                        <span className="muted">{ticked.size} ticked</span>
+                        <RowActionBar
+                          deployable={ticked.size}
+                          deletable={ticked.size}
+                          ticked={ticked.size}
+                          onSet={(a) => setActions(withAction(actions, [...ticked], a, (n) => keyOf(type.type, n)))}
+                        />
+                      </div>
+                    )}
                     <DataTable
-                      columns={['name']}
-                      rows={type.names.map((name) => ({ name }))}
+                      columns={['name', 'action']}
+                      rows={type.names.map((name) => ({ name, action: actions.get(keyOf(type.type, name)) ?? '' }))}
                       rowKey="name"
                       name={`${type.type}-components`}
+                      selected={ticked}
+                      onSelectedChange={setTicked}
+                      renderCell={(column, row) =>
+                        column === 'action' ? (
+                          <RowActionSelect
+                            value={actions.get(keyOf(type.type, String(row.name)))}
+                            onChange={(a) =>
+                              setActions(withAction(actions, [String(row.name)], a, (n) => keyOf(type.type, n)))
+                            }
+                          />
+                        ) : undefined
+                      }
                     />
                   </>
                 )}
               </div>
             </div>
+          )}
+
+          {tab === 'overview' && studio && source && (toDeploy.length > 0 || toDelete.length > 0) && (
+            <>
+              <div className="form">
+                <span className="muted">{`Package: ${toDeploy.length} to deploy · ${toDelete.length} to delete (from every type)`}</span>
+                <button onClick={() => setActions(new Map())}>Clear all actions</button>
+              </div>
+              <ReleasePanel
+                studio={studio}
+                key={[...actions]
+                  .map(([k, a]) => `${a}:${k}`)
+                  .sort()
+                  .join(',')}
+                deployCount={toDeploy.length}
+                removeCount={toDelete.length}
+                from={`the project ${info.name}`}
+                build={async (removeWhen) =>
+                  projectMetadataZip({
+                    fs: source.fs,
+                    info,
+                    deploy: toDeploy,
+                    remove: toDelete,
+                    removeWhen,
+                    apiVersion: await studio.client.version(),
+                    readBytes: source.handle ? (path) => folderBytes(source.handle!, path) : undefined,
+                  })
+                }
+                findTests={toDeploy.length ? () => projectTests(source.fs, info, toDeploy) : undefined}
+                zipName={`${info.name}-package.zip`}
+              />
+            </>
           )}
         </>
       )}

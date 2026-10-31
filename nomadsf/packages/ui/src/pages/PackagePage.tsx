@@ -360,7 +360,7 @@ function ModePanel({
 
   const refSelect = (value: string, set: (v: string) => void, label: string) => (
     <label>
-      {label}
+      <span>{label}</span>
       <select value={value} onChange={(e) => set(e.target.value)}>
         <option value="">Choose…</option>
         {refs &&
@@ -389,26 +389,31 @@ function ModePanel({
     <>
       <div className="card section">
         {mode === 'branch-org' ? (
-          <div className="compare-manifest">
+          <div className="compare-go">
             {refSelect(sourceRef, setSourceRef, 'Branch')}
-            <span className="muted">
-              compared with <b>{studio.org.label}</b> (the org at the top): every type, then validate, deploy or quick
+            <span className="muted compare-hint">
+              compared with <b>{studio.org.label}</b> (the org at the top) — every type, then validate, deploy or quick
               deploy what differs
             </span>
+            <button className="primary" disabled={busy || !refs} onClick={() => void readBranch()}>
+              {busy ? 'Reading…' : 'Read the branch'}
+            </button>
           </div>
         ) : mode === 'manifest' ? (
           <div className="compare-manifest">
             <label>
-              package.xml
+              <span>package.xml</span>
               <input type="file" accept=".xml" onChange={(e) => void readFile(setManifest)(e)} />
             </label>
             <label>
-              destructiveChanges.xml <span className="muted">(optional)</span>
+              <span>
+                destructiveChanges.xml <i>optional</i>
+              </span>
               <input type="file" accept=".xml" onChange={(e) => void readFile(setDestructive)(e)} />
             </label>
             {refSelect(sourceRef, setSourceRef, 'The files come from')}
             <label>
-              Check against
+              <span>Check against</span>
               <select value={checkOrgId} onChange={(e) => setCheckOrgId(e.target.value)}>
                 <option value="">Don't check an org</option>
                 {studio.orgs.map((o) => (
@@ -457,18 +462,13 @@ function ModePanel({
             </fieldset>
           </>
         )}
-        {mode === 'branch-org' ? (
-          <div className="form">
-            <button className="primary" disabled={busy || !refs} onClick={() => void readBranch()}>
-              {busy ? 'Reading…' : 'Read the branch'}
-            </button>
-          </div>
-        ) : (
-          <div className="form">
-            <label className="grow">
-              .forceignore
+        {mode !== 'branch-org' && (
+          <div className="compare-go">
+            <label>
+              <span>.forceignore</span>
               <input value={forceignore} placeholder=".forceignore" onChange={(e) => setForceignore(e.target.value)} />
             </label>
+            <span className="grow" />
             <button
               className="primary"
               disabled={busy || !refs}

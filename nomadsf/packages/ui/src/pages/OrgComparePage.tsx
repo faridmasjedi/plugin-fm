@@ -13,11 +13,13 @@ import {
   type OrgDiffStatus,
   type SalesforceClient,
 } from '@nomadsf/core';
-import { DataTable, download } from '../components/DataTable';
+import { download } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { detectHost, orgFacts, type OrgChoice, type OrgFacts } from '../host';
 import { OrgPairBar, usePair } from '../pair';
 import { ReleasePanel } from '../components/ReleasePanel';
+import { GroupedActions } from '../components/GroupedActions';
+import { withAction, type RowAction } from '../components/RowActions';
 import { Status } from '../statusLog';
 
 const COMMON = [
@@ -60,8 +62,8 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
   const [chosen, setChosen] = useState<Set<string>>(() => new Set(storage.get<string[]>('orgdiff.types', COMMON)));
   const [rows, setRows] = useState<OrgDiffRow[] | null>(null);
   const [show, setShow] = useState<Show>('all');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [withDeletions, setWithDeletions] = useState(false);
+  // Each row: deployed from A (package.xml) or deleted from B (destructiveChanges.xml)
+  const [actions, setActions] = useState<Map<string, RowAction>>(new Map());
   const [pkg, setPkg] = useState<DiffPackage | null>(null);
   const [status, setStatus] = useState('');
   // Where the message belongs: at the top (connect, compare), or by Build package
@@ -78,6 +80,7 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
   // Connect to both orgs (browser logins in the extension, CLI orgs in the app)
   useEffect(() => {
     setRows(null);
+    setActions(new Map());
     setPkg(null);
     setClients({});
     setTargetFacts(undefined);
@@ -102,11 +105,13 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
 
   const count = (s: Show): number => (rows ?? []).filter((r) => s === 'all' || r.status === s).length;
   const shown = useMemo(() => (rows ?? []).filter((r) => show === 'all' || r.status === show), [rows, show]);
-  const picked = (rows ?? []).filter((r) => selected.has(r.key));
-  const toDeploy = picked.filter(
-    (r) => r.status === 'only in source' || r.status === 'different' || r.status === 'in both'
-  );
-  const toDelete = withDeletions ? picked.filter((r) => r.status === 'only in target') : [];
+  // Deploying needs the component in A; deleting needs it in B
+  const allowed = (r: OrgDiffRow, a: RowAction): boolean =>
+    a === 'deploy' ? r.status !== 'only in target' : r.status !== 'only in source';
+  const toDeploy = (rows ?? []).filter((r) => actions.get(r.key) === 'deploy');
+  const toDelete = (rows ?? []).filter((r) => actions.get(r.key) === 'delete');
+  const setAction = (list: OrgDiffRow[], a: RowAction | undefined): void =>
+    setActions(withAction(actions, list, a, (r) => r.key, allowed));
 
   const run = async (label: string, action: () => Promise<void>, at: 'top' | 'package' = 'top') => {
     setBusy(true);
@@ -130,7 +135,7 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
         setStatus(`Listing ${type} (${done + 1} of ${total})…`)
       );
       setRows(result.rows);
-      setSelected(new Set());
+      setActions(new Map());
       setShow('all');
       setStatus(
         result.skipped ? `${result.skipped} component(s) of installed packages or other namespaces left out.` : ''
@@ -191,9 +196,11 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
       toDeploy.map((r) => ({ type: r.type, name: r.name }))
     );
 
+  /** Every row A changes (only in A, or different) goes into the package; only-in-B rows stay for you. */
   const pickDifference = () =>
-    setSelected(
-      new Set((rows ?? []).filter((r) => r.status === 'only in source' || r.status === 'different').map((r) => r.key))
+    setAction(
+      (rows ?? []).filter((r) => r.status === 'only in source' || r.status === 'different'),
+      'deploy'
     );
 
   return (
@@ -256,7 +263,6 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
                 }`}
                 onClick={() => {
                   setShow(id);
-                  setSelected(new Set());
                 }}
               >
                 <b>{count(id)}</b>
@@ -274,49 +280,37 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
                 Compare content of {count('in both')} in both
               </button>
             )}
-            <button onClick={pickDifference} title="Tick every row only in A, or different">
+            <button
+              onClick={pickDifference}
+              title="Deploy every row only in A or different (choose Destructive change for what is only in B)"
+            >
               Add all differences
             </button>
           </div>
-          <DataTable
-            columns={['type', 'name', 'status']}
-            rows={shown.map((r) => ({ ...r }))}
-            rowKey="key"
-            name={`org-diff-${source?.label}-${target?.label}`}
-            selected={selected}
-            onSelectedChange={setSelected}
-            note={<span>· tick rows for the package</span>}
+          <GroupedActions
+            rows={shown}
+            actions={actions}
+            onActions={setActions}
+            allowed={allowed}
+            tone={(st) => (st === 'same' ? 'good' : st === 'in both' ? '' : st === 'different' ? 'warn' : 'bad')}
           />
-          {picked.length > 0 && (
+          {(toDeploy.length > 0 || toDelete.length > 0) && (
             <div className="compare-actions">
               <span className="muted">
-                {picked.length} selected · {toDeploy.length} to deploy from {source?.label}
-                {picked.some((r) => r.status === 'only in target') && (
-                  <label className="check" style={{ marginLeft: 12 }}>
-                    <input
-                      type="checkbox"
-                      checked={withDeletions}
-                      onChange={(e) => setWithDeletions(e.target.checked)}
-                    />{' '}
-                    also delete {picked.filter((r) => r.status === 'only in target').length} that exist only in{' '}
-                    {target?.label}
-                  </label>
-                )}
+                Package: <b>{toDeploy.length}</b> to deploy from {source?.label} ·{' '}
+                <b className="bad-text">{toDelete.length}</b> to delete from {target?.label}
               </span>
               <div className="form">
-                <button
-                  className="primary"
-                  disabled={busy || (!toDeploy.length && !toDelete.length)}
-                  onClick={() => void makePackage()}
-                >
+                <button className="primary" disabled={busy} onClick={() => void makePackage()}>
                   Build package
                 </button>
+                <button onClick={() => setActions(new Map())}>Clear all actions</button>
                 {status && statusAt === 'package' && <Status text={status} />}
               </div>
               <p className="muted" style={{ margin: 0 }}>
-                Build package retrieves the ticked components from A into a zip with <code>package.xml</code> (and{' '}
-                <code>destructiveChangesPost.xml</code> for those you also delete) to download. Validate and deploy,
-                below, send the ticked components into B with the tests you choose.
+                Build package retrieves the components to deploy from A into a zip with <code>package.xml</code> (and{' '}
+                <code>destructiveChangesPost.xml</code> for the destructive changes) to download. Validate and deploy,
+                below, send them into B with the tests you choose.
               </p>
             </div>
           )}
@@ -362,9 +356,12 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
               </p>
             </div>
           )}
-          {picked.length > 0 && clients.target && (toDeploy.length > 0 || toDelete.length > 0) && (
+          {clients.target && (toDeploy.length > 0 || toDelete.length > 0) && (
             <ReleasePanel
-              key={[...selected].sort().join(',') + String(withDeletions)}
+              key={[...actions]
+                .map(([k, a]) => `${a}:${k}`)
+                .sort()
+                .join(',')}
               deployCount={toDeploy.length}
               removeCount={toDelete.length}
               from={source?.label ?? 'A'}
