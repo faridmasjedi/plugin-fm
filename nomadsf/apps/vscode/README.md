@@ -28,7 +28,6 @@
 - **Works like the browser**: ⌘C / ⌘V and right-click Cut · Copy · Paste, links (Salesforce pages open logged in), downloads with VS Code's Save dialog, backup folders with VS Code's folder picker, and every approval inside the page.
 - **Ids you can copy**: one click selects an Id in any table, **⧉** copies it, **↗** opens it in Salesforce, **ⓘ** shows all its fields.
 - **A guide for every tool**: the **?** on each pane (or **NomadSF: Open the guide**) opens its section, with a short recording.
-- **The NomadSF app** too, when the `sf fm` plugin is installed: release runs and approvals, runbooks and AI settings (**NomadSF: Open the app**; in remote windows and Codespaces the port is forwarded for you).
 
 ![Query with a filterable table](https://faridmasjedi.github.io/plugin-fm/media/query.gif)
 
@@ -46,7 +45,6 @@
 ## Requirements
 
 - Nothing but VS Code 1.95 or later. Orgs logged in to with the Salesforce CLI show up by themselves; without the CLI, log in with **NomadSF: Log in to an org**.
-- **NomadSF: Open the app** (release runs, runbooks, AI) needs the NomadSF plugin for the Salesforce CLI, which is not published yet. Everything else works without it.
 
 Prefer the browser? The **browser extension** offers the same Studio with your browser's Salesforce login — see the [download page](https://faridmasjedi.github.io/plugin-fm/#download).
 
@@ -67,21 +65,9 @@ The Studio ships with the extension: install a newer `nomadsf-vscode.vsix` to up
 | **NomadSF: Open Studio**                             | The Studio in an editor tab                                                    |
 | **NomadSF: Log in to an org**                        | Log in to a production, developer or sandbox org in your browser               |
 | **NomadSF: Open Studio page…**                       | Pick a tool (Query, Backup, Org compare…) and open it                          |
-| **NomadSF: Open the app**                            | Release runs, approvals, runbooks, AI settings (needs the `sf fm` plugin)      |
 | **NomadSF: Show all data of the selected record Id** | The record inspector for the selection (also in the editor's right-click menu) |
 | **NomadSF: Run the selected SOQL in Studio**         | Query the selection (also in the editor's right-click menu)                    |
 | **NomadSF: Open the guide (how to use each tool)**   | The guide on the website, a section and a recording per tool                   |
-| **NomadSF: Stop the local app**                      | Stops the local app this window started                                        |
-
-## Settings
-
-These are for **NomadSF: Open the app** only; the Studio needs none.
-
-| Setting             | Default | Description                                                     |
-| ------------------- | ------- | --------------------------------------------------------------- |
-| `nomadsf.port`      | `7007`  | Port of the local NomadSF app.                                  |
-| `nomadsf.sfCommand` | `sf`    | The Salesforce CLI command (with the NomadSF plugin installed). |
-| `nomadsf.autoStart` | `true`  | Start NomadSF for this workspace when it is not running.        |
 
 ## Safety and privacy
 

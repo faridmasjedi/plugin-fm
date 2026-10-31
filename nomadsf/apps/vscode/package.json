@@ -45,11 +45,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "nomadsf.open",
-        "title": "Open the app (runs, runbooks, AI; needs the sf fm plugin)",
-        "category": "NomadSF"
-      },
-      {
         "command": "nomadsf.login",
         "title": "Log in to an org",
         "category": "NomadSF"
@@ -78,11 +73,6 @@
         "command": "nomadsf.openGuide",
         "title": "Open the guide (how to use each tool)",
         "category": "NomadSF"
-      },
-      {
-        "command": "nomadsf.stop",
-        "title": "Stop the local app",
-        "category": "NomadSF"
       }
     ],
     "menus": {
@@ -98,26 +88,6 @@
           "group": "nomadsf@2"
         }
       ]
-    },
-    "configuration": {
-      "title": "NomadSF",
-      "properties": {
-        "nomadsf.port": {
-          "type": "number",
-          "default": 7007,
-          "description": "Port of the local NomadSF app (sf fm dashboard), for \"Open the app\"."
-        },
-        "nomadsf.sfCommand": {
-          "type": "string",
-          "default": "sf",
-          "description": "Salesforce CLI command (with plugin-fm installed), for \"Open the app\". The Studio does not need it."
-        },
-        "nomadsf.autoStart": {
-          "type": "boolean",
-          "default": true,
-          "description": "\"Open the app\" starts the local app for this workspace when it is not running."
-        }
-      }
     }
   },
   "scripts": {

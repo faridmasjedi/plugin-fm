@@ -73,8 +73,7 @@
               <li>
                 Click <b>NomadSF</b> in the status bar. The Studio ships with the extension and needs nothing else: it
                 uses the orgs you logged in to with the Salesforce CLI, and <b>NomadSF: Log in to an org</b> logs in to
-                a new one in your browser. The <a href="#cli">CLI and the plugin</a> are only for
-                <b>NomadSF: Open the app</b> (release runs, runbooks, AI).
+                a new one in your browser. Neither the Salesforce CLI nor any local app is needed.
               </li>
             </ol>
           </section>
@@ -2073,8 +2072,8 @@
             <h2 id="cli">CLI and local app (for developers and CI)</h2>
             <p>
               The same repository ships the <code>sf fm</code> plugin for the Salesforce CLI. It is what pipelines use,
-              and it runs the local app (<code>sf fm dashboard</code>) that the VS Code extension shows with
-              <b>Open the app</b>.
+              and it runs a local app of its own (<code>sf fm dashboard</code>). NomadSF Studio — the browser extension
+              and the VS Code extension — does not need either.
             </p>
             <div class="callout">
               The plugin is not published yet, so it cannot be installed with <code>sf plugins install</code> for now.
@@ -2151,8 +2150,8 @@
             </p>
             <h3>Does it work without the Salesforce CLI?</h3>
             <p>
-              Yes — the browser extension and the VS Code extension need nothing else. The CLI is only for the
-              <code>sf fm</code> commands and the local app (release runs, runbooks, AI).
+              Yes — the browser extension and the VS Code extension need nothing else. In VS Code, the orgs you logged
+              in to with the Salesforce CLI show up by themselves (the CLI program itself is not used).
             </p>
             <h3>Where do I report a problem?</h3>
             <p>

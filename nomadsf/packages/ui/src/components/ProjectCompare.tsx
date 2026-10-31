@@ -85,7 +85,7 @@ export function ProjectCompare({
   const handle = project.source?.handle;
   const readBytes = branch?.readBytes ?? (handle ? (path: string) => folderBytes(handle, path) : undefined);
   const fromLabel = branch ? `the branch ${branch.name}` : `the project ${info.name}`;
-  const base = localAppBase(studio.hostKind);
+  const base = localAppBase(studio.hostKind) ?? '';
   const types = useMemo(() => {
     const byType = new Map<string, Set<string>>();
     for (const dir of info.packageDirectories)

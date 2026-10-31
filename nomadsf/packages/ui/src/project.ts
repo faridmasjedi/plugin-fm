@@ -111,15 +111,16 @@ const supportsFolders = (): boolean =>
 
 // ---------- local app ----------
 
-export const localAppBase = (kind: HostKind): string =>
-  kind === 'app' ? '' : `http://127.0.0.1:${storage.get('local.port', 7007)}`;
+/**
+ * The NomadSF CLI app's API, for the Studio it serves itself (`sf fm dashboard`, same origin). The browser extension
+ * and VS Code work on their own: they never call a local app (undefined).
+ */
+export const localAppBase = (kind: HostKind): string | undefined => (kind === 'app' ? '' : undefined);
 
-/** The browser extension works on its own: it never looks for the NomadSF CLI app (that runs its own Studio). */
-export const localAppEnabled = (): boolean => false;
-
-async function localProject(base: string): Promise<{ current: RecentProject; recent: RecentProject[] } | undefined> {
-  // base '' = inside the app itself, which is always there
-  if (base && !localAppEnabled()) return undefined;
+async function localProject(
+  base: string | undefined
+): Promise<{ current: RecentProject; recent: RecentProject[] } | undefined> {
+  if (base === undefined) return undefined;
   try {
     const res = await fetch(`${base}/api/projects`, { cache: 'no-store' });
     return res.ok ? ((await res.json()) as { current: RecentProject; recent: RecentProject[] }) : undefined;
@@ -259,7 +260,7 @@ export function useProjectState(hostKind: HostKind, describeFolders?: Record<str
 
   const switchLocal = useCallback(
     async (path: string) => {
-      const res = await fetch(`${base}/api/projects/select`, {
+      const res = await fetch(`${base ?? ''}/api/projects/select`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-fm-dashboard': '1' },
         body: JSON.stringify({ path }),
@@ -301,7 +302,7 @@ export function useProjectState(hostKind: HostKind, describeFolders?: Record<str
       return undefined;
     }
     const check = (): void => {
-      fetch(`${base}/api/ai`, { cache: 'no-store' })
+      fetch(`${base ?? ''}/api/ai`, { cache: 'no-store' })
         .then((res) => (res.ok ? (res.json() as Promise<{ current?: { apiKeySet?: boolean } }>) : undefined))
         .then((ai) => setAiReady(Boolean(ai?.current?.apiKeySet)))
         .catch(() => setAiReady(false));
@@ -312,15 +313,6 @@ export function useProjectState(hostKind: HostKind, describeFolders?: Record<str
   }, [base, hostKind, localAvailable]);
 
   // The extension looks for the CLI app again whenever its tab gets focus (started or stopped since)
-  useEffect(() => {
-    if (hostKind === 'app') return undefined;
-    const check = (): void => {
-      void localProject(base).then((projects) => setLocalAvailable(Boolean(projects)));
-    };
-    window.addEventListener('focus', check);
-    return () => window.removeEventListener('focus', check);
-  }, [base, hostKind]);
-
   // Start with the last choice: local app first, then a stored folder
   useEffect(() => {
     void (async () => {
