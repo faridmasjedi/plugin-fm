@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { projectMetadataZip, projectTests, readZip, type ProjectFs, type ProjectInfo } from '../src/index.js';
+import {
+  projectComponentFiles,
+  projectMetadataZip,
+  projectTests,
+  readZip,
+  type ProjectFs,
+  type ProjectInfo,
+} from '../src/index.js';
 
 const d = 'force-app/main/default';
 const files: Record<string, string> = {
@@ -66,6 +73,21 @@ describe('a package from the project on disk', () => {
     expect(result.notConverted).toEqual([]);
     const zip = await readZip(result.zip);
     expect(new TextDecoder().decode(zip.get('objects/Account.object'))).toContain('<fullName>Score__c</fullName>');
+  });
+
+  it("gives a component's files in the org's paths, to pair with what the org returns", async () => {
+    const layout = await projectComponentFiles({ fs, info }, { type: 'Layout', name: 'Account-Main' }, '62.0');
+    expect(layout.files.map((f) => [f.path, f.language, f.source])).toEqual([
+      ['layouts/Account-Main.layout', 'xml', '<Layout/>'],
+    ]);
+    const cls = await projectComponentFiles({ fs, info }, { type: 'ApexClass', name: 'Hello' }, '62.0');
+    expect(cls.files.map((f) => `${f.path}:${f.language}`)).toEqual([
+      'classes/Hello.cls:apex',
+      'classes/Hello.cls-meta.xml:xml',
+    ]);
+    expect((await projectComponentFiles({ fs, info }, { type: 'Flow', name: 'Nope' }, '62.0')).problem).toBe(
+      'no source file for it'
+    );
   });
 
   it('finds the tests that reach its classes', async () => {

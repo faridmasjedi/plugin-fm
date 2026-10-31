@@ -14,7 +14,7 @@ import { makeZip, type ZipEntry } from './zip.js';
 const NS = 'http://soap.sforce.com/2006/04/metadata';
 
 /** Object children → their element in the object's file. */
-const CHILD_ELEMENTS: Record<string, string> = {
+export const CHILD_ELEMENTS: Record<string, string> = {
   BusinessProcess: 'businessProcesses',
   CompactLayout: 'compactLayouts',
   CustomField: 'fields',

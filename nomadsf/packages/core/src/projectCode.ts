@@ -67,9 +67,8 @@ const LANGUAGE: Record<string, CodeFile['language']> = {
 const languageOf = (path: string): CodeFile['language'] =>
   path.endsWith('-meta.xml') ? 'xml' : LANGUAGE[path.split('.').pop() ?? ''] ?? 'html';
 
-/** Files the org never holds in a bundle: Jest tests, and Aura's -meta.xml (the bundle record keeps it). */
-const skippedInBundle = (kind: CodeKind, rel: string): boolean =>
-  rel.split('/').includes('__tests__') || (kind === 'Aura' && rel.endsWith('-meta.xml'));
+/** Files the org never holds in a bundle: Jest tests (Aura's -meta.xml is shown from the bundle record). */
+const skippedInBundle = (_kind: CodeKind, rel: string): boolean => rel.split('/').includes('__tests__');
 
 async function listFiles(fs: ProjectFs, dir: string, depth = 0): Promise<string[]> {
   if (depth > 3) return [];

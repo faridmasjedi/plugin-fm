@@ -5,6 +5,7 @@ import {
   createCode,
   openCode,
   saveApex,
+  saveAuraBundleMeta,
   saveBundleFile,
   type HttpRequest,
 } from '../src/index.js';
@@ -29,13 +30,21 @@ describe('more code kinds', () => {
             { Id: 'a1', DefType: 'COMPONENT', Source: '<aura:component/>' },
             { Id: 'a2', DefType: 'CONTROLLER', Source: '({})' },
           ])
+        : r.path.includes('AuraDefinitionBundle')
+        ? { json: { ApiVersion: 62, Description: 'A <card>' } }
         : { json: { Markup: '<apex:page/>' } }
     );
     const aura = await openCode(client, { id: '0Ab000000000001', kind: 'Aura', name: 'card' });
     expect(aura.map((f) => [f.path, f.language])).toEqual([
       ['aura/card/card.cmp', 'html'],
+      ['aura/card/card.cmp-meta.xml', 'xml'],
       ['aura/card/cardController.js', 'javascript'],
     ]);
+    // The bundle's -meta.xml comes from its record, as the CLI writes it
+    expect(aura[1].source).toBe(
+      '<?xml version="1.0" encoding="UTF-8"?>\n<AuraDefinitionBundle xmlns="http://soap.sforce.com/2006/04/metadata">\n    <apiVersion>62.0</apiVersion>\n    <description>A &lt;card&gt;</description>\n</AuraDefinitionBundle>\n'
+    );
+    expect(aura[1].id).toBe('0Ab000000000001');
     const page = await openCode(client, { id: '066000000000001', kind: 'ApexPage', name: 'Hello' });
     expect(page[0]).toMatchObject({ path: 'Hello.page', language: 'html', source: '<apex:page/>' });
   });
@@ -56,6 +65,20 @@ describe('more code kinds', () => {
       path: '/services/data/v62.0/tooling/sobjects/AuraDefinition/0Ad000000000001',
     });
     await expect(saveApex(client, { id: '0Ab000000000001', kind: 'Aura' }, 'x')).rejects.toThrow('saveBundleFile');
+    // An Aura bundle's -meta.xml saves its record
+    await saveAuraBundleMeta(
+      client,
+      '0Ab000000000001',
+      '<AuraDefinitionBundle><apiVersion>61.0</apiVersion><description>Cards &amp; more</description></AuraDefinitionBundle>'
+    );
+    expect(calls.at(-1)).toMatchObject({
+      method: 'PATCH',
+      path: expect.stringContaining('/sobjects/AuraDefinitionBundle/0Ab000000000001'),
+    });
+    expect(body(calls.at(-1)!)).toEqual({ ApiVersion: 61, Description: 'Cards & more' });
+    await expect(saveAuraBundleMeta(client, '0Ab000000000001', '<apiVersion>x</apiVersion>')).rejects.toThrow(
+      'apiVersion'
+    );
   });
 
   it('checks names per kind', () => {

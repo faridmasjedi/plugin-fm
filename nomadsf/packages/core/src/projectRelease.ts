@@ -2,9 +2,14 @@ import ignore from 'ignore';
 import { checkForceignore } from './compareEngine.js';
 import { apexSourcesFromFiles, testsForPackage } from './dependentTests.js';
 import type { TestSelection } from './apexGraph.js';
+import type { SalesforceClient } from './client.js';
+import type { CodeFile } from './code.js';
 import type { FolderHandle, FolderRepo } from './gitFolder.js';
+import { retrieveZip } from './metadata.js';
+import { pairCodeFiles, pairsSame } from './projectCode.js';
+import { fromBase64, readZip } from './zip.js';
 import type { ProjectFs, ProjectInfo } from './project.js';
-import { toMetadataFormat, type ConvertResult } from './sourceConvert.js';
+import { CHILD_ELEMENTS, toMetadataFormat, type ConvertResult } from './sourceConvert.js';
 import { resolveComponent } from './sourcePackage.js';
 
 /**
@@ -104,12 +109,14 @@ export type ProjectPackageInput = {
   forceignore?: string;
   /** The bytes of a file, when the project can give them (a folder): static resources may be binary. */
   readBytes?: (path: string) => Promise<Uint8Array>;
+  /** The project's files when already listed (many packages in a row). */
+  allFiles?: string[];
 };
 
 /** The Metadata API zip of components of the project. */
 export async function projectMetadataZip(input: ProjectPackageInput): Promise<ConvertResult> {
   const { fs, info, readBytes } = input;
-  const all = await projectFiles(fs, info);
+  const all = input.allFiles ?? (await projectFiles(fs, info));
   const ignored = await projectIgnore(fs, input.forceignore);
   const files = all.filter((f) => !ignored(f));
   const deploy = withObjectChildren(
@@ -175,6 +182,167 @@ function withObjectChildren(
     }
   }
   return out.filter((c) => c.type !== 'CustomObject' || own.has(c.name) || !withChildren.has(c.name));
+}
+
+const LANGUAGE: Array<[RegExp, CodeFile['language']]> = [
+  [/\.(cls|trigger)$/, 'apex'],
+  [/\.js$/, 'javascript'],
+  [/\.(html|page|component|cmp|app|evt|intf|auradoc|design|tokens)$/, 'html'],
+  [/\.css$/, 'css'],
+  [/\.json$/, 'json'],
+];
+const languageOf = (path: string): CodeFile['language'] => LANGUAGE.find(([re]) => re.test(path))?.[1] ?? 'xml';
+
+/** Files of a Metadata API zip as text, without package.xml (binary files are left out). */
+export async function zipCodeFiles(zip: Uint8Array, only?: (path: string) => boolean): Promise<CodeFile[]> {
+  const out: CodeFile[] = [];
+  for (const [inZip, bytes] of await readZip(zip)) {
+    // A retrieve may put the files under unpackaged/
+    const path = inZip.replace(/^unpackaged\//, '');
+    if (path === 'package.xml' || (only && !only(path))) continue;
+    const text = new TextDecoder().decode(bytes);
+    if (text.includes('\u0000')) continue;
+    out.push({ id: path, path, language: languageOf(path), source: text });
+  }
+  return out.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+export type ProjectSide = {
+  fs: ProjectFs;
+  info: ProjectInfo;
+  readBytes?: (path: string) => Promise<Uint8Array>;
+};
+
+/** One component of the project in the Metadata API's paths (objects/Account.object…), to pair with the org's. */
+export async function projectComponentFiles(
+  project: ProjectSide,
+  component: { type: string; name: string },
+  apiVersion: string,
+  allFiles?: string[]
+): Promise<{ files: CodeFile[]; problem?: string }> {
+  const built = await projectMetadataZip({ ...project, deploy: [component], apiVersion, allFiles });
+  if (built.notConverted.length) return { files: [], problem: built.notConverted[0].reason };
+  return { files: await zipCodeFiles(built.zip) };
+}
+
+/** Where a component is, between a project (or branch) and an org, with both versions' files. */
+export type OrgCheck = {
+  status: 'same' | 'different' | 'not in org' | 'only in org' | 'in neither';
+  org: CodeFile[];
+  repo: CodeFile[];
+};
+
+/** XML lines indented by nesting, so one block reads the same wherever it came from. */
+function reindentXml(xml: string): string {
+  let depth = 0;
+  return xml
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line) => {
+      if (/^<\//.test(line)) depth = Math.max(0, depth - 1);
+      const out = `${'    '.repeat(depth)}${line}`;
+      if (/^<[^/!?][^>]*[^/]>$/.test(line) && !/<\/[^>]+>$/.test(line)) depth++;
+      return out;
+    })
+    .join('\n');
+}
+
+/** XML laid out one tag per line and indented by nesting: a compact file and the org's expanded one read the same. */
+export function normalizeXml(xml: string): string {
+  return reindentXml(xml.replace(/>\s*</g, '>\n<'));
+}
+
+/** One child (a field, a record type…) of an object's file: just its block, so a field compares with a field. */
+function childBlock(xml: string, type: string, name: string): string | undefined {
+  const element = CHILD_ELEMENTS[type];
+  const child = name.split('.').slice(1).join('.');
+  for (const m of xml.matchAll(new RegExp(`<${element}>[\\s\\S]*?</${element}>`, 'g')))
+    if (new RegExp(`<fullName>${child.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</fullName>`).test(m[0]))
+      return reindentXml(m[0]);
+  return undefined;
+}
+
+/**
+ * Components of a project or branch against an org: one retrieve from the org, each component converted from the
+ * project, file by file — same or different, or on one side only. An object's child (a field) compares as its block.
+ */
+export async function checkComponentsWithOrg(
+  client: SalesforceClient,
+  project: ProjectSide,
+  components: Array<{ type: string; name: string }>,
+  onProgress?: (status: string) => void
+): Promise<Map<string, OrgCheck>> {
+  const result = new Map<string, OrgCheck>();
+  if (!components.length) return result;
+  const retrieved = await retrieveZip(
+    client,
+    components.map((c) => ({ type: c.type, fullName: c.name })),
+    { onProgress: (s) => onProgress?.(`Retrieving ${components.length} component(s) from the org: ${s}`) }
+  );
+  const orgFiles = retrieved.zipFile ? await zipCodeFiles(fromBase64(retrieved.zipFile)) : [];
+  const pathsOf = new Map<string, string[]>();
+  for (const f of retrieved.files) {
+    const key = `${f.type}:${f.fullName}`;
+    pathsOf.set(key, [...(pathsOf.get(key) ?? []), f.fileName.replace(/^unpackaged\//, '').replace(/\/$/, '')]);
+  }
+  const all = await projectFiles(project.fs, project.info);
+  const apiVersion = await client.version();
+  for (const [i, c] of components.entries()) {
+    onProgress?.(`Comparing with the org… ${i + 1}/${components.length}`);
+    const key = `${c.type}:${c.name}`;
+    const paths = pathsOf.get(key) ?? [];
+    let org = orgFiles.filter((f) =>
+      paths.some((p) => f.path === p || f.path === `${p}-meta.xml` || f.path.startsWith(`${p}/`))
+    );
+    // eslint-disable-next-line no-await-in-loop
+    let repo = (await projectComponentFiles(project, c, apiVersion, all)).files;
+    if (CHILD_ELEMENTS[c.type]) {
+      const only = (files: CodeFile[]): CodeFile[] =>
+        files.flatMap((f) => {
+          const block = childBlock(f.source, c.type, c.name);
+          return block ? [{ ...f, source: block }] : [];
+        });
+      org = only(org);
+      repo = only(repo);
+    }
+    // XML files laid out the same way on both sides, so only real differences count (and show)
+    const layout = (files: CodeFile[]): CodeFile[] =>
+      files.map((f) => (f.language === 'xml' ? { ...f, source: normalizeXml(f.source) } : f));
+    org = layout(org);
+    repo = layout(repo);
+    const status: OrgCheck['status'] = org.length
+      ? repo.length
+        ? pairsSame(pairCodeFiles(org, repo))
+          ? 'same'
+          : 'different'
+        : 'only in org'
+      : repo.length
+      ? 'not in org'
+      : 'in neither';
+    result.set(key, { status, org, repo });
+  }
+  return result;
+}
+
+/** Same or different for components of one type in both the org and the project (Compare content). */
+export async function compareTypeWithProject(
+  client: SalesforceClient,
+  project: ProjectSide,
+  type: string,
+  names: string[],
+  onProgress?: (status: string) => void
+): Promise<Map<string, 'same' | 'different'>> {
+  const checked = await checkComponentsWithOrg(
+    client,
+    project,
+    names.map((name) => ({ type, name })),
+    onProgress
+  );
+  const result = new Map<string, 'same' | 'different'>();
+  for (const [key, c] of checked)
+    if (c.status === 'same' || c.status === 'different') result.set(key.slice(type.length + 1), c.status);
+  return result;
 }
 
 /** The tests that reach the Apex of a package, from the project's Apex. */

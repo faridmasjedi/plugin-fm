@@ -67,6 +67,31 @@ const AURA_FILES: Record<string, [string, CodeFile['language']]> = {
   TOKENS: ['.tokens', 'xml'],
 };
 
+/** The definition that names an Aura bundle's -meta.xml (name.cmp-meta.xml, name.app-meta.xml…). */
+const AURA_MAIN = ['APPLICATION', 'COMPONENT', 'EVENT', 'INTERFACE', 'TOKENS'];
+
+const escapeXml = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** An Aura bundle's -meta.xml, as `sf project retrieve` writes it. */
+export function auraBundleMeta(apiVersion?: number, description?: string | null): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<AuraDefinitionBundle xmlns="http://soap.sforce.com/2006/04/metadata">\n${
+    apiVersion ? `    <apiVersion>${Number(apiVersion).toFixed(1)}</apiVersion>\n` : ''
+  }${description ? `    <description>${escapeXml(description)}</description>\n` : ''}</AuraDefinitionBundle>\n`;
+}
+
+/** Saves an Aura bundle's -meta.xml: its API version and description go on the bundle record. */
+export async function saveAuraBundleMeta(client: SalesforceClient, bundleId: string, xml: string): Promise<void> {
+  if (!SAFE_ID.test(bundleId)) throw new Error('Invalid Id.');
+  const read = (tag: string): string | undefined => new RegExp(`<${tag}>([^<]*)</${tag}>`).exec(xml)?.[1]?.trim();
+  const apiVersion = read('apiVersion');
+  if (apiVersion !== undefined && !/^\d+(\.\d)?$/.test(apiVersion)) throw new Error('apiVersion: a number like 62.0');
+  const description = read('description');
+  await client.tooling('PATCH', `/sobjects/AuraDefinitionBundle/${bundleId}`, {
+    ...(apiVersion ? { ApiVersion: Number(apiVersion) } : {}),
+    Description: description ? description.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : null,
+  });
+}
+
 /** Source files of an item: one body (Apex, Visualforce), or every file of an LWC / Aura bundle. */
 export async function openCode(
   client: SalesforceClient,
@@ -90,12 +115,18 @@ export async function openCode(
     });
   }
   if (item.kind === 'Aura') {
-    const result = await query(
-      client,
-      `SELECT Id, DefType, Source FROM AuraDefinition WHERE AuraDefinitionBundleId = '${item.id}' ORDER BY DefType`,
-      { tooling: true }
-    );
-    return result.rows.map((r) => {
+    const [result, bundle] = await Promise.all([
+      query(
+        client,
+        `SELECT Id, DefType, Source FROM AuraDefinition WHERE AuraDefinitionBundleId = '${item.id}' ORDER BY DefType`,
+        { tooling: true }
+      ),
+      client.tooling<{ ApiVersion?: number; Description?: string | null }>(
+        'GET',
+        `/sobjects/AuraDefinitionBundle/${item.id}`
+      ),
+    ]);
+    const files: CodeFile[] = result.rows.map((r) => {
       const [suffix, language] = AURA_FILES[String(r.DefType)] ?? [`.${String(r.DefType).toLowerCase()}`, 'html'];
       return {
         id: String(r.Id),
@@ -104,6 +135,16 @@ export async function openCode(
         source: String(r.Source ?? ''),
       };
     });
+    // The bundle's -meta.xml is its record (API version, description): shown as the file the project has
+    const main = AURA_MAIN.find((t) => result.rows.some((r) => r.DefType === t));
+    if (main)
+      files.push({
+        id: item.id,
+        path: `aura/${item.name}/${item.name}${AURA_FILES[main][0]}-meta.xml`,
+        language: 'xml',
+        source: auraBundleMeta(bundle.ApiVersion, bundle.Description),
+      });
+    return files.sort((a, b) => a.path.localeCompare(b.path));
   }
   if (item.kind === 'ApexPage' || item.kind === 'ApexComponent') {
     const markup = (await client.tooling<{ Markup: string }>('GET', `/sobjects/${item.kind}/${item.id}`)).Markup;
