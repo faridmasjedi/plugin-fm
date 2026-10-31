@@ -15,7 +15,10 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   CompareEngine,
+  analyzeProject,
   manifestXml,
+  projectMetadataZip,
+  refProjectFs,
   readZip,
   resolveComponent,
   type ComparedPackage,
@@ -369,6 +372,27 @@ describe('compare & package on a folder', () => {
     expect([...files.keys()]).toContain('lwc/nested/utils/helper.js'.replace('utils/helper.js', 'nested.js-meta.xml'));
     expect(new TextDecoder().decode(files.get('destructiveChangesPost.xml'))).toContain('<members>Old</members>');
     expect(notConverted.map((c) => c.name)).toEqual(['Ghost']);
+  });
+
+  it('reads a branch as a project: its types, and a package of its files', async () => {
+    const { fs, readBytes } = await refProjectFs(engine.repo, 'feature');
+    const info = await analyzeProject(fs);
+    expectDeep(
+      info.packageDirectories.map((p) => p.path),
+      ['force-app']
+    );
+    const classes = info.packageDirectories[0].types.find((t) => t.type === 'ApexClass');
+    expectOk(classes && classes.count > 0);
+    const name = [...classes!.names][0];
+    const { zip, deployed } = await projectMetadataZip({
+      fs,
+      info,
+      deploy: [{ type: 'ApexClass', name }],
+      apiVersion: '62.0',
+      readBytes,
+    });
+    expectDeep(deployed, [{ type: 'ApexClass', name }]);
+    expectOk((await readZip(zip)).has(`classes/${name}.cls`));
   });
 
   it('says why it cannot compare', async () => {

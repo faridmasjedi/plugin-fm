@@ -19,6 +19,8 @@ const source: Record<string, string> = {
   [`${d}/lwc/board/board.js`]: 'export default class {}',
   [`${d}/lwc/board/board.js-meta.xml`]: '<LightningComponentBundle/>',
   [`${d}/lwc/board/utils/helper.js`]: 'export const x = 1;',
+  [`${d}/lwc/board/__tests__/board.test.js`]: 'test()',
+  [`${d}/lwc/jsconfig.json`]: '{}',
   [`${d}/staticresources/assets.resource-meta.xml`]: '<StaticResource/>',
   [`${d}/staticresources/assets/a.css`]: 'a{}',
   [`${d}/staticresources/assets/img/b.css`]: 'b{}',
@@ -104,6 +106,7 @@ describe('source → Metadata API format', () => {
     ]);
     const files = await unzip(zip);
     expect(files['lwc/board/utils/helper.js']).toBe('export const x = 1;');
+    expect(Object.keys(files).filter((f) => f.includes('__tests__') || f.includes('jsconfig'))).toEqual([]);
     expect(files['lwc/board/board.js-meta.xml']).toBe('<LightningComponentBundle/>');
     expect(files['staticresources/logo.resource']).toBe('PNG');
     expect(files['staticresources/assets.resource-meta.xml']).toBe('<StaticResource/>');

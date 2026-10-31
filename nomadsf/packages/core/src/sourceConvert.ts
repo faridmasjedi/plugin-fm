@@ -53,6 +53,9 @@ export type ConvertResult = {
 };
 
 const text = (bytes: Uint8Array): string => new TextDecoder().decode(bytes);
+/** Files the CLI never sends: Jest tests, editor and lint settings in bundles, macOS folder files. */
+const neverDeployed = (path: string): boolean =>
+  /(^|\/)__tests__\//.test(path) || /(^|\/)(jsconfig\.json|\.eslintrc(\.json)?|\.DS_Store)$/.test(path);
 const keyOf = (c: { type: string; name: string }): string => `${c.type}:${c.name}`;
 
 /** The inside of a file's root element (an object child's XML without its declaration and root tag). */
@@ -81,6 +84,7 @@ export async function toMetadataFormat(input: ConvertInput): Promise<ConvertResu
   // Every file of the source, by the component it belongs to
   const byKey = new Map<string, { component: SourceComponent; files: string[] }>();
   for (const path of files) {
+    if (neverDeployed(path)) continue;
     const c = resolveComponent(path, packageDirs);
     if (!c) continue;
     const key = keyOf(c);

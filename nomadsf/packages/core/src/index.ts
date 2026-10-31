@@ -58,3 +58,4 @@ export * from './compareEngine.js';
 export * from './sourceConvert.js';
 export * from './apexGraph.js';
 export * from './dependentTests.js';
+export * from './projectRelease.js';
