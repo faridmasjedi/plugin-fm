@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   checkCodeContent,
   checkComponentsWithOrg,
+  componentFilePaths,
   compareTypeWithProject,
   codeKindOf,
   destructiveZip,
@@ -448,6 +449,8 @@ export function ProjectCompare({
               <PackageContents
                 deploy={toDeploy}
                 remove={toDelete}
+                statusOf={(c) => ((c as CompareRow).where === 'only in project' ? 'A' : 'M')}
+                listFiles={fs ? (list) => componentFilePaths(fs, info, list) : undefined}
                 loadCode={async (c) => {
                   if (!fs) throw new Error('Open the project first');
                   const found = (await checkComponentsWithOrg(studio.client, { fs, info, readBytes }, [c])).get(

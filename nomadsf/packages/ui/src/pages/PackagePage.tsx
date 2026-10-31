@@ -3,6 +3,7 @@ import {
   CompareEngine,
   analyzeProject,
   checkComponentsWithOrg,
+  componentFilePaths,
   projectSideFiles,
   pairCodeFiles,
   refProjectFs,
@@ -843,7 +844,19 @@ function PackageCard(props: {
           />
 
           {pkg.target === 'manifest' ? (
-            <PackageContents deploy={deploy} remove={remove} loadCode={props.loadCode} />
+            <PackageContents
+              deploy={deploy}
+              remove={remove}
+              loadCode={props.loadCode}
+              statusOf={(c) => {
+                const st = props.checks?.byKey.get(keyOf(c))?.status;
+                return st === 'not in org' ? 'A' : st === 'same' || st === 'different' ? 'M' : '•';
+              }}
+              listFiles={async (list) => {
+                const { fs } = await refProjectFs(engine.repo, pkg.source);
+                return componentFilePaths(fs, await analyzeProject(fs), list);
+              }}
+            />
           ) : (
             <div className="compare-summary">
               <p>

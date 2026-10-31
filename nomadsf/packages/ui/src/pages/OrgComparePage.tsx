@@ -362,6 +362,7 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
           <PackageContents
             deploy={toDeploy}
             remove={toDelete}
+            statusOf={(c) => ((c as OrgDiffRow).status === 'only in source' ? 'A' : 'M')}
             loadCode={async (c) => {
               const key = `${c.type}:${c.name}`;
               const [a, b] = await Promise.all([

@@ -3473,3 +3473,17 @@ select.row-action {
 .package-contents .package-code h4 {
   margin: 0;
 }
+
+/* Compare & package: room between the boxes of a mode (compare, package, panel, diff) */
+.compare-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.compare-mode > .card,
+.compare-mode > .release-panel {
+  margin: 0;
+}
+.compare-file-row.active button.mono {
+  font-weight: 600;
+}

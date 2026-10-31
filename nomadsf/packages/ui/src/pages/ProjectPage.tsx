@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   checkComponentsWithOrg,
+  componentFilePaths,
   folderBytes,
   parsePackageXml,
   projectMetadataZip,
@@ -298,6 +299,7 @@ export function ProjectPage({
               <PackageContents
                 deploy={toDeploy}
                 remove={toDelete}
+                listFiles={(list) => componentFilePaths(source.fs, info, list)}
                 loadCode={async (c) => {
                   const side = {
                     fs: source.fs,

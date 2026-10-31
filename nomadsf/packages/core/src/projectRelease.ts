@@ -75,6 +75,29 @@ export async function refProjectFs(
   return { fs, readBytes: (path) => repo.bytes(commit, path) };
 }
 
+/** Each component's source files in a project or branch (an object with its children's files), keyed type:name. */
+export async function componentFilePaths(
+  fs: ProjectFs,
+  info: ProjectInfo,
+  components: Array<{ type: string; name: string }>
+): Promise<Map<string, string[]>> {
+  const dirs = info.packageDirectories.map((d) => d.path);
+  const wanted = new Set(components.map((c) => `${c.type}:${c.name}`));
+  const objects = new Set(components.filter((c) => c.type === 'CustomObject').map((c) => c.name));
+  const result = new Map<string, string[]>();
+  const add = (key: string, path: string): void => {
+    result.set(key, [...(result.get(key) ?? []), path]);
+  };
+  for (const path of await projectFiles(fs, info)) {
+    const c = resolveComponent(path, dirs);
+    if (!c) continue;
+    const key = `${c.type}:${c.name}`;
+    if (wanted.has(key)) add(key, path);
+    else if (c.object && objects.has(c.object)) add(`CustomObject:${c.object}`, path);
+  }
+  return result;
+}
+
 /** A file's bytes from a picked folder (binary static resources survive, unlike text). */
 export async function folderBytes(root: FolderHandle, path: string): Promise<Uint8Array> {
   const parts = path.split('/').filter(Boolean);
