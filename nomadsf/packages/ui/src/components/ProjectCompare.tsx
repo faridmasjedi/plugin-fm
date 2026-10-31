@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   checkCodeContent,
+  compareTypeWithProject,
   codeKindOf,
   destructiveZip,
   folderBytes,
@@ -22,7 +23,8 @@ import { Status } from '../statusLog';
 
 type Where = 'only in org' | 'only in project' | 'both' | 'different' | 'same';
 type CompareRow = { key: string; type: string; name: string; where: Where };
-type Action = 'delete' | 'deploy';
+/** What a row does in the package: deploy it from the project, delete it from the org (destructive change), or nothing. */
+type Action = 'deploy' | 'delete';
 
 const FOLDER_BASED = new Set(['Report', 'Dashboard', 'Document', 'EmailTemplate']);
 const CODE_TYPE = {
@@ -102,17 +104,18 @@ export function ProjectCompare({
   const [show, setShow] = useState<'all' | Where>('all');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
-  const [action, setAction] = useState<Action | null>(null);
+  const [actions, setActions] = useState<Map<string, Action>>(new Map());
   const [forceignore, setForceignore] = useState('.forceignore');
 
   useEffect(() => {
     setRows(null);
     setSelected(new Set());
+    setActions(new Map());
   }, [info, studio.org.id]);
 
   const compare = async () => {
     setBusy(true);
-    setAction(null);
+    setActions(new Map());
     const out: CompareRow[] = [];
     let managed = 0;
     const list = types.filter((t) => chosen.has(t.type));
@@ -171,14 +174,17 @@ export function ProjectCompare({
         /* eslint-enable no-await-in-loop */
         for (const [name, v] of checked) result.set(`${CODE_TYPE[kind]}:${name}`, v);
       }
+      // Every other type: retrieved from the org in one go per type, each component converted from the project
+      const others = [...new Set(rows.filter((r) => inBoth(r.where) && !codeKindOf(r.type)).map((r) => r.type))];
+      for (const type of others) {
+        const names = rows.filter((r) => r.type === type && inBoth(r.where)).map((r) => r.name);
+        /* eslint-disable-next-line no-await-in-loop */
+        const checked = await compareTypeWithProject(studio.client, { fs, info, readBytes }, type, names, setStatus);
+        for (const [name, v] of checked) result.set(`${type}:${name}`, v);
+      }
       setRows(rows.map((r) => (result.has(r.key) && inBoth(r.where) ? { ...r, where: result.get(r.key)! } : r)));
       const different = [...result.values()].filter((v) => v === 'different').length;
-      const notCode = rows.filter((r) => r.where === 'both' && !codeKindOf(r.type)).length;
-      setStatus(
-        `✓ ${result.size} code component(s) compared: ${different} different.${
-          notCode ? ` ${notCode} other component(s) are not compared yet (only code for now).` : ''
-        }`
-      );
+      setStatus(`✓ ${result.size} component(s) compared: ${different} different.`);
       if (different) setShow('different');
       setSelected(new Set());
     } catch (e) {
@@ -262,14 +268,28 @@ export function ProjectCompare({
     }
   };
 
-  /** The package for the panel: what is in the project to deploy, or what is only in the org to delete. */
+  /** Which actions a row can take: deploy needs the project's files, delete needs the component in the org. */
+  const canDeploy = (r: CompareRow): boolean => r.where !== 'only in org';
+  const canDelete = (r: CompareRow): boolean => r.where !== 'only in project';
+  const toDeploy = (rows ?? []).filter((r) => actions.get(r.key) === 'deploy');
+  const toDelete = (rows ?? []).filter((r) => actions.get(r.key) === 'delete');
+  const setAction = (list: CompareRow[], action: Action | undefined): void => {
+    const next = new Map(actions);
+    for (const r of list) {
+      if (!action) next.delete(r.key);
+      else if (action === 'deploy' ? canDeploy(r) : canDelete(r)) next.set(r.key, action);
+    }
+    setActions(next);
+  };
+
+  /** The package for the panel: the rows to deploy from the project, the rows to delete from the org. */
   const build = async (removeWhen: 'pre' | 'post') => {
     if (!fs) throw new Error('Open the project first');
     return projectMetadataZip({
       fs,
       info,
-      deploy: action === 'deploy' ? inProject.map((r) => ({ type: r.type, name: r.name })) : [],
-      remove: action === 'delete' ? onlyOrg.map((r) => ({ type: r.type, name: r.name })) : [],
+      deploy: toDeploy.map((r) => ({ type: r.type, name: r.name })),
+      remove: toDelete.map((r) => ({ type: r.type, name: r.name })),
       removeWhen,
       apiVersion: await studio.client.version(),
       forceignore,
@@ -277,9 +297,12 @@ export function ProjectCompare({
     });
   };
 
-  /** Every row that differs: only in one place, or different. */
+  /** Every row the project changes (only in the project, or different) goes to Deploy; only-in-org rows stay for you. */
   const addAllDifferences = () =>
-    setSelected(new Set((rows ?? []).filter((r) => r.where !== 'same' && r.where !== 'both').map((r) => r.key)));
+    setAction(
+      (rows ?? []).filter((r) => r.where === 'only in project' || r.where === 'different'),
+      'deploy'
+    );
 
   return (
     <div className="card section project-compare">
@@ -344,16 +367,15 @@ export function ProjectCompare({
           </div>
           <div className="form">
             <button
-              disabled={busy || !rows.some((r) => inBoth(r.where) && codeKindOf(r.type))}
-              title="Compare the content of code (Apex, Visualforce, LWC, Aura) that is in both"
+              disabled={busy || !rows.some((r) => inBoth(r.where))}
+              title="Compare the content of every component in both: retrieved from the org, converted from the project"
               onClick={() => void checkContent()}
             >
               Compare content
             </button>
-            <span className="muted">Code only for now: Apex, Visualforce, LWC and Aura.</span>
             <button
-              disabled={busy || !rows.some((r) => r.where !== 'same' && r.where !== 'both')}
-              title="Tick every row only in the org, only in the project, or different"
+              disabled={busy || !rows.some((r) => r.where === 'only in project' || r.where === 'different')}
+              title="Deploy every row only in the project or different (choose Delete for what is only in the org)"
               onClick={() => {
                 setShow('all');
                 addAllDifferences();
@@ -367,13 +389,33 @@ export function ProjectCompare({
             </label>
           </div>
           <DataTable
-            columns={['type', 'name', 'where']}
-            rows={show === 'all' ? rows : rows.filter((r) => r.where === show)}
+            columns={['type', 'name', 'where', 'action']}
+            rows={(show === 'all' ? rows : rows.filter((r) => r.where === show)).map((r) => ({
+              ...r,
+              action: actions.get(r.key) ?? '',
+            }))}
             rowKey="key"
             name={`${info.name}-compare`}
             selected={selected}
             onSelectedChange={setSelected}
-            note={<span>· tick rows to act on them</span>}
+            note={<span>· choose an action per row, or tick rows and set them together</span>}
+            renderCell={(column, row) => {
+              if (column !== 'action') return undefined;
+              const r = row as unknown as CompareRow;
+              const value = actions.get(r.key) ?? '';
+              return (
+                <select
+                  className={`row-action ${value}`}
+                  value={value}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => setAction([r], (e.target.value || undefined) as Action | undefined)}
+                >
+                  <option value="">–</option>
+                  {canDeploy(r) && <option value="deploy">Add to package</option>}
+                  {canDelete(r) && <option value="delete">Destructive change</option>}
+                </select>
+              );
+            }}
           />
 
           {picked.length > 0 && (
@@ -411,53 +453,61 @@ export function ProjectCompare({
                 >
                   Download delete package ({onlyOrg.length})
                 </button>
+                <span className="grow" />
                 <button
-                  className="danger"
-                  disabled={busy || !onlyOrg.length}
-                  title="Delete these from the org: validate first, with the tests you choose"
-                  onClick={() => setAction('delete')}
+                  disabled={busy || !picked.some(canDeploy)}
+                  title="Ticked rows that are in the project go into package.xml"
+                  onClick={() => setAction(picked, 'deploy')}
                 >
-                  Delete from org ({onlyOrg.length})…
+                  + Add to package ({picked.filter(canDeploy).length})
                 </button>
                 <button
-                  disabled={busy || !inProject.length || !fs}
-                  title="Every type, converted in the browser: validate, deploy or quick deploy"
-                  onClick={() => setAction('deploy')}
+                  className="danger"
+                  disabled={busy || !picked.some(canDelete)}
+                  title="Ticked rows that are in the org go into destructiveChanges.xml"
+                  onClick={() => setAction(picked, 'delete')}
                 >
-                  Deploy to org ({inProject.length})…
+                  − Destructive change ({picked.filter(canDelete).length})
+                </button>
+                <button disabled={busy} onClick={() => setAction(picked, undefined)}>
+                  Clear action
                 </button>
               </div>
             </div>
           )}
 
-          {action && picked.length > 0 && (
-            <div className={action === 'delete' ? 'danger-zone' : ''}>
+          {(toDeploy.length > 0 || toDelete.length > 0) && (
+            <>
+              <div className="form">
+                <span className="muted">
+                  Package: <b>{toDeploy.length}</b> to deploy · <b className="bad-text">{toDelete.length}</b> to delete
+                </span>
+                <button onClick={() => setActions(new Map())}>Clear all actions</button>
+              </div>
               <ReleasePanel
                 studio={studio}
-                key={`${action}:${[...selected].sort().join(',')}:${forceignore}`}
-                deployCount={action === 'deploy' ? inProject.length : 0}
-                removeCount={action === 'delete' ? onlyOrg.length : 0}
-                from={action === 'deploy' ? fromLabel : `the comparison with ${fromLabel}`}
+                key={`${[...actions]
+                  .map(([k, a]) => `${a}:${k}`)
+                  .sort()
+                  .join(',')}:${forceignore}`}
+                deployCount={toDeploy.length}
+                removeCount={toDelete.length}
+                from={fromLabel}
                 build={build}
                 findTests={
-                  action === 'deploy' && fs
+                  fs && toDeploy.length
                     ? () =>
                         projectTests(
                           fs,
                           info,
-                          inProject.map((r) => ({ type: r.type, name: r.name }))
+                          toDeploy.map((r) => ({ type: r.type, name: r.name }))
                         )
                     : undefined
                 }
                 targetId={studio.org.id}
-                zipName={`${info.name}-${action}-${studio.org.label}.zip`}
+                zipName={`${info.name}-${studio.org.label}.zip`}
               />
-              <div className="form">
-                <button disabled={busy} onClick={() => setAction(null)}>
-                  Close
-                </button>
-              </div>
-            </div>
+            </>
           )}
         </>
       )}

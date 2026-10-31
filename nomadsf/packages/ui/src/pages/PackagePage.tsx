@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   CompareEngine,
   analyzeProject,
+  checkComponentsWithOrg,
+  pairCodeFiles,
   refProjectFs,
+  type OrgCheck,
   type CompareHow,
   type ProjectFs,
   type ProjectInfo,
@@ -15,9 +18,11 @@ import { CodeDiff } from '../components/CodeDiff';
 import type { CodeEditorProps } from '../components/CodeEditor';
 import { askConfirm } from '../components/Dialogs';
 import { download } from '../components/DataTable';
+import { ProjectCodeView } from '../components/ProjectCodeView';
 import { ProjectCompare } from '../components/ProjectCompare';
 import { ReleasePanel } from '../components/ReleasePanel';
 import { storage, useStudio } from '../context';
+import { detectHost } from '../host';
 import { OrgComparePage } from './OrgComparePage';
 import { useProject } from '../project';
 import { Status } from '../statusLog';
@@ -78,24 +83,135 @@ export function PackagePage() {
   const studio = useStudio();
   const handle = project.source?.kind === 'folder' ? project.source.handle : undefined;
   const engine = useMemo(() => (handle ? new CompareEngine(handle) : undefined), [handle]);
-
-  const [refs, setRefs] = useState<{ branches: string[]; remoteBranches: string[]; tags: string[] }>();
+  const [refs, setRefs] = useState<Refs>();
   const [branch, setBranch] = useState('');
+  const [error, setError] = useState('');
+  // What to compare: two branches, a manifest with the files of a branch, a branch with an org, or two orgs
+  const [mode, setMode] = useState<Mode>(() => {
+    const kept = storage.get<string>('compare.mode', 'branches');
+    return MODES.some((m) => m.id === kept) ? (kept as Mode) : 'branches';
+  });
+  // Every mode opened keeps its own comparison while another is shown; the others start fresh
+  const [visited, setVisited] = useState<Set<Mode>>(() => new Set([mode]));
+  const chooseMode = (next: Mode): void => {
+    setMode(next);
+    setVisited(new Set([...visited, next]));
+    storage.set('compare.mode', next);
+  };
+
+  // Branches and tags of the folder
+  useEffect(() => {
+    setRefs(undefined);
+    if (!engine) return;
+    let canceled = false;
+    void (async () => {
+      try {
+        const [all, current] = await Promise.all([engine.refs(), engine.currentBranch()]);
+        if (canceled) return;
+        setRefs(all);
+        setBranch(current);
+      } catch (e) {
+        if (!canceled) setError(`❌ ${(e as Error).message}`);
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, [engine]);
+
+  const hasFolder = Boolean(project.source && handle && engine);
+  const modeSwitch = (
+    <div className="segmented" role="group" aria-label="What to compare">
+      {MODES.map((m) => (
+        <button
+          key={m.id}
+          className={mode === m.id ? 'active' : ''}
+          disabled={m.needsFolder && !hasFolder}
+          title={m.needsFolder && !hasFolder ? 'Open the project folder first' : undefined}
+          onClick={() => chooseMode(m.id)}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="page compare-page">
+      <div className="toolbar">
+        <h2>Compare &amp; package</h2>
+        <span className="muted">
+          {hasFolder
+            ? `${project.source!.name}${
+                branch ? ` · on ${branch}` : ''
+              } · read from git, nothing is written to the folder`
+            : 'what a branch brings into another, as package.xml and destructiveChanges.xml'}
+        </span>
+      </div>
+      <div className="card section">
+        <h3>1 · Compare</h3>
+        {modeSwitch}
+        {error && <Status text={error} block />}
+      </div>
+      {!hasFolder && mode !== 'org-org' && (
+        <div className="card section">
+          <p>
+            This reads the project's git history: open the project <b>folder</b> (the repository with
+            sfdx-project.json).
+            {project.source?.kind === 'github' &&
+              ' A GitHub project is read without its history, so it cannot be compared here yet.'}
+          </p>
+          {project.needsPermission ? (
+            <button className="primary" onClick={() => void project.reconnectFolder()}>
+              Allow reading the folder again
+            </button>
+          ) : (
+            project.canPickFolder && (
+              <button className="primary" onClick={() => void project.pickFolder()}>
+                Open the project folder…
+              </button>
+            )
+          )}
+        </div>
+      )}
+      {[...visited]
+        .filter((m) => m === 'org-org' || hasFolder)
+        .map((m) => (
+          <div key={`${m}:${handle?.name ?? ''}`} className="compare-mode" hidden={m !== mode}>
+            {m === 'org-org' ? (
+              <div className="card section">
+                <OrgComparePage orgs={studio.orgs} embedded />
+              </div>
+            ) : (
+              <ModePanel mode={m} engine={engine!} refs={refs} branch={branch} />
+            )}
+          </div>
+        ))}
+    </div>
+  );
+}
+
+type Refs = { branches: string[]; remoteBranches: string[]; tags: string[] };
+
+/** One mode of Compare & package with its own comparison (Branch ↔ Branch, manifest, Branch ↔ Org). */
+function ModePanel({
+  mode,
+  engine,
+  refs,
+  branch,
+}: {
+  mode: Exclude<Mode, 'org-org'>;
+  engine: CompareEngine;
+  refs?: Refs;
+  branch: string;
+}) {
+  const studio = useStudio();
   const [sourceRef, setSourceRef] = useState('');
   const [targetRef, setTargetRef] = useState('');
   const [how, setHow] = useState<CompareHow>(() =>
     storage.get<string>('compare.how', 'merge-base') === 'direct' ? 'direct' : 'merge-base'
   );
   const [forceignore, setForceignore] = useState('');
-  // What to compare: two branches, a manifest with the files of a branch, a branch with an org, or two orgs
-  const [mode, setMode] = useState<Mode>(() => {
-    const kept = storage.get<string>('compare.mode', 'branches');
-    return MODES.some((m) => m.id === kept) ? (kept as Mode) : 'branches';
-  });
-  const chooseMode = (next: Mode): void => {
-    setMode(next);
-    storage.set('compare.mode', next);
-  };
   // Branch ↔ Org: the branch read as a project
   const [branchProject, setBranchProject] = useState<{
     name: string;
@@ -114,88 +230,20 @@ export function PackagePage() {
   const [filter, setFilter] = useState('');
   const [openFiles, setOpenFiles] = useState<Set<string>>(new Set());
   const [diff, setDiff] = useState<{ path: string; before: string; after: string }>();
+  // From a manifest: each component checked against an org ('' = not checked), and the one opened
+  const [checkOrgId, setCheckOrgId] = useState(studio.org.id);
+  const [checks, setChecks] = useState<{ org: string; ref: string; byKey: Map<string, OrgCheck> }>();
+  const [openCheck, setOpenCheck] = useState<string>();
+  const [checkPath, setCheckPath] = useState('');
 
-  // Branches and tags of the folder; Source = the branch checked out, Target = where branches usually go
+  // Source = the branch checked out, Target = where branches usually go
   useEffect(() => {
-    setRefs(undefined);
-    setPkg(undefined);
-    if (!engine) return;
-    let canceled = false;
-    void (async () => {
-      try {
-        const [all, current] = await Promise.all([engine.refs(), engine.currentBranch()]);
-        if (canceled) return;
-        setRefs(all);
-        setBranch(current);
-        setSourceRef(current || all.branches[0] || '');
-        setTargetRef(['develop', 'main', 'master'].find((b) => b !== current && all.branches.includes(b)) ?? '');
-      } catch (e) {
-        if (!canceled) setStatus(`❌ ${(e as Error).message}`);
-      }
-    })();
-    return () => {
-      canceled = true;
-    };
-  }, [engine]);
-
-  const modeSwitch = (hasFolder: boolean) => (
-    <div className="segmented" role="group" aria-label="What to compare">
-      {MODES.map((m) => (
-        <button
-          key={m.id}
-          className={mode === m.id ? 'active' : ''}
-          disabled={m.needsFolder && !hasFolder}
-          title={m.needsFolder && !hasFolder ? 'Open the project folder first' : undefined}
-          onClick={() => chooseMode(m.id)}
-        >
-          {m.label}
-        </button>
-      ))}
-    </div>
-  );
-
-  // Two orgs: Org compare, with the same package, validate, deploy and quick deploy
-  const orgToOrg = (
-    <div className="card section">
-      <h3>Org ↔ Org</h3>
-      <OrgComparePage orgs={studio.orgs} embedded />
-    </div>
-  );
-
-  if (!project.source || !handle || !engine) {
-    return (
-      <div className="page">
-        <div className="toolbar">
-          <h2>Compare &amp; package</h2>
-          <span className="muted">what a branch brings into another, as package.xml and destructiveChanges.xml</span>
-        </div>
-        <div className="card section">{modeSwitch(false)}</div>
-        {mode === 'org-org' ? (
-          orgToOrg
-        ) : (
-          <div className="card section">
-            <p>
-              This reads the project's git history: open the project <b>folder</b> (the repository with
-              sfdx-project.json).
-              {project.source?.kind === 'github' &&
-                ' A GitHub project is read without its history, so it cannot be compared here yet.'}
-            </p>
-            {project.needsPermission ? (
-              <button className="primary" onClick={() => void project.reconnectFolder()}>
-                Allow reading the folder again
-              </button>
-            ) : (
-              project.canPickFolder && (
-                <button className="primary" onClick={() => void project.pickFolder()}>
-                  Open the project folder…
-                </button>
-              )
-            )}
-          </div>
-        )}
-      </div>
+    if (!refs) return;
+    setSourceRef((v) => v || branch || refs.branches[0] || '');
+    setTargetRef(
+      (v) => v || (['develop', 'main', 'master'].find((b) => b !== branch && refs.branches.includes(b)) ?? '')
     );
-  }
+  }, [refs, branch]);
 
   const compare = async (): Promise<void> => {
     if (!sourceRef || !targetRef) {
@@ -246,12 +294,34 @@ export function PackagePage() {
       setKept(new Set());
       setChanges(new Set());
       setFilter('');
+      setChecks(undefined);
+      setOpenCheck(undefined);
       const missing = result.components.filter((c) => c.note).length;
-      setStatus(
-        `✓ ${result.components.length} component(s) from ${manifest.name}${
-          missing ? `; ${missing} not in ${sourceRef} (named in the list)` : ''
-        }.`
-      );
+      const done = `✓ ${result.components.length} component(s) from ${manifest.name}${
+        missing ? `; ${missing} not in ${sourceRef} (named in the list)` : ''
+      }.`;
+      setStatus(done);
+      // Every component against the org chosen: the branch's version and the org's, file by file
+      const target = studio.orgs.find((o) => o.id === checkOrgId);
+      if (target) {
+        const client = await detectHost().client(target);
+        const { fs, readBytes } = await refProjectFs(engine.repo, sourceRef);
+        const info = await analyzeProject(fs);
+        const byKey = await checkComponentsWithOrg(
+          client,
+          { fs, info, readBytes },
+          result.components.map((c) => ({ type: c.type, name: c.name })),
+          (s2) => setStatus(`${done} ${s2}`)
+        );
+        setChecks({ org: target.label, ref: sourceRef, byKey });
+        const differ = [...byKey.values()].filter((c) => c.status === 'different').length;
+        const onlyOrg = [...byKey.values()].filter((c) => c.status === 'only in org').length;
+        setStatus(
+          `${done} Against ${target.label}: ${differ} different${
+            onlyOrg ? `, ${onlyOrg} only in the org` : ''
+          }. Click a name to see it.`
+        );
+      }
     } catch (e) {
       setPkg(undefined);
       setStatus(`❌ ${(e as Error).message}`);
@@ -316,19 +386,9 @@ export function PackagePage() {
   );
 
   return (
-    <div className="page compare-page">
-      <div className="toolbar">
-        <h2>Compare &amp; package</h2>
-        <span className="muted">
-          {project.source.name}
-          {branch ? ` · on ${branch}` : ''} · read from git, nothing is written to the folder
-        </span>
-      </div>
-
+    <>
       <div className="card section">
-        <h3>1 · Compare</h3>
-        {modeSwitch(true)}
-        {mode === 'org-org' ? null : mode === 'branch-org' ? (
+        {mode === 'branch-org' ? (
           <div className="compare-manifest">
             {refSelect(sourceRef, setSourceRef, 'Branch')}
             <span className="muted">
@@ -347,6 +407,17 @@ export function PackagePage() {
               <input type="file" accept=".xml" onChange={(e) => void readFile(setDestructive)(e)} />
             </label>
             {refSelect(sourceRef, setSourceRef, 'The files come from')}
+            <label>
+              Check against
+              <select value={checkOrgId} onChange={(e) => setCheckOrgId(e.target.value)}>
+                <option value="">Don't check an org</option>
+                {studio.orgs.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         ) : (
           <>
@@ -393,30 +464,23 @@ export function PackagePage() {
             </button>
           </div>
         ) : (
-          mode !== 'org-org' && (
-            <div className="form">
-              <label className="grow">
-                .forceignore
-                <input
-                  value={forceignore}
-                  placeholder=".forceignore"
-                  onChange={(e) => setForceignore(e.target.value)}
-                />
-              </label>
-              <button
-                className="primary"
-                disabled={busy || !refs}
-                onClick={() => void (mode === 'manifest' ? fromManifest() : compare())}
-              >
-                {busy ? 'Reading…' : mode === 'manifest' ? 'Read the manifest' : 'Compare'}
-              </button>
-            </div>
-          )
+          <div className="form">
+            <label className="grow">
+              .forceignore
+              <input value={forceignore} placeholder=".forceignore" onChange={(e) => setForceignore(e.target.value)} />
+            </label>
+            <button
+              className="primary"
+              disabled={busy || !refs}
+              onClick={() => void (mode === 'manifest' ? fromManifest() : compare())}
+            >
+              {busy ? 'Reading…' : mode === 'manifest' ? 'Read the manifest' : 'Compare'}
+            </button>
+          </div>
         )}
-        {status && mode !== 'org-org' && <Status text={status} block />}
+        {status && <Status text={status} block />}
       </div>
 
-      {mode === 'org-org' && orgToOrg}
       {mode === 'branch-org' && branchProject && (
         <ProjectCompare key={branchProject.name} studio={studio} info={branchProject.info} branch={branchProject} />
       )}
@@ -442,7 +506,36 @@ export function PackagePage() {
               setStatus(`❌ ${(e as Error).message}`);
             }
           }}
+          checks={checks && { org: checks.org, byKey: checks.byKey }}
+          openCheck={openCheck}
+          onOpenCheck={(key) => {
+            setOpenCheck(key === openCheck ? undefined : key);
+            setCheckPath('');
+          }}
         />
+      )}
+
+      {pkg && checks && openCheck && checks.byKey.get(openCheck) && (
+        <div className="card section compare-diff">
+          <div className="form">
+            <h3 className="grow">
+              {openCheck.replace(':', ' ')}
+              <span className="muted">
+                {'\u00a0·\u00a0'}
+                {checks.ref} ↔ {checks.org} · {checks.byKey.get(openCheck)!.status}
+              </span>
+            </h3>
+            <button onClick={() => setOpenCheck(undefined)}>Close</button>
+          </div>
+          <ProjectCodeView
+            key={openCheck}
+            pairs={pairCodeFiles(checks.byKey.get(openCheck)!.org, checks.byKey.get(openCheck)!.repo)}
+            view="compare"
+            labels={[checks.org, checks.ref]}
+            path={checkPath}
+            onPath={setCheckPath}
+          />
+        </div>
       )}
 
       {pkg && pkg.components.length > 0 && (mode === 'branches' || mode === 'manifest') && (
@@ -475,8 +568,34 @@ export function PackagePage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
+}
+
+/** What the org has of a component of the manifest (for a deletion: whether there is anything to delete). */
+function orgPill(change: Change, status: OrgCheck['status'] | undefined): React.ReactNode {
+  if (!status) return <span className="muted">—</span>;
+  if (change === 'deleted')
+    return status === 'only in org' || status === 'same' || status === 'different' ? (
+      <span className="pill">in the org</span>
+    ) : (
+      <span className="pill warn">not in the org</span>
+    );
+  const tone: Record<OrgCheck['status'], string> = {
+    same: 'good',
+    different: 'warn',
+    'not in org': '',
+    'only in org': 'warn',
+    'in neither': 'bad',
+  };
+  const label: Record<OrgCheck['status'], string> = {
+    same: 'same',
+    different: 'different',
+    'not in org': 'new to the org',
+    'only in org': 'only in the org',
+    'in neither': 'in neither',
+  };
+  return <span className={`pill ${tone[status]}`}>{label[status]}</span>;
 }
 
 function PackageCard(props: {
@@ -493,6 +612,10 @@ function PackageCard(props: {
   openFiles: Set<string>;
   setOpenFiles: (s: Set<string>) => void;
   showDiff: (path: string) => Promise<void>;
+  /** From a manifest: each component against an org, and the one opened (its diff below the card). */
+  checks?: { org: string; byKey: Map<string, OrgCheck> };
+  openCheck?: string;
+  onOpenCheck?: (key: string) => void;
 }) {
   const { pkg, engine, excluded, setExcluded, kept, setKept, changes, setChanges, filter, setFilter } = props;
   const [status, setStatus] = useState('');
@@ -676,6 +799,7 @@ function PackageCard(props: {
                   <th>Type</th>
                   <th>Name</th>
                   <th>Change</th>
+                  {props.checks && <th>{props.checks.org}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -690,13 +814,24 @@ function PackageCard(props: {
                       </td>
                       <td className="muted">{c.type}</td>
                       <td>
-                        <b>{c.name}</b>
+                        {props.checks?.byKey.has(key) ? (
+                          <button
+                            className={`link ${props.openCheck === key ? 'active' : ''}`}
+                            title="The branch's version and the org's, side by side"
+                            onClick={() => props.onOpenCheck?.(key)}
+                          >
+                            <b>{c.name}</b>
+                          </button>
+                        ) : (
+                          <b>{c.name}</b>
+                        )}
                         {note && <div className="muted small">{note}</div>}
                         {c.note && <div className="warn-text small">⚠ {c.note}</div>}
                       </td>
                       <td>
                         <span className={`pill ${CHANGE_TONE[c.change]}`}>{c.change}</span>
                       </td>
+                      {props.checks && <td>{orgPill(c.change, props.checks.byKey.get(key)?.status)}</td>}
                     </tr>
                   );
                 })}

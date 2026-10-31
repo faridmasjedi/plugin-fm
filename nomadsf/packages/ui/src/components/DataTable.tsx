@@ -46,6 +46,8 @@ export type DataTableProps = {
   /** Checkbox column; `selected` holds the rowKey values of the checked rows. */
   selected?: Set<string>;
   onSelectedChange?: (selected: Set<string>) => void;
+  /** A cell drawn by the page (a select, a button); undefined draws the value as usual. */
+  renderCell?: (column: string, row: Row) => ReactNode | undefined;
 };
 
 export function DataTable({
@@ -58,6 +60,7 @@ export function DataTable({
   selectedKey,
   rowKey = 'Id',
   maxShown = 1000,
+  renderCell,
   selected,
   onSelectedChange,
 }: DataTableProps) {
@@ -227,7 +230,7 @@ export function DataTable({
                 {columns.map((c, ci) => (
                   // Long text is cut to the column: hovering shows all of it
                   <td key={`${ci}:${c}`} title={fullText(r[c])}>
-                    {cell(c, r[c])}
+                    {renderCell?.(c, r) ?? cell(c, r[c])}
                   </td>
                 ))}
               </tr>

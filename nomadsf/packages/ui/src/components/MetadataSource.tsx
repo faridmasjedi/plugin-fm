@@ -1,27 +1,35 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   apexSourcesFromOrg,
+  compareTypeWithProject,
   describeMetadata,
   folderBytes,
   listMetadata,
   makeZip,
+  normalizeXml,
   packageXml,
+  pairCodeFiles,
+  projectComponentFiles,
   projectMetadataZip,
   projectTests,
-  readZip,
   retrieveComponent,
   testsForPackage,
+  type CodeFile,
   type ComponentFile,
   type MetadataComponent,
   type MetadataType,
+  type ProjectSide,
 } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
 import { useProject } from '../project';
-import { CodeDiff } from './CodeDiff';
 import { CodeEditor } from './CodeEditor';
+import { SHOW, TAG, type CodeStatus, type Show } from './codeStatus';
 import { Dependencies } from './Dependencies';
+import { ProjectCodeView } from './ProjectCodeView';
 import { ReleasePanel } from './ReleasePanel';
 import { Status } from '../statusLog';
+
+type View = 'org' | 'project' | 'compare' | 'deps';
 
 /** Types people open most, first in the list. */
 const COMMON = [
@@ -57,55 +65,54 @@ const languageOf = (path: string): 'javascript' | 'html' | 'css' | 'json' | 'xml
     ? 'json'
     : 'xml';
 
-/** The project's version of a component, in the retrieve's (Metadata API) paths so it pairs with the org's files. */
-async function projectVersion(
-  project: ReturnType<typeof useProject>,
-  type: string,
-  name: string,
-  apiVersion: string
-): Promise<{ files: ComponentFile[]; problem?: string }> {
-  if (!project.source || !project.info) return { files: [], problem: 'Open a project first (Release › Project).' };
-  const { fs, handle } = project.source;
-  const built = await projectMetadataZip({
-    fs,
-    info: project.info,
-    deploy: [{ type, name }],
-    apiVersion,
-    readBytes: handle ? (path) => folderBytes(handle, path) : undefined,
-  });
-  if (built.notConverted.length) return { files: [], problem: `Not in the project: ${built.notConverted[0].reason}.` };
-  const files: ComponentFile[] = [];
-  for (const [path, bytes] of await readZip(built.zip)) {
-    if (path === 'package.xml') continue;
-    const text = new TextDecoder().decode(bytes);
-    files.push({ path, text: text.includes('\u0000') ? null : text, size: bytes.length });
-  }
-  return { files: files.sort((a, b) => a.path.localeCompare(b.path)) };
-}
+/** The language for the Code views' file pairs (no plain text there). */
+const codeLanguageOf = (path: string): CodeFile['language'] => languageOf(path);
 
 /**
- * Any metadata component (FlexiPage, Flow, permission set, layout…): its files from the org, edited in place; the
- * project's version and how it differs; validated, deployed or quick deployed — your edits or the project's version —
- * with the shared panel (tests, dependent tests); and what it uses and what uses it.
+ * Any metadata component (FlexiPage, Flow, permission set, layout…), the same way Code shows Apex and LWC: the org's
+ * list with what is only in the project, "Compare content" for a whole type, the org's files (edited in place), the
+ * project's version and the difference; validated, deployed or quick deployed — your edits or the project's version —
+ * with the shared panel; and what it uses and what uses it.
  */
 export function MetadataSource({ initial }: { initial?: { type: string; fullName: string } }) {
-  const { client } = useStudio();
+  const { client, org } = useStudio();
   const project = useProject();
   const [types, setTypes] = useState<MetadataType[]>([]);
   const [type, setType] = useState(() => initial?.type ?? storage.get('code.metaType', 'FlexiPage'));
   const [members, setMembers] = useState<MetadataComponent[] | null>(null);
   const [filter, setFilter] = useState('');
-  const [chosen, setChosen] = useState<MetadataComponent | null>(null);
+  const [show, setShow] = useState<Show>('all');
+  // The component open: from the org (with its record), or only in the project
+  const [chosen, setChosen] = useState<{ name: string; member?: MetadataComponent } | null>(null);
   const [files, setFiles] = useState<ComponentFile[] | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [fileIndex, setFileIndex] = useState(0);
-  const [view, setView] = useState<'source' | 'project' | 'compare' | 'deps'>('source');
-  // The project's version of the chosen component (undefined: not read yet)
-  const [inProject, setInProject] = useState<{ files: ComponentFile[]; problem?: string }>();
-  const [comparePath, setComparePath] = useState('');
+  const [view, setView] = useState<View>('org');
+  const [pairPath, setPairPath] = useState('');
+  // The project's version of the open component (undefined: not read yet)
+  const [inProject, setInProject] = useState<{ files: CodeFile[]; problem?: string }>();
+  const [checked, setChecked] = useState<Record<string, 'same' | 'different'>>({});
   // Validate / deploy: your edits (the org's files) or the project's version
   const [release, setRelease] = useState<'edits' | 'project' | null>(null);
   const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const projectOpen = Boolean(project.source && project.info);
+  const projectSide = (): ProjectSide | undefined =>
+    project.source && project.info
+      ? {
+          fs: project.source.fs,
+          info: project.info,
+          readBytes: project.source.handle ? (path) => folderBytes(project.source!.handle!, path) : undefined,
+        }
+      : undefined;
+  // The project's components of this type
+  const projectNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const dir of project.info?.packageDirectories ?? [])
+      for (const t of dir.types) if (t.type === type) t.names.forEach((n) => names.add(n));
+    return names;
+  }, [project.info, type]);
 
   useEffect(() => {
     describeMetadata(client)
@@ -117,30 +124,41 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
     storage.set('code.metaType', type);
     setMembers(null);
     setChosen(null);
+    setChecked({});
     if (!types.length) return;
     const info = types.find((t) => t.xmlName === type);
     if (!info) return;
     listMetadata(client, type, info.inFolder)
       .then((list) => {
-        const sorted = list.sort((a, b) => a.fullName.localeCompare(b.fullName));
+        const sorted = list
+          .filter((m) => !m.type || m.type === type)
+          .sort((a, b) => a.fullName.localeCompare(b.fullName));
         setMembers(sorted);
-        if (initial && initial.type === type) setChosen(sorted.find((m) => m.fullName === initial.fullName) ?? null);
+        const first =
+          initial && initial.type === type ? sorted.find((m) => m.fullName === initial.fullName) : undefined;
+        if (first) setChosen({ name: first.fullName, member: first });
       })
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
     // `initial` only matters the first time
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, type, types]);
 
+  // A new component: its org files (when it is in the org); the project's version is read when a view needs it
   useEffect(() => {
     setFiles(null);
     setDrafts({});
     setFileIndex(0);
     setInProject(undefined);
     setRelease(null);
+    setPairPath('');
     if (!chosen) return;
-    setStatus(`Retrieving ${chosen.fullName}…`);
-    // The component's own type: the list may already show another one
-    retrieveComponent(client, chosen.type || type, chosen.fullName)
+    if (!chosen.member) {
+      setView('project');
+      return;
+    }
+    setView((v) => (v === 'deps' ? 'org' : v));
+    setStatus(`Retrieving ${chosen.name}…`);
+    retrieveComponent(client, chosen.member.type || type, chosen.name)
       .then((f) => {
         setFiles(f);
         setStatus('');
@@ -150,25 +168,18 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, chosen]);
 
-  const typeList = useMemo(() => {
-    const names = types.map((t) => t.xmlName);
-    return [...COMMON.filter((c) => names.includes(c)), ...names.filter((n) => !COMMON.includes(n)).sort()];
-  }, [types]);
-  const needle = filter.trim().toLowerCase();
-  const shown = (members ?? []).filter((m) => !needle || m.fullName.toLowerCase().includes(needle));
-  const changed = Object.entries(drafts).filter(([path, text]) => files?.find((f) => f.path === path)?.text !== text);
-  const current = files?.[fileIndex];
+  const name = chosen?.name ?? '';
+  const inOrg = Boolean(chosen?.member);
+  const hasProjectVersion = projectOpen && projectNames.has(name);
 
-  const name = chosen?.fullName ?? '';
-  const chosenType = chosen?.type || type;
-
-  // The project's version, read when a view or the panel needs it
   useEffect(() => {
-    if (!chosen || inProject || (view !== 'project' && view !== 'compare' && release !== 'project')) return;
+    const side = projectSide();
+    if (!chosen || inProject || !side || !projectNames.has(chosen.name)) return;
+    if (view !== 'project' && view !== 'compare' && release !== 'project') return;
     let canceled = false;
     void (async () => {
       try {
-        const found = await projectVersion(project, chosenType, name, await client.version());
+        const found = await projectComponentFiles(side, { type, name: chosen.name }, await client.version());
         if (!canceled) setInProject(found);
       } catch (e) {
         if (!canceled) setInProject({ files: [], problem: (e as Error).message });
@@ -177,28 +188,84 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
     return () => {
       canceled = true;
     };
-  }, [chosen, chosenType, name, view, release, inProject, project, client]);
+    // projectSide reads project, which is a dependency
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chosen, view, release, inProject, project, projectNames, client, type]);
+
+  const typeList = useMemo(() => {
+    const names = types.map((t) => t.xmlName);
+    return [...COMMON.filter((c) => names.includes(c)), ...names.filter((n) => !COMMON.includes(n)).sort()];
+  }, [types]);
+
+  const statusOf = (entry: { name: string; member?: MetadataComponent }): CodeStatus | undefined =>
+    !projectOpen
+      ? undefined
+      : !entry.member
+      ? 'only in project'
+      : projectNames.has(entry.name)
+      ? checked[entry.name] ?? 'in both'
+      : 'only in org';
+  const orgNames = new Set((members ?? []).map((m) => m.fullName));
+  const entries = [
+    ...(members ?? []).map((m) => ({ name: m.fullName, member: m as MetadataComponent | undefined })),
+    ...(projectOpen && members
+      ? [...projectNames].filter((n) => !orgNames.has(n)).map((n) => ({ name: n, member: undefined }))
+      : []),
+  ].sort((a, b) => a.name.localeCompare(b.name));
+  const counts = new Map<Show, number>([['all', entries.length]]);
+  for (const e of entries) {
+    const st = statusOf(e);
+    if (st) counts.set(st, (counts.get(st) ?? 0) + 1);
+  }
+  const needle = filter.trim().toLowerCase();
+  const shown = entries.filter(
+    (e) => (!needle || e.name.toLowerCase().includes(needle)) && (show === 'all' || statusOf(e) === show)
+  );
+  const chosenStatus = chosen ? statusOf(chosen) : undefined;
+
+  const changed = Object.entries(drafts).filter(([path, text]) => files?.find((f) => f.path === path)?.text !== text);
+  const current = files?.[fileIndex];
+  const orgCode: CodeFile[] = (files ?? [])
+    .filter((f) => f.text !== null)
+    .map((f) => ({ id: f.path, path: f.path, language: codeLanguageOf(f.path), source: f.text ?? '' }));
+  // XML laid out the same way on both sides (a compact project file and the org's expanded one)
+  const laidOut = (list: CodeFile[]): CodeFile[] =>
+    list.map((f) => (f.language === 'xml' ? { ...f, source: normalizeXml(f.source) } : f));
+  const pairs = inProject ? pairCodeFiles(laidOut(orgCode), laidOut(inProject.files)) : [];
+
+  /** "Compare content": every component of this type in both, same or different. */
+  const checkContent = async (): Promise<void> => {
+    const side = projectSide();
+    if (!side) return;
+    const both = (members ?? []).map((m) => m.fullName).filter((n) => projectNames.has(n));
+    setBusy(true);
+    try {
+      const result = await compareTypeWithProject(client, side, type, both, (s) => setStatus(s));
+      setChecked(Object.fromEntries(result));
+      const different = [...result.values()].filter((v) => v === 'different').length;
+      setStatus(`✓ ${result.size} ${type} compared: ${different} different.`);
+      if (different) setShow('different');
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   /** The package for the panel: the org's files with your edits, or the project's version. */
   const build = async () => {
     const version = await client.version();
     if (release === 'project') {
-      if (!project.source || !project.info) throw new Error('Open a project first (Release › Project).');
-      const { fs, handle } = project.source;
-      return projectMetadataZip({
-        fs,
-        info: project.info,
-        deploy: [{ type: chosenType, name }],
-        apiVersion: version,
-        readBytes: handle ? (path) => folderBytes(handle, path) : undefined,
-      });
+      const side = projectSide();
+      if (!side) throw new Error('Open a project first (Release › Project).');
+      return projectMetadataZip({ ...side, deploy: [{ type, name }], apiVersion: version });
     }
     if (!files) throw new Error('The files are not retrieved yet.');
     if (files.some((f) => f.text === null))
       throw new Error('This component has binary files: deploy it from the project.');
     return {
       zip: makeZip([
-        { path: 'package.xml', content: packageXml([{ type: chosenType, fullName: name }], version) },
+        { path: 'package.xml', content: packageXml([{ type, fullName: name }], version) },
         ...files.map((f) => ({ path: f.path, content: drafts[f.path] ?? f.text ?? '' })),
       ]),
     };
@@ -206,18 +273,8 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
 
   const findTests = async () =>
     release === 'project' && project.source && project.info
-      ? projectTests(project.source.fs, project.info, [{ type: chosenType, name }])
-      : testsForPackage(await apexSourcesFromOrg(client), [{ type: chosenType, name }]);
-
-  // Compare: every path in either version
-  const paths = [...new Set([...(files ?? []), ...(inProject?.files ?? [])].map((f) => f.path))].sort();
-  const pairPath = paths.includes(comparePath) ? comparePath : paths[0] ?? '';
-  const orgText = (path: string): string | null | undefined => {
-    const f = files?.find((x) => x.path === path);
-    return f ? drafts[path] ?? f.text : undefined;
-  };
-  const projectText = (path: string): string | null | undefined => inProject?.files.find((x) => x.path === path)?.text;
-  const differs = (path: string): boolean => orgText(path) !== projectText(path);
+      ? projectTests(project.source.fs, project.info, [{ type, name }])
+      : testsForPackage(await apexSourcesFromOrg(client), [{ type, name }]);
 
   return (
     <div className="metadata-source">
@@ -231,6 +288,7 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
               setChosen(null);
               setFiles(null);
               setStatus('');
+              setShow('all');
               setType(e.target.value);
             }}
             style={{ minWidth: 220 }}
@@ -240,8 +298,8 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
             ))}
           </select>
         </label>
-        <Status text={status} />
       </div>
+      {status && <Status text={status} block />}
       {type === 'Profile' && (
         <p className="muted">
           A profile file holds only the settings that go with the other components in the same retrieve: to change a
@@ -251,97 +309,131 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
       <div className="code-layout">
         <div className="card code-list">
           <input
-            placeholder={`Filter ${members?.length ?? ''}`}
+            placeholder={`Filter ${entries.length || ''}`}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
+          {projectOpen && (
+            <div className="code-project">
+              <span className="muted" title={project.source?.name}>
+                vs project <b>{project.source?.name}</b>
+              </span>
+              <div className="form">
+                <select value={show} onChange={(e) => setShow(e.target.value as Show)}>
+                  {SHOW.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label} ({counts.get(o.id) ?? 0})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  disabled={busy || !members || !(members ?? []).some((m) => projectNames.has(m.fullName))}
+                  title={`Compare the content of every ${type} in both the org and the project`}
+                  onClick={() => void checkContent()}
+                >
+                  Compare content
+                </button>
+              </div>
+            </div>
+          )}
           {members === null && <p className="muted">Loading…</p>}
           <ul>
-            {shown.map((m) => (
-              <li key={m.fullName}>
-                <button
-                  className={chosen?.fullName === m.fullName ? 'active' : ''}
-                  onClick={() => setChosen(m)}
-                  title={`${m.fullName}\n${m.fileName}`}
-                >
-                  {m.fullName}
-                </button>
-              </li>
-            ))}
+            {shown.map((e) => {
+              const st = statusOf(e);
+              return (
+                <li key={`${e.member ? 'org' : 'project'}:${e.name}`}>
+                  <button
+                    className={`${chosen?.name === e.name ? 'active' : ''} ${
+                      st === 'only in project' ? 'project-only' : ''
+                    }`}
+                    onClick={() => setChosen(e)}
+                    title={`${e.name}${st ? ` · ${st}` : ''}${e.member?.fileName ? `\n${e.member.fileName}` : ''}`}
+                  >
+                    {e.name}
+                    {st && TAG[st] && <span className={`code-tag ${st.replace(/ /g, '-')}`}>{TAG[st]}</span>}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
-        <div>
-          {chosen && (
+        <div className="card section">
+          {chosen ? (
             <>
-              <div className="form">
-                <b>{chosen.fullName}</b>
-                <span className="muted">
-                  {chosen.lastModifiedByName ? `${chosen.lastModifiedByName} · ` : ''}
-                  {chosen.lastModifiedDate?.slice(0, 10) ?? ''}
-                  {chosen.manageableState && chosen.manageableState !== 'unmanaged'
-                    ? ` · ${chosen.manageableState}`
-                    : ''}
-                </span>
-                <span className="grow" />
+              <div className="toolbar code-views">
                 <div className="tabs">
-                  <button className={`tab ${view === 'source' ? 'active' : ''}`} onClick={() => setView('source')}>
-                    Source
-                  </button>
-                  <button
-                    className={`tab ${view === 'project' ? 'active' : ''}`}
-                    disabled={!project.source}
-                    title={project.source ? 'Its files in the project' : 'Open a project first (Release › Project)'}
-                    onClick={() => setView('project')}
-                  >
-                    Project
-                  </button>
-                  <button
-                    className={`tab ${view === 'compare' ? 'active' : ''}`}
-                    disabled={!project.source}
-                    title={project.source ? 'The org and the project side by side' : 'Open a project first'}
-                    onClick={() => setView('compare')}
-                  >
-                    Compare
-                  </button>
-                  <button
-                    className={`tab ${view === 'deps' ? 'active' : ''}`}
-                    disabled={!chosen.id}
-                    title={chosen.id ? 'What it uses and what uses it' : 'Salesforce gives no Id for this type'}
-                    onClick={() => setView('deps')}
-                  >
-                    Dependencies
-                  </button>
+                  {(['org', 'project', 'compare', 'deps'] as View[]).map((v) => (
+                    <button
+                      key={v}
+                      className={`tab ${view === v ? 'active' : ''}`}
+                      disabled={
+                        (v === 'org' && !inOrg) ||
+                        (v === 'compare' && (!inOrg || !hasProjectVersion)) ||
+                        (v === 'project' && !hasProjectVersion) ||
+                        (v === 'deps' && !chosen.member?.id)
+                      }
+                      title={
+                        v === 'deps'
+                          ? chosen.member?.id
+                            ? 'What it uses and what uses it'
+                            : 'Salesforce gives no Id for this type'
+                          : v !== 'org' && !projectOpen
+                          ? 'Open a project first (Release › Project)'
+                          : undefined
+                      }
+                      onClick={() => setView(v)}
+                    >
+                      {v === 'org'
+                        ? `Org · ${org.label}`
+                        : v === 'project'
+                        ? 'Project'
+                        : v === 'compare'
+                        ? 'Compare'
+                        : 'Dependencies'}
+                    </button>
+                  ))}
                 </div>
-                {view === 'source' && files && (
-                  <button disabled={!changed.length} onClick={() => setDrafts({})}>
-                    Undo
-                  </button>
+                {chosenStatus && chosenStatus !== 'in both' && (
+                  <span className={`code-tag ${chosenStatus.replace(/ /g, '-')}`}>{chosenStatus}</span>
                 )}
-                {files && (
-                  <button
-                    className={release === 'edits' ? 'primary active' : 'primary'}
-                    onClick={() => setRelease(release === 'edits' ? null : 'edits')}
-                    title="Validate, deploy or quick deploy the org's files with your edits, with the tests you choose"
-                  >
-                    Validate / deploy {changed.length ? `${changed.length} edited file(s)` : ''}…
-                  </button>
+                <span className="grow" />
+                {view === 'org' && files && (
+                  <>
+                    <button disabled={!changed.length} onClick={() => setDrafts({})}>
+                      Undo
+                    </button>
+                    <button
+                      className={release === 'edits' ? 'primary active' : 'primary'}
+                      onClick={() => setRelease(release === 'edits' ? null : 'edits')}
+                      title="Validate, deploy or quick deploy the org's files with your edits, with the tests you choose"
+                    >
+                      {changed.length ? `Save ${changed.length} edited file(s)…` : 'Validate / deploy…'}
+                    </button>
+                  </>
                 )}
-                {project.source && (
+                {hasProjectVersion && (
                   <button
-                    className={release === 'project' ? 'active' : ''}
+                    className={release === 'project' ? 'primary active' : view === 'org' ? '' : 'primary'}
                     onClick={() => setRelease(release === 'project' ? null : 'project')}
-                    title="Validate, deploy or quick deploy the project's version"
+                    title="Validate, deploy or quick deploy the project's version, with the tests you choose"
                   >
                     Deploy from project…
                   </button>
                 )}
               </div>
+              <p className="muted code-meta">
+                <b>{name}</b> {chosen.member?.lastModifiedByName ? `· ${chosen.member.lastModifiedByName} ` : ''}
+                {chosen.member?.lastModifiedDate ? `· ${chosen.member.lastModifiedDate.slice(0, 10)}` : ''}
+                {chosen.member?.manageableState && chosen.member.manageableState !== 'unmanaged'
+                  ? ` · ${chosen.member.manageableState}`
+                  : ''}
+              </p>
               {release && (
                 <ReleasePanel
-                  key={`${release}:${chosenType}:${name}`}
+                  key={`${release}:${type}:${name}`}
                   deployCount={1}
                   removeCount={0}
-                  from={release === 'project' ? `the project (${chosenType} ${name})` : `your edits of ${name}`}
+                  from={release === 'project' ? `the project (${type} ${name})` : `the org's ${name} with your edits`}
                   build={build}
                   findTests={findTests}
                   zipName={`${name.replace(/[^\w.-]+/g, '_')}.zip`}
@@ -353,98 +445,62 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
                   }}
                 />
               )}
-              {view === 'project' || view === 'compare' ? (
+              {view === 'deps' && chosen.member?.id ? (
+                <Dependencies id={chosen.member.id} name={name} />
+              ) : view === 'project' || view === 'compare' ? (
                 !inProject ? (
                   <p className="muted">Reading the project…</p>
                 ) : inProject.problem ? (
-                  <p className="muted">{inProject.problem}</p>
+                  <p className="muted">Not read from the project: {inProject.problem}.</p>
                 ) : (
-                  <>
+                  <ProjectCodeView
+                    key={`${view}:${name}`}
+                    pairs={pairs}
+                    view={view}
+                    labels={[org.label, `project ${project.source?.name ?? ''}`]}
+                    path={pairPath}
+                    onPath={setPairPath}
+                  />
+                )
+              ) : !files ? null : (
+                <>
+                  {files.length > 1 && (
                     <div className="tabs">
-                      {(view === 'project' ? inProject.files.map((f) => f.path) : paths).map((path) => (
+                      {files.map((f, i) => (
                         <button
-                          key={path}
-                          className={`tab ${path === pairPath ? 'active' : ''}`}
-                          onClick={() => setComparePath(path)}
+                          key={f.path}
+                          className={`tab ${i === fileIndex ? 'active' : ''}`}
+                          onClick={() => setFileIndex(i)}
                         >
-                          {path.split('/').pop()}
-                          {view === 'compare' && differs(path) ? ' •' : ''}
+                          {f.path.split('/').pop()}
+                          {drafts[f.path] !== undefined && drafts[f.path] !== f.text ? ' •' : ''}
                         </button>
                       ))}
                     </div>
-                    {view === 'project' ? (
-                      <div className="editor-box">
+                  )}
+                  {current && current.text === null ? (
+                    <p className="muted">
+                      {current.path}: a binary file ({current.size.toLocaleString()} bytes), not shown.
+                    </p>
+                  ) : (
+                    current && (
+                      <div className="editor-box tall">
                         <CodeEditor
-                          language={languageOf(pairPath)}
-                          value={projectText(pairPath) ?? '(binary file)'}
-                          onChange={() => undefined}
-                          readOnly
+                          key={`org:${name}:${current.path}`}
+                          language={languageOf(current.path)}
+                          value={drafts[current.path] ?? current.text ?? ''}
+                          onChange={(v) => setDrafts({ ...drafts, [current.path]: v })}
+                          readOnly={chosen.member?.manageableState === 'installed' && type !== 'Layout'}
                         />
                       </div>
-                    ) : orgText(pairPath) === null || projectText(pairPath) === null ? (
-                      <p className="muted">{pairPath}: a binary file, not compared.</p>
-                    ) : (
-                      <>
-                        <p className="muted" style={{ margin: 0 }}>
-                          {paths.filter(differs).length
-                            ? `${paths.filter(differs).length} of ${paths.length} file(s) differ (•).`
-                            : 'The org and the project are the same.'}
-                          {orgText(pairPath) === undefined ? ' This file is only in the project.' : ''}
-                          {projectText(pairPath) === undefined ? ' This file is only in the org.' : ''}
-                        </p>
-                        <div className="compare-diff-editor">
-                          <CodeDiff
-                            original={orgText(pairPath) ?? ''}
-                            modified={projectText(pairPath) ?? ''}
-                            language={languageOf(pairPath)}
-                            labels={[`${chosen.fullName} in the org`, 'the project']}
-                          />
-                        </div>
-                      </>
-                    )}
-                  </>
-                )
-              ) : view === 'source' ? (
-                !files ? null : (
-                  <>
-                    {files.length > 1 && (
-                      <div className="tabs">
-                        {files.map((f, i) => (
-                          <button
-                            key={f.path}
-                            className={`tab ${i === fileIndex ? 'active' : ''}`}
-                            onClick={() => setFileIndex(i)}
-                          >
-                            {f.path.split('/').pop()}
-                            {drafts[f.path] !== undefined && drafts[f.path] !== f.text ? ' •' : ''}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {current && current.text === null ? (
-                      <p className="muted">
-                        {current.path}: a binary file ({current.size.toLocaleString()} bytes), not shown.
-                      </p>
-                    ) : (
-                      current && (
-                        <div className="editor-box">
-                          <CodeEditor
-                            language={languageOf(current.path)}
-                            value={drafts[current.path] ?? current.text ?? ''}
-                            onChange={(v) => setDrafts({ ...drafts, [current.path]: v })}
-                            readOnly={chosen.manageableState === 'installed' && chosen.type !== 'Layout'}
-                          />
-                        </div>
-                      )
-                    )}
-                  </>
-                )
-              ) : (
-                <Dependencies id={chosen.id!} name={chosen.fullName} />
+                    )
+                  )}
+                </>
               )}
             </>
+          ) : (
+            members && <p className="muted">Choose a {type} on the left.</p>
           )}
-          {!chosen && members && <p className="muted">Choose a {type} on the left.</p>}
         </div>
       </div>
     </div>

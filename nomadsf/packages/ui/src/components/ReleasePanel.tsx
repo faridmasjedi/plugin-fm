@@ -63,7 +63,9 @@ export function ReleasePanel(props: ReleasePanelProps) {
   const targetId = props.targetId ?? chosen;
   const target = studio.orgs.find((o) => o.id === targetId);
   const [client, setClient] = useState<SalesforceClient>();
-  const [production, setProduction] = useState(false);
+  // What the target is: sandboxes and Developer Edition / trial orgs may deploy with no tests; production may not
+  const [orgKind, setOrgKind] = useState<'Sandbox' | 'Developer' | 'Production'>();
+  const production = orgKind === 'Production';
   const [level, setLevel] = useState<TestLevel>('RunLocalTests');
   const [tests, setTests] = useState('');
   const [removeWhen, setRemoveWhen] = useState<'pre' | 'post'>('post');
@@ -76,7 +78,7 @@ export function ReleasePanel(props: ReleasePanelProps) {
   useEffect(() => {
     setClient(undefined);
     setOutcome(null);
-    setProduction(false);
+    setOrgKind(undefined);
     if (!target) return undefined;
     let canceled = false;
     void (async () => {
@@ -85,7 +87,10 @@ export function ReleasePanel(props: ReleasePanelProps) {
         if (canceled) return;
         setClient(c);
         const facts = await orgFacts(c);
-        if (!canceled) setProduction(!facts.isSandbox);
+        if (!canceled)
+          setOrgKind(
+            facts.isSandbox ? 'Sandbox' : /developer|trial/i.test(facts.organizationType) ? 'Developer' : 'Production'
+          );
       } catch (e) {
         if (!canceled) setStatus(`❌ ${(e as Error).message}`);
       }
@@ -195,36 +200,40 @@ export function ReleasePanel(props: ReleasePanelProps) {
     });
   };
 
+  const disabled = busy || !client || (!deployCount && !removeCount);
   return (
     <div className="card section release-panel">
-      <h3>Validate and deploy</h3>
-      <div className="form">
-        {props.targetId ? (
-          <span>
-            Into{'\u00a0'}
+      <div className="release-head">
+        <h3>Validate and deploy</h3>
+        <span className="release-counts">
+          <b>{deployCount}</b> to deploy
+          {removeCount > 0 && (
+            <>
+              {' · '}
+              <b className="bad-text">{removeCount}</b> to delete
+            </>
+          )}
+          <span className="muted"> · from {from}</span>
+        </span>
+      </div>
+      <div className="release-grid">
+        <span className="release-label">Into</span>
+        <div className="release-row">
+          {props.targetId ? (
             <b className={production ? 'bad-text' : ''}>{target?.label ?? targetId}</b>
-          </span>
-        ) : (
-          <label>
-            Org
+          ) : (
             <select value={chosen} onChange={(e) => setChosen(e.target.value)}>
               {studio.orgs.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.label}
-                  {o.type ? ` — ${o.type}` : ''}
                 </option>
               ))}
             </select>
-          </label>
-        )}
-        {production && <span className="pill bad">production</span>}
-        <span className="muted">
-          {deployCount} to deploy{removeCount ? ` · ${removeCount} to delete` : ''}
-        </span>
-      </div>
-      <div className="form">
-        <label>
-          Tests
+          )}
+          {orgKind && <span className={`pill ${production ? 'bad' : 'good'}`}>{orgKind}</span>}
+        </div>
+        <span className="release-label">Tests</span>
+        <div className="release-row">
           <select value={level} onChange={(e) => setLevel(e.target.value as TestLevel)}>
             {LEVELS.map((l) => (
               <option key={l.id} value={l.id} disabled={l.id === 'NoTestRun' && production}>
@@ -232,46 +241,49 @@ export function ReleasePanel(props: ReleasePanelProps) {
               </option>
             ))}
           </select>
-        </label>
-        {findTests && (
-          <button
-            disabled={busy}
-            onClick={() => void suggest()}
-            title="The test classes that reach these classes and triggers"
-          >
-            Find dependent tests
-          </button>
+          {findTests && (
+            <button
+              disabled={busy}
+              onClick={() => void suggest()}
+              title="The test classes that reach these classes and triggers"
+            >
+              Find dependent tests
+            </button>
+          )}
+          {production && <span className="muted">tests must run in production</span>}
+        </div>
+        {level === 'RunSpecifiedTests' && (
+          <>
+            <span />
+            <textarea
+              className="release-tests"
+              rows={2}
+              placeholder="Test classes, separated by commas or spaces"
+              value={tests}
+              onChange={(e) => setTests(e.target.value)}
+            />
+          </>
         )}
         {removeCount > 0 && (
-          <label>
-            Deletions
-            <select value={removeWhen} onChange={(e) => setRemoveWhen(e.target.value as 'pre' | 'post')}>
-              <option value="post">after the deploy</option>
-              <option value="pre">before the deploy</option>
-            </select>
-          </label>
+          <>
+            <span className="release-label">Deletions</span>
+            <div className="release-row">
+              <select value={removeWhen} onChange={(e) => setRemoveWhen(e.target.value as 'pre' | 'post')}>
+                <option value="post">after the deploy</option>
+                <option value="pre">before the deploy</option>
+              </select>
+            </div>
+          </>
         )}
       </div>
-      {level === 'RunSpecifiedTests' && (
-        <textarea
-          className="release-tests"
-          rows={2}
-          placeholder="Test classes, separated by commas or spaces"
-          value={tests}
-          onChange={(e) => setTests(e.target.value)}
-        />
-      )}
-      <div className="form">
-        <button disabled={busy || !client || (!deployCount && !removeCount)} onClick={() => void send(true)}>
+      <div className="release-actions">
+        <button className="primary" disabled={disabled} onClick={() => void send(true)}>
           Validate on {target?.label ?? '…'}
         </button>
-        <button
-          className="danger"
-          disabled={busy || !client || (!deployCount && !removeCount)}
-          onClick={() => void send(false)}
-        >
+        <button className="danger" disabled={disabled} onClick={() => void send(false)}>
           Deploy to {target?.label ?? '…'}
         </button>
+        <span className="grow" />
         <button disabled={busy || (!deployCount && !removeCount)} onClick={() => void saveZip()}>
           ⤓ Deployable zip
         </button>

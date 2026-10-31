@@ -70,7 +70,10 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
 
   const source = orgs.find((o) => o.id === sourceId);
   const target = orgs.find((o) => o.id === targetId);
-  const production = targetFacts ? !targetFacts.isSandbox : false;
+  // Developer Edition and trial orgs are not production (they may deploy with no tests)
+  const production = targetFacts
+    ? !targetFacts.isSandbox && !/developer|trial/i.test(targetFacts.organizationType)
+    : false;
 
   // Connect to both orgs (browser logins in the extension, CLI orgs in the app)
   useEffect(() => {

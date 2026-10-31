@@ -17,6 +17,7 @@ import {
   projectTests,
   readProjectCode,
   saveApex,
+  saveAuraBundleMeta,
   saveBundleFile,
   type CodeFile,
   type CodeItem,
@@ -32,6 +33,7 @@ import { monaco } from '../monaco';
 import { useProject } from '../project';
 import { askConfirm, askText } from '../components/Dialogs';
 import { MetadataSource } from '../components/MetadataSource';
+import { SHOW, TAG, type CodeStatus, type Show } from '../components/codeStatus';
 import { Dependencies } from '../components/Dependencies';
 import { Status } from '../statusLog';
 
@@ -45,25 +47,7 @@ const KINDS: Array<{ id: CodeKind; label: string; one: string }> = [
 ];
 const kindInfo = (id: CodeKind): (typeof KINDS)[number] => KINDS.find((k) => k.id === id) ?? KINDS[0];
 
-/** Where a component is, once a project is open: both (same / different when checked), or one side only. */
-type CodeStatus = 'same' | 'different' | 'in both' | 'only in org' | 'only in project';
-type Show = 'all' | CodeStatus;
 type View = 'org' | 'project' | 'compare';
-const SHOW: Array<{ id: Show; label: string }> = [
-  { id: 'all', label: 'All' },
-  { id: 'different', label: 'Different' },
-  { id: 'same', label: 'Same' },
-  { id: 'in both', label: 'Not checked' },
-  { id: 'only in org', label: 'Only in org' },
-  { id: 'only in project', label: 'Only in project' },
-];
-const TAG: Record<CodeStatus, string> = {
-  same: '=',
-  different: '≠',
-  'in both': '',
-  'only in org': 'org',
-  'only in project': 'project',
-};
 const projectOnlyId = (name: string): string => `project:${name}`;
 
 /** Developer Console's editor: open, compile and save Apex, Visualforce, LWC and Aura source. */
@@ -242,7 +226,9 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
     try {
       for (const file of dirty) {
         // eslint-disable-next-line no-await-in-loop
-        await saveBundleFile(client, item.kind as 'LWC' | 'Aura', file.id, drafts[file.id]);
+        await (item.kind === 'Aura' && file.path.endsWith('-meta.xml')
+          ? saveAuraBundleMeta(client, file.id, drafts[file.id])
+          : saveBundleFile(client, item.kind as 'LWC' | 'Aura', file.id, drafts[file.id]));
       }
       studio.logActivity('save code', { kind: item.kind, name: item.name, files: dirty.map((f) => f.path) });
       setFiles(files.map((f) => (drafts[f.id] !== undefined ? { ...f, source: drafts[f.id] } : f)));
