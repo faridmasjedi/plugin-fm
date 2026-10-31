@@ -454,3 +454,85 @@ export async function projectLabels(fs: ProjectFs, info: ProjectInfo): Promise<s
   }
   return [...names].sort();
 }
+
+export type ProjectDependency = { type: string; name: string };
+
+/** How other files refer to a component: its name, and the forms LWC, Aura and labels use. */
+/** Types named after their object (Case's sharing rules…): nothing refers to them by name. */
+const NAMED_BY_OBJECT = new Set([
+  'SharingRules',
+  'Workflow',
+  'AssignmentRules',
+  'AutoResponseRules',
+  'EscalationRules',
+  'CustomObjectTranslation',
+  'TopicsForObjects',
+]);
+
+function referencesTo(c: { type: string; name: string }): string[] {
+  const { type, name } = c;
+  if (NAMED_BY_OBJECT.has(type)) return [];
+  const last = name.split('.').pop() ?? name;
+  const kebab = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+  const forms: Record<string, string[]> = {
+    LightningComponentBundle: [`c-${kebab}`, `c/${name}`],
+    AuraDefinitionBundle: [`c:${name}`],
+    CustomLabel: [`Label.${name}`, `c.${name}`],
+    // A field is named by its API name (Score__c) or with its object (Account.Score__c)
+    CustomField: [name, last],
+  };
+  return (forms[type] ?? [name]).filter((t) => t.length >= 3);
+}
+
+const mentions = (text: string, token: string): boolean =>
+  new RegExp(`(?<![\\w])${token.replace(/[.*+?^${}()|[\]\\$]/g, '\\$&')}(?![\\w])`).test(text);
+
+/**
+ * What a component of the project uses and what uses it, read from the project's own files (for components the org
+ * does not have yet, where Salesforce's dependency tracking cannot help): a name, a tag or a label referred to.
+ */
+export async function projectDependencies(
+  fs: ProjectFs,
+  info: ProjectInfo,
+  component: { type: string; name: string }
+): Promise<{ uses: ProjectDependency[]; usedBy: ProjectDependency[] }> {
+  const dirs = info.packageDirectories.map((d) => d.path);
+  // Every component with the text of its files (each label its own block); static resources are not read
+  const texts = new Map<string, { type: string; name: string; text: string }>();
+  for (const path of await projectFiles(fs, info)) {
+    const c = resolveComponent(path, dirs);
+    if (!c || c.type === 'StaticResource') continue;
+    // eslint-disable-next-line no-await-in-loop
+    const raw = (await fs.readText(path)) ?? '';
+    // A file's <fullName> is its own name (or its parts'), never a reference to something else
+    const text = c.labels ? raw : raw.replace(/<fullName>[^<]*<\/fullName>/g, '');
+    if (c.labels) {
+      for (const [name, block] of labelBlocks(text))
+        texts.set(`CustomLabel:${name}`, {
+          type: 'CustomLabel',
+          name,
+          text: block.replace(/<fullName>[^<]*<\/fullName>/g, ''),
+        });
+      continue;
+    }
+    const key = `${c.type}:${c.name}`;
+    const found = texts.get(key);
+    if (found) found.text += `\n${text}`;
+    else texts.set(key, { type: c.type, name: c.name, text });
+  }
+  const self = `${component.type}:${component.name}`;
+  const own = texts.get(self)?.text ?? '';
+  const mine = referencesTo(component);
+  const uses: ProjectDependency[] = [];
+  const usedBy: ProjectDependency[] = [];
+  for (const [key, other] of texts) {
+    if (key === self) continue;
+    // An object's own fields are part of it, not dependencies
+    if (component.type === 'CustomObject' && other.name.startsWith(`${component.name}.`)) continue;
+    if (referencesTo(other).some((t) => mentions(own, t))) uses.push({ type: other.type, name: other.name });
+    if (mine.some((t) => mentions(other.text, t))) usedBy.push({ type: other.type, name: other.name });
+  }
+  const order = (a: ProjectDependency, b: ProjectDependency): number =>
+    a.type.localeCompare(b.type) || a.name.localeCompare(b.name);
+  return { uses: uses.sort(order), usedBy: usedBy.sort(order) };
+}

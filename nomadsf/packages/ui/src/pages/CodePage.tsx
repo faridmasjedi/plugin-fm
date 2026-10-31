@@ -38,6 +38,7 @@ import { askConfirm, askText } from '../components/Dialogs';
 import { MetadataSource } from '../components/MetadataSource';
 import { SHOW, TAG, type CodeStatus, type Show } from '../components/codeStatus';
 import { Dependencies } from '../components/Dependencies';
+import { ProjectDependencies } from '../components/ProjectDependencies';
 import { Status } from '../statusLog';
 
 const KINDS: Array<{ id: CodeKind; label: string; one: string }> = [
@@ -596,6 +597,33 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
               }}
             />
           )}
+          {item && projectFiles && view !== 'org' && (
+            <div className="chips ai-tools">
+              <button
+                className={showDeps ? 'primary' : ''}
+                title="What this uses, and what uses it: in the org, and in the project"
+                onClick={() => setShowDeps(!showDeps)}
+              >
+                Dependencies
+              </button>
+            </div>
+          )}
+          {showDeps && item && (
+            <div className="section">
+              {inOrg && (
+                <>
+                  <h4 className="deps-where">In {studio.org.label}</h4>
+                  <Dependencies id={item.id} name={item.name} />
+                </>
+              )}
+              {projectOpen && index.has(item.name) && (
+                <>
+                  <h4 className="deps-where">In the project</h4>
+                  <ProjectDependencies type={CODE_LAYOUT[item.kind].type} name={item.name} />
+                </>
+              )}
+            </div>
+          )}
           {item && projectFiles && view !== 'org' ? (
             <ProjectCodeView
               pairs={pairs}
@@ -626,15 +654,13 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
                 </div>
               )}
               <div className="chips ai-tools">
-                {inOrg && (
-                  <button
-                    className={showDeps ? 'primary' : ''}
-                    title="What this uses, and what uses it (classes, triggers, flows, pages)"
-                    onClick={() => setShowDeps(!showDeps)}
-                  >
-                    Dependencies
-                  </button>
-                )}
+                <button
+                  className={showDeps ? 'primary' : ''}
+                  title="What this uses, and what uses it (classes, triggers, flows, pages): in the org, and in the project"
+                  onClick={() => setShowDeps(!showDeps)}
+                >
+                  Dependencies
+                </button>
                 <AiExplain
                   task="explain-code"
                   label="Explain"
@@ -664,11 +690,6 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
                   />
                 )}
               </div>
-              {showDeps && item && inOrg && (
-                <div className="section">
-                  <Dependencies id={item.id} name={item.name} />
-                </div>
-              )}
               <div className="editor-box tall">
                 <CodeEditor
                   key={file.id}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   projectComponentFiles,
+  projectDependencies,
   projectLabels,
   projectMetadataZip,
   projectTests,
@@ -91,6 +92,13 @@ describe('a package from the project on disk', () => {
     expect((await projectComponentFiles({ fs, info }, { type: 'Flow', name: 'Nope' }, '62.0')).problem).toBe(
       'no source file for it'
     );
+  });
+
+  it("finds what a project's component uses and what uses it, from the project's files", async () => {
+    const hello = await projectDependencies(fs, info, { type: 'ApexClass', name: 'Hello' });
+    expect(hello.usedBy).toEqual([{ type: 'ApexClass', name: 'HelloTest' }]);
+    const test = await projectDependencies(fs, info, { type: 'ApexClass', name: 'HelloTest' });
+    expect(test.uses).toEqual([{ type: 'ApexClass', name: 'Hello' }]);
   });
 
   it('lists every custom label of the project', async () => {

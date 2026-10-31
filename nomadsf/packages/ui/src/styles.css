@@ -3493,3 +3493,9 @@ select.row-action {
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
+/* Dependencies: the org's (Salesforce's tracking) and the project's (its files), each under its own heading */
+.deps-where {
+  margin: 14px 0 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
