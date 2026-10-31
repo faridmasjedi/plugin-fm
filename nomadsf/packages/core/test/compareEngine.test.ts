@@ -339,6 +339,38 @@ describe('compare & package on a folder', () => {
     expect(found.uncovered).toEqual(expect.arrayContaining(['Hello', 'Newer']));
   });
 
+  it('takes a package from a manifest and the files of a branch', async () => {
+    const pkg = await engine.fromManifest({
+      ref: 'feature',
+      packageXml: manifestXml(
+        [
+          { type: 'ApexClass', name: 'Newer' },
+          { type: 'ApexClass', name: 'Ghost' },
+          { type: 'CustomLabel', name: 'Added' },
+          { type: 'LightningComponentBundle', name: '*' },
+        ],
+        '61.0'
+      ),
+      destructiveXml: manifestXml([{ type: 'ApexClass', name: 'Old' }], '61.0'),
+    });
+    const changeOf2 = Object.fromEntries(pkg.components.map((c) => [`${c.type}:${c.name}`, c.change]));
+    expect(changeOf2).toEqual({
+      'ApexClass:Ghost': 'changed',
+      'ApexClass:Newer': 'changed',
+      'ApexClass:Old': 'deleted',
+      'CustomLabel:Added': 'changed',
+      'LightningComponentBundle:cssGone': 'changed',
+      'LightningComponentBundle:nested': 'changed',
+    });
+    expect(pkg.components.find((c) => c.name === 'Ghost')?.note).toMatch(/not in feature/);
+    const { zip, notConverted } = await engine.metadataZip(pkg.id);
+    const files = await readZip(zip);
+    expect(new TextDecoder().decode(files.get('package.xml'))).toContain('<version>61.0</version>');
+    expect([...files.keys()]).toContain('lwc/nested/utils/helper.js'.replace('utils/helper.js', 'nested.js-meta.xml'));
+    expect(new TextDecoder().decode(files.get('destructiveChangesPost.xml'))).toContain('<members>Old</members>');
+    expect(notConverted.map((c) => c.name)).toEqual(['Ghost']);
+  });
+
   it('says why it cannot compare', async () => {
     await expectRejects(engine.compare({ source: 'nope', target: 'main' }), /No branch, tag or commit called nope/);
     await expectRejects(engine.compare({ source: 'main', target: 'main' }), /main already has everything in main/);

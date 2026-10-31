@@ -3173,3 +3173,13 @@ details.compare-file-group > summary {
 .compare-table td:first-child {
   width: 28px;
 }
+.compare-manifest {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+.compare-manifest label {
+  display: grid;
+  gap: 4px;
+}

@@ -3,8 +3,9 @@ import type { TestSelection } from './apexGraph.js';
 import { apexSourcesFromFiles, testsForPackage } from './dependentTests.js';
 import { FolderRepo, type FolderHandle } from './gitFolder.js';
 import { unifiedDiff } from './projectCode.js';
+import { parsePackageXml } from './project.js';
 import { toMetadataFormat, type ConvertResult } from './sourceConvert.js';
-import { buildPackage, manifestXml, type SourcePackage } from './sourcePackage.js';
+import { buildPackage, labelBlocks, manifestXml, resolveComponent, type SourcePackage } from './sourcePackage.js';
 import { makeZip } from './zip.js';
 
 /**
@@ -96,6 +97,90 @@ export class CompareEngine {
       forceignore,
       apiVersion: project.apiVersion,
       packageDirs: project.packageDirs,
+    };
+    this.packages.set(record.id, record);
+    return record;
+  }
+
+  /**
+   * A package from a manifest: the components a package.xml names (and a destructiveChanges.xml deletes), with the
+   * files of a branch, tag or commit — the same package to look at, untick, validate and deploy. "*" takes every
+   * component of that type in the source; a member the source does not have is named, not guessed.
+   */
+  public async fromManifest(request: {
+    ref: string;
+    packageXml: string;
+    destructiveXml?: string;
+    forceignore?: string;
+  }): Promise<ComparedPackage> {
+    const forceignore = checkForceignore(request.forceignore);
+    const refB = await this.repo.commit(request.ref);
+    const files = await this.repo.files(refB);
+    const project = await this.projectJson(files, files);
+    const ignored = await this.ignoreRules(forceignore, files);
+    // Every component of the source, with its files (labels one by one)
+    const index = new Map<string, { type: string; name: string; files: string[]; main?: string; folder?: string }>();
+    const note = (type: string, name: string, file: string, main?: string, folder?: string): void => {
+      const key = `${type}:${name}`;
+      const found = index.get(key);
+      if (found) found.files.push(file);
+      else index.set(key, { type, name, files: [file], main, folder });
+    };
+    for (const path of files.keys()) {
+      if (ignored(path)) continue;
+      const c = resolveComponent(path, project.packageDirs);
+      if (!c) continue;
+      if (c.labels) {
+        // eslint-disable-next-line no-await-in-loop
+        for (const name of labelBlocks(await this.repo.text(files.get(path) ?? '')).keys())
+          note('CustomLabel', name, path);
+      } else note(c.type, c.name, path, c.xml, c.folder);
+    }
+    // Only components that are whole in the source: their -meta.xml is there (an Aura bundle: any of them), or a
+    // folder without one has files (left-over files of a deleted bundle are not a component)
+    for (const [key, c] of index) {
+      const whole = c.main
+        ? files.has(c.main) || (c.main === c.folder && c.files.length > 0)
+        : c.files.some((f) => f.endsWith('-meta.xml'));
+      if (!whole) index.delete(key);
+    }
+    const components: SourcePackage['components'] = [];
+    const take = (xml: string, change: 'changed' | 'deleted'): void => {
+      for (const { type, members } of parsePackageXml(xml)) {
+        const names = members.includes('*')
+          ? [...index.values()].filter((c) => c.type === type).map((c) => c.name)
+          : members;
+        for (const name of names) {
+          const found = index.get(`${type}:${name}`);
+          components.push({
+            type,
+            name,
+            change,
+            files: found?.files ?? [],
+            deploy: change === 'deleted' ? [] : found?.files ?? [],
+            ...(found || change === 'deleted'
+              ? {}
+              : { note: `not in ${request.ref}: it cannot be deployed from there` }),
+          });
+        }
+      }
+    };
+    take(request.packageXml, 'changed');
+    if (request.destructiveXml) take(request.destructiveXml, 'deleted');
+    const version = /<version>\s*([\d.]+)\s*<\/version>/.exec(request.packageXml)?.[1] ?? project.apiVersion;
+    const record: ComparedPackage = {
+      id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      source: request.ref,
+      target: 'manifest',
+      how: 'direct',
+      refA: refB,
+      refB,
+      forceignore,
+      apiVersion: version,
+      packageDirs: project.packageDirs,
+      components: components.sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name)),
+      renames: [],
+      files: [],
     };
     this.packages.set(record.id, record);
     return record;

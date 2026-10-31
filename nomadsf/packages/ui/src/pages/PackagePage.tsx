@@ -73,6 +73,10 @@ export function PackagePage() {
     storage.get<string>('compare.how', 'merge-base') === 'direct' ? 'direct' : 'merge-base'
   );
   const [forceignore, setForceignore] = useState('');
+  // What to compare: two branches, or a manifest with the files of a branch
+  const [mode, setMode] = useState<'branches' | 'manifest'>('branches');
+  const [manifest, setManifest] = useState<{ name: string; xml: string }>();
+  const [destructive, setDestructive] = useState<{ name: string; xml: string }>();
   const [pkg, setPkg] = useState<ComparedPackage>();
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
@@ -161,6 +165,51 @@ export function PackagePage() {
     }
   };
 
+  const fromManifest = async (): Promise<void> => {
+    if (!manifest) {
+      setStatus('⚠ Choose the package.xml.');
+      return;
+    }
+    if (!sourceRef) {
+      setStatus('⚠ Choose the branch the files come from.');
+      return;
+    }
+    setBusy(true);
+    setStatus('Reading the manifest and the branch…');
+    setDiff(undefined);
+    try {
+      const result = await engine.fromManifest({
+        ref: sourceRef,
+        packageXml: manifest.xml,
+        destructiveXml: destructive?.xml,
+        forceignore,
+      });
+      setPkg(result);
+      setExcluded(new Set());
+      setKept(new Set());
+      setChanges(new Set());
+      setFilter('');
+      const missing = result.components.filter((c) => c.note).length;
+      setStatus(
+        `✓ ${result.components.length} component(s) from ${manifest.name}${
+          missing ? `; ${missing} not in ${sourceRef} (named in the list)` : ''
+        }.`
+      );
+    } catch (e) {
+      setPkg(undefined);
+      setStatus(`❌ ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const readFile =
+    (set: (f: { name: string; xml: string } | undefined) => void) =>
+    async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
+      const file = e.target.files?.[0];
+      set(file ? { name: file.name, xml: await file.text() } : undefined);
+    };
+
   const refSelect = (value: string, set: (v: string) => void, label: string) => (
     <label>
       {label}
@@ -201,7 +250,12 @@ export function PackagePage() {
       <div className="card section">
         <h3>1 · Compare</h3>
         <div className="segmented" role="group" aria-label="What to compare">
-          <button className="active">Branch ↔ Branch</button>
+          <button className={mode === 'branches' ? 'active' : ''} onClick={() => setMode('branches')}>
+            Branch ↔ Branch
+          </button>
+          <button className={mode === 'manifest' ? 'active' : ''} onClick={() => setMode('manifest')}>
+            From a manifest
+          </button>
           <button disabled title="Coming next">
             Branch ↔ Org
           </button>
@@ -209,47 +263,67 @@ export function PackagePage() {
             Org ↔ Org
           </button>
         </div>
-        <div className="compare-refs">
-          {refSelect(sourceRef, setSourceRef, 'Source — the branch with the changes')}
-          <button
-            className="swap"
-            title="Swap Source and Target"
-            aria-label="Swap Source and Target"
-            onClick={() => {
-              setSourceRef(targetRef);
-              setTargetRef(sourceRef);
-            }}
-          >
-            ⇄
-          </button>
-          {refSelect(targetRef, setTargetRef, 'Target — where they go')}
-        </div>
-        <fieldset className="compare-how">
-          <legend>How</legend>
-          {HOW.map((h) => (
-            <label key={h.id} className="check" title={h.hint}>
-              <input
-                type="radio"
-                name="compare-how"
-                checked={how === h.id}
-                onChange={() => {
-                  setHow(h.id);
-                  storage.set('compare.how', h.id);
-                }}
-              />
-              <span>
-                {h.label} <span className="muted">— {h.hint}</span>
-              </span>
+        {mode === 'manifest' ? (
+          <div className="compare-manifest">
+            <label>
+              package.xml
+              <input type="file" accept=".xml" onChange={(e) => void readFile(setManifest)(e)} />
             </label>
-          ))}
-        </fieldset>
+            <label>
+              destructiveChanges.xml <span className="muted">(optional)</span>
+              <input type="file" accept=".xml" onChange={(e) => void readFile(setDestructive)(e)} />
+            </label>
+            {refSelect(sourceRef, setSourceRef, 'The files come from')}
+          </div>
+        ) : (
+          <>
+            <div className="compare-refs">
+              {refSelect(sourceRef, setSourceRef, 'Source — the branch with the changes')}
+              <button
+                className="swap"
+                title="Swap Source and Target"
+                aria-label="Swap Source and Target"
+                onClick={() => {
+                  setSourceRef(targetRef);
+                  setTargetRef(sourceRef);
+                }}
+              >
+                ⇄
+              </button>
+              {refSelect(targetRef, setTargetRef, 'Target — where they go')}
+            </div>
+            <fieldset className="compare-how">
+              <legend>How</legend>
+              {HOW.map((h) => (
+                <label key={h.id} className="check" title={h.hint}>
+                  <input
+                    type="radio"
+                    name="compare-how"
+                    checked={how === h.id}
+                    onChange={() => {
+                      setHow(h.id);
+                      storage.set('compare.how', h.id);
+                    }}
+                  />
+                  <span>
+                    {h.label} <span className="muted">— {h.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          </>
+        )}
         <div className="form">
           <label className="grow">
             .forceignore
             <input value={forceignore} placeholder=".forceignore" onChange={(e) => setForceignore(e.target.value)} />
           </label>
-          <button className="primary" disabled={busy || !refs} onClick={() => void compare()}>
-            {busy ? 'Comparing…' : 'Compare'}
+          <button
+            className="primary"
+            disabled={busy || !refs}
+            onClick={() => void (mode === 'manifest' ? fromManifest() : compare())}
+          >
+            {busy ? 'Reading…' : mode === 'manifest' ? 'Read the manifest' : 'Compare'}
           </button>
         </div>
         {status && <Status text={status} block />}
@@ -400,7 +474,9 @@ function PackageCard(props: {
       <div className="form">
         <h3 className="grow">2 · Package</h3>
         <span className="muted">
-          {pkg.source} → into {pkg.target} · {pkg.refA.slice(0, 7)}..{pkg.refB.slice(0, 7)}
+          {pkg.target === 'manifest'
+            ? `from a manifest · files of ${pkg.source} (${pkg.refB.slice(0, 7)})`
+            : `${pkg.source} → into ${pkg.target} · ${pkg.refA.slice(0, 7)}..${pkg.refB.slice(0, 7)}`}
         </span>
       </div>
       {!components.length ? (
@@ -549,7 +625,7 @@ function PackageCard(props: {
         </>
       )}
 
-      <FileGroups {...props} />
+      {pkg.target !== 'manifest' && <FileGroups {...props} />}
 
       <div className="form">
         <button className="primary" disabled={!deploy.length && !remove.length} onClick={() => void save(false)}>
