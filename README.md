@@ -49,7 +49,7 @@ Details: [nomadsf/STUDIO.md](nomadsf/STUDIO.md).
 
 ## For developers and CI: the `sf fm` plugin
 
-This repository also ships a Salesforce CLI plugin for release pipelines, and the local app it runs (`sf fm dashboard`, also shown by the VS Code extension's **Open the app**):
+This repository also ships a Salesforce CLI plugin for release pipelines, and the local app it runs (`sf fm dashboard`). NomadSF Studio (the browser and VS Code extensions) needs neither:
 
 > The plugin is not published yet, so it cannot be installed with `sf plugins install` for now. Build it from source instead (see [Development](#development)). The browser and VS Code extensions do not need it.
 

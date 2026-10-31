@@ -24,9 +24,16 @@ export async function askAi(hostKind: HostKind, body: Record<string, unknown>, r
     const { system, message } = aiTaskPrompt(String(body.task) as BrowserAiTask, body);
     body = { task: 'chat', system, message };
   }
+  const base = localAppBase(hostKind);
+  if (base === undefined)
+    throw new Error(
+      hostKind === 'extension'
+        ? 'AI help needs an AI provider: connect one in Settings › AI.'
+        : 'AI help is not available in VS Code yet.'
+    );
   let res: Response;
   try {
-    res = await fetch(`${localAppBase(hostKind)}/api/${route}`, {
+    res = await fetch(`${base}/api/${route}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-fm-dashboard': '1' },
       body: JSON.stringify(body),

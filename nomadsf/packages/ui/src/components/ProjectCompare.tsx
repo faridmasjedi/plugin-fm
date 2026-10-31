@@ -83,7 +83,7 @@ export function ProjectCompare({
   onOpenCode?: () => void;
 }) {
   const project = useProject();
-  const base = localAppBase(studio.hostKind);
+  const base = localAppBase(studio.hostKind) ?? '';
   const types = useMemo(() => {
     const byType = new Map<string, Set<string>>();
     for (const dir of info.packageDirectories)

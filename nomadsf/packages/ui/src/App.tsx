@@ -31,7 +31,6 @@ import { ConnectedAppsPage } from './pages/ConnectedAppsPage';
 import { OrgHealthPage } from './pages/OrgHealthPage';
 import { ActivityPage } from './pages/ActivityPage';
 import { MetadataPage } from './pages/MetadataPage';
-import { LOCAL_PAGES, LocalAppPage } from './pages/LocalAppPage';
 import { ProjectPage } from './pages/ProjectPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { RecordPage } from './pages/RecordPage';
@@ -58,7 +57,6 @@ import { HubNav, Panes, QuickJump, isTool, useWorkspace, type ToolId } from './w
 
 const host = detectHost();
 // Pages of the NomadSF CLI app (CLI orgs, AI settings) only make sense inside the extension
-const LOCAL = host.kind === 'extension' ? LOCAL_PAGES : [];
 
 export function App() {
   const busy = useBusy();
@@ -269,17 +267,11 @@ export function App() {
   useLifecycleScheduler(clientFor);
   const backupRun = useBackupRun();
   const lifecycleRun = useLifecycleRun();
-  // The Local app tools need the NomadSF CLI app; the extension hides them without it
-  const available = useCallback(
-    (tool: ToolId): boolean =>
-      tool === 'local-orgs' || tool === 'local-ai' ? project.localAppReady && LOCAL.length > 0 : true,
-    [project.localAppReady]
-  );
+  // Every tool is available (kept as a hook point for tools that need something first)
+  const available = useCallback((_tool: ToolId): boolean => true, []);
 
   /** One tool in a pane. Tools that need the org wait for it. */
   const render = (tool: ToolId): ReactNode => {
-    const local = LOCAL.find((p) => p.id === tool);
-    if (local) return <LocalAppPage page={local.page} />;
     if (tool === 'project')
       return (
         <ProjectPage
@@ -425,7 +417,7 @@ export function App() {
           </button>
         </header>
         <nav className="side">
-          <HubNav ws={ws} available={available} hasLocal={LOCAL.length > 0 && project.localAppReady} />
+          <HubNav ws={ws} available={available} />
         </nav>
         <main>
           <Panes ws={ws} available={available} render={render} />
