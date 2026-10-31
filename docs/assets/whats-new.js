@@ -3,6 +3,7 @@
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
   next: [
+    "Release › Compare & package: what a branch brings into another, read from the project folder's git — components, every changed file, package.xml and destructiveChanges.xml to download",
     'Query: saved queries, history and files on top; run options next to the editor',
     'Record: find a user by name, and a Me button',
     'Import / Update / Delete: upsert matches by Id or an External ID field you pick from a list',

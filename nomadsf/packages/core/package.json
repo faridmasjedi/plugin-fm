@@ -9,6 +9,11 @@
     "test": "vitest run",
     "typecheck": "tsc -p ."
   },
+  "dependencies": {
+    "buffer": "6.0.3",
+    "ignore": "7.0.5",
+    "isomorphic-git": "1.27.2"
+  },
   "devDependencies": {
     "typescript": "5.8.3",
     "vitest": "3.2.7"
