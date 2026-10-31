@@ -36,11 +36,6 @@ const HOW: Array<{ id: CompareHow; label: string; hint: string }> = [
     label: 'Everything that differs',
     hint: 'Target as it is now against Source: also undoes what Target has and Source does not.',
   },
-  {
-    id: 'last-deployment',
-    label: 'Since the last successful deployment of Target',
-    hint: 'From the newest sf-deploy-success/<Target>/… tag to Source.',
-  },
 ];
 const CHANGES: Change[] = ['added', 'changed', 'deleted'];
 const CHANGE_TONE: Record<Change, string> = { added: 'good', changed: 'warn', deleted: 'bad' };
@@ -73,7 +68,9 @@ export function PackagePage() {
   const [branch, setBranch] = useState('');
   const [sourceRef, setSourceRef] = useState('');
   const [targetRef, setTargetRef] = useState('');
-  const [how, setHow] = useState<CompareHow>(() => storage.get<CompareHow>('compare.how', 'merge-base'));
+  const [how, setHow] = useState<CompareHow>(() =>
+    storage.get<string>('compare.how', 'merge-base') === 'direct' ? 'direct' : 'merge-base'
+  );
   const [forceignore, setForceignore] = useState('');
   const [pkg, setPkg] = useState<ComparedPackage>();
   const [busy, setBusy] = useState(false);
@@ -295,13 +292,6 @@ export function PackagePage() {
               labels={[`${pkg.target} (Target)`, `${pkg.source} (Source)`]}
             />
           </div>
-        </div>
-      )}
-
-      {pkg && (
-        <div className="card section">
-          <h3>3 · Release train</h3>
-          <p className="muted">Validate this package in an org → manual steps → deploy or quick deploy. Coming next.</p>
         </div>
       )}
     </div>

@@ -13,8 +13,8 @@ import { makeZip } from './zip.js';
 
 const DEFAULT_API_VERSION = '61.0';
 
-/** How Target's side is found: from where Source branched off it (like a pull request), Target as it is, or its last deployment. */
-export type CompareHow = 'merge-base' | 'direct' | 'last-deployment';
+/** How Target's side is found: from where Source branched off it (like a pull request), or Target as it is. */
+export type CompareHow = 'merge-base' | 'direct';
 
 export type CompareRequest = { source: string; target: string; how?: CompareHow; forceignore?: string };
 
@@ -29,15 +29,6 @@ export type ComparedPackage = SourcePackage & {
   forceignore: string;
   apiVersion: string;
 };
-
-/** The newest successful deployment tag of a branch (sf-deploy-success/<branch>/<time>). */
-export function lastDeploymentTag(tags: string[], branch: string): string | undefined {
-  const prefix = `sf-deploy-success/${branch}/`;
-  return tags
-    .filter((t) => t.startsWith(prefix))
-    .sort()
-    .pop();
-}
 
 /** The .forceignore path: inside the project, default .forceignore. */
 export function checkForceignore(path: string | undefined): string {
@@ -77,10 +68,6 @@ export class CompareEngine {
     if (how === 'merge-base') {
       refA = await repo.mergeBase(await repo.commit(target), refB);
       if (!refA) throw new Error(`${source} and ${target} have no commit in common`);
-    } else if (how === 'last-deployment') {
-      const tag = lastDeploymentTag((await repo.refs()).tags, target);
-      if (!tag) throw new Error(`No successful deployment of ${target} yet (no sf-deploy-success/${target}/… tag)`);
-      refA = await repo.commit(tag);
     } else {
       refA = await repo.commit(target);
     }

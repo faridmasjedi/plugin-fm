@@ -328,6 +328,7 @@ table.limits {
 }
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   border-bottom: 1px solid var(--border);
 }
@@ -3151,7 +3152,8 @@ details.compare-file-group > summary {
   text-decoration: line-through;
   opacity: 0.5;
 }
-.compare-diff-editor {
+/* CodeDiff has its own toolbar above the editor: only the editor gets a height */
+.compare-diff-editor .editor-box {
   height: 60vh;
   min-height: 320px;
 }

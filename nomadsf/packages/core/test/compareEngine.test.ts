@@ -13,14 +13,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  CompareEngine,
-  lastDeploymentTag,
-  manifestXml,
-  resolveComponent,
-  type ComparedPackage,
-  type FolderHandle,
-} from '../src/index.js';
+import { CompareEngine, manifestXml, resolveComponent, type ComparedPackage, type FolderHandle } from '../src/index.js';
 
 // Compare & package on a real git repository, read the way the browser and VS Code read a folder
 const expectDeep = (a: unknown, b: unknown): void => expect(a).toEqual(b);
@@ -147,7 +140,6 @@ describe('compare & package on a folder', () => {
     write(`${d}/staticresources/assets/b.css`, 'b{}');
     sh('add', '.');
     sh('commit', '-qm', 'base');
-    sh('tag', 'sf-deploy-success/main/20261001');
     sh('checkout', '-qb', 'feature');
     write(
       `${d}/labels/CustomLabels.labels-meta.xml`,
@@ -192,7 +184,7 @@ describe('compare & package on a folder', () => {
   it('reads branches, tags and the branch checked out from the folder', async () => {
     const refs = await engine.refs();
     expectDeep(refs.branches, ['feature', 'main']);
-    expectDeep(refs.tags, ['sf-deploy-success/main/20261001']);
+    expectDeep(refs.tags, []);
     expectEq(await engine.currentBranch(), 'main');
   });
 
@@ -243,19 +235,6 @@ describe('compare & package on a folder', () => {
   it('everything that differs: main as it is now, so its own new class shows as deleted', async () => {
     const pkg = await engine.compare({ source: 'feature', target: 'main', how: 'direct' });
     expectEq(changeOf(pkg)['ApexClass:OnMainOnly'], 'deleted');
-  });
-
-  it('since the last successful deployment of the target', async () => {
-    const pkg = await engine.compare({ source: 'feature', target: 'main', how: 'last-deployment' });
-    expectEq(pkg.refA, sh('rev-parse', 'sf-deploy-success/main/20261001').trim());
-    await expectRejects(
-      engine.compare({ source: 'feature', target: 'uat', how: 'last-deployment' }),
-      /No successful deployment of uat/
-    );
-    expectEq(
-      lastDeploymentTag(['sf-deploy-success/main/1', 'sf-deploy-success/main/2'], 'main'),
-      'sf-deploy-success/main/2'
-    );
   });
 
   it('the zip: manifests with the API version, files from the source commit, left-out components gone', async () => {
