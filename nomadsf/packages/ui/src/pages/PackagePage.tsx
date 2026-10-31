@@ -11,6 +11,7 @@ import { CodeDiff } from '../components/CodeDiff';
 import type { CodeEditorProps } from '../components/CodeEditor';
 import { askConfirm } from '../components/Dialogs';
 import { download } from '../components/DataTable';
+import { ReleasePanel } from '../components/ReleasePanel';
 import { storage } from '../context';
 import { useProject } from '../project';
 import { Status } from '../statusLog';
@@ -275,6 +276,20 @@ export function PackagePage() {
               setStatus(`❌ ${(e as Error).message}`);
             }
           }}
+        />
+      )}
+
+      {pkg && pkg.components.length > 0 && (
+        <ReleasePanel
+          from={pkg.source}
+          deployCount={pkg.components.filter((c) => c.change !== 'deleted' && !excluded.has(keyOf(c))).length}
+          removeCount={pkg.components.filter((c) => c.change === 'deleted' && !excluded.has(keyOf(c))).length}
+          build={async (removeWhen) => {
+            const built = await engine.metadataZip(pkg.id, { exclude: [...excluded], removeWhen });
+            return { zip: built.zip, notConverted: built.notConverted };
+          }}
+          findTests={() => engine.findTests(pkg.id, [...excluded])}
+          zipName={`${pkg.source.replace(/[^\w.-]+/g, '-')}-deployable.zip`}
         />
       )}
 

@@ -1,6 +1,9 @@
 import ignore from 'ignore';
+import type { TestSelection } from './apexGraph.js';
+import { apexSourcesFromFiles, testsForPackage } from './dependentTests.js';
 import { FolderRepo, type FolderHandle } from './gitFolder.js';
 import { unifiedDiff } from './projectCode.js';
+import { toMetadataFormat, type ConvertResult } from './sourceConvert.js';
 import { buildPackage, manifestXml, type SourcePackage } from './sourcePackage.js';
 import { makeZip } from './zip.js';
 
@@ -28,6 +31,7 @@ export type ComparedPackage = SourcePackage & {
   refB: string;
   forceignore: string;
   apiVersion: string;
+  packageDirs: string[];
 };
 
 /** The .forceignore path: inside the project, default .forceignore. */
@@ -91,6 +95,7 @@ export class CompareEngine {
       refB,
       forceignore,
       apiVersion: project.apiVersion,
+      packageDirs: project.packageDirs,
     };
     this.packages.set(record.id, record);
     return record;
@@ -155,6 +160,43 @@ export class CompareEngine {
     const record = this.packages.get(id);
     if (!record) throw new Error('No such package: compare again');
     return record;
+  }
+
+  /** The components kept (not unticked), split into what is deployed and what is deleted. */
+  private kept(
+    record: ComparedPackage,
+    exclude: string[]
+  ): { deploy: SourcePackage['components']; remove: SourcePackage['components'] } {
+    const out = new Set(exclude);
+    const kept = record.components.filter((c) => !out.has(`${c.type}:${c.name}`));
+    return { deploy: kept.filter((c) => c.change !== 'deleted'), remove: kept.filter((c) => c.change === 'deleted') };
+  }
+
+  /** The package in Metadata API format, ready to validate or deploy: Source's files converted (sourceConvert.ts). */
+  public async metadataZip(
+    id: string,
+    { exclude = [], removeWhen = 'post' }: { exclude?: string[]; removeWhen?: 'pre' | 'post' } = {}
+  ): Promise<ConvertResult> {
+    const record = this.get(id);
+    const { deploy, remove } = this.kept(record, exclude);
+    const after = await this.repo.files(record.refB);
+    return toMetadataFormat({
+      deploy,
+      remove,
+      removeWhen,
+      files: [...after.keys()],
+      read: (path) => this.repo.bytes(record.refB, path),
+      packageDirs: record.packageDirs,
+      apiVersion: record.apiVersion,
+    });
+  }
+
+  /** The test classes that reach the package's Apex, from Source's Apex. */
+  public async findTests(id: string, exclude: string[] = []): Promise<TestSelection> {
+    const record = this.get(id);
+    const after = await this.repo.files(record.refB);
+    const sources = await apexSourcesFromFiles([...after.keys()], (path) => this.repo.text(after.get(path) ?? ''));
+    return testsForPackage(sources, this.kept(record, exclude).deploy);
   }
 
   /** Both versions of one changed file: Target's side and Source's ('' where it does not exist). */

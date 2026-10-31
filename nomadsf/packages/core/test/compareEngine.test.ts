@@ -13,7 +13,14 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { CompareEngine, manifestXml, resolveComponent, type ComparedPackage, type FolderHandle } from '../src/index.js';
+import {
+  CompareEngine,
+  manifestXml,
+  readZip,
+  resolveComponent,
+  type ComparedPackage,
+  type FolderHandle,
+} from '../src/index.js';
 
 // Compare & package on a real git repository, read the way the browser and VS Code read a folder
 const expectDeep = (a: unknown, b: unknown): void => expect(a).toEqual(b);
@@ -300,6 +307,36 @@ describe('compare & package on a folder', () => {
     );
     await expectRejects(engine.ignoreRenamed(pkg.id, ['sfdx-project.json']), /Only old files/);
     unlinkSync(join(repo, '.forceignore'));
+  });
+
+  it('builds the Metadata API zip to validate or deploy, from the source commit', async () => {
+    const pkg = await engine.compare({ source: 'feature', target: 'main' });
+    const { zip, notConverted, deployed } = await engine.metadataZip(pkg.id, {
+      exclude: ['ApexClass:Hello'],
+      removeWhen: 'pre',
+    });
+    const files = await readZip(zip);
+    const text = (p: string): string => new TextDecoder().decode(files.get(p));
+    expect([...files.keys()]).toContain('classes/Newer.cls');
+    expect([...files.keys()]).not.toContain('classes/Hello.cls');
+    // the field of Account goes into Account's object file; the labels file has only the labels sent
+    expect(text('objects/Account.object')).toContain('<fullName>Score__c</fullName>');
+    expect(text('labels/CustomLabels.labels')).toContain('<fullName>Added</fullName>');
+    expect(text('labels/CustomLabels.labels')).not.toContain('<fullName>Kept</fullName>');
+    // the static resource folder is zipped; the deletions run before the deploy
+    expect([...files.keys()]).toContain('staticresources/assets.resource');
+    expect(text('destructiveChangesPre.xml')).toContain('<members>Old</members>');
+    expect(text('package.xml')).toContain('<version>62.0</version>');
+    expect(notConverted.map((c) => c.type)).toEqual(['ExperienceBundle']);
+    expect(deployed.some((c) => c.name === 'Newer')).toBe(true);
+  });
+
+  it('finds the tests for the package from the source commit', async () => {
+    const pkg = await engine.compare({ source: 'feature', target: 'main' });
+    const found = await engine.findTests(pkg.id);
+    // no test class in this repository: the Apex is named as not reached
+    expect(found.tests).toEqual([]);
+    expect(found.uncovered).toEqual(expect.arrayContaining(['Hello', 'Newer']));
   });
 
   it('says why it cannot compare', async () => {
