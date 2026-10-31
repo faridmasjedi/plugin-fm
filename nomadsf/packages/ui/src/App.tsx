@@ -43,6 +43,7 @@ import { EventsPage } from './pages/EventsPage';
 import { FieldUsagePage } from './pages/FieldUsagePage';
 import { LookupPage } from './pages/LookupPage';
 import { OrgComparePage } from './pages/OrgComparePage';
+import { PackagePage } from './pages/PackagePage';
 import { BackupPage } from './pages/BackupPage';
 import { MigratePage } from './pages/MigratePage';
 import { LifecyclePage } from './pages/LifecyclePage';
@@ -354,6 +355,7 @@ export function App() {
               {tool === 'fields' && <FieldUsagePage />}
               {tool === 'lookup' && <LookupPage />}
               {tool === 'orgdiff' && <OrgComparePage orgs={orgs} />}
+              {tool === 'package' && <PackagePage />}
               {tool === 'apextests' && <ApexTestsPage />}
               {tool === 'orgaccess' && <OrgAccessPage />}
               {tool === 'orgapps' && <OrgAppsPage />}

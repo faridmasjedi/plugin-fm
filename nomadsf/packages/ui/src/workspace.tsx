@@ -33,6 +33,7 @@ export type ToolId =
   | 'migrate'
   | 'lifecycle'
   | 'project'
+  | 'package'
   | 'metadata'
   | 'orgdiff'
   | 'access'
@@ -79,6 +80,12 @@ export const TOOLS: Tool[] = [
   { id: 'migrate', label: 'Migrate', icon: '⇶', hint: 'copy records between orgs' },
   { id: 'lifecycle', label: 'Lifecycle', icon: '◷', hint: 'archive, anonymize, delete in steps' },
   { id: 'project', label: 'Project', icon: '⌂', hint: 'your repository, compare with the org' },
+  {
+    id: 'package',
+    label: 'Compare & package',
+    icon: '⇆',
+    hint: 'what a branch brings into another: package.xml, destructiveChanges.xml',
+  },
   { id: 'metadata', label: 'Metadata', icon: '◫', hint: 'retrieve, package.xml' },
   { id: 'orgdiff', label: 'Org compare', icon: '⇋', hint: 'differences between two orgs, deploy' },
   { id: 'deployments', label: 'Deployments', icon: '⇪', hint: 'deployment history, quick deploy' },
@@ -129,7 +136,7 @@ export const HUBS: Hub[] = [
     icon: '⇅',
     tools: ['query', 'record', 'data', 'csvcompare', 'lookup', 'schema', 'fields'],
   },
-  { id: 'release', label: 'Release', icon: '⇡', tools: ['project', 'metadata', 'deployments'] },
+  { id: 'release', label: 'Release', icon: '⇡', tools: ['project', 'package', 'metadata', 'deployments'] },
   {
     id: 'people',
     label: 'Access',
