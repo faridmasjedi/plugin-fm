@@ -109,6 +109,7 @@ export const STUDIO_PAGES = [
   ['schema', 'Schema', 'Data'],
   ['fields', 'Field usage', 'Data'],
   ['project', 'Project', 'Release'],
+  ['package', 'Compare & package', 'Release'],
   ['metadata', 'Metadata', 'Release'],
   ['deployments', 'Deployments', 'Release'],
   ['access', 'Users', 'Access'],

@@ -328,6 +328,7 @@ table.limits {
 }
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   border-bottom: 1px solid var(--border);
 }
@@ -3006,4 +3007,169 @@ p.status {
   .log-org {
     display: none;
   }
+}
+
+/* Release › Compare & package */
+.compare-page .small {
+  font-size: 12px;
+}
+.compare-page .mono {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.compare-page .pill.warn {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
+}
+.compare-page .warn-text {
+  color: var(--warn);
+  max-width: 560px;
+}
+.compare-refs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: end;
+  margin: 12px 0;
+}
+.compare-refs label {
+  display: grid;
+  gap: 4px;
+}
+.compare-refs .swap {
+  padding: 6px 10px;
+}
+.compare-how {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  margin: 0 0 12px;
+  display: grid;
+  gap: 4px;
+}
+.compare-how legend {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0 4px;
+}
+.compare-how label.check {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.compare-how .muted {
+  font-size: 12px;
+}
+.compare-renames {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warn);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 10px 0;
+}
+.compare-renames > p {
+  margin: 0 0 6px;
+}
+.compare-rename {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.compare-table {
+  max-height: 460px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-top: 8px;
+}
+.compare-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  z-index: 1;
+}
+.compare-table tr.off td,
+.compare-file-row.off {
+  opacity: 0.45;
+}
+.compare-summary {
+  margin: 10px 0;
+  font-size: 13px;
+}
+.compare-summary p {
+  margin: 4px 0;
+}
+.compare-files h4 {
+  margin: 12px 0 6px;
+}
+details.compare-file-group {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  margin-bottom: 6px;
+}
+details.compare-file-group > summary {
+  cursor: pointer;
+}
+.compare-file-rows {
+  max-height: 320px;
+  overflow: auto;
+  margin-top: 6px;
+}
+.compare-file-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) minmax(0, auto);
+  gap: 10px;
+  align-items: center;
+  padding: 3px 0;
+  border-top: 1px solid var(--border);
+}
+.compare-file-row .pill {
+  justify-self: start;
+  padding: 1px 6px;
+}
+.compare-file-row button.mono {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.compare-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  justify-content: flex-end;
+}
+.compare-label-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.compare-page .pill.struck {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+/* CodeDiff has its own toolbar above the editor: only the editor gets a height */
+.compare-diff-editor .editor-box {
+  height: 60vh;
+  min-height: 320px;
+}
+.compare-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.compare-table th,
+.compare-table td {
+  text-align: left;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.compare-table th:first-child,
+.compare-table td:first-child {
+  width: 28px;
 }

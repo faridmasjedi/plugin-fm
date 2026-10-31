@@ -52,3 +52,6 @@ export * from './myAccess.js';
 export * from './accessReports.js';
 export * from './schema.js';
 export * from './operations.js';
+export * from './sourcePackage.js';
+export * from './gitFolder.js';
+export * from './compareEngine.js';

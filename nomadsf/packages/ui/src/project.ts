@@ -4,12 +4,14 @@ import {
   githubProjectFs,
   httpProjectFs,
   type CodeKind,
+  type FolderHandle,
   type GitHubTransport,
   type ProjectEntry,
   type ProjectFs,
   type ProjectInfo,
 } from '@nomadsf/core';
 import { storage } from './context';
+import { BridgeFolder, fromStored, isStoredFolder, type StoredFolder } from './embed';
 import { currentGitHub, lastRepo } from './github';
 import { aiUsable, loadExtensionAi, onExtensionAiChange } from './extensionAi';
 import type { HostKind } from './host';
@@ -28,6 +30,8 @@ export type ProjectSource = {
   /** GitHub: owner/repo and branch. */
   repo?: string;
   ref?: string;
+  /** A folder: its handle, for what reads more than the files (its git history in Compare & package). */
+  handle?: FolderHandle;
 };
 
 export type RecentProject = { name: string; path: string; sfdx: boolean };
@@ -79,11 +83,27 @@ function idb<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequ
     open.onupgradeneeded = () => open.result.createObjectStore('handles');
     open.onerror = () => reject(open.error);
     open.onsuccess = () => {
-      const request = fn(open.result.transaction('handles', mode).objectStore('handles'));
+      // A value IndexedDB cannot store (DataCloneError) throws here, not through onerror
+      let request: IDBRequest<T>;
+      try {
+        request = fn(open.result.transaction('handles', mode).objectStore('handles'));
+      } catch (e) {
+        reject(e as Error);
+        return;
+      }
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     };
   });
+}
+
+/** The folder kept for the next visit (in VS Code kept as its path). */
+async function storedProject(): Promise<DirHandle | undefined> {
+  const kept = await idb<DirHandle | StoredFolder | undefined>(
+    'readonly',
+    (s) => s.get('project') as IDBRequest<DirHandle | StoredFolder | undefined>
+  );
+  return isStoredFolder(kept) ? (fromStored(kept) as unknown as DirHandle) : kept;
 }
 
 const supportsFolders = (): boolean =>
@@ -211,7 +231,12 @@ export function useProjectState(hostKind: HostKind, describeFolders?: Record<str
     async (handle: DirHandle) => {
       storage.set('project.source', 'folder');
       setNeedsPermission(false);
-      await load({ kind: 'folder', name: handle.name, fs: browserProjectFs(handle) });
+      await load({
+        kind: 'folder',
+        name: handle.name,
+        fs: browserProjectFs(handle),
+        handle: handle as unknown as FolderHandle,
+      });
     },
     [load]
   );
@@ -220,15 +245,15 @@ export function useProjectState(hostKind: HostKind, describeFolders?: Record<str
     const handle = (await (
       window as unknown as { showDirectoryPicker(o: { mode: 'read' }): Promise<DirHandle> }
     ).showDirectoryPicker({ mode: 'read' })) as DirHandle;
-    await idb('readwrite', (s) => s.put(handle, 'project'));
+    // In VS Code the folder is the extension's (embed.ts): kept as its path
+    const kept = (handle as unknown) instanceof BridgeFolder ? (handle as unknown as BridgeFolder).toStored() : handle;
+    // Remembered for the next visit when it can be stored; it opens either way
+    await idb('readwrite', (s) => s.put(kept, 'project')).catch(() => undefined);
     await fromHandle(handle);
   }, [fromHandle]);
 
   const reconnectFolder = useCallback(async () => {
-    const handle = await idb<DirHandle | undefined>(
-      'readonly',
-      (s) => s.get('project') as IDBRequest<DirHandle | undefined>
-    );
+    const handle = await storedProject();
     if (handle && (await handle.requestPermission({ mode: 'read' })) === 'granted') await fromHandle(handle);
   }, [fromHandle]);
 
@@ -316,10 +341,7 @@ export function useProjectState(hostKind: HostKind, describeFolders?: Record<str
         return;
       }
       if (!supportsFolders()) return;
-      const handle = await idb<DirHandle | undefined>(
-        'readonly',
-        (s) => s.get('project') as IDBRequest<DirHandle | undefined>
-      ).catch(() => undefined);
+      const handle = await storedProject().catch(() => undefined);
       if (!handle) return;
       if ((await handle.queryPermission({ mode: 'read' })) === 'granted') await fromHandle(handle);
       else setNeedsPermission(true);
