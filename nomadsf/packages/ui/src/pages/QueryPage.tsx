@@ -31,6 +31,7 @@ import { RelatedFields } from '../components/RelatedFields';
 import { storage, useStudio } from '../context';
 import { monaco } from '../monaco';
 import { useProject } from '../project';
+import { soqlSchema } from '../components/AiSoql';
 import { Status } from '../statusLog';
 
 /** Rows kept in the browser before asking to load more (memory guard). */
@@ -151,24 +152,6 @@ function SavedQueries({
       </div>
     </div>
   );
-}
-
-/** Objects the question is about: names or labels mentioned (also plural), plus the current FROM. */
-function objectsInQuestion(question: string, objects: SObjectSummary[], current?: string): string[] {
-  const words = new Set(question.toLowerCase().match(/[a-z_][\w]*/g) ?? []);
-  const hits = objects
-    .filter((o) => {
-      const names = [o.name.toLowerCase(), o.label.toLowerCase()];
-      return names.some(
-        (n) =>
-          words.has(n) ||
-          words.has(`${n}s`) ||
-          words.has(n.replace(/y$/, 'ies')) ||
-          (n.includes(' ') && question.toLowerCase().includes(n))
-      );
-    })
-    .map((o) => o.name);
-  return [...new Set([...(current ? [current] : []), ...hits])].slice(0, 5);
 }
 
 export function QueryPage() {
@@ -456,26 +439,7 @@ export function QueryPage() {
     setAsking(true);
     setError('');
     try {
-      const mentioned = objectsInQuestion(question, objects.current, mainSObject(soql));
-      const described = await Promise.all(
-        mentioned.map(async (name) => {
-          const d = await describeSObject(client, name, tooling).catch(() => undefined);
-          return d
-            ? `${d.name} (${d.label}): ${d.fields
-                .map(
-                  (f) =>
-                    `${f.name} ${f.type}${
-                      f.referenceTo.length ? `→${f.referenceTo.join('/')} as ${f.relationshipName ?? ''}` : ''
-                    }`
-                )
-                .join(', ')}`
-            : '';
-        })
-      );
-      const schema = `${described.filter(Boolean).join('\n\n')}\n\nOther objects: ${objects.current
-        .map((o) => o.name)
-        .join(', ')
-        .slice(0, 20_000)}`;
+      const schema = await soqlSchema(client, question, objects.current, mainSObject(soql), tooling);
       const answer = await askAi(hostKind, { task: 'soql', question, schema });
       if (answer.soql) setSoql(answer.soql);
     } catch (e) {

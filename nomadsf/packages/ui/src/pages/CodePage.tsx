@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import {
   CODE_LAYOUT,
+  describeGlobal,
+  parseMetadataDraft,
+  type MetadataDraft,
   checkCodeContent,
   createApexClass,
   createCode,
-  extractCode,
   folderBytes,
   isBundle,
   listCode,
@@ -25,6 +27,7 @@ import {
   type CompileProblem,
 } from '@nomadsf/core';
 import { AiAsk, AiExplain } from '../components/AiHelp';
+import { AiMetadataDraft } from '../components/AiMetadataDraft';
 import { CodeEditor } from '../components/CodeEditor';
 import { ProjectCodeView, shownPair } from '../components/ProjectCodeView';
 import { ReleasePanel } from '../components/ReleasePanel';
@@ -45,6 +48,15 @@ const KINDS: Array<{ id: CodeKind; label: string; one: string }> = [
   { id: 'LWC', label: 'LWC', one: 'Lightning web component' },
   { id: 'Aura', label: 'Aura', one: 'Aura component' },
 ];
+/** What to ask the AI for, per kind (the box's example). */
+const AI_EXAMPLE: Record<CodeKind, string> = {
+  ApexClass: 'AccountService with a method that closes opportunities older than a year',
+  ApexTrigger: 'a trigger on Case that sets Priority to High when the Subject contains "urgent"',
+  ApexPage: 'a page that lists the 10 latest accounts with their owner',
+  ApexComponent: "a component that shows a record's name and owner in a box",
+  LWC: 'a card on the account record page with its open cases',
+  Aura: 'a component with a button that counts the contacts of the account',
+};
 const kindInfo = (id: CodeKind): (typeof KINDS)[number] => KINDS.find((k) => k.id === id) ?? KINDS[0];
 
 type View = 'org' | 'project' | 'compare';
@@ -271,8 +283,8 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
     }
   };
 
-  // A class the AI wrote from a description: shown (editable) before it is created
-  const [aiDraft, setAiDraft] = useState<{ code: string; model: string } | null>(null);
+  // Code the AI wrote from a description (any kind): shown (editable) before it is created through the deploy panel
+  const [aiDraft, setAiDraft] = useState<{ draft: MetadataDraft; model: string } | null>(null);
 
   /** Creates a class the AI wrote (asks first, like every change). */
   const createAiClass = async (body: string) => {
@@ -286,7 +298,6 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
       await load();
       await openItem({ id, name, kind: 'ApexClass' });
       setStatus(/@isTest/i.test(body) ? `✓ Created ${name}. Run it on the Apex tests page.` : `✓ Created ${name}.`);
-      setAiDraft(null);
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
     }
@@ -454,30 +465,33 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
         </p>
       )}
       {status && <Status text={status} block />}
-      {kind === 'ApexClass' && !apexLocked && (
-        <AiAsk
-          task="write-class"
-          placeholder="✦ Describe a new class, e.g. AccountService with a method that closes opportunities older than a year"
-          button="Write the class"
-          what="your description"
-          onAnswer={(answer) => setAiDraft({ code: `${extractCode(answer.text)}\n`, model: answer.model })}
-        />
-      )}
+      <AiAsk
+        key={kind}
+        task="write-metadata"
+        placeholder={`✦ Describe a new ${kindInfo(kind).one}, e.g. ${AI_EXAMPLE[kind]}`}
+        button={`Write the ${kindInfo(kind).one}`}
+        what="your description"
+        build={async () => ({
+          kind: CODE_LAYOUT[kind].type,
+          apiVersion: await client.version(),
+          schema: `Objects: ${(await describeGlobal(client).catch(() => []))
+            .map((o) => o.name)
+            .join(', ')
+            .slice(0, 20_000)}`,
+        })}
+        onAnswer={(answer) => setAiDraft({ draft: parseMetadataDraft(answer.text), model: answer.model })}
+      />
       {aiDraft && (
-        <div className="card section ai-answer">
-          <div className="toolbar">
-            <b>✦ New class written by AI</b>
-            <span className="muted">{aiDraft.model} · read and change it, nothing is created yet</span>
-            <span className="grow" />
-            <button className="primary" onClick={() => void createAiClass(aiDraft.code)}>
-              Create this class…
-            </button>
-            <button onClick={() => setAiDraft(null)}>Discard</button>
-          </div>
-          <div className="editor-box">
-            <CodeEditor language="apex" value={aiDraft.code} onChange={(code) => setAiDraft({ ...aiDraft, code })} />
-          </div>
-        </div>
+        <AiMetadataDraft
+          draft={aiDraft.draft}
+          model={aiDraft.model}
+          onChange={(draft) => setAiDraft({ ...aiDraft, draft })}
+          onDiscard={() => setAiDraft(null)}
+          onDone={() => {
+            setAiDraft(null);
+            void load();
+          }}
+        />
       )}
       <div className="code-layout">
         <div className="card code-list">

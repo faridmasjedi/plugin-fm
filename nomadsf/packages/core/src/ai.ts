@@ -200,7 +200,10 @@ export type BrowserAiTask =
   | 'write-test'
   | 'explain-compile'
   | 'write-class'
-  | 'explain-diff';
+  | 'explain-diff'
+  | 'write-metadata'
+  | 'change-metadata'
+  | 'map-csv';
 const MAX_INPUT = 60_000;
 
 const SYSTEM: Record<BrowserAiTask, string> = {
@@ -232,6 +235,12 @@ const SYSTEM: Record<BrowserAiTask, string> = {
     'You are a senior Salesforce developer. Explain these compile errors and how to fix each, briefly. Then give the corrected code in one ```apex (or the right language) code block.',
   'explain-diff':
     'You are a senior Salesforce developer. A unified diff of one file follows: lines starting with - are the version in the org, lines starting with + the version in the project (repository). Explain what changed in plain words, grouped by purpose (behaviour, queries, security, tests, formatting only). Then say which side looks newer, and anything risky about deploying the project version (removed logic, changed signatures other code may call, missing tests). Be concise.',
+  'write-metadata':
+    'You write new Salesforce metadata as the files of a Metadata API deploy (metadata format, NOT source format: no force-app, no -meta.xml on XML-only types). Answer with one ```json code block and nothing else, holding {"type": "<metadata type of the main component, e.g. ApexTrigger>", "name": "<its fullName>", "files": [{"path": "<folder>/<file>", "content": "<the whole file>"}], "note": "<one short sentence>"}. Paths: classes/<Name>.cls + classes/<Name>.cls-meta.xml; triggers/<Name>.trigger + .trigger-meta.xml; pages/<Name>.page + .page-meta.xml; components/<Name>.component + .component-meta.xml; lwc/<name>/<name>.js, .html, optional .css, and <name>.js-meta.xml (isExposed true, targets lightning__RecordPage, lightning__AppPage, lightning__HomePage unless asked otherwise); aura/<name>/<name>.cmp (+ <name>.cmp-meta.xml, <name>Controller.js, <name>Helper.js as needed); a field: objects/<Object>.object holding a CustomObject with only its <fields> element; permissionsets/<Name>.permissionset; layouts/<Object>-<Layout name>.layout; flows/<Name>.flow; labels/CustomLabels.labels; other types in their usual Metadata API folder. Every -meta.xml and XML file starts with <?xml version="1.0" encoding="UTF-8"?> and uses xmlns="http://soap.sforce.com/2006/04/metadata"; use the API version given. Apex is bulk-safe (no SOQL or DML in loops), with sharing unless asked otherwise; a trigger stays thin and calls a handler class (include the class files when you write one). Use only objects and fields that exist (given) unless the request creates them. Add a test class for new Apex when the request is for production code.',
+  'change-metadata':
+    'You change one Salesforce metadata component. You get its files as the Metadata API returns them, then the change wanted. Answer with one ```json code block and nothing else, holding {"files": [{"path": "<the same path>", "content": "<the whole new file>"}], "note": "<one short sentence on what you changed>"}. Return only the files you change, each complete, with the same paths; keep everything else in them exactly as it was (order, values, formatting). Do not invent fields, objects or values that the request or the files do not name.',
+  'map-csv':
+    'You map the columns of a CSV file to the fields of a Salesforce object for a data load. Answer with one ```json code block and nothing else, holding {"mapping": {"<column exactly as given>": "<field API name, or empty to skip>"}, "note": "<one short sentence>"}. Use only field API names from the list given; match by meaning (labels, abbreviations, other languages), not only by spelling; a column holding record Ids of the object maps to Id; a lookup column maps to the lookup field (…Id or …__c). Leave a column empty when no field fits; never map two columns to one field.',
   soql: 'You write Salesforce SOQL. Answer with exactly one SOQL query in a ```sql code block and nothing else. Use only the objects and fields given; use relationship names for lookups; add LIMIT 200 unless the question asks for everything or for a count.',
 };
 
@@ -269,6 +278,71 @@ export function parseRestRequest(answer: string): RestRequestDraft {
   return { method: method as RestRequestDraft['method'], path, body };
 }
 
+export type MetadataDraft = {
+  type: string;
+  name: string;
+  files: Array<{ path: string; content: string }>;
+  note: string;
+};
+
+/** Paths a draft may write: a metadata folder, then names (no going up, no absolute paths, no package.xml). */
+const DRAFT_PATH = /^[A-Za-z][\w]*\/(?:[\w.\- ]+\/)*[\w.\- ]+$/;
+
+/** The metadata files inside an AI answer ({"type","name","files"} in a json block), checked. */
+export function parseMetadataDraft(answer: string): MetadataDraft {
+  let parsed: { type?: unknown; name?: unknown; files?: unknown; note?: unknown };
+  try {
+    parsed = JSON.parse(extractCode(answer)) as typeof parsed;
+  } catch {
+    throw new Error('The AI did not answer with files; try rephrasing.');
+  }
+  const files = (Array.isArray(parsed.files) ? parsed.files : [])
+    .map((f) => ({
+      path: String((f as { path?: unknown }).path ?? '').trim(),
+      content: String((f as { content?: unknown }).content ?? ''),
+    }))
+    .filter((f) => f.path);
+  if (!files.length) throw new Error('The AI answered without files; try rephrasing.');
+  for (const f of files)
+    if (!DRAFT_PATH.test(f.path) || f.path.split('/').includes('..') || /(^|\/)package\.xml$/.test(f.path))
+      throw new Error(`The AI suggested a path the Studio does not write: ${f.path}`);
+  return {
+    type: String(parsed.type ?? '').trim(),
+    name: String(parsed.name ?? '').trim(),
+    files,
+    note: String(parsed.note ?? '').trim(),
+  };
+}
+
+/** The column → field mapping inside an AI answer, kept to the columns and fields given. */
+export function parseCsvMapping(
+  answer: string,
+  columns: string[],
+  fields: string[]
+): { mapping: Record<string, string>; note: string } {
+  let parsed: { mapping?: Record<string, unknown>; note?: unknown };
+  try {
+    parsed = JSON.parse(extractCode(answer)) as typeof parsed;
+  } catch {
+    throw new Error('The AI did not answer with a mapping; try again.');
+  }
+  const known = new Map(fields.map((f) => [f.toLowerCase(), f]));
+  const used = new Set<string>();
+  const mapping: Record<string, string> = {};
+  for (const column of columns) {
+    const field = known.get(
+      String(parsed.mapping?.[column] ?? '')
+        .trim()
+        .toLowerCase()
+    );
+    if (field && !used.has(field)) {
+      mapping[column] = field;
+      used.add(field);
+    }
+  }
+  return { mapping, note: String(parsed.note ?? '').trim() };
+}
+
 /** The SOQL inside a ```sql block (or the whole answer). */
 export function extractSoql(answer: string): string {
   return (/```(?:sql|soql)?\s*([\s\S]*?)```/i.exec(answer)?.[1] ?? answer).trim();
@@ -286,6 +360,39 @@ export function aiTaskPrompt(task: BrowserAiTask, input: Record<string, unknown>
         0,
         MAX_INPUT
       )}\n\nQuestion: ${question}`,
+    };
+  }
+  if (task === 'write-metadata') {
+    const request = String(input.question ?? '').trim();
+    if (!request) throw new Error('Say what you want.');
+    const schema = String(input.schema ?? '').trim();
+    return {
+      system: SYSTEM[task],
+      message: `${input.kind ? `Kind: ${String(input.kind)}\n` : ''}API version: ${String(
+        input.apiVersion ?? '62.0'
+      )}\n${schema ? `Objects and fields available:\n${schema.slice(0, MAX_INPUT)}\n` : ''}\nRequest: ${request}`,
+    };
+  }
+  if (task === 'change-metadata') {
+    const request = String(input.question ?? '').trim();
+    if (!request) throw new Error('Say what to change.');
+    if (!text.trim()) throw new Error('Open a component first.');
+    return {
+      system: SYSTEM[task],
+      message: `Component: ${String(input.type ?? '')} ${String(input.name ?? '')}\nFiles:\n${text.slice(
+        0,
+        MAX_INPUT
+      )}\n\nChange: ${request}`,
+    };
+  }
+  if (task === 'map-csv') {
+    return {
+      system: SYSTEM[task],
+      message: `Object: ${String(input.object ?? '')} (${String(input.operation ?? 'insert')})\nFields: ${String(
+        input.fields ?? ''
+      ).slice(0, MAX_INPUT / 2)}\nCSV columns: ${String(input.columns ?? '')}\nFirst rows:\n${String(
+        input.sample ?? ''
+      ).slice(0, 4000)}${input.question ? `\n\nAlso: ${String(input.question)}` : ''}`,
     };
   }
   if (task === 'write-apex' || task === 'rest-request' || task === 'write-class' || task === 'pick-data') {

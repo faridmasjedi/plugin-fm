@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   apexSourcesFromOrg,
   compareTypeWithProject,
+  describeGlobal,
   describeMetadata,
   folderBytes,
   listMetadata,
   makeZip,
+  parseMetadataDraft,
+  type MetadataDraft,
   normalizeXml,
   packageXml,
   pairCodeFiles,
@@ -22,6 +25,8 @@ import {
 } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
 import { useProject } from '../project';
+import { AiAsk } from './AiHelp';
+import { AiMetadataDraft } from './AiMetadataDraft';
 import { CodeEditor } from './CodeEditor';
 import { SHOW, TAG, type CodeStatus, type Show } from './codeStatus';
 import { Dependencies } from './Dependencies';
@@ -95,6 +100,9 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
   // Validate / deploy: your edits (the org's files) or the project's version
   const [release, setRelease] = useState<'edits' | 'project' | null>(null);
   const [status, setStatus] = useState('');
+  // A new component the AI wrote (shown before it is created), and a reload of the list after one is
+  const [aiDraft, setAiDraft] = useState<{ draft: MetadataDraft; model: string } | null>(null);
+  const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState(false);
 
   const projectOpen = Boolean(project.source && project.info);
@@ -141,7 +149,7 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
     // `initial` only matters the first time
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, type, types]);
+  }, [client, type, types, reload]);
 
   // A new component: its org files (when it is in the org); the project's version is read when a view needs it
   useEffect(() => {
@@ -300,6 +308,40 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
         </label>
       </div>
       {status && <Status text={status} block />}
+      <AiAsk
+        key={`new:${type}`}
+        task="write-metadata"
+        placeholder={`✦ Describe a new ${type}, e.g. ${
+          type === 'PermissionSet'
+            ? 'read access to Account and Contact for the sales team'
+            : type === 'CustomObject'
+            ? 'a field Customer_Tier__c (picklist Gold, Silver, Bronze) on Account'
+            : 'what it should hold and do'
+        }`}
+        button={`Write the ${type}`}
+        what="your description"
+        build={async () => ({
+          kind: type,
+          apiVersion: await client.version(),
+          schema: `Objects: ${(await describeGlobal(client).catch(() => []))
+            .map((o) => o.name)
+            .join(', ')
+            .slice(0, 20_000)}`,
+        })}
+        onAnswer={(answer) => setAiDraft({ draft: parseMetadataDraft(answer.text), model: answer.model })}
+      />
+      {aiDraft && (
+        <AiMetadataDraft
+          draft={aiDraft.draft}
+          model={aiDraft.model}
+          onChange={(draft) => setAiDraft({ ...aiDraft, draft })}
+          onDiscard={() => setAiDraft(null)}
+          onDone={() => {
+            setAiDraft(null);
+            setReload(reload + 1);
+          }}
+        />
+      )}
       {type === 'Profile' && (
         <p className="muted">
           A profile file holds only the settings that go with the other components in the same retrieve: to change a
@@ -428,6 +470,41 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
                   ? ` · ${chosen.member.manageableState}`
                   : ''}
               </p>
+              {view === 'org' && files && files.some((f) => f.text !== null) && (
+                <AiAsk
+                  key={`change:${type}:${name}`}
+                  task="change-metadata"
+                  placeholder={`✦ Describe a change to ${name}, e.g. ${
+                    type === 'Layout' ? 'add the field Phone under Name' : 'what to add, remove or change'
+                  }`}
+                  button="Change it"
+                  what={`the files of ${name}`}
+                  build={async () => ({
+                    type,
+                    name,
+                    text: files
+                      .filter((f) => f.text !== null)
+                      .map((f) => `${f.path}:\n${drafts[f.path] ?? f.text}`)
+                      .join('\n\n'),
+                  })}
+                  onAnswer={(answer) => {
+                    const changed = parseMetadataDraft(answer.text).files.filter((f) =>
+                      files.some((o) => o.path === f.path)
+                    );
+                    if (!changed.length) throw new Error('The AI changed none of these files; try rephrasing.');
+                    setDrafts({ ...drafts, ...Object.fromEntries(changed.map((f) => [f.path, f.content])) });
+                    setFileIndex(
+                      Math.max(
+                        0,
+                        files.findIndex((f) => f.path === changed[0].path)
+                      )
+                    );
+                    setStatus(
+                      `✦ ${changed.length} file(s) changed by AI (${answer.model}), not saved: read them (•), then Save or Undo.`
+                    );
+                  }}
+                />
+              )}
               {release && (
                 <ReleasePanel
                   key={`${release}:${type}:${name}`}

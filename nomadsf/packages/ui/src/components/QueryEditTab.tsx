@@ -10,6 +10,7 @@ import {
   type IngestResult,
 } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
+import { AiSoql } from './AiSoql';
 import { IngestSummary } from './IngestSummary';
 import { EditableGrid, type GridRow } from './EditableGrid';
 import { Status } from '../statusLog';
@@ -147,6 +148,12 @@ export function QueryEditTab() {
         Include <code>Id</code>. Click a cell to change it; <b>Update</b> sends only the changed fields of the changed
         records. Tick rows to delete them. A cleared cell empties the field.
       </p>
+      <AiSoql
+        client={client}
+        soql={soql}
+        onSoql={setSoql}
+        placeholder="✦ Describe the records to edit, e.g. open cases of Acme created this month with their status"
+      />
       <textarea rows={3} value={soql} onChange={(e) => setSoql(e.target.value)} spellCheck={false} />
       <div className="form">
         <button className="primary" disabled={busy} onClick={() => void load()}>

@@ -14,6 +14,8 @@ import {
   type IngestOperation,
   type IngestResult,
 } from '@nomadsf/core';
+import { AiCsvMapping } from '../components/AiCsvMapping';
+import { AiSoql } from '../components/AiSoql';
 import { EditableGrid, type GridRow } from '../components/EditableGrid';
 import { IngestSummary } from '../components/IngestSummary';
 import { QueryEditTab } from '../components/QueryEditTab';
@@ -325,6 +327,24 @@ export function DataPage() {
                   running
                 </p>
                 {!knownObject && <p className="muted">Choose the object to check which columns Salesforce accepts.</p>}
+                {knownObject && rules && (
+                  <AiCsvMapping
+                    key={`${file.name}:${knownObject}`}
+                    object={knownObject}
+                    operation={operation}
+                    rules={rules}
+                    columns={file.columns}
+                    sample={rows.slice(0, 3).map((r) => r.values)}
+                    onApply={(renames) => {
+                      const rename = (values: Record<string, string>): Record<string, string> =>
+                        Object.fromEntries(Object.entries(values).map(([k, v]) => [renames[k] ?? k, v]));
+                      setFile({ ...file, columns: file.columns.map((c) => renames[c] ?? c) });
+                      setRows(rows.map((r) => ({ ...r, values: rename(r.values) })));
+                      setOriginal(new Map([...original].map(([id, values]) => [id, rename(values)])));
+                      setIngestStatus(`✓ ${Object.keys(renames).length} column(s) renamed to field names.`);
+                    }}
+                  />
+                )}
                 {report && (
                   <div className="column-check">
                     {report.problems.map((p) => (
@@ -396,6 +416,15 @@ export function DataPage() {
             <QueryEditTab />
             <div className="card section">
               <h3>Delete records matching a query</h3>
+              <AiSoql
+                client={client}
+                soql={deleteSoql}
+                onSoql={(q) => {
+                  setDeleteSoql(q);
+                  setDeleteStatus('Count first: check how many records it finds before deleting.');
+                }}
+                placeholder="✦ Describe the records to delete, e.g. test cases whose subject starts with TEST"
+              />
               <textarea
                 rows={3}
                 value={deleteSoql}

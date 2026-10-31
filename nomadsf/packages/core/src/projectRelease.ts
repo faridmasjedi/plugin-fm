@@ -8,9 +8,9 @@ import type { FolderHandle, FolderRepo } from './gitFolder.js';
 import { retrieveZip } from './metadata.js';
 import { pairCodeFiles, pairsSame } from './projectCode.js';
 import { fromBase64, readZip } from './zip.js';
-import type { ProjectFs, ProjectInfo } from './project.js';
+import { FOLDER_TYPES, type ProjectFs, type ProjectInfo } from './project.js';
 import { CHILD_ELEMENTS, toMetadataFormat, type ConvertResult } from './sourceConvert.js';
-import { resolveComponent } from './sourcePackage.js';
+import { labelBlocks, resolveComponent } from './sourcePackage.js';
 
 /**
  * A package from the project as it is on disk (not a branch): the same converter and dependent tests as Compare &
@@ -402,4 +402,55 @@ export async function projectTests(
   const files = await projectFiles(fs, info);
   const sources = await apexSourcesFromFiles(files, async (p) => (await fs.readText(p)) ?? '');
   return testsForPackage(sources, components);
+}
+
+/**
+ * The components of files in Metadata API format (an AI draft, edited files): what package.xml lists. An object file
+ * holding only fields lists those fields; the labels file lists its labels; a bundle is its folder.
+ */
+export function metadataComponentsOf(
+  files: Array<{ path: string; content: string }>
+): Array<{ type: string; name: string }> {
+  const out = new Map<string, { type: string; name: string }>();
+  const add = (type: string, name: string): void => {
+    out.set(`${type}:${name}`, { type, name });
+  };
+  for (const { path, content } of files) {
+    const [folder, ...rest] = path.split('/');
+    const type = FOLDER_TYPES[folder];
+    if (!type || !rest.length) continue;
+    if (type === 'LightningComponentBundle' || type === 'AuraDefinitionBundle') {
+      add(type, rest[0]);
+      continue;
+    }
+    if (type === 'CustomLabels') {
+      for (const m of content.matchAll(/<labels>[\s\S]*?<fullName>([^<]+)<\/fullName>/g))
+        add('CustomLabel', m[1].trim());
+      continue;
+    }
+    const file = rest.join('/').replace(/-meta\.xml$/, '');
+    const name = file.replace(/\.[^./]+$/, '');
+    if (type === 'CustomObject') {
+      const inner = content.replace(/<(fields|recordTypes|listViews|validationRules|webLinks)>[\s\S]*?<\/\1>/g, '');
+      const children = [...content.matchAll(/<fields>[\s\S]*?<fullName>([^<]+)<\/fullName>/g)].map((m) => m[1].trim());
+      // Only fields (adding them to an object): the fields, not the object
+      if (children.length && !/<label>/.test(inner)) children.forEach((f) => add('CustomField', `${name}.${f}`));
+      else add(type, name);
+      continue;
+    }
+    add(type, name);
+  }
+  return [...out.values()];
+}
+
+/** Every custom label of a project or branch (all its labels files), by name. */
+export async function projectLabels(fs: ProjectFs, info: ProjectInfo): Promise<string[]> {
+  const dirs = info.packageDirectories.map((d) => d.path);
+  const names = new Set<string>();
+  for (const path of await projectFiles(fs, info)) {
+    if (!resolveComponent(path, dirs)?.labels) continue;
+    // eslint-disable-next-line no-await-in-loop
+    for (const name of labelBlocks(await fs.readText(path)).keys()) names.add(name);
+  }
+  return [...names].sort();
 }
