@@ -263,6 +263,69 @@ function childBlock(xml: string, type: string, name: string): string | undefined
   return undefined;
 }
 
+/** One component's files as compared: an object's child as its own block, XML laid out the same way everywhere. */
+function comparable(c: { type: string; name: string }, files: CodeFile[]): CodeFile[] {
+  const own = CHILD_ELEMENTS[c.type]
+    ? files.flatMap((f) => {
+        const block = childBlock(f.source, c.type, c.name);
+        return block ? [{ ...f, source: block }] : [];
+      })
+    : files;
+  return own.map((f) => (f.language === 'xml' ? { ...f, source: normalizeXml(f.source) } : f));
+}
+
+/** Components' files in an org (one retrieve), keyed type:name, ready to compare. */
+export async function orgComponentFiles(
+  client: SalesforceClient,
+  components: Array<{ type: string; name: string }>,
+  onProgress?: (status: string) => void
+): Promise<Map<string, CodeFile[]>> {
+  const result = new Map<string, CodeFile[]>();
+  if (!components.length) return result;
+  const retrieved = await retrieveZip(
+    client,
+    components.map((c) => ({ type: c.type, fullName: c.name })),
+    { onProgress: (s) => onProgress?.(`Retrieving ${components.length} component(s) from the org: ${s}`) }
+  );
+  const files = retrieved.zipFile ? await zipCodeFiles(fromBase64(retrieved.zipFile)) : [];
+  const pathsOf = new Map<string, string[]>();
+  for (const f of retrieved.files) {
+    const key = `${f.type}:${f.fullName}`;
+    pathsOf.set(key, [...(pathsOf.get(key) ?? []), f.fileName.replace(/^unpackaged\//, '').replace(/\/$/, '')]);
+  }
+  for (const c of components) {
+    const paths = pathsOf.get(`${c.type}:${c.name}`) ?? [];
+    const own = files.filter((f) =>
+      paths.some((p) => f.path === p || f.path === `${p}-meta.xml` || f.path.startsWith(`${p}/`))
+    );
+    result.set(`${c.type}:${c.name}`, comparable(c, own));
+  }
+  return result;
+}
+
+/** Components' files in a project or branch, keyed type:name, ready to compare with an org's. */
+export async function projectSideFiles(
+  project: ProjectSide,
+  components: Array<{ type: string; name: string }>,
+  apiVersion: string
+): Promise<Map<string, CodeFile[]>> {
+  const result = new Map<string, CodeFile[]>();
+  const all = await projectFiles(project.fs, project.info);
+  for (const c of components) {
+    // eslint-disable-next-line no-await-in-loop
+    const files = (await projectComponentFiles(project, c, apiVersion, all)).files;
+    result.set(`${c.type}:${c.name}`, comparable(c, files));
+  }
+  return result;
+}
+
+/** Where a component is, from its files on each side. */
+export function checkStatus(org: CodeFile[], repo: CodeFile[]): OrgCheck['status'] {
+  if (!org.length) return repo.length ? 'not in org' : 'in neither';
+  if (!repo.length) return 'only in org';
+  return pairsSame(pairCodeFiles(org, repo)) ? 'same' : 'different';
+}
+
 /**
  * Components of a project or branch against an org: one retrieve from the org, each component converted from the
  * project, file by file — same or different, or on one side only. An object's child (a field) compares as its block.
@@ -275,52 +338,14 @@ export async function checkComponentsWithOrg(
 ): Promise<Map<string, OrgCheck>> {
   const result = new Map<string, OrgCheck>();
   if (!components.length) return result;
-  const retrieved = await retrieveZip(
-    client,
-    components.map((c) => ({ type: c.type, fullName: c.name })),
-    { onProgress: (s) => onProgress?.(`Retrieving ${components.length} component(s) from the org: ${s}`) }
-  );
-  const orgFiles = retrieved.zipFile ? await zipCodeFiles(fromBase64(retrieved.zipFile)) : [];
-  const pathsOf = new Map<string, string[]>();
-  for (const f of retrieved.files) {
-    const key = `${f.type}:${f.fullName}`;
-    pathsOf.set(key, [...(pathsOf.get(key) ?? []), f.fileName.replace(/^unpackaged\//, '').replace(/\/$/, '')]);
-  }
-  const all = await projectFiles(project.fs, project.info);
-  const apiVersion = await client.version();
-  for (const [i, c] of components.entries()) {
-    onProgress?.(`Comparing with the org… ${i + 1}/${components.length}`);
+  const org = await orgComponentFiles(client, components, onProgress);
+  onProgress?.(`Comparing ${components.length} component(s) with the org…`);
+  const repo = await projectSideFiles(project, components, await client.version());
+  for (const c of components) {
     const key = `${c.type}:${c.name}`;
-    const paths = pathsOf.get(key) ?? [];
-    let org = orgFiles.filter((f) =>
-      paths.some((p) => f.path === p || f.path === `${p}-meta.xml` || f.path.startsWith(`${p}/`))
-    );
-    // eslint-disable-next-line no-await-in-loop
-    let repo = (await projectComponentFiles(project, c, apiVersion, all)).files;
-    if (CHILD_ELEMENTS[c.type]) {
-      const only = (files: CodeFile[]): CodeFile[] =>
-        files.flatMap((f) => {
-          const block = childBlock(f.source, c.type, c.name);
-          return block ? [{ ...f, source: block }] : [];
-        });
-      org = only(org);
-      repo = only(repo);
-    }
-    // XML files laid out the same way on both sides, so only real differences count (and show)
-    const layout = (files: CodeFile[]): CodeFile[] =>
-      files.map((f) => (f.language === 'xml' ? { ...f, source: normalizeXml(f.source) } : f));
-    org = layout(org);
-    repo = layout(repo);
-    const status: OrgCheck['status'] = org.length
-      ? repo.length
-        ? pairsSame(pairCodeFiles(org, repo))
-          ? 'same'
-          : 'different'
-        : 'only in org'
-      : repo.length
-      ? 'not in org'
-      : 'in neither';
-    result.set(key, { status, org, repo });
+    const o = org.get(key) ?? [];
+    const r = repo.get(key) ?? [];
+    result.set(key, { status: checkStatus(o, r), org: o, repo: r });
   }
   return result;
 }

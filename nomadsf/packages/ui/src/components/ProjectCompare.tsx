@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   checkCodeContent,
+  checkComponentsWithOrg,
   compareTypeWithProject,
   codeKindOf,
   destructiveZip,
@@ -15,6 +16,7 @@ import {
   type ProjectFs,
   type ProjectInfo,
 } from '@nomadsf/core';
+import { PackageContents } from './PackageContents';
 import { ReleasePanel } from './ReleasePanel';
 import { GroupedActions } from './GroupedActions';
 import { withAction, type RowAction } from './RowActions';
@@ -443,6 +445,21 @@ export function ProjectCompare({
                 <span className="muted">{`Package: ${toDeploy.length} to deploy · ${toDelete.length} to delete`}</span>
                 <button onClick={() => setActions(new Map())}>Clear all actions</button>
               </div>
+              <PackageContents
+                deploy={toDeploy}
+                remove={toDelete}
+                loadCode={async (c) => {
+                  if (!fs) throw new Error('Open the project first');
+                  const found = (await checkComponentsWithOrg(studio.client, { fs, info, readBytes }, [c])).get(
+                    `${c.type}:${c.name}`
+                  );
+                  return {
+                    before: found?.org.length ? found.org : undefined,
+                    after: found?.repo.length ? found.repo : undefined,
+                    labels: [studio.org.label, fromLabel],
+                  };
+                }}
+              />
               <ReleasePanel
                 studio={studio}
                 key={`${[...actions]

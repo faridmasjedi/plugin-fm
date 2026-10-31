@@ -3,6 +3,7 @@ import {
   CompareEngine,
   analyzeProject,
   checkComponentsWithOrg,
+  projectSideFiles,
   pairCodeFiles,
   refProjectFs,
   type OrgCheck,
@@ -18,6 +19,8 @@ import { CodeDiff } from '../components/CodeDiff';
 import type { CodeEditorProps } from '../components/CodeEditor';
 import { askConfirm } from '../components/Dialogs';
 import { download } from '../components/DataTable';
+import { GroupedActions } from '../components/GroupedActions';
+import { PackageContents, type ComponentCode } from '../components/PackageContents';
 import { ProjectCodeView } from '../components/ProjectCodeView';
 import { ProjectCompare } from '../components/ProjectCompare';
 import { ReleasePanel } from '../components/ReleasePanel';
@@ -507,6 +510,22 @@ function ModePanel({
             }
           }}
           checks={checks && { org: checks.org, byKey: checks.byKey }}
+          loadCode={async (c) => {
+            const key = `${c.type}:${c.name}`;
+            const checked = checks?.byKey.get(key);
+            if (checked)
+              return {
+                before: checked.org.length ? checked.org : undefined,
+                after: checked.repo.length ? checked.repo : undefined,
+                labels: [checks!.org, checks!.ref],
+              };
+            const ref = pkg.source;
+            const { fs, readBytes } = await refProjectFs(engine.repo, ref);
+            const files = (
+              await projectSideFiles({ fs, info: await analyzeProject(fs), readBytes }, [c], pkg.apiVersion)
+            ).get(key);
+            return { after: files ?? [], labels: ['', ref] };
+          }}
           openCheck={openCheck}
           onOpenCheck={(key) => {
             setOpenCheck(key === openCheck ? undefined : key);
@@ -616,6 +635,8 @@ function PackageCard(props: {
   checks?: { org: string; byKey: Map<string, OrgCheck> };
   openCheck?: string;
   onOpenCheck?: (key: string) => void;
+  /** From a manifest: a component's code (the branch's, and the org's when checked). */
+  loadCode?: (c: { type: string; name: string }) => Promise<ComponentCode>;
 }) {
   const { pkg, engine, excluded, setExcluded, kept, setKept, changes, setChanges, filter, setFilter } = props;
   const [status, setStatus] = useState('');
@@ -630,7 +651,6 @@ function PackageCard(props: {
   const kept2 = components.filter((c) => !excluded.has(keyOf(c)));
   const deploy = kept2.filter((c) => c.change !== 'deleted');
   const remove = kept2.filter((c) => c.change === 'deleted');
-  const allOn = shown.every((c) => !excluded.has(keyOf(c)));
   const toggle = (key: string, on: boolean): void => {
     const next = new Set(excluded);
     if (on) next.delete(key);
@@ -777,78 +797,65 @@ function PackageCard(props: {
             </div>
           )}
 
-          <div className="compare-table">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>
-                    <input
-                      type="checkbox"
-                      checked={allOn}
-                      title="Tick all shown"
-                      onChange={() => {
-                        const next = new Set(excluded);
-                        for (const c of shown) {
-                          if (allOn) next.add(keyOf(c));
-                          else next.delete(keyOf(c));
-                        }
-                        setExcluded(next);
-                      }}
-                    />
-                  </th>
-                  <th>Type</th>
-                  <th>Name</th>
-                  <th>Change</th>
-                  {props.checks && <th>{props.checks.org}</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((c) => {
-                  const key = keyOf(c);
-                  const on = !excluded.has(key);
-                  const note = renameNote(c);
-                  return (
-                    <tr key={key} className={on ? '' : 'off'}>
-                      <td>
-                        <input type="checkbox" checked={on} onChange={(e) => toggle(key, e.target.checked)} />
-                      </td>
-                      <td className="muted">{c.type}</td>
-                      <td>
-                        {props.checks?.byKey.has(key) ? (
-                          <button
-                            className={`link ${props.openCheck === key ? 'active' : ''}`}
-                            title="The branch's version and the org's, side by side"
-                            onClick={() => props.onOpenCheck?.(key)}
-                          >
-                            <b>{c.name}</b>
-                          </button>
-                        ) : (
-                          <b>{c.name}</b>
-                        )}
-                        {note && <div className="muted small">{note}</div>}
-                        {c.note && <div className="warn-text small">⚠ {c.note}</div>}
-                      </td>
-                      <td>
-                        <span className={`pill ${CHANGE_TONE[c.change]}`}>{c.change}</span>
-                      </td>
-                      {props.checks && <td>{orgPill(c.change, props.checks.byKey.get(key)?.status)}</td>}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <GroupedActions
+            rows={shown.map((c) => ({ ...c, key: keyOf(c), status: c.change }))}
+            actions={
+              new Map(
+                components
+                  .filter((c) => !excluded.has(keyOf(c)))
+                  .map((c) => [keyOf(c), c.change === 'deleted' ? ('delete' as const) : ('deploy' as const)])
+              )
+            }
+            onActions={(next) => {
+              const out = new Set(excluded);
+              for (const c of shown) {
+                if (next.has(keyOf(c))) out.delete(keyOf(c));
+                else out.add(keyOf(c));
+              }
+              setExcluded(out);
+            }}
+            // What changed decides it: a deleted component can only be deleted, the others only deployed
+            allowed={(c, a) => (a === 'delete') === (c.change === 'deleted')}
+            tone={(st) => CHANGE_TONE[st as Change] ?? ''}
+            hideFilter
+            renderName={(c) => {
+              const key = keyOf(c);
+              const note = renameNote(c);
+              return (
+                <>
+                  {props.checks?.byKey.has(key) ? (
+                    <button
+                      className={`link ${props.openCheck === key ? 'active' : ''}`}
+                      title="The branch's version and the org's, side by side"
+                      onClick={() => props.onOpenCheck?.(key)}
+                    >
+                      {c.name}
+                    </button>
+                  ) : (
+                    c.name
+                  )}
+                  {note && <div className="muted small">{note}</div>}
+                  {c.note && <div className="warn-text small">⚠ {c.note}</div>}
+                </>
+              );
+            }}
+            extra={props.checks ? (c) => orgPill(c.change, props.checks!.byKey.get(keyOf(c))?.status) : undefined}
+          />
 
-          <div className="compare-summary">
-            <p>
-              <b>package.xml</b> {summary(deploy) || '—'}
-            </p>
-            {remove.length > 0 && (
+          {pkg.target === 'manifest' ? (
+            <PackageContents deploy={deploy} remove={remove} loadCode={props.loadCode} />
+          ) : (
+            <div className="compare-summary">
               <p>
-                <b>destructiveChanges.xml</b> {summary(remove)}
+                <b>package.xml</b> {summary(deploy) || '—'}
               </p>
-            )}
-          </div>
+              {remove.length > 0 && (
+                <p>
+                  <b>destructiveChanges.xml</b> {summary(remove)}
+                </p>
+              )}
+            </div>
+          )}
         </>
       )}
 

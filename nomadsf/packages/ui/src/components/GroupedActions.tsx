@@ -16,6 +16,8 @@ export function GroupedActions<R extends GroupRow>({
   allowed,
   tone,
   renderName,
+  extra,
+  hideFilter,
 }: {
   rows: R[];
   actions: Map<string, RowAction>;
@@ -26,6 +28,10 @@ export function GroupedActions<R extends GroupRow>({
   tone: (status: string) => string;
   /** The name cell, when it does more (opens in Code). */
   renderName?: (row: R) => ReactNode;
+  /** One more cell per row, before the action (an org's status…). */
+  extra?: (row: R) => ReactNode;
+  /** The page filters the rows itself. */
+  hideFilter?: boolean;
 }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState('');
@@ -45,13 +51,16 @@ export function GroupedActions<R extends GroupRow>({
   return (
     <div className="grouped-actions">
       <div className="form">
-        <input
-          className="grow"
-          type="search"
-          placeholder={`Filter ${rows.length} component(s) by type or name`}
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
+        {!hideFilter && (
+          <input
+            className="grow"
+            type="search"
+            placeholder={`Filter ${rows.length} component(s) by type or name`}
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        )}
+        {hideFilter && <span className="grow" />}
         <button onClick={() => setOpen(new Set(groups.keys()))}>Open all</button>
         <button onClick={() => setOpen(new Set())}>Close all</button>
       </div>
@@ -116,6 +125,7 @@ export function GroupedActions<R extends GroupRow>({
                       <td>
                         <span className={`pill ${tone(r.status)}`}>{r.status}</span>
                       </td>
+                      {extra && <td>{extra(r)}</td>}
                       <td className="group-action">
                         <RowActionSelect
                           value={actions.get(r.key)}

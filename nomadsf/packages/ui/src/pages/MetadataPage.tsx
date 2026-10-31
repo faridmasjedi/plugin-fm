@@ -3,6 +3,7 @@ import {
   apexSourcesFromOrg,
   buildDiffPackage,
   fromBase64,
+  orgComponentFiles,
   testsForPackage,
   parsePackageXml,
   describeMetadata,
@@ -16,6 +17,7 @@ import {
 } from '@nomadsf/core';
 import { DataTable } from '../components/DataTable';
 import { ComponentPreview } from '../components/MetadataSource';
+import { PackageContents } from '../components/PackageContents';
 import { ReleasePanel } from '../components/ReleasePanel';
 import { useStudio } from '../context';
 import { useProject } from '../project';
@@ -369,6 +371,14 @@ export function MetadataPage() {
                   />
                 </div>
               )}
+              <PackageContents
+                deploy={items.map((c) => ({ type: c.type, name: c.fullName }))}
+                remove={deletes.map((c) => ({ type: c.type, name: c.fullName }))}
+                loadCode={async (c) => ({
+                  after: (await orgComponentFiles(client, [c])).get(`${c.type}:${c.name}`) ?? [],
+                  labels: ['', org.label],
+                })}
+              />
               <ReleasePanel
                 key={[...basket.keys(), '|', ...toDelete.keys()].join(',')}
                 deployCount={items.length}

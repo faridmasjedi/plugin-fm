@@ -1,7 +1,15 @@
 import { useState } from 'react';
-import { folderBytes, parsePackageXml, projectMetadataZip, projectTests, type ProjectTypeSummary } from '@nomadsf/core';
+import {
+  checkComponentsWithOrg,
+  folderBytes,
+  parsePackageXml,
+  projectMetadataZip,
+  projectTests,
+  type ProjectTypeSummary,
+} from '@nomadsf/core';
 import { DataTable } from '../components/DataTable';
 import { ProjectCompare } from '../components/ProjectCompare';
+import { PackageContents } from '../components/PackageContents';
 import { ReleasePanel } from '../components/ReleasePanel';
 import { RowActionBar, RowActionSelect, withAction, type RowAction } from '../components/RowActions';
 import { useProject } from '../project';
@@ -287,6 +295,23 @@ export function ProjectPage({
                 <span className="muted">{`Package: ${toDeploy.length} to deploy · ${toDelete.length} to delete (from every type)`}</span>
                 <button onClick={() => setActions(new Map())}>Clear all actions</button>
               </div>
+              <PackageContents
+                deploy={toDeploy}
+                remove={toDelete}
+                loadCode={async (c) => {
+                  const side = {
+                    fs: source.fs,
+                    info,
+                    readBytes: source.handle ? (path: string) => folderBytes(source.handle!, path) : undefined,
+                  };
+                  const found = (await checkComponentsWithOrg(studio.client, side, [c])).get(`${c.type}:${c.name}`);
+                  return {
+                    before: found?.org.length ? found.org : undefined,
+                    after: found?.repo.length ? found.repo : undefined,
+                    labels: [studio.org.label, `the project ${info.name}`],
+                  };
+                }}
+              />
               <ReleasePanel
                 studio={studio}
                 key={[...actions]

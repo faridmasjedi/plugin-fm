@@ -6,6 +6,7 @@ import {
   compareOrgs,
   describeMetadata,
   fromBase64,
+  orgComponentFiles,
   testsForPackage,
   type DiffPackage,
   type MetadataType,
@@ -17,6 +18,7 @@ import { download } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { detectHost, orgFacts, type OrgChoice, type OrgFacts } from '../host';
 import { OrgPairBar, usePair } from '../pair';
+import { PackageContents } from '../components/PackageContents';
 import { ReleasePanel } from '../components/ReleasePanel';
 import { GroupedActions } from '../components/GroupedActions';
 import { withAction, type RowAction } from '../components/RowActions';
@@ -112,6 +114,9 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
   const toDelete = (rows ?? []).filter((r) => actions.get(r.key) === 'delete');
   const setAction = (list: OrgDiffRow[], a: RowAction | undefined): void =>
     setActions(withAction(actions, list, a, (r) => r.key, allowed));
+
+  // A built package is of the actions chosen then: another choice needs another build
+  useEffect(() => setPkg(null), [actions]);
 
   const run = async (label: string, action: () => Promise<void>, at: 'top' | 'package' = 'top') => {
     setBusy(true);
@@ -297,65 +302,81 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
           {(toDeploy.length > 0 || toDelete.length > 0) && (
             <div className="compare-actions">
               <span className="muted">
-                Package: <b>{toDeploy.length}</b> to deploy from {source?.label} ·{' '}
-                <b className="bad-text">{toDelete.length}</b> to delete from {target?.label}
+                {`Package: ${toDeploy.length} to deploy from ${source?.label ?? 'A'} · ${
+                  toDelete.length
+                } to delete from ${target?.label ?? 'B'}`}
               </span>
               <div className="form">
                 <button className="primary" disabled={busy} onClick={() => void makePackage()}>
-                  Build package
+                  {pkg ? 'Build the package again' : 'Build package'}
                 </button>
                 <button onClick={() => setActions(new Map())}>Clear all actions</button>
                 {status && statusAt === 'package' && <Status text={status} />}
               </div>
-              <p className="muted" style={{ margin: 0 }}>
-                Build package retrieves the components to deploy from A into a zip with <code>package.xml</code> (and{' '}
-                <code>destructiveChangesPost.xml</code> for the destructive changes) to download. Validate and deploy,
-                below, send them into B with the tests you choose.
-              </p>
-            </div>
-          )}
-          {pkg && (
-            <div className="card section deploy-panel">
-              <h3>
-                Package of the difference{' '}
-                <span className="muted">
-                  {pkg.components} component(s){pkg.destructiveXml ? ' · with deletions' : ''}
-                </span>
-              </h3>
-              <div className="form">
-                <button
-                  onClick={() => download(`package-${source?.label}-${stamp()}.xml`, pkg.packageXml, 'application/xml')}
-                >
-                  Download package.xml
-                </button>
-                {pkg.destructiveXml && (
+              {pkg ? (
+                <div className="form">
+                  <span className="muted">
+                    {`Built: ${pkg.components} component(s)${pkg.destructiveXml ? ' with deletions' : ''} ·`}
+                  </span>
+                  <button
+                    className="primary"
+                    onClick={() => {
+                      const a = document.createElement('a');
+                      a.href = URL.createObjectURL(zipBytes(pkg.zipBase64));
+                      a.download = `diff-${source?.label}-to-${target?.label}-${stamp()}.zip`;
+                      a.click();
+                      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+                    }}
+                  >
+                    ⤓ Package (zip)
+                  </button>
                   <button
                     onClick={() =>
-                      download(`destructiveChangesPost-${stamp()}.xml`, pkg.destructiveXml!, 'application/xml')
+                      download(`package-${source?.label}-${stamp()}.xml`, pkg.packageXml, 'application/xml')
                     }
                   >
-                    Download destructiveChangesPost.xml
+                    ⤓ package.xml
                   </button>
-                )}
-                <button
-                  className="primary"
-                  onClick={() => {
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(zipBytes(pkg.zipBase64));
-                    a.download = `diff-${source?.label}-to-${target?.label}-${stamp()}.zip`;
-                    a.click();
-                    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-                  }}
-                >
-                  Download package (zip)
-                </button>
-              </div>
-              <p className="muted" style={{ margin: 0 }}>
-                Deploy it later from here, Workbench, or{' '}
-                <code>sf project deploy start --metadata-dir &lt;unzipped folder&gt;</code>.
-              </p>
+                  {pkg.destructiveXml && (
+                    <button
+                      onClick={() =>
+                        download(`destructiveChangesPost-${stamp()}.xml`, pkg.destructiveXml!, 'application/xml')
+                      }
+                    >
+                      ⤓ destructiveChangesPost.xml
+                    </button>
+                  )}
+                  <span className="muted">
+                    {'deploy it later from here, Workbench, or sf project deploy start --metadata-dir'}
+                  </span>
+                </div>
+              ) : (
+                <p className="muted" style={{ margin: 0 }}>
+                  Build package retrieves the components to deploy from A into a zip with <code>package.xml</code> (and{' '}
+                  <code>destructiveChangesPost.xml</code> for the destructive changes) to download. Validate and deploy,
+                  below, send them into B with the tests you choose.
+                </p>
+              )}
             </div>
           )}
+          <PackageContents
+            deploy={toDeploy}
+            remove={toDelete}
+            loadCode={async (c) => {
+              const key = `${c.type}:${c.name}`;
+              const [a, b] = await Promise.all([
+                clients.source && allowed(c as OrgDiffRow, 'deploy')
+                  ? orgComponentFiles(clients.source, [c]).then((m) => m.get(key))
+                  : undefined,
+                clients.target ? orgComponentFiles(clients.target, [c]).then((m) => m.get(key)) : undefined,
+              ]);
+              return {
+                before: b?.length ? b : undefined,
+                after: a?.length ? a : undefined,
+                labels: [`${target?.label ?? 'B'} (B)`, `${source?.label ?? 'A'} (A)`],
+              };
+            }}
+          />
           {clients.target && (toDeploy.length > 0 || toDelete.length > 0) && (
             <ReleasePanel
               key={[...actions]

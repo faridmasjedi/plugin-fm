@@ -3425,3 +3425,51 @@ select.row-action.delete {
   align-items: center;
   gap: 6px;
 }
+
+/* Every action select the same width, so a column of them lines up */
+select.row-action {
+  width: 170px;
+}
+/* What's in the package: the manifests by type, then each component (click for its code) */
+.package-contents p {
+  margin: 4px 0;
+}
+.package-contents .package-list {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+.package-contents .package-list summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+.package-contents .package-list ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  columns: 2 320px;
+  column-gap: 24px;
+}
+.package-contents .package-list li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 2px 0;
+  break-inside: avoid;
+}
+.package-contents .package-list li .muted {
+  min-width: 150px;
+  font-size: 12.5px;
+}
+.package-contents .package-list li.active button {
+  font-weight: 600;
+}
+.package-contents .package-code {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.package-contents .package-code h4 {
+  margin: 0;
+}
