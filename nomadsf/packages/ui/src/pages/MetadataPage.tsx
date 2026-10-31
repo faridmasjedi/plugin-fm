@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  apexSourcesFromOrg,
+  buildDiffPackage,
+  fromBase64,
+  testsForPackage,
   parsePackageXml,
   describeMetadata,
   listMetadata,
@@ -12,6 +16,7 @@ import {
 } from '@nomadsf/core';
 import { DataTable } from '../components/DataTable';
 import { ComponentPreview } from '../components/MetadataSource';
+import { ReleasePanel } from '../components/ReleasePanel';
 import { useStudio } from '../context';
 import { useProject } from '../project';
 import { Status } from '../statusLog';
@@ -348,7 +353,7 @@ export function MetadataPage() {
                     <code>
                       sf project deploy start --manifest package.xml {DELETE_FLAG[deleteFile]} {deleteFile}
                     </code>{' '}
-                    (Release › Project deletes straight from here).
+                    (or Validate and deploy, below, straight from here).
                   </p>
                   <DataTable
                     columns={['type', 'fullName']}
@@ -364,6 +369,35 @@ export function MetadataPage() {
                   />
                 </div>
               )}
+              <ReleasePanel
+                key={[...basket.keys(), '|', ...toDelete.keys()].join(',')}
+                deployCount={items.length}
+                removeCount={deletes.length}
+                from={org.label}
+                build={async (removeWhen) => ({
+                  zip: fromBase64(
+                    (
+                      await buildDiffPackage(
+                        client,
+                        items.map((c) => ({ type: c.type, name: c.fullName })),
+                        deletes.map((c) => ({ type: c.type, name: c.fullName })),
+                        undefined,
+                        removeWhen
+                      )
+                    ).zipBase64
+                  ),
+                })}
+                findTests={
+                  items.length
+                    ? async () =>
+                        testsForPackage(
+                          await apexSourcesFromOrg(client),
+                          items.map((c) => ({ type: c.type, name: c.fullName }))
+                        )
+                    : undefined
+                }
+                zipName={`${org.label}-package-${stamp()}.zip`}
+              />
             </>
           )}
           {retrieved && (

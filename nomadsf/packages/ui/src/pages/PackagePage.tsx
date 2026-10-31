@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   CompareEngine,
+  analyzeProject,
+  refProjectFs,
   type CompareHow,
+  type ProjectFs,
+  type ProjectInfo,
   type ComparedPackage,
   type PackageComponent,
   type PackageFile,
@@ -11,8 +15,10 @@ import { CodeDiff } from '../components/CodeDiff';
 import type { CodeEditorProps } from '../components/CodeEditor';
 import { askConfirm } from '../components/Dialogs';
 import { download } from '../components/DataTable';
+import { ProjectCompare } from '../components/ProjectCompare';
 import { ReleasePanel } from '../components/ReleasePanel';
-import { storage } from '../context';
+import { storage, useStudio } from '../context';
+import { OrgComparePage } from './OrgComparePage';
 import { useProject } from '../project';
 import { Status } from '../statusLog';
 
@@ -25,6 +31,13 @@ import { Status } from '../statusLog';
  */
 
 type Change = PackageComponent['change'];
+type Mode = 'branches' | 'manifest' | 'branch-org' | 'org-org';
+const MODES: Array<{ id: Mode; label: string; needsFolder: boolean }> = [
+  { id: 'branches', label: 'Branch ↔ Branch', needsFolder: true },
+  { id: 'manifest', label: 'From a manifest', needsFolder: true },
+  { id: 'branch-org', label: 'Branch ↔ Org', needsFolder: true },
+  { id: 'org-org', label: 'Org ↔ Org', needsFolder: false },
+];
 
 const HOW: Array<{ id: CompareHow; label: string; hint: string }> = [
   {
@@ -62,6 +75,7 @@ const languageOf = (path: string): CodeEditorProps['language'] => {
 
 export function PackagePage() {
   const project = useProject();
+  const studio = useStudio();
   const handle = project.source?.kind === 'folder' ? project.source.handle : undefined;
   const engine = useMemo(() => (handle ? new CompareEngine(handle) : undefined), [handle]);
 
@@ -73,8 +87,22 @@ export function PackagePage() {
     storage.get<string>('compare.how', 'merge-base') === 'direct' ? 'direct' : 'merge-base'
   );
   const [forceignore, setForceignore] = useState('');
-  // What to compare: two branches, or a manifest with the files of a branch
-  const [mode, setMode] = useState<'branches' | 'manifest'>('branches');
+  // What to compare: two branches, a manifest with the files of a branch, a branch with an org, or two orgs
+  const [mode, setMode] = useState<Mode>(() => {
+    const kept = storage.get<string>('compare.mode', 'branches');
+    return MODES.some((m) => m.id === kept) ? (kept as Mode) : 'branches';
+  });
+  const chooseMode = (next: Mode): void => {
+    setMode(next);
+    storage.set('compare.mode', next);
+  };
+  // Branch ↔ Org: the branch read as a project
+  const [branchProject, setBranchProject] = useState<{
+    name: string;
+    fs: ProjectFs;
+    readBytes: (path: string) => Promise<Uint8Array>;
+    info: ProjectInfo;
+  }>();
   const [manifest, setManifest] = useState<{ name: string; xml: string }>();
   const [destructive, setDestructive] = useState<{ name: string; xml: string }>();
   const [pkg, setPkg] = useState<ComparedPackage>();
@@ -110,6 +138,30 @@ export function PackagePage() {
     };
   }, [engine]);
 
+  const modeSwitch = (hasFolder: boolean) => (
+    <div className="segmented" role="group" aria-label="What to compare">
+      {MODES.map((m) => (
+        <button
+          key={m.id}
+          className={mode === m.id ? 'active' : ''}
+          disabled={m.needsFolder && !hasFolder}
+          title={m.needsFolder && !hasFolder ? 'Open the project folder first' : undefined}
+          onClick={() => chooseMode(m.id)}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  // Two orgs: Org compare, with the same package, validate, deploy and quick deploy
+  const orgToOrg = (
+    <div className="card section">
+      <h3>Org ↔ Org</h3>
+      <OrgComparePage orgs={studio.orgs} embedded />
+    </div>
+  );
+
   if (!project.source || !handle || !engine) {
     return (
       <div className="page">
@@ -117,25 +169,30 @@ export function PackagePage() {
           <h2>Compare &amp; package</h2>
           <span className="muted">what a branch brings into another, as package.xml and destructiveChanges.xml</span>
         </div>
-        <div className="card section">
-          <p>
-            This reads the project's git history: open the project <b>folder</b> (the repository with
-            sfdx-project.json).
-            {project.source?.kind === 'github' &&
-              ' A GitHub project is read without its history, so it cannot be compared here yet.'}
-          </p>
-          {project.needsPermission ? (
-            <button className="primary" onClick={() => void project.reconnectFolder()}>
-              Allow reading the folder again
-            </button>
-          ) : (
-            project.canPickFolder && (
-              <button className="primary" onClick={() => void project.pickFolder()}>
-                Open the project folder…
+        <div className="card section">{modeSwitch(false)}</div>
+        {mode === 'org-org' ? (
+          orgToOrg
+        ) : (
+          <div className="card section">
+            <p>
+              This reads the project's git history: open the project <b>folder</b> (the repository with
+              sfdx-project.json).
+              {project.source?.kind === 'github' &&
+                ' A GitHub project is read without its history, so it cannot be compared here yet.'}
+            </p>
+            {project.needsPermission ? (
+              <button className="primary" onClick={() => void project.reconnectFolder()}>
+                Allow reading the folder again
               </button>
-            )
-          )}
-        </div>
+            ) : (
+              project.canPickFolder && (
+                <button className="primary" onClick={() => void project.pickFolder()}>
+                  Open the project folder…
+                </button>
+              )
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -203,6 +260,27 @@ export function PackagePage() {
     }
   };
 
+  const readBranch = async (): Promise<void> => {
+    if (!sourceRef) {
+      setStatus('⚠ Choose the branch.');
+      return;
+    }
+    setBusy(true);
+    setStatus(`Reading ${sourceRef} from git…`);
+    try {
+      const { fs, readBytes } = await refProjectFs(engine.repo, sourceRef);
+      const info = await analyzeProject(fs);
+      setBranchProject({ name: sourceRef, fs, readBytes, info });
+      const total = info.packageDirectories.reduce((n, d) => n + d.total, 0);
+      setStatus(`✓ ${total} component(s) in ${sourceRef}: choose types below and compare with ${studio.org.label}.`);
+    } catch (e) {
+      setBranchProject(undefined);
+      setStatus(`❌ ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const readFile =
     (set: (f: { name: string; xml: string } | undefined) => void) =>
     async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
@@ -249,21 +327,16 @@ export function PackagePage() {
 
       <div className="card section">
         <h3>1 · Compare</h3>
-        <div className="segmented" role="group" aria-label="What to compare">
-          <button className={mode === 'branches' ? 'active' : ''} onClick={() => setMode('branches')}>
-            Branch ↔ Branch
-          </button>
-          <button className={mode === 'manifest' ? 'active' : ''} onClick={() => setMode('manifest')}>
-            From a manifest
-          </button>
-          <button disabled title="Coming next">
-            Branch ↔ Org
-          </button>
-          <button disabled title="Coming next">
-            Org ↔ Org
-          </button>
-        </div>
-        {mode === 'manifest' ? (
+        {modeSwitch(true)}
+        {mode === 'org-org' ? null : mode === 'branch-org' ? (
+          <div className="compare-manifest">
+            {refSelect(sourceRef, setSourceRef, 'Branch')}
+            <span className="muted">
+              compared with <b>{studio.org.label}</b> (the org at the top): every type, then validate, deploy or quick
+              deploy what differs
+            </span>
+          </div>
+        ) : mode === 'manifest' ? (
           <div className="compare-manifest">
             <label>
               package.xml
@@ -313,23 +386,42 @@ export function PackagePage() {
             </fieldset>
           </>
         )}
-        <div className="form">
-          <label className="grow">
-            .forceignore
-            <input value={forceignore} placeholder=".forceignore" onChange={(e) => setForceignore(e.target.value)} />
-          </label>
-          <button
-            className="primary"
-            disabled={busy || !refs}
-            onClick={() => void (mode === 'manifest' ? fromManifest() : compare())}
-          >
-            {busy ? 'Reading…' : mode === 'manifest' ? 'Read the manifest' : 'Compare'}
-          </button>
-        </div>
-        {status && <Status text={status} block />}
+        {mode === 'branch-org' ? (
+          <div className="form">
+            <button className="primary" disabled={busy || !refs} onClick={() => void readBranch()}>
+              {busy ? 'Reading…' : 'Read the branch'}
+            </button>
+          </div>
+        ) : (
+          mode !== 'org-org' && (
+            <div className="form">
+              <label className="grow">
+                .forceignore
+                <input
+                  value={forceignore}
+                  placeholder=".forceignore"
+                  onChange={(e) => setForceignore(e.target.value)}
+                />
+              </label>
+              <button
+                className="primary"
+                disabled={busy || !refs}
+                onClick={() => void (mode === 'manifest' ? fromManifest() : compare())}
+              >
+                {busy ? 'Reading…' : mode === 'manifest' ? 'Read the manifest' : 'Compare'}
+              </button>
+            </div>
+          )
+        )}
+        {status && mode !== 'org-org' && <Status text={status} block />}
       </div>
 
-      {pkg && (
+      {mode === 'org-org' && orgToOrg}
+      {mode === 'branch-org' && branchProject && (
+        <ProjectCompare key={branchProject.name} studio={studio} info={branchProject.info} branch={branchProject} />
+      )}
+
+      {pkg && (mode === 'branches' || mode === 'manifest') && (
         <PackageCard
           pkg={pkg}
           engine={engine}
@@ -353,7 +445,7 @@ export function PackagePage() {
         />
       )}
 
-      {pkg && pkg.components.length > 0 && (
+      {pkg && pkg.components.length > 0 && (mode === 'branches' || mode === 'manifest') && (
         <ReleasePanel
           from={pkg.source}
           deployCount={pkg.components.filter((c) => c.change !== 'deleted' && !excluded.has(keyOf(c))).length}
@@ -367,7 +459,7 @@ export function PackagePage() {
         />
       )}
 
-      {pkg && diff && (
+      {pkg && diff && (mode === 'branches' || mode === 'manifest') && (
         <div className="card section compare-diff">
           <div className="form">
             <h3 className="grow">{diff.path}</h3>

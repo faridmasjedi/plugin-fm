@@ -2650,6 +2650,10 @@ button.working::before {
 .metadata-source .code-layout {
   grid-template-columns: 300px minmax(0, 1fr);
 }
+/* The component's side shrinks to its column (the buttons wrap, the diff fits) */
+.metadata-source .code-layout > div {
+  min-width: 0;
+}
 .metadata-source .code-list li button {
   display: block;
   overflow: hidden;

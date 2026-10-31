@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import {
   deployZip,
   quickDeploy,
@@ -7,7 +7,7 @@ import {
   type SalesforceClient,
   type TestLevel,
 } from '@nomadsf/core';
-import { useStudio } from '../context';
+import { StudioContext, type Studio } from '../context';
 import { detectHost, orgFacts } from '../host';
 import { Status } from '../statusLog';
 import { askTyped } from './Dialogs';
@@ -41,6 +41,10 @@ export type ReleasePanelProps = {
   targetId?: string;
   /** A file name for "Download the deployable zip". */
   zipName?: string;
+  /** The Studio, for a page drawn outside its context (Release › Project). */
+  studio?: Studio;
+  /** After each validation, deploy or quick deploy (the page can refresh what it shows). */
+  onDone?: (outcome: DeployOutcome) => void;
 };
 
 const LEVELS: Array<{ id: TestLevel; label: string }> = [
@@ -51,8 +55,10 @@ const LEVELS: Array<{ id: TestLevel; label: string }> = [
 ];
 
 export function ReleasePanel(props: ReleasePanelProps) {
-  const { deployCount, removeCount, from, build, findTests, zipName } = props;
-  const studio = useStudio();
+  const { deployCount, removeCount, from, build, findTests, zipName, onDone } = props;
+  const fromContext = useContext(StudioContext);
+  const studio = props.studio ?? fromContext;
+  if (!studio) throw new Error('No org selected.');
   const [chosen, setChosen] = useState(props.targetId ?? studio.org.id);
   const targetId = props.targetId ?? chosen;
   const target = studio.orgs.find((o) => o.id === targetId);
@@ -142,6 +148,7 @@ export function ReleasePanel(props: ReleasePanelProps) {
       });
       setOutcome(result);
       setStatus('');
+      onDone?.(result);
     });
   };
 
@@ -158,6 +165,7 @@ export function ReleasePanel(props: ReleasePanelProps) {
       });
       setOutcome(result);
       setStatus('');
+      onDone?.(result);
     });
   };
 
@@ -193,7 +201,8 @@ export function ReleasePanel(props: ReleasePanelProps) {
       <div className="form">
         {props.targetId ? (
           <span>
-            Into <b className={production ? 'bad-text' : ''}>{target?.label ?? targetId}</b>
+            Into{'\u00a0'}
+            <b className={production ? 'bad-text' : ''}>{target?.label ?? targetId}</b>
           </span>
         ) : (
           <label>

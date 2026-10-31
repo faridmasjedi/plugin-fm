@@ -1,16 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  deployComponent,
+  apexSourcesFromOrg,
   describeMetadata,
+  folderBytes,
   listMetadata,
+  makeZip,
+  packageXml,
+  projectMetadataZip,
+  projectTests,
+  readZip,
   retrieveComponent,
+  testsForPackage,
   type ComponentFile,
   type MetadataComponent,
   type MetadataType,
 } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
+import { useProject } from '../project';
+import { CodeDiff } from './CodeDiff';
 import { CodeEditor } from './CodeEditor';
 import { Dependencies } from './Dependencies';
+import { ReleasePanel } from './ReleasePanel';
 import { Status } from '../statusLog';
 
 /** Types people open most, first in the list. */
@@ -47,12 +57,40 @@ const languageOf = (path: string): 'javascript' | 'html' | 'css' | 'json' | 'xml
     ? 'json'
     : 'xml';
 
+/** The project's version of a component, in the retrieve's (Metadata API) paths so it pairs with the org's files. */
+async function projectVersion(
+  project: ReturnType<typeof useProject>,
+  type: string,
+  name: string,
+  apiVersion: string
+): Promise<{ files: ComponentFile[]; problem?: string }> {
+  if (!project.source || !project.info) return { files: [], problem: 'Open a project first (Release › Project).' };
+  const { fs, handle } = project.source;
+  const built = await projectMetadataZip({
+    fs,
+    info: project.info,
+    deploy: [{ type, name }],
+    apiVersion,
+    readBytes: handle ? (path) => folderBytes(handle, path) : undefined,
+  });
+  if (built.notConverted.length) return { files: [], problem: `Not in the project: ${built.notConverted[0].reason}.` };
+  const files: ComponentFile[] = [];
+  for (const [path, bytes] of await readZip(built.zip)) {
+    if (path === 'package.xml') continue;
+    const text = new TextDecoder().decode(bytes);
+    files.push({ path, text: text.includes('\u0000') ? null : text, size: bytes.length });
+  }
+  return { files: files.sort((a, b) => a.path.localeCompare(b.path)) };
+}
+
 /**
- * Any metadata component (FlexiPage, Flow, permission set, layout…): its files from the org, edited
- * in place and validated or deployed; and what it uses and what uses it.
+ * Any metadata component (FlexiPage, Flow, permission set, layout…): its files from the org, edited in place; the
+ * project's version and how it differs; validated, deployed or quick deployed — your edits or the project's version —
+ * with the shared panel (tests, dependent tests); and what it uses and what uses it.
  */
 export function MetadataSource({ initial }: { initial?: { type: string; fullName: string } }) {
-  const { client, org, confirmChange, logActivity } = useStudio();
+  const { client } = useStudio();
+  const project = useProject();
   const [types, setTypes] = useState<MetadataType[]>([]);
   const [type, setType] = useState(() => initial?.type ?? storage.get('code.metaType', 'FlexiPage'));
   const [members, setMembers] = useState<MetadataComponent[] | null>(null);
@@ -61,9 +99,13 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
   const [files, setFiles] = useState<ComponentFile[] | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [fileIndex, setFileIndex] = useState(0);
-  const [view, setView] = useState<'source' | 'deps'>('source');
+  const [view, setView] = useState<'source' | 'project' | 'compare' | 'deps'>('source');
+  // The project's version of the chosen component (undefined: not read yet)
+  const [inProject, setInProject] = useState<{ files: ComponentFile[]; problem?: string }>();
+  const [comparePath, setComparePath] = useState('');
+  // Validate / deploy: your edits (the org's files) or the project's version
+  const [release, setRelease] = useState<'edits' | 'project' | null>(null);
   const [status, setStatus] = useState('');
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     describeMetadata(client)
@@ -93,6 +135,8 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
     setFiles(null);
     setDrafts({});
     setFileIndex(0);
+    setInProject(undefined);
+    setRelease(null);
     if (!chosen) return;
     setStatus(`Retrieving ${chosen.fullName}…`);
     // The component's own type: the list may already show another one
@@ -115,47 +159,65 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
   const changed = Object.entries(drafts).filter(([path, text]) => files?.find((f) => f.path === path)?.text !== text);
   const current = files?.[fileIndex];
 
-  const send = async (checkOnly: boolean) => {
-    if (!chosen || !files) return;
-    const what = `${checkOnly ? 'Validate' : 'Deploy'} ${type} ${chosen.fullName} (${changed.length} changed file(s))`;
-    if (!(await confirmChange(`${what} in ${org.label}`))) return;
-    setBusy(true);
-    setStatus(`${checkOnly ? 'Validating' : 'Deploying'}…`);
-    try {
-      const outcome = await deployComponent(
-        client,
-        chosen.type || type,
-        chosen.fullName,
-        files.map((f) => ({ ...f, text: drafts[f.path] ?? f.text })),
-        { checkOnly, onProgress: (s) => setStatus(`${checkOnly ? 'Validating' : 'Deploying'}: ${s}…`) }
-      );
-      logActivity(checkOnly ? 'validate metadata' : 'deploy metadata', {
-        type,
-        name: chosen.fullName,
-        success: outcome.success,
-        id: outcome.id,
+  const name = chosen?.fullName ?? '';
+  const chosenType = chosen?.type || type;
+
+  // The project's version, read when a view or the panel needs it
+  useEffect(() => {
+    if (!chosen || inProject || (view !== 'project' && view !== 'compare' && release !== 'project')) return;
+    let canceled = false;
+    void (async () => {
+      try {
+        const found = await projectVersion(project, chosenType, name, await client.version());
+        if (!canceled) setInProject(found);
+      } catch (e) {
+        if (!canceled) setInProject({ files: [], problem: (e as Error).message });
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, [chosen, chosenType, name, view, release, inProject, project, client]);
+
+  /** The package for the panel: the org's files with your edits, or the project's version. */
+  const build = async () => {
+    const version = await client.version();
+    if (release === 'project') {
+      if (!project.source || !project.info) throw new Error('Open a project first (Release › Project).');
+      const { fs, handle } = project.source;
+      return projectMetadataZip({
+        fs,
+        info: project.info,
+        deploy: [{ type: chosenType, name }],
+        apiVersion: version,
+        readBytes: handle ? (path) => folderBytes(handle, path) : undefined,
       });
-      if (outcome.success) {
-        setStatus(`✓ ${checkOnly ? 'Valid' : 'Deployed'} (${outcome.id}).`);
-        if (!checkOnly) {
-          setFiles(files.map((f) => ({ ...f, text: drafts[f.path] ?? f.text })));
-          setDrafts({});
-        }
-      } else
-        setStatus(
-          `❌ ${[
-            ...outcome.componentFailures.map((f) => `${f.name}${f.line ? `:${f.line}` : ''} ${f.problem}`),
-            outcome.errorMessage,
-          ]
-            .filter(Boolean)
-            .join('; ')}`
-        );
-    } catch (e) {
-      setStatus(`❌ ${(e as Error).message}`);
-    } finally {
-      setBusy(false);
     }
+    if (!files) throw new Error('The files are not retrieved yet.');
+    if (files.some((f) => f.text === null))
+      throw new Error('This component has binary files: deploy it from the project.');
+    return {
+      zip: makeZip([
+        { path: 'package.xml', content: packageXml([{ type: chosenType, fullName: name }], version) },
+        ...files.map((f) => ({ path: f.path, content: drafts[f.path] ?? f.text ?? '' })),
+      ]),
+    };
   };
+
+  const findTests = async () =>
+    release === 'project' && project.source && project.info
+      ? projectTests(project.source.fs, project.info, [{ type: chosenType, name }])
+      : testsForPackage(await apexSourcesFromOrg(client), [{ type: chosenType, name }]);
+
+  // Compare: every path in either version
+  const paths = [...new Set([...(files ?? []), ...(inProject?.files ?? [])].map((f) => f.path))].sort();
+  const pairPath = paths.includes(comparePath) ? comparePath : paths[0] ?? '';
+  const orgText = (path: string): string | null | undefined => {
+    const f = files?.find((x) => x.path === path);
+    return f ? drafts[path] ?? f.text : undefined;
+  };
+  const projectText = (path: string): string | null | undefined => inProject?.files.find((x) => x.path === path)?.text;
+  const differs = (path: string): boolean => orgText(path) !== projectText(path);
 
   return (
     <div className="metadata-source">
@@ -226,6 +288,22 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
                     Source
                   </button>
                   <button
+                    className={`tab ${view === 'project' ? 'active' : ''}`}
+                    disabled={!project.source}
+                    title={project.source ? 'Its files in the project' : 'Open a project first (Release › Project)'}
+                    onClick={() => setView('project')}
+                  >
+                    Project
+                  </button>
+                  <button
+                    className={`tab ${view === 'compare' ? 'active' : ''}`}
+                    disabled={!project.source}
+                    title={project.source ? 'The org and the project side by side' : 'Open a project first'}
+                    onClick={() => setView('compare')}
+                  >
+                    Compare
+                  </button>
+                  <button
                     className={`tab ${view === 'deps' ? 'active' : ''}`}
                     disabled={!chosen.id}
                     title={chosen.id ? 'What it uses and what uses it' : 'Salesforce gives no Id for this type'}
@@ -235,20 +313,98 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
                   </button>
                 </div>
                 {view === 'source' && files && (
-                  <>
-                    <button disabled={busy || !changed.length} onClick={() => setDrafts({})}>
-                      Undo
-                    </button>
-                    <button disabled={busy} onClick={() => void send(true)} title="Checks the deploy without saving">
-                      Validate…
-                    </button>
-                    <button className="primary" disabled={busy || !changed.length} onClick={() => void send(false)}>
-                      Deploy {changed.length ? `${changed.length} file(s)` : ''}…
-                    </button>
-                  </>
+                  <button disabled={!changed.length} onClick={() => setDrafts({})}>
+                    Undo
+                  </button>
+                )}
+                {files && (
+                  <button
+                    className={release === 'edits' ? 'primary active' : 'primary'}
+                    onClick={() => setRelease(release === 'edits' ? null : 'edits')}
+                    title="Validate, deploy or quick deploy the org's files with your edits, with the tests you choose"
+                  >
+                    Validate / deploy {changed.length ? `${changed.length} edited file(s)` : ''}…
+                  </button>
+                )}
+                {project.source && (
+                  <button
+                    className={release === 'project' ? 'active' : ''}
+                    onClick={() => setRelease(release === 'project' ? null : 'project')}
+                    title="Validate, deploy or quick deploy the project's version"
+                  >
+                    Deploy from project…
+                  </button>
                 )}
               </div>
-              {view === 'source' ? (
+              {release && (
+                <ReleasePanel
+                  key={`${release}:${chosenType}:${name}`}
+                  deployCount={1}
+                  removeCount={0}
+                  from={release === 'project' ? `the project (${chosenType} ${name})` : `your edits of ${name}`}
+                  build={build}
+                  findTests={findTests}
+                  zipName={`${name.replace(/[^\w.-]+/g, '_')}.zip`}
+                  onDone={(outcome) => {
+                    if (outcome.success && !outcome.checkOnly && release === 'edits' && files) {
+                      setFiles(files.map((f) => ({ ...f, text: drafts[f.path] ?? f.text })));
+                      setDrafts({});
+                    }
+                  }}
+                />
+              )}
+              {view === 'project' || view === 'compare' ? (
+                !inProject ? (
+                  <p className="muted">Reading the project…</p>
+                ) : inProject.problem ? (
+                  <p className="muted">{inProject.problem}</p>
+                ) : (
+                  <>
+                    <div className="tabs">
+                      {(view === 'project' ? inProject.files.map((f) => f.path) : paths).map((path) => (
+                        <button
+                          key={path}
+                          className={`tab ${path === pairPath ? 'active' : ''}`}
+                          onClick={() => setComparePath(path)}
+                        >
+                          {path.split('/').pop()}
+                          {view === 'compare' && differs(path) ? ' •' : ''}
+                        </button>
+                      ))}
+                    </div>
+                    {view === 'project' ? (
+                      <div className="editor-box">
+                        <CodeEditor
+                          language={languageOf(pairPath)}
+                          value={projectText(pairPath) ?? '(binary file)'}
+                          onChange={() => undefined}
+                          readOnly
+                        />
+                      </div>
+                    ) : orgText(pairPath) === null || projectText(pairPath) === null ? (
+                      <p className="muted">{pairPath}: a binary file, not compared.</p>
+                    ) : (
+                      <>
+                        <p className="muted" style={{ margin: 0 }}>
+                          {paths.filter(differs).length
+                            ? `${paths.filter(differs).length} of ${paths.length} file(s) differ (•).`
+                            : 'The org and the project are the same.'}
+                          {orgText(pairPath) === undefined ? ' This file is only in the project.' : ''}
+                          {projectText(pairPath) === undefined ? ' This file is only in the org.' : ''}
+                        </p>
+                        <div className="compare-diff-editor">
+                          <CodeDiff
+                            original={orgText(pairPath) ?? ''}
+                            modified={projectText(pairPath) ?? ''}
+                            language={languageOf(pairPath)}
+                            labels={[`${chosen.fullName} in the org`, 'the project']}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </>
+                )
+              ) : view === 'source' ? (
                 !files ? null : (
                   <>
                     {files.length > 1 && (

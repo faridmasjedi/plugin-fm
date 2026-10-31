@@ -1,33 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  apexSourcesFromOrg,
   buildDiffPackage,
   compareContent,
   compareOrgs,
-  deployZip,
   describeMetadata,
   fromBase64,
-  quickDeploy,
-  type DeployOutcome,
+  testsForPackage,
   type DiffPackage,
   type MetadataType,
   type OrgDiffRow,
   type OrgDiffStatus,
   type SalesforceClient,
-  type TestLevel,
 } from '@nomadsf/core';
 import { DataTable, download } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { detectHost, orgFacts, type OrgChoice, type OrgFacts } from '../host';
 import { OrgPairBar, usePair } from '../pair';
-import { askTyped } from '../components/Dialogs';
+import { ReleasePanel } from '../components/ReleasePanel';
 import { Status } from '../statusLog';
 
-const LEVELS: Array<{ id: TestLevel; label: string }> = [
-  { id: 'NoTestRun', label: 'No tests (sandboxes only)' },
-  { id: 'RunSpecifiedTests', label: 'Specific test classes' },
-  { id: 'RunLocalTests', label: 'All local tests' },
-  { id: 'RunAllTestsInOrg', label: 'All tests in the org' },
-];
 const COMMON = [
   'ApexClass',
   'ApexTrigger',
@@ -56,7 +48,7 @@ const zipBytes = (b64: string): Blob => new Blob([fromBase64(b64)], { type: 'app
  * Org compare: what differs between two orgs (sandbox ↔ sandbox or ↔ production), then a manifest
  * and a deployable package of the difference, to download for later or deploy to the target.
  */
-export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
+export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded?: boolean }) {
   const studio = useStudio();
   // A → B of the Org to org hub: copy from A, compare with and deploy into B
   const [pair] = usePair();
@@ -71,13 +63,9 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [withDeletions, setWithDeletions] = useState(false);
   const [pkg, setPkg] = useState<DiffPackage | null>(null);
-  const [level, setLevel] = useState<TestLevel>('RunLocalTests');
-  const [tests, setTests] = useState('');
-  const [checkOnly, setCheckOnly] = useState(true);
-  const [outcome, setOutcome] = useState<DeployOutcome | null>(null);
   const [status, setStatus] = useState('');
-  // Where the message belongs: at the top (connect, compare), by Build package, or by Validate / Deploy
-  const [statusAt, setStatusAt] = useState<'top' | 'package' | 'deploy'>('top');
+  // Where the message belongs: at the top (connect, compare), or by Build package
+  const [statusAt, setStatusAt] = useState<'top' | 'package'>('top');
   const [busy, setBusy] = useState(false);
 
   const source = orgs.find((o) => o.id === sourceId);
@@ -88,7 +76,6 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
   useEffect(() => {
     setRows(null);
     setPkg(null);
-    setOutcome(null);
     setClients({});
     setTargetFacts(undefined);
     const host = detectHost();
@@ -118,7 +105,7 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
   );
   const toDelete = withDeletions ? picked.filter((r) => r.status === 'only in target') : [];
 
-  const run = async (label: string, action: () => Promise<void>, at: 'top' | 'package' | 'deploy' = 'top') => {
+  const run = async (label: string, action: () => Promise<void>, at: 'top' | 'package' = 'top') => {
     setBusy(true);
     setStatusAt(at);
     setStatus(label);
@@ -136,7 +123,6 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
       if (!clients.source || !clients.target) throw new Error('Choose two different orgs.');
       storage.set('orgdiff.types', [...chosen]);
       setPkg(null);
-      setOutcome(null);
       const result = await compareOrgs(clients.source, clients.target, [...chosen].sort(), (done, total, type) =>
         setStatus(`Listing ${type} (${done + 1} of ${total})…`)
       );
@@ -170,7 +156,6 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
           (s) => setStatus(s)
         );
         setPkg(built);
-        setOutcome(null);
         studio.logActivity('org diff package', {
           source: source?.label,
           target: target?.label,
@@ -183,61 +168,25 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
       'package'
     );
 
-  // Changes go into B: type B's name (the org at the top may be another one)
-  const confirmInTarget = (what: string): Promise<boolean> =>
-    askTyped(`${what}${production ? `\n\n⚠ ${target?.label} is a PRODUCTION org.` : ''}`, target?.label ?? '', {
-      ok: 'Confirm',
-      danger: production,
-    });
-
-  const deploy = async () => {
-    if (!pkg || !clients.target || !target) return;
-    // Validating and deploying are both approved with B's name
-    if (
-      !(await confirmInTarget(
-        `${checkOnly ? 'Validate' : 'Deploy'} ${pkg.components} component(s) from ${source?.label} ${
-          checkOnly ? 'against' : 'to'
-        } ${target.label}`
-      ))
-    )
-      return;
-    void run(
-      checkOnly ? 'Validating…' : 'Deploying…',
-      async () => {
-        const result = await deployZip(clients.target!, pkg.zipBase64, {
-          checkOnly,
-          testLevel: level,
-          runTests: tests.split(/[\s,]+/).filter(Boolean),
-          onProgress: (s, done, total) => setStatus(`${checkOnly ? 'Validation' : 'Deploy'} · ${s} · ${done}/${total}`),
-        });
-        studio.logActivity(checkOnly ? 'org diff validate' : 'org diff deploy', {
-          target: target.label,
-          id: result.id,
-          success: result.success,
-        });
-        setOutcome(result);
-        setStatus('');
-      },
-      'deploy'
+  /** The package for the panel: retrieved from A, with deletions before or after. */
+  const buildForPanel = async (removeWhen: 'pre' | 'post') => {
+    if (!clients.source) throw new Error('Connect to A first');
+    const built = await buildDiffPackage(
+      clients.source,
+      toDeploy.map((r) => ({ type: r.type, name: r.name })),
+      toDelete.map((r) => ({ type: r.type, name: r.name })),
+      undefined,
+      removeWhen
     );
+    return { zip: fromBase64(built.zipBase64) };
   };
 
-  const quick = async () => {
-    if (!outcome || !clients.target || !target) return;
-    if (!(await confirmInTarget(`Quick deploy validation ${outcome.id} to ${target.label}`))) return;
-    void run(
-      'Quick deploy…',
-      async () => {
-        const result = await quickDeploy(clients.target!, outcome.id, {
-          onProgress: (s) => setStatus(`Quick deploy · ${s}`),
-        });
-        studio.logActivity('org diff quick deploy', { target: target.label, id: result.id, success: result.success });
-        setOutcome(result);
-        setStatus('');
-      },
-      'deploy'
+  /** The tests that reach the package's Apex, from A's Apex (where the package comes from). */
+  const findTests = async () =>
+    testsForPackage(
+      await apexSourcesFromOrg(clients.source!),
+      toDeploy.map((r) => ({ type: r.type, name: r.name }))
     );
-  };
 
   const pickDifference = () =>
     setSelected(
@@ -245,11 +194,13 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
     );
 
   return (
-    <div className="page">
-      <div className="toolbar">
-        <h2>Org compare</h2>
-        <span className="muted">differences between two orgs → package.xml and a deployable package</span>
-      </div>
+    <div className={embedded ? '' : 'page'}>
+      {!embedded && (
+        <div className="toolbar">
+          <h2>Org compare</h2>
+          <span className="muted">differences between two orgs → package.xml and a deployable package</span>
+        </div>
+      )}
       <OrgPairBar labelA="A — source (copy from)" labelB="B — target (compare with, deploy to)" />
       {production && (
         <p className="bad-text">⚠ B ({target?.label}) is a PRODUCTION org: deploys there ask for its name.</p>
@@ -320,7 +271,9 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
                 Compare content of {count('in both')} in both
               </button>
             )}
-            <button onClick={pickDifference}>Select the difference (only in source + different)</button>
+            <button onClick={pickDifference} title="Tick every row only in A, or different">
+              Add all differences
+            </button>
           </div>
           <DataTable
             columns={['type', 'name', 'status']}
@@ -359,8 +312,8 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
               </div>
               <p className="muted" style={{ margin: 0 }}>
                 Build package retrieves the ticked components from A into a zip with <code>package.xml</code> (and{' '}
-                <code>destructiveChangesPost.xml</code> for those you also delete). Then download it, or validate and
-                deploy it into B.
+                <code>destructiveChangesPost.xml</code> for those you also delete) to download. Validate and deploy,
+                below, send the ticked components into B with the tests you choose.
               </p>
             </div>
           )}
@@ -404,69 +357,19 @@ export function OrgComparePage({ orgs }: { orgs: OrgChoice[] }) {
                 Deploy it later from here, Workbench, or{' '}
                 <code>sf project deploy start --metadata-dir &lt;unzipped folder&gt;</code>.
               </p>
-              <div className="form">
-                <label>
-                  Tests
-                  <select value={level} onChange={(e) => setLevel(e.target.value as TestLevel)}>
-                    {LEVELS.map((l) => (
-                      <option key={l.id} value={l.id} disabled={l.id === 'NoTestRun' && production}>
-                        {l.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {level === 'RunSpecifiedTests' && (
-                  <input
-                    placeholder="Test classes, comma separated"
-                    value={tests}
-                    onChange={(e) => setTests(e.target.value)}
-                  />
-                )}
-                <label className="check">
-                  <input type="checkbox" checked={checkOnly} onChange={(e) => setCheckOnly(e.target.checked)} />{' '}
-                  Validate only (changes nothing)
-                </label>
-                <button className={checkOnly ? '' : 'danger'} disabled={busy} onClick={deploy}>
-                  {checkOnly ? 'Validate' : 'Deploy'} on {target?.label}
-                </button>
-                {status && statusAt === 'deploy' && <Status text={status} />}
-              </div>
             </div>
           )}
-          {outcome && (
-            <div className="card section">
-              <h3>
-                {outcome.success ? '✓' : '❌'} {outcome.checkOnly ? 'Validation' : 'Deploy'} {outcome.status}{' '}
-                <span className="muted mono">{outcome.id}</span>
-              </h3>
-              <p className="muted" style={{ margin: 0 }}>
-                {outcome.componentsDeployed}/{outcome.componentsTotal} components · {outcome.testsRun} tests run
-                {outcome.errorMessage ? ` · ${outcome.errorMessage}` : ''}
-              </p>
-              {outcome.success && outcome.checkOnly && (
-                <div className="form">
-                  <button className="primary" onClick={quick}>
-                    Quick deploy (no second test run)
-                  </button>
-                </div>
-              )}
-              {outcome.componentFailures.length > 0 && (
-                <DataTable
-                  columns={['type', 'name', 'line', 'problem']}
-                  rows={outcome.componentFailures.map((f, i) => ({ ...f, key: i }))}
-                  rowKey="key"
-                  name="component-failures"
-                />
-              )}
-              {outcome.testFailures.length > 0 && (
-                <DataTable
-                  columns={['name', 'method', 'message']}
-                  rows={outcome.testFailures.map((f, i) => ({ ...f, key: i }))}
-                  rowKey="key"
-                  name="test-failures"
-                />
-              )}
-            </div>
+          {picked.length > 0 && clients.target && (toDeploy.length > 0 || toDelete.length > 0) && (
+            <ReleasePanel
+              key={[...selected].sort().join(',') + String(withDeletions)}
+              deployCount={toDeploy.length}
+              removeCount={toDelete.length}
+              from={source?.label ?? 'A'}
+              build={buildForPanel}
+              findTests={clients.source && toDeploy.length ? findTests : undefined}
+              targetId={targetId}
+              zipName={`diff-${source?.label}-to-${target?.label}-${stamp()}.zip`}
+            />
           )}
         </div>
       )}

@@ -5,15 +5,16 @@ import {
   checkCodeContent,
   createApexClass,
   createCode,
-  deployZip,
   extractCode,
+  folderBytes,
   isBundle,
   listCode,
   openCode,
   pairCodeFiles,
   pairsSame,
   projectCodeIndex,
-  projectCodePackage,
+  projectMetadataZip,
+  projectTests,
   readProjectCode,
   saveApex,
   saveBundleFile,
@@ -25,6 +26,7 @@ import {
 import { AiAsk, AiExplain } from '../components/AiHelp';
 import { CodeEditor } from '../components/CodeEditor';
 import { ProjectCodeView, shownPair } from '../components/ProjectCodeView';
+import { ReleasePanel } from '../components/ReleasePanel';
 import { storage, useStudio } from '../context';
 import { monaco } from '../monaco';
 import { useProject } from '../project';
@@ -340,50 +342,30 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
     );
   };
 
-  /** Deploys the component from the project (new components, or bundles with new files). */
-  const deployFromProject = async () => {
-    if (!item || !source || !project.info) return;
-    if (!(await studio.confirmChange(`Deploy ${item.name} from the project (${projectLabel}) to ${studio.org.label}`)))
-      return;
-    setBusy(true);
-    setProblems([]);
-    setStatus(`Deploying ${item.name} from the project…`);
-    try {
-      const pkg = await projectCodePackage(
-        source.fs,
-        project.info,
-        [{ type: CODE_LAYOUT[item.kind].type, name: item.name }],
-        await client.version()
-      );
-      const result = await deployZip(client, pkg.zipBase64, {
-        testLevel: 'NoTestRun',
-        onProgress: (s, done, total) => setStatus(`Deploying ${item.name}… ${s} ${done}/${total}`),
-      });
-      studio.logActivity('deploy from project', {
-        kind: item.kind,
-        name: item.name,
-        id: result.id,
-        success: result.success,
-      });
-      if (!result.success) {
-        const failures: CompileProblem[] = result.componentFailures.map((f) => ({
-          line: f.line,
-          problem: `${f.name}: ${f.problem}`,
-        }));
-        setProblems(result.errorMessage ? [...failures, { problem: result.errorMessage }] : failures);
-        setStatus(`❌ Deploy ${result.status}.`);
-        return;
-      }
-      const list = await listCode(client, item.kind);
-      setItems(list);
-      const deployed = list.find((i) => i.name === item.name);
-      if (deployed) await openItem(deployed, 'compare');
-      setStatus(`✓ Deployed ${item.name} from the project.`);
-    } catch (e) {
-      setStatus(`❌ ${(e as Error).message}`);
-    } finally {
-      setBusy(false);
-    }
+  // "Deploy from project…": the shared validate / deploy / quick deploy panel, for the open component
+  const [deployOpen, setDeployOpen] = useState(false);
+  useEffect(() => setDeployOpen(false), [item]);
+  const projectComponent = item ? [{ type: CODE_LAYOUT[item.kind].type, name: item.name }] : [];
+
+  /** The component from the project as a Metadata API zip (new components, or bundles with new files). */
+  const buildFromProject = async () => {
+    if (!source || !project.info) throw new Error('Open a project first');
+    return projectMetadataZip({
+      fs: source.fs,
+      info: project.info,
+      deploy: projectComponent,
+      apiVersion: await client.version(),
+      readBytes: source.handle ? (path) => folderBytes(source.handle!, path) : undefined,
+    });
+  };
+
+  /** After a deploy from the project: the org's list and the component, compared again. */
+  const afterProjectDeploy = async () => {
+    if (!item) return;
+    const list = await listCode(client, item.kind);
+    setItems(list);
+    const deployed = list.find((i) => i.name === item.name);
+    if (deployed) await openItem(deployed, 'compare');
   };
 
   // "Open in Code" from Project → Compare: switch to the kind, then open the component
@@ -589,19 +571,30 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
               )}
               {(!inOrg || projectExtra > 0) && (
                 <button
-                  className="primary"
-                  disabled={busy || apexLocked}
-                  title={
-                    apexLocked
-                      ? 'Production: deploy with tests from Project → Compare'
-                      : 'Deploy this component from the project (no tests run; sandboxes and developer orgs)'
-                  }
-                  onClick={() => void deployFromProject()}
+                  className={deployOpen ? 'primary active' : 'primary'}
+                  disabled={busy}
+                  title="Validate, deploy or quick deploy this component from the project, with the tests you choose"
+                  onClick={() => setDeployOpen(!deployOpen)}
                 >
                   Deploy from project…
                 </button>
               )}
             </div>
+          )}
+          {item && deployOpen && source && (
+            <ReleasePanel
+              key={`${item.kind}:${item.name}`}
+              deployCount={1}
+              removeCount={0}
+              from={`the project (${projectLabel})`}
+              build={buildFromProject}
+              findTests={() => projectTests(source.fs, project.info!, projectComponent)}
+              targetId={studio.org.id}
+              zipName={`${item.name}.zip`}
+              onDone={(outcome) => {
+                if (outcome.success && !outcome.checkOnly) void afterProjectDeploy();
+              }}
+            />
           )}
           {item && projectFiles && view !== 'org' ? (
             <ProjectCodeView
