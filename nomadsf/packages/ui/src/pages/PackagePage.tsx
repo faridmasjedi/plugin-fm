@@ -8,6 +8,7 @@ import {
   projectSideFiles,
   pairCodeFiles,
   refProjectFs,
+  unifiedDiff,
   type OrgCheck,
   type CompareHow,
   type ProjectFs,
@@ -17,6 +18,7 @@ import {
   type PackageFile,
   type PackageFileGroup,
 } from '@nomadsf/core';
+import { AiExplain } from '../components/AiHelp';
 import { CodeDiff } from '../components/CodeDiff';
 import type { CodeEditorProps } from '../components/CodeEditor';
 import { askConfirm } from '../components/Dialogs';
@@ -513,6 +515,34 @@ function ModePanel({
           setFilter={setFilter}
           openFiles={openFiles}
           setOpenFiles={setOpenFiles}
+          diffView={
+            diff && (
+              <div className="compare-diff package-code">
+                <div className="form">
+                  <h3 className="grow">{diff.path}</h3>
+                  <button onClick={() => setDiff(undefined)}>Close</button>
+                </div>
+                <div className="chips ai-tools">
+                  <AiExplain
+                    key={diff.path}
+                    task="explain-diff"
+                    label="Explain the difference"
+                    what="the difference of this file (a diff between the two branches)"
+                    getText={() => unifiedDiff(diff.before, diff.after, [pkg.target, pkg.source])}
+                    getExtra={() => `File: ${diff.path}`}
+                  />
+                </div>
+                <div className="compare-diff-editor">
+                  <CodeDiff
+                    original={diff.before}
+                    modified={diff.after}
+                    language={languageOf(diff.path)}
+                    labels={[`${pkg.target} (Target)`, `${pkg.source} (Source)`]}
+                  />
+                </div>
+              </div>
+            )
+          }
           showDiff={async (path) => {
             try {
               setDiff({ path, ...(await engine.texts(pkg.id, path)) });
@@ -585,23 +615,6 @@ function ModePanel({
           zipName={`${pkg.source.replace(/[^\w.-]+/g, '-')}-deployable.zip`}
         />
       )}
-
-      {pkg && diff && (mode === 'branches' || mode === 'manifest') && (
-        <div className="card section compare-diff">
-          <div className="form">
-            <h3 className="grow">{diff.path}</h3>
-            <button onClick={() => setDiff(undefined)}>Close</button>
-          </div>
-          <div className="compare-diff-editor">
-            <CodeDiff
-              original={diff.before}
-              modified={diff.after}
-              language={languageOf(diff.path)}
-              labels={[`${pkg.target} (Target)`, `${pkg.source} (Source)`]}
-            />
-          </div>
-        </div>
-      )}
     </>
   );
 }
@@ -646,6 +659,8 @@ function PackageCard(props: {
   openFiles: Set<string>;
   setOpenFiles: (s: Set<string>) => void;
   showDiff: (path: string) => Promise<void>;
+  /** The file opened from the list, shown under it. */
+  diffView?: React.ReactNode;
   /** From a manifest: each component against an org, and the one opened (its diff below the card). */
   checks?: { org: string; byKey: Map<string, OrgCheck> };
   openCheck?: string;
@@ -891,6 +906,7 @@ function PackageCard(props: {
       )}
 
       {pkg.target !== 'manifest' && <FileGroups {...props} />}
+      {props.diffView}
 
       <div className="form">
         <button className="primary" disabled={!deploy.length && !remove.length} onClick={() => void save(false)}>

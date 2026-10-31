@@ -25,7 +25,7 @@ import {
 } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
 import { useProject } from '../project';
-import { AiAsk } from './AiHelp';
+import { AiAsk, AiExplain } from './AiHelp';
 import { AiMetadataDraft } from './AiMetadataDraft';
 import { CodeEditor } from './CodeEditor';
 import { SHOW, TAG, type CodeStatus, type Show } from './codeStatus';
@@ -553,6 +553,26 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
                           {drafts[f.path] !== undefined && drafts[f.path] !== f.text ? ' •' : ''}
                         </button>
                       ))}
+                    </div>
+                  )}
+                  {current && current.text !== null && (
+                    <div className="chips ai-tools">
+                      <AiExplain
+                        key={`explain:${current.path}`}
+                        task="explain-code"
+                        label="Explain"
+                        what="this file"
+                        getText={() => drafts[current.path] ?? current.text ?? ''}
+                        getExtra={() => `${type} ${name} · file: ${current.path}`}
+                      />
+                      <AiExplain
+                        key={`review:${current.path}`}
+                        task="review-code"
+                        label="Review"
+                        what="this file"
+                        getText={() => drafts[current.path] ?? current.text ?? ''}
+                        getExtra={() => `${type} ${name} · file: ${current.path}`}
+                      />
                     </div>
                   )}
                   {current && current.text === null ? (

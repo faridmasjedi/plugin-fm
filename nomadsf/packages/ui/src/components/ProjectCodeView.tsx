@@ -51,15 +51,38 @@ export function ProjectCodeView({
           ))}
         </div>
       )}
-      {pair.status === 'different' && (
+      {(pair.status === 'different' || (view === 'project' && pair.project)) && (
         <div className="chips ai-tools">
-          <AiExplain
-            task="explain-diff"
-            label="Explain the difference"
-            what="the difference of this file (a diff, not the whole org)"
-            getText={() => unifiedDiff(pair.org!.source, pair.project!.source, labels)}
-            getExtra={() => `File: ${pair.path}`}
-          />
+          {pair.status === 'different' && (
+            <AiExplain
+              key={`diff:${pair.path}`}
+              task="explain-diff"
+              label="Explain the difference"
+              what="the difference of this file (a diff, not the whole org)"
+              getText={() => unifiedDiff(pair.org!.source, pair.project!.source, labels)}
+              getExtra={() => `File: ${pair.path}`}
+            />
+          )}
+          {view === 'project' && pair.project && (
+            <>
+              <AiExplain
+                key={`explain:${pair.path}`}
+                task="explain-code"
+                label="Explain"
+                what={`this file (${labels[1]})`}
+                getText={() => pair.project!.source}
+                getExtra={() => `File: ${pair.path}`}
+              />
+              <AiExplain
+                key={`review:${pair.path}`}
+                task="review-code"
+                label="Review"
+                what={`this file (${labels[1]})`}
+                getText={() => pair.project!.source}
+                getExtra={() => `File: ${pair.path}`}
+              />
+            </>
+          )}
         </div>
       )}
       {view === 'project' &&

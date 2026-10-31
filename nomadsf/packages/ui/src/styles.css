@@ -3487,3 +3487,9 @@ select.row-action {
 .compare-file-row.active button.mono {
   font-weight: 600;
 }
+/* A file opened from Compare & package's list: under the list, in the package's box */
+.compare-diff.package-code {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
