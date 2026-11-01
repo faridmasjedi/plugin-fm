@@ -1,0 +1,7 @@
+<aura:component implements="flexipage:availableForAllPageTypes" access="global">
+    <aura:attribute name="greeting" type="String" default="Welcome to Acme" />
+    <lightning:card title="{!v.greeting}" iconName="custom:custom1">
+        <p class="slds-p-horizontal_small">Today's open cases and invoices are on the tabs above.</p>
+        <lightning:button label="Say hello" onclick="{!c.hello}" />
+    </lightning:card>
+</aura:component>

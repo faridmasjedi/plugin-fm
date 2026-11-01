@@ -1,0 +1,5 @@
+<apex:component >
+    <apex:attribute name="title" type="String" description="The heading under the logo" required="true" />
+    <h1 style="font-family: sans-serif">Acme Corp</h1>
+    <h2 style="font-family: sans-serif">{!title}</h2>
+</apex:component>

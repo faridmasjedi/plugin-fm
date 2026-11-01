@@ -2,7 +2,10 @@
 // does, with two made-up demo scratch orgs. Salesforce calls are forwarded with the orgs' CLI logins;
 // the page never sees a token. Run: node tools/demo/server.mjs [port]
 import { Org } from '@salesforce/core-bundle';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { homedir } from 'node:os';
 import { readFile, readdir } from 'node:fs/promises';
 import { basename, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +20,47 @@ const inProject = (path) => {
   if (full !== project && !full.startsWith(`${project}/`)) throw new Error('Outside the project.');
   return full;
 };
+
+// A real AI for the ✦ buttons, when ~/.nomadsf-demo-ai.env names one (FM_AI_PROVIDER, FM_AI_MODEL, FM_AI_KEY,
+// optional FM_AI_BASE_URL): the Studio's own prompts (packages/core, bundled here) go to that provider. The key
+// stays in this process; it is never printed. Without the file the ✦ buttons answer "Not in the demo".
+const aiFile = join(homedir(), '.nomadsf-demo-ai.env');
+let ai;
+if (existsSync(aiFile)) {
+  const env = Object.fromEntries(
+    readFileSync(aiFile, 'utf8')
+      .split('\n')
+      .map((l) => l.replace(/\s+#.*$/, '').trim())
+      .filter((l) => l && !l.startsWith('#') && l.includes('='))
+      .map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()])
+  );
+  const core = join(here, '.recordings', 'core.mjs');
+  execFileSync(join(here, '../../node_modules/.bin/esbuild'), [
+    join(here, '../../packages/core/src/ai.ts'),
+    '--bundle',
+    '--platform=node',
+    '--format=esm',
+    '--log-level=error',
+    `--outfile=${core}`,
+  ]);
+  const { aiAssist, aiChat, AI_PRESETS } = await import(core);
+  const settings = {
+    provider: env.FM_AI_PROVIDER,
+    model: env.FM_AI_MODEL,
+    apiKey: env.FM_AI_KEY,
+    baseUrl: env.FM_AI_BASE_URL,
+  };
+  ai = {
+    provider: AI_PRESETS[settings.provider]?.label ?? settings.provider,
+    // Newer tasks come as a ready-made prompt (task 'chat'); the older ones by name
+    answer: async (body) => {
+      if (body.task !== 'chat') return aiAssist(settings, body.task, body);
+      const reply = await aiChat(settings, String(body.system ?? ''), String(body.message ?? ''));
+      return { ...reply, provider: ai.provider, sentChars: String(body.message ?? '').length };
+    },
+  };
+  console.log(`AI for the ✦ buttons: ${ai.provider} · ${settings.model}`);
+}
 
 /** The demo orgs: the name shown in the Studio, and the CLI alias of the scratch org. */
 const ORGS = [
@@ -140,7 +184,18 @@ createServer(async (req, res) => {
       res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
       return res.end(text);
     }
-    // The app's other services (AI, opening an org…) are not part of the demo
+    if (ai && url.pathname === '/api/ai')
+      return json(res, 200, { current: { apiKeySet: true, provider: ai.provider } });
+    if (ai && url.pathname === '/api/ai/assist' && req.method === 'POST') {
+      const chunks = [];
+      for await (const c of req) chunks.push(c);
+      try {
+        return json(res, 200, await ai.answer(JSON.parse(Buffer.concat(chunks).toString('utf8'))));
+      } catch (e) {
+        return json(res, 502, { error: e.message });
+      }
+    }
+    // The app's other services (opening an org…) are not part of the demo
     if (url.pathname.startsWith('/api/')) return json(res, 404, { error: 'Not in the demo.' });
 
     const file = normalize(join(dist, url.pathname === '/' ? 'index.html' : url.pathname));
