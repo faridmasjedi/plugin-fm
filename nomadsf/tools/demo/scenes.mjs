@@ -18,6 +18,19 @@ async function soql(org, q) {
   return JSON.parse((await res.json()).body).records;
 }
 const idOf = async (org, q) => (await soql(org, q))[0]?.Id;
+/** Changes a record in a demo org, as someone else would (Events hears it). */
+async function update(org, sobject, id, fields) {
+  await fetch(`${BASE}/api/sf/${org}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      method: 'PATCH',
+      path: `/services/data/v62.0/sobjects/${sobject}/${id}`,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(fields),
+    }),
+  });
+}
 const csv = (name, rows) => {
   const path = join(files, name);
   writeFileSync(path, rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n'));
@@ -190,6 +203,7 @@ export const scenes = [
       await h.select(h.page.locator('table.record select').first(), 'Gold');
       await h.pause(800);
       await h.click('Cancel');
+      await h.page.locator('input[placeholder="Filter fields and values"]').fill('');
       await h.click('Me');
       await h.until('Log in as this user');
       await h.pause(1500);
@@ -199,13 +213,19 @@ export const scenes = [
     name: 'history',
     hash: 'record',
     run: async (h) => {
-      const acme = await idOf('acme-uat', "SELECT Id FROM Account WHERE Name = 'Globex' LIMIT 1");
-      await h.type(h.page.locator('input[placeholder^="Record Id"]'), acme);
+      // An invoice whose status and amount changed (tracked fields)
+      const [changed] = await soql(
+        'acme-uat',
+        "SELECT ParentId FROM Invoice__History WHERE Field = 'Status__c' ORDER BY CreatedDate DESC LIMIT 1"
+      );
+      const invoice = changed.ParentId;
+      await h.type(h.page.locator('input[placeholder^="Record Id"]'), invoice);
       await h.click('Show all data');
       await h.until('Open in Salesforce');
       await h.click('History');
+      await h.until('Status');
       await h.settle();
-      await h.pause(1600);
+      await h.pause(2200);
     },
   },
   {
@@ -394,8 +414,17 @@ export const scenes = [
     hash: 'events',
     run: async (h) => {
       await h.click('Listen');
-      await h.settle();
-      await h.pause(1600);
+      await h.until('Listening on');
+      await h.pause(1500);
+      // Someone changes an account: its change event arrives
+      const hooli = await idOf('acme-uat', "SELECT Id FROM Account WHERE Name = 'Hooli' LIMIT 1");
+      await update('acme-uat', 'Account', hooli, { Phone: `+61 2 5550 ${Math.floor(1000 + Math.random() * 8999)}` });
+      const row = h.page.locator('tr', { hasText: '/data/ChangeEvents' }).first();
+      await h.waiting(() => row.waitFor({ timeout: 60000 }));
+      await h.pause(1000);
+      await h.press(row);
+      await h.until('ChangeEventHeader');
+      await h.pause(2200);
     },
   },
   {
@@ -649,7 +678,9 @@ export const scenes = [
       await h.until('Open in Salesforce');
       await h.type(h.page.locator('input[placeholder="Filter fields and values"]'), 'rating');
       await h.click('Edit');
-      await h.select(h.page.locator('table.record select').first(), 'Hot');
+      // A real change: whichever rating it does not have now
+      const rating = h.page.locator('table.record select').first();
+      await h.select(rating, (await rating.inputValue()) === 'Hot' ? 'Warm' : 'Hot');
       await h.click(/^Save/);
       await h.confirm('acme-uat');
       await h.settle();
@@ -823,6 +854,11 @@ export const scenes = [
     run: async (h) => {
       await h.settle();
       await h.pause(1600);
+      await h.tab('Settings', 'AI');
+      await h.pause(1600);
+      await h.tab('Settings', 'Project');
+      await h.settle();
+      await h.pause(1800);
     },
   },
   {
