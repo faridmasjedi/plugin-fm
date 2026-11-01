@@ -56,7 +56,9 @@ export type ToolId =
   | 'audit'
   | 'myaccess'
   | 'orgapps'
-  | 'settings';
+  | 'settings'
+  | 'settingsai'
+  | 'settingsproject';
 
 export type Tool = { id: ToolId; label: string; icon: string; hint: string };
 
@@ -112,7 +114,9 @@ export const TOOLS: Tool[] = [
   { id: 'activity', label: 'Activity', icon: '⏱', hint: 'what was changed from here' },
   { id: 'orgaccess', label: 'Access', icon: '⚿', hint: 'users and permissions in two orgs' },
   { id: 'orgapps', label: 'Connected apps', icon: '⚷', hint: 'connected apps in two orgs' },
-  { id: 'settings', label: 'Settings', icon: '⚙', hint: 'org, project, AI' },
+  { id: 'settings', label: 'Orgs', icon: '◈', hint: 'the orgs you are logged in to' },
+  { id: 'settingsai', label: 'AI', icon: '✦', hint: 'the AI the ✦ buttons use' },
+  { id: 'settingsproject', label: 'Project', icon: '⌂', hint: 'the Salesforce project every page uses' },
 ];
 
 /** `breakBefore`: a thin divider before these tabs (Access: changing access, then reviewing it). */
@@ -154,7 +158,7 @@ export const HUBS: Hub[] = [
   { id: 'org', label: 'Org', icon: '◈', tools: ['company', 'health', 'limits', 'apps', 'audit', 'activity'] },
   { id: 'protect', label: 'Data protection', icon: '⛁', tools: ['backup', 'lifecycle'] },
   { id: 'between', label: 'Org to org', icon: '⇋', tools: ['migrate', 'orgdiff', 'orgaccess', 'orgapps'] },
-  { id: 'settings', label: 'Settings', icon: '⚙', tools: ['settings'] },
+  { id: 'settings', label: 'Settings', icon: '⚙', tools: ['settings', 'settingsai', 'settingsproject'] },
 ];
 
 /** Old page ids (links from the popup, VS Code, bookmarks) still open the right tool. */
@@ -164,7 +168,11 @@ export const toolOf = (id: string): Tool | undefined => TOOLS.find((t) => t.id =
 
 /** The guide's section for a tool (the website, docs/guide.html). */
 const GUIDE = 'https://faridmasjedi.github.io/plugin-fm/guide.html';
-const GUIDE_ANCHOR: Partial<Record<ToolId, string>> = { data: 'data-tool' };
+const GUIDE_ANCHOR: Partial<Record<ToolId, string>> = {
+  data: 'data-tool',
+  settingsai: 'settings',
+  settingsproject: 'settings',
+};
 export const guideUrl = (tool: ToolId): string => `${GUIDE}#${GUIDE_ANCHOR[tool] ?? tool}`;
 export const hubOf = (tool: ToolId): Hub => HUBS.find((h) => h.tools.includes(tool)) ?? HUBS[0];
 export const isTool = (id: string): id is ToolId => Boolean(toolOf(id));
