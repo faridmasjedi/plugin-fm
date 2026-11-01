@@ -4,6 +4,7 @@ import { aiAssist, aiTaskPrompt, extractCode, type BrowserAiTask } from '@nomads
 import { aiUsable, loadExtensionAi } from '../extensionAi';
 import { localAppBase, useProject } from '../project';
 import { Markdown } from './Markdown';
+import { Status } from '../statusLog';
 import type { HostKind } from '../host';
 
 const APP_TASKS = new Set(['explain-log', 'explain-test', 'soql']);
@@ -100,7 +101,7 @@ export function AiExplain({
       <button onClick={() => void run()} disabled={busy} title={`Sends ${what} to the AI connected in NomadSF`}>
         {busy ? 'Asking AI…' : `✦ ${label}`}
       </button>
-      {error && <div className="error">{error}</div>}
+      {error && <Status text={`❌ ${error}`} block />}
       {answer && <AiAnswerView answer={answer} what={what} onClose={() => setAnswer(null)} useCode={useCode} />}
     </div>
   );
@@ -163,7 +164,7 @@ export function AiAsk({
           {busy ? 'Writing…' : `✦ ${button}`}
         </button>
       </div>
-      {error && <div className="error">{error}</div>}
+      {error && <Status text={`❌ ${error}`} block />}
     </>
   );
 }

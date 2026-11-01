@@ -75,6 +75,20 @@ describe('AI from the browser', () => {
     ).rejects.toThrow('Choose a model');
   });
 
+  it('says when an answer was cut off or empty, instead of showing it', async () => {
+    const settings = { provider: 'openrouter' as const, model: 'thinker', apiKey: 'k' };
+    const reply = (finish: string, content: string) =>
+      fakeFetch(() => ({ json: { choices: [{ finish_reason: finish, message: { content } }] } })).impl;
+    await expect(aiChat(settings, 's', 'm', { fetchImpl: reply('length', '') })).rejects.toThrow('thinking');
+    await expect(aiChat(settings, 's', 'm', { fetchImpl: reply('length', '{"files": [') })).rejects.toThrow('cut off');
+    await expect(aiChat(settings, 's', 'm', { fetchImpl: reply('stop', ' ') })).rejects.toThrow('no text');
+    const { calls, impl } = fakeFetch(() => ({
+      json: { choices: [{ finish_reason: 'stop', message: { content: 'ok' } }] },
+    }));
+    expect((await aiChat(settings, 's', 'm', { fetchImpl: impl })).text).toBe('ok');
+    expect(JSON.parse(String(calls[0].init.body)).max_tokens).toBe(16000);
+  });
+
   it('keeps the telling lines of a long log and extracts SOQL', () => {
     const noise = Array.from({ length: 5000 }, (_, i) => `x (${i})|HEAP_ALLOCATE|[1]`);
     const log = [

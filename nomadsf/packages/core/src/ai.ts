@@ -122,7 +122,8 @@ export async function aiChat(
   if (preset.key === 'required' && !settings.apiKey) throw new Error(`Connect ${preset.label} with a key first.`);
   const doFetch = options.fetchImpl ?? fetch;
   const base = aiBaseUrl(settings);
-  const maxTokens = options.maxTokens ?? 4000;
+  // Room for models that think before they answer (their thinking counts against the same limit)
+  const maxTokens = options.maxTokens ?? (settings.provider === 'anthropic' ? 8000 : 16000);
 
   if (settings.provider === 'anthropic') {
     const res = await doFetch(`${base}/messages`, {
@@ -148,13 +149,14 @@ export async function aiChat(
       content?: Array<{ type: string; text?: string }>;
     };
     if (body.stop_reason === 'refusal') throw new Error('The model declined this request.');
-    return {
-      text: (body.content ?? [])
+    return answered(
+      (body.content ?? [])
         .filter((b) => b.type === 'text')
         .map((b) => b.text ?? '')
         .join('\n'),
-      model: body.model ?? settings.model,
-    };
+      body.stop_reason === 'max_tokens',
+      body.model ?? settings.model
+    );
   }
 
   const headers: Record<string, string> = { 'content-type': 'application/json' };
@@ -180,7 +182,19 @@ export async function aiChat(
   const choice = body.choices?.[0];
   if (choice?.message?.refusal || choice?.finish_reason === 'content_filter')
     throw new Error('The model declined this request.');
-  return { text: choice?.message?.content ?? '', model: body.model ?? settings.model };
+  return answered(choice?.message?.content ?? '', choice?.finish_reason === 'length', body.model ?? settings.model);
+}
+
+/** An answer cut off at the length limit, or with no text, is said as such (not shown half or empty). */
+function answered(text: string, cutOff: boolean, model: string): AiReply {
+  if (cutOff)
+    throw new Error(
+      text.trim()
+        ? 'The answer was cut off at the model’s length limit. Try again, send less, or choose another model.'
+        : 'The model used its whole answer on thinking and wrote nothing. Try again, or choose a model that thinks less.'
+    );
+  if (!text.trim()) throw new Error('The model answered with no text. Try again, or choose another model.');
+  return { text, model };
 }
 
 // ---------- the Studio's AI tasks ----------

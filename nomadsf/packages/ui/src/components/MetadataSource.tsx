@@ -33,6 +33,7 @@ import { Dependencies } from './Dependencies';
 import { ProjectCodeView } from './ProjectCodeView';
 import { ReleasePanel } from './ReleasePanel';
 import { Status } from '../statusLog';
+import { soqlSchema } from './AiSoql';
 
 type View = 'org' | 'project' | 'compare' | 'deps';
 
@@ -342,13 +343,11 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
         }`}
         button={`Write the ${type}`}
         what="your description"
-        build={async () => ({
+        build={async (question) => ({
           kind: type,
           apiVersion: await client.version(),
-          schema: `Objects: ${(await describeGlobal(client).catch(() => []))
-            .map((o) => o.name)
-            .join(', ')
-            .slice(0, 20_000)}`,
+          // The fields of the objects the description names (the AI writes with those, not made-up ones)
+          schema: await soqlSchema(client, question, await describeGlobal(client).catch(() => [])),
         })}
         onAnswer={(answer) => setAiDraft({ draft: parseMetadataDraft(answer.text), model: answer.model })}
       />
@@ -644,7 +643,11 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
               )}
             </>
           ) : (
-            members && <p className="muted">Choose a {type} on the left.</p>
+            members && (
+              <p className="muted">
+                Choose {/^[AEIOU]/.test(type) ? 'an' : 'a'} {type} on the left.
+              </p>
+            )
           )}
         </div>
       </div>

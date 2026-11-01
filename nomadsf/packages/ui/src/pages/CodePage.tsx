@@ -39,6 +39,7 @@ import { MetadataSource } from '../components/MetadataSource';
 import { SHOW, TAG, type CodeStatus, type Show } from '../components/codeStatus';
 import { Dependencies } from '../components/Dependencies';
 import { Status } from '../statusLog';
+import { soqlSchema } from '../components/AiSoql';
 
 const KINDS: Array<{ id: CodeKind; label: string; one: string }> = [
   { id: 'ApexClass', label: 'Classes', one: 'Apex class' },
@@ -471,13 +472,11 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
         placeholder={`✦ Describe a new ${kindInfo(kind).one}, e.g. ${AI_EXAMPLE[kind]}`}
         button={`Write the ${kindInfo(kind).one}`}
         what="your description"
-        build={async () => ({
+        build={async (question) => ({
           kind: CODE_LAYOUT[kind].type,
           apiVersion: await client.version(),
-          schema: `Objects: ${(await describeGlobal(client).catch(() => []))
-            .map((o) => o.name)
-            .join(', ')
-            .slice(0, 20_000)}`,
+          // The fields of the objects the description names (the AI writes with those, not made-up ones)
+          schema: await soqlSchema(client, question, await describeGlobal(client).catch(() => [])),
         })}
         onAnswer={(answer) => setAiDraft({ draft: parseMetadataDraft(answer.text), model: answer.model })}
       />
