@@ -153,6 +153,7 @@ export function OrgAppsPage() {
               {app.differences.length ? (
                 <DataTable
                   columns={['area', 'item', 'a', 'b']}
+                  groupBy="area"
                   rows={app.differences.map((d, i) => ({ ...d, key: i }))}
                   rowKey="key"
                   name={`${app.name}-compare`}

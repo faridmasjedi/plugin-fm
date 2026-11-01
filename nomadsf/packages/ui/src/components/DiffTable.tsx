@@ -71,6 +71,7 @@ export function DiffTable({
     <>
       <DataTable
         columns={['area', 'item', 'a', 'b']}
+        groupBy="area"
         rows={diff.map((d, i) => ({ area: d.area, item: d.item, a: d.a, b: d.b, key: i }))}
         rowKey="key"
         name={name}

@@ -302,8 +302,11 @@ function NewCustomPermission({ holders, onCreated }: { holders: PermissionHolder
 
   if (!open)
     return (
-      <div className="form">
-        <button onClick={() => setOpen(true)}>New custom permission…</button>
+      // Like every box that creates something: closed, apart from the list, until opened
+      <div className="card section create-box">
+        <button className="create-open" onClick={() => setOpen(true)}>
+          <b>+ New custom permission</b> <span className="muted">and the permission sets or profiles it goes to</span>
+        </button>
         {status && <Status text={status} />}
       </div>
     );

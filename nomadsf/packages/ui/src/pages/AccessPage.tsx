@@ -304,9 +304,16 @@ export function PermissionSetsPage() {
 
   return (
     <AccessTool title="Permission sets & groups" about="who has one, assign it, remove it">
+      {/* Creating one is its own job: a box of its own, closed until you open it */}
+      <details className="card section create-box">
+        <summary>
+          <b>+ New permission set or group</b>{' '}
+          <span className="muted">a permission set, or a group of permission sets</span>
+        </summary>
+        <NewPermissionSet onCreated={() => void reloadTargets()} />
+      </details>
       <div className="card section">
         <h3>Permission sets &amp; groups</h3>
-        <NewPermissionSet onCreated={() => void reloadTargets()} />
         <DataTable
           columns={['label', 'name', 'kind']}
           rows={targets.map((t) => ({

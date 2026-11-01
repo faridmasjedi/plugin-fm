@@ -3893,3 +3893,34 @@ select.row-action {
 .relation-tree button.link {
   font-size: 13px;
 }
+
+/* A box to create something (a permission set…): closed until opened, apart from the list */
+.create-box > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.create-box > summary::-webkit-details-marker {
+  display: none;
+}
+.create-box > summary b {
+  color: var(--accent);
+}
+.create-box[open] > summary {
+  margin-bottom: 12px;
+}
+.create-box > .create-open {
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.create-box > .create-open b {
+  color: var(--accent);
+}
