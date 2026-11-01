@@ -96,7 +96,48 @@ export async function dependenciesOf(
       namespace: String(r[`${prefix}MetadataComponentNamespace`] ?? ''),
     });
   const order = (a: Dependency, b: Dependency): number => a.type.localeCompare(b.type) || a.name.localeCompare(b.name);
-  return { uses: uses.map(pick('Ref')).sort(order), usedBy: usedBy.map(pick('')).sort(order) };
+  const out = { uses: uses.map(pick('Ref')), usedBy: usedBy.map(pick('')) };
+  await nameFieldsWithObjects(client, [...out.uses, ...out.usedBy]);
+  return { uses: out.uses.sort(order), usedBy: out.usedBy.sort(order) };
+}
+
+/**
+ * The dependency API names a custom field without its object (Customer_Tier): this adds it (Account.Customer_Tier__c),
+ * from the field's TableEnumOrId (a standard object's name, or a custom object's Id).
+ */
+async function nameFieldsWithObjects(client: SalesforceClient, list: Dependency[]): Promise<void> {
+  const fields = list.filter((d) => d.type === 'CustomField' && /^[a-zA-Z0-9]{15,18}$/.test(d.id));
+  if (!fields.length) return;
+  const ids = [...new Set(fields.map((d) => d.id))].slice(0, 200);
+  type Row = Record<string, string | null>;
+  const toolingQuery = async (soql: string): Promise<Row[]> =>
+    (await client.tooling<{ records: Row[] }>('GET', `/query?q=${encodeURIComponent(soql)}`)).records;
+  try {
+    const rows = await toolingQuery(
+      `SELECT Id, DeveloperName, NamespacePrefix, TableEnumOrId FROM CustomField WHERE Id IN ('${ids.join("','")}')`
+    );
+    const objectIds = [...new Set(rows.map((r) => String(r.TableEnumOrId ?? '')).filter((t) => /^01I/.test(t)))];
+    const objects = new Map<string, string>();
+    if (objectIds.length)
+      for (const o of await toolingQuery(
+        `SELECT Id, DeveloperName, NamespacePrefix FROM CustomObject WHERE Id IN ('${objectIds.join("','")}')`
+      ))
+        objects.set(
+          String(o.Id).slice(0, 15),
+          `${o.NamespacePrefix ? `${o.NamespacePrefix}__` : ''}${o.DeveloperName}__c`
+        );
+    const byId = new Map(rows.map((r) => [String(r.Id).slice(0, 15), r]));
+    for (const d of fields) {
+      const r = byId.get(d.id.slice(0, 15));
+      if (!r) continue;
+      const table = String(r.TableEnumOrId ?? '');
+      const object = objects.get(table.slice(0, 15)) ?? (/^01I/.test(table) ? '' : table);
+      const field = `${r.NamespacePrefix ? `${r.NamespacePrefix}__` : ''}${r.DeveloperName}__c`;
+      if (object) d.name = `${object}.${field}`;
+    }
+  } catch {
+    // Names stay as the dependency API gives them
+  }
 }
 
 // ---------- query plan ----------

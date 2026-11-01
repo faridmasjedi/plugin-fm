@@ -132,7 +132,8 @@ export async function holderAccess(client: SalesforceClient, permissionSetId: st
           { maxRows: 50_000 }
         )
       ).rows
-        .filter((r) => r.PermissionsRead === true)
+        // A record with no field after the object ("Case.") is not a field anyone can be given
+        .filter((r) => r.PermissionsRead === true && /^[^.]+\.[^.]/.test(String(r.Field)))
         .map((r) => ({
           key: String(r.Field),
           item: String(r.Field),
