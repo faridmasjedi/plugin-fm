@@ -18,6 +18,7 @@ import {
   type DataField,
   type RestorePreview,
 } from '@nomadsf/core';
+import { TableTabs } from './TableTabs';
 import { DataTable, download as downloadFile } from './DataTable';
 import { storage, useStudio } from '../context';
 import { isLocked, jobSink, type JobRecord } from '../backups';
@@ -356,67 +357,117 @@ export function RestorePanel({
         {onCopyElsewhere && <button onClick={onCopyElsewhere}>Copy into another org…</button>}
       </div>
       {status && <Status text={status} block />}
-      {previews.length > 0 && changedRows.length > 0 && (
-        <>
-          <h3>Changed since the backup ({new Set(changedRows.map((r) => `${r.object}:${r.Id}`)).size} records)</h3>
-          <DataTable
-            columns={['object', 'Id', 'field', 'backup', 'now']}
-            groupBy="object"
-            rows={changedRows}
-            rowKey="key"
-            name="restore-changed"
-            selected={pickChanged}
-            onSelectedChange={setPickChanged}
-            note={<span>· tick the values to put back; lookups to records created again use their new Ids</span>}
-          />
-          <div className="form">
-            <button className="danger" disabled={busy || !pickChanged.size} onClick={() => void putBack()}>
-              Put back {pickChanged.size || ''} value{pickChanged.size === 1 ? '' : 's'}…
-            </button>
-          </div>
-        </>
-      )}
-      {previews.length > 0 && deletedRows.length > 0 && (
-        <>
-          <h3>Deleted since the backup ({deletedRows.length})</h3>
-          <DataTable
-            columns={['object', 'Id', 'Name', 'recycle bin']}
-            groupBy="object"
-            rows={deletedRows}
-            rowKey="key"
-            name="restore-deleted"
-            selected={pickDeleted}
-            onSelectedChange={setPickDeleted}
-            note={<span>· tick the records to bring back</span>}
-          />
-          <div className="form restore-options">
-            <label className="check" title="A deleted Case's Account, that Account's parent… if they are deleted too">
-              <input type="checkbox" checked={withParents} onChange={(e) => setWithParents(e.target.checked)} /> Bring
-              back the deleted records they point to
-            </label>
-            <label
-              className="check"
-              title={`Creates ${OLD_ID_FIELD} (External ID) on the objects created again and loads through it with the Bulk API`}
-            >
-              <input type="checkbox" checked={oldIds} onChange={(e) => setOldIds(e.target.checked)} /> Keep the old Ids
-              in the org
-            </label>
-            {hasFiles && (
-              <label className="check" title="Files and attachments in the backup of the records created again">
-                <input type="checkbox" checked={withFiles} onChange={(e) => setWithFiles(e.target.checked)} /> With
-                their files and attachments
-              </label>
-            )}
-            <span className="grow" />
-            <button className="danger" disabled={busy || !pickDeleted.size} onClick={() => void bringBack()}>
-              Bring back {pickDeleted.size || ''} record{pickDeleted.size === 1 ? '' : 's'}…
-            </button>
-          </div>
-          <p className="muted">
-            From the recycle bin they keep their Ids. Others are created again with new Ids: lookups between them are
-            rebuilt, and records still in the org that pointed to them (and lost the link) are pointed to the new ones.
-          </p>
-        </>
+      {previews.length > 0 && (changedRows.length > 0 || deletedRows.length > 0) && (
+        // What changed and what was deleted since the backup: one box, a tab each
+        <TableTabs
+          tabs={[
+            ...(changedRows.length
+              ? [
+                  {
+                    id: 'changed',
+                    label: 'Changed since the backup',
+                    count: new Set(changedRows.map((r) => `${r.object}:${r.Id}`)).size,
+                    content: (
+                      <>
+                        <DataTable
+                          columns={['object', 'Id', 'field', 'backup', 'now']}
+                          groupBy="object"
+                          rows={changedRows}
+                          rowKey="key"
+                          name="restore-changed"
+                          selected={pickChanged}
+                          onSelectedChange={setPickChanged}
+                          note={
+                            <span>
+                              · tick the values to put back; lookups to records created again use their new Ids
+                            </span>
+                          }
+                        />
+                        <div className="form">
+                          <button
+                            className="danger"
+                            disabled={busy || !pickChanged.size}
+                            onClick={() => void putBack()}
+                          >
+                            Put back {pickChanged.size || ''} value{pickChanged.size === 1 ? '' : 's'}…
+                          </button>
+                        </div>
+                      </>
+                    ),
+                  },
+                ]
+              : []),
+            ...(deletedRows.length
+              ? [
+                  {
+                    id: 'deleted',
+                    label: 'Deleted since the backup',
+                    count: deletedRows.length,
+                    content: (
+                      <>
+                        <DataTable
+                          columns={['object', 'Id', 'Name', 'recycle bin']}
+                          groupBy="object"
+                          rows={deletedRows}
+                          rowKey="key"
+                          name="restore-deleted"
+                          selected={pickDeleted}
+                          onSelectedChange={setPickDeleted}
+                          note={<span>· tick the records to bring back</span>}
+                        />
+                        <div className="form restore-options">
+                          <label
+                            className="check"
+                            title="A deleted Case's Account, that Account's parent… if they are deleted too"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={withParents}
+                              onChange={(e) => setWithParents(e.target.checked)}
+                            />{' '}
+                            Bring back the deleted records they point to
+                          </label>
+                          <label
+                            className="check"
+                            title={`Creates ${OLD_ID_FIELD} (External ID) on the objects created again and loads through it with the Bulk API`}
+                          >
+                            <input type="checkbox" checked={oldIds} onChange={(e) => setOldIds(e.target.checked)} />{' '}
+                            Keep the old Ids in the org
+                          </label>
+                          {hasFiles && (
+                            <label
+                              className="check"
+                              title="Files and attachments in the backup of the records created again"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={withFiles}
+                                onChange={(e) => setWithFiles(e.target.checked)}
+                              />{' '}
+                              With their files and attachments
+                            </label>
+                          )}
+                          <span className="grow" />
+                          <button
+                            className="danger"
+                            disabled={busy || !pickDeleted.size}
+                            onClick={() => void bringBack()}
+                          >
+                            Bring back {pickDeleted.size || ''} record{pickDeleted.size === 1 ? '' : 's'}…
+                          </button>
+                        </div>
+                        <p className="muted">
+                          From the recycle bin they keep their Ids. Others are created again with new Ids: lookups
+                          between them are rebuilt, and records still in the org that pointed to them (and lost the
+                          link) are pointed to the new ones.
+                        </p>
+                      </>
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+        />
       )}
       {fieldsUsed.length > 0 && (
         <div className="form">

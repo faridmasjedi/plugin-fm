@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { companyInformation, type InfoField } from '@nomadsf/core';
 import { useStudio } from '../context';
 import { DataTable } from '../components/DataTable';
+import { TableTabs } from '../components/TableTabs';
 import { Status } from '../statusLog';
 
 /** Org › Company information: every field of the Organization record, grouped. */
@@ -31,17 +32,29 @@ export function CompanyPage() {
       </div>
       {status && <Status text={status} block />}
       {!fields && !status && <p className="muted">Reading…</p>}
-      {groups.map((g) => (
-        <div key={g} className="card section">
-          <h3>{g}</h3>
-          <DataTable
-            columns={['label', 'value', 'name']}
-            rows={shown.filter((f) => f.group === g).map((f) => ({ ...f }))}
-            rowKey="name"
-            name={`${org.label}-company-${g}`}
+      {groups.length > 0 && (
+        // One box, a tab per part (Company, Org…), instead of a table under another
+        <div className="card section">
+          <TableTabs
+            tabs={groups.map((g) => {
+              const rows = shown.filter((f) => f.group === g);
+              return {
+                id: g,
+                label: g,
+                count: rows.length,
+                content: (
+                  <DataTable
+                    columns={['label', 'value', 'name']}
+                    rows={rows.map((f) => ({ ...f }))}
+                    rowKey="name"
+                    name={`${org.label}-company-${g}`}
+                  />
+                ),
+              };
+            })}
           />
         </div>
-      ))}
+      )}
     </div>
   );
 }
