@@ -325,15 +325,6 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
             ))}
           </datalist>
         </label>
-        <label title="Part of a name: Account, Case-Support…">
-          Filter
-          <input
-            placeholder={`Filter ${entries.length || ''} ${type}`}
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            style={{ minWidth: 240 }}
-          />
-        </label>
       </div>
       {status && <Status text={status} block />}
       <AiAsk
@@ -378,6 +369,13 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
       )}
       <div className="code-layout">
         <div className="card code-list">
+          {/* Filters the chosen type's components (the list below), not the types */}
+          <input
+            placeholder={`Filter ${entries.length || ''} ${type}`}
+            title="Part of a name: Account, Case-Support…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
           {projectOpen && (
             <div className="code-project">
               <span className="muted" title={project.source?.name}>
