@@ -60,6 +60,17 @@ export function sameContent(a: Uint8Array | undefined, b: Uint8Array | undefined
 }
 
 /** Files of each component in a retrieved zip: its file, its -meta.xml, or everything under a bundle folder. */
+/**
+ * The component a retrieved file belongs to. A bundle (Aura, LWC…) is listed file by file
+ * ("acmeWelcome/acmeWelcome.cmp"): it is the bundle, with its whole folder.
+ */
+function componentOf(props: MetadataComponent): MetadataComponent {
+  if (!props.type.endsWith('Bundle') || !props.fullName.includes('/')) return props;
+  const name = props.fullName.split('/')[0];
+  const folder = props.fileName.slice(0, props.fileName.indexOf(`/${name}/`) + name.length + 1);
+  return { ...props, fullName: name, fileName: folder };
+}
+
 function filesOf(component: MetadataComponent, zip: Map<string, Uint8Array>): Map<string, Uint8Array> {
   const out = new Map<string, Uint8Array>();
   const main = component.fileName.replace(/^unpackaged\//, '');
@@ -91,8 +102,9 @@ export async function compareContent(
       a.zipFile ? readZip(fromBase64(a.zipFile)) : new Map<string, Uint8Array>(),
       b.zipFile ? readZip(fromBase64(b.zipFile)) : new Map<string, Uint8Array>(),
     ]);
-    const propsB = new Map(b.files.map((f) => [`${f.type}:${f.fullName}`, f]));
-    for (const fa of a.files) {
+    const propsB = new Map(b.files.map(componentOf).map((f) => [`${f.type}:${f.fullName}`, f]));
+    const propsA = new Map(a.files.map(componentOf).map((f) => [`${f.type}:${f.fullName}`, f]));
+    for (const fa of propsA.values()) {
       const key = `${fa.type}:${fa.fullName}`;
       const fb = propsB.get(key);
       if (!fb || fa.type === 'Package') continue;
@@ -133,7 +145,7 @@ export async function buildDiffPackage(
     const zip = await readZip(fromBase64(retrieved.zipFile));
     // Only the files of the chosen components (a retrieve can bring related ones)
     const wanted = new Set(deploy.map((d) => `${d.type}:${d.name}`));
-    for (const props of retrieved.files) {
+    for (const props of retrieved.files.map(componentOf)) {
       if (!wanted.has(`${props.type}:${props.fullName}`)) continue;
       for (const [path, data] of filesOf(props, zip)) files.set(path, data);
     }

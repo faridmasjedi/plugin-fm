@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSetGroup xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Support team leads.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>Support Leads</label>
+    <permissionSets>Case_Escalation</permissionSets>
+    <permissionSets>Support_Agent</permissionSets>
+    <status>Updated</status>
+</PermissionSetGroup>

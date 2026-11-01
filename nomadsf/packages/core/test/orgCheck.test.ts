@@ -18,6 +18,9 @@ const files: Record<string, string> = {
   [`${d}/classes/Changed.cls-meta.xml`]: '<ApexClass/>',
   [`${d}/classes/NewOne.cls`]: 'public class NewOne {}',
   [`${d}/classes/NewOne.cls-meta.xml`]: '<ApexClass/>',
+  [`${d}/lwc/badge/badge.js`]: 'export default class Badge {}\n',
+  [`${d}/lwc/badge/badge.html`]: '<template></template>',
+  [`${d}/lwc/badge/badge.js-meta.xml`]: '<LightningComponentBundle/>',
   [`${d}/objects/Account/fields/Score__c.field-meta.xml`]:
     '<?xml version="1.0" encoding="UTF-8"?>\n<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">\n    <fullName>Score__c</fullName>\n    <type>Number</type>\n</CustomField>\n',
 };
@@ -44,6 +47,9 @@ const orgFiles: Record<string, string> = {
   'unpackaged/classes/Changed.cls-meta.xml': '<ApexClass/>',
   'unpackaged/classes/OrgOnly.cls': 'public class OrgOnly {}',
   'unpackaged/classes/OrgOnly.cls-meta.xml': '<ApexClass/>',
+  'unpackaged/lwc/badge/badge.js': 'export default class Badge {}',
+  'unpackaged/lwc/badge/badge.html': '<template></template>',
+  'unpackaged/lwc/badge/badge.js-meta.xml': '<LightningComponentBundle/>',
   'unpackaged/objects/Account.object':
     '<?xml version="1.0" encoding="UTF-8"?>\n<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">\n  <fields>\n    <fullName>Other__c</fullName>\n  </fields>\n  <fields>\n    <fullName>Score__c</fullName>\n    <type>Number</type>\n  </fields>\n</CustomObject>\n',
 };
@@ -52,6 +58,9 @@ const props = [
   ['ApexClass', 'Changed', 'classes/Changed.cls'],
   ['ApexClass', 'OrgOnly', 'classes/OrgOnly.cls'],
   ['CustomField', 'Account.Score__c', 'objects/Account.object'],
+  // A bundle comes back file by file
+  ['LightningComponentBundle', 'badge/badge.js', 'lwc/badge/badge.js'],
+  ['LightningComponentBundle', 'badge/badge.html', 'lwc/badge/badge.html'],
 ];
 const client = new SalesforceClient(async (r: HttpRequest) => {
   const body = r.body ?? '';
@@ -80,6 +89,7 @@ describe('a project against an org', () => {
       { type: 'ApexClass', name: 'NewOne' },
       { type: 'ApexClass', name: 'Nowhere' },
       { type: 'CustomField', name: 'Account.Score__c' },
+      { type: 'LightningComponentBundle', name: 'badge' },
     ]);
     expect(Object.fromEntries([...checked].map(([k, v]) => [k, v.status]))).toEqual({
       'ApexClass:Same': 'same',
@@ -88,7 +98,13 @@ describe('a project against an org', () => {
       'ApexClass:NewOne': 'not in org',
       'ApexClass:Nowhere': 'in neither',
       'CustomField:Account.Score__c': 'same',
+      'LightningComponentBundle:badge': 'same',
     });
+    expect(checked.get('LightningComponentBundle:badge')!.org.map((f) => f.path)).toEqual([
+      'lwc/badge/badge.html',
+      'lwc/badge/badge.js',
+      'lwc/badge/badge.js-meta.xml',
+    ]);
     const changed = checked.get('ApexClass:Changed')!;
     expect(changed.org.map((f) => f.path)).toEqual(['classes/Changed.cls', 'classes/Changed.cls-meta.xml']);
     expect(changed.repo[0].source).toContain('/* new */');

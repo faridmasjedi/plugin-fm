@@ -2,18 +2,184 @@
 // made-up demo orgs (tools/demo/server.mjs must be running). Run: node tools/demo/record.mjs [name…]
 // Needs Playwright (dev dependency) with Chrome, and ffmpeg.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, rmSync, readdirSync, writeFileSync, renameSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, rmSync, readdirSync, readFileSync, statSync, writeFileSync, renameSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { scenes } from './scenes.mjs';
+import { scenes as guideScenes } from './scenes.mjs';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
-const media = join(here, '../../../docs/media');
+// DEMO_MEDIA / DEMO_SCENES: somewhere else to write the videos, other scenes to run (trying a scene out)
+const media = process.env.DEMO_MEDIA ?? join(here, '../../../docs/media');
 const work = join(here, '.recordings');
 const BASE = process.env.DEMO_URL ?? 'http://localhost:7171';
 const SIZE = { width: 1440, height: 860 };
 const GIFS = ['hubs', 'query', 'migrate'];
+// The demo git repository (make-repo.mjs), opened as "the project folder" by scenes with `folder: true`; a folder
+// a backup is written to (Backup's "Choose folder…", in readwrite mode), emptied before each recording
+const ROOTS = { repo: join(work, 'acme-project'), backups: join(work, 'backups') };
+
+/** Chrome's folder picker: the demo repository to read, or the backups folder to write (served from this process). */
+const FOLDER = () => {
+  const missing = () => new DOMException('not found', 'NotFoundError');
+  const base64 = async (data) => {
+    const bytes =
+      typeof data === 'string'
+        ? new TextEncoder().encode(data)
+        : data instanceof Blob
+        ? new Uint8Array(await data.arrayBuffer())
+        : new Uint8Array(data.buffer ?? data);
+    let text = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(text);
+  };
+  const file = (root, path, name, stat) => ({
+    kind: 'file',
+    name,
+    async getFile() {
+      const now = (await window.__fsStat(root, path)) ?? stat;
+      const bytes = Uint8Array.from(atob(await window.__fsRead(root, path)), (c) => c.charCodeAt(0));
+      return new File([bytes], name, { lastModified: now.mtime });
+    },
+    async createWritable() {
+      const parts = [];
+      return {
+        async write(data) {
+          parts.push(await base64(data?.type === 'write' ? data.data : data));
+        },
+        async close() {
+          await window.__fsWrite(root, path, parts);
+        },
+      };
+    },
+    async isSameEntry(other) {
+      return other?.name === name && other?.kind === 'file';
+    },
+  });
+  const dir = (root, path, name) => {
+    const child = (n) => (path ? `${path}/${n}` : n);
+    const handle = {
+      kind: 'directory',
+      name,
+      async getDirectoryHandle(n, options) {
+        let s = await window.__fsStat(root, child(n));
+        if (!s && options?.create) s = await window.__fsMkdir(root, child(n));
+        if (!s || !s.dir) throw missing();
+        return dir(root, child(n), n);
+      },
+      async getFileHandle(n, options) {
+        let s = await window.__fsStat(root, child(n));
+        if (!s && options?.create) {
+          await window.__fsWrite(root, child(n), []);
+          s = await window.__fsStat(root, child(n));
+        }
+        if (!s || s.dir) throw missing();
+        return file(root, child(n), n, s);
+      },
+      async removeEntry(n) {
+        await window.__fsRemove(root, child(n));
+      },
+      async *entries() {
+        for (const [n, isDir] of await window.__fsList(root, path))
+          yield [
+            n,
+            isDir
+              ? dir(root, child(n), n)
+              : file(root, child(n), n, (await window.__fsStat(root, child(n))) ?? { mtime: 0 }),
+          ];
+      },
+      async *values() {
+        for await (const [, h] of handle.entries()) yield h;
+      },
+      async *keys() {
+        for await (const [n] of handle.entries()) yield n;
+      },
+      [Symbol.asyncIterator]() {
+        return handle.entries();
+      },
+      async isSameEntry(other) {
+        return other?.name === name && other?.kind === 'directory';
+      },
+      async queryPermission() {
+        return 'granted';
+      },
+      async requestPermission() {
+        return 'granted';
+      },
+    };
+    return handle;
+  };
+  const top = { backups: () => dir('backups', '', 'NomadSF backups'), repo: () => dir('repo', '', 'acme-project') };
+  window.showDirectoryPicker = async (options) => {
+    const root = options?.mode === 'readwrite' ? 'backups' : 'repo';
+    return Object.assign(top[root](), { fakeRoot: root });
+  };
+  // The Studio remembers a folder in IndexedDB, which cannot keep functions: it keeps which folder, and gets it back
+  const put = IDBObjectStore.prototype.put;
+  IDBObjectStore.prototype.put = function (value, key) {
+    return put.call(this, value?.fakeRoot ? { fakeFolder: value.fakeRoot } : value, key);
+  };
+  const result = Object.getOwnPropertyDescriptor(IDBRequest.prototype, 'result');
+  Object.defineProperty(IDBRequest.prototype, 'result', {
+    get() {
+      const value = result.get.call(this);
+      return value?.fakeFolder ? Object.assign(top[value.fakeFolder](), { fakeRoot: value.fakeFolder }) : value;
+    },
+  });
+};
+
+async function openFolder(page) {
+  rmSync(ROOTS.backups, { recursive: true, force: true });
+  mkdirSync(ROOTS.backups, { recursive: true });
+  const inRoot = (root, p) => {
+    const full = join(ROOTS[root], p ?? '');
+    if (!full.startsWith(ROOTS[root])) throw new Error('outside the folder');
+    return full;
+  };
+  const stat = (root, p) => {
+    try {
+      const s = statSync(inRoot(root, p));
+      return { dir: s.isDirectory(), size: s.size, mtime: s.mtimeMs };
+    } catch {
+      return null;
+    }
+  };
+  await page.exposeFunction('__fsStat', stat);
+  await page.exposeFunction('__fsRead', (root, p) => readFileSync(inRoot(root, p)).toString('base64'));
+  await page.exposeFunction('__fsList', (root, p) =>
+    readdirSync(inRoot(root, p), { withFileTypes: true }).map((e) => [e.name, e.isDirectory()])
+  );
+  // Writing only ever reaches the backups folder
+  const writable = (root) => {
+    if (root !== 'backups') throw new Error('The demo repository is read-only.');
+  };
+  await page.exposeFunction('__fsMkdir', (root, p) => {
+    writable(root);
+    mkdirSync(inRoot(root, p), { recursive: true });
+    return stat(root, p);
+  });
+  await page.exposeFunction('__fsWrite', (root, p, parts) => {
+    writable(root);
+    writeFileSync(inRoot(root, p), Buffer.concat(parts.map((b) => Buffer.from(b, 'base64'))));
+  });
+  await page.exposeFunction('__fsRemove', (root, p) => {
+    writable(root);
+    rmSync(inRoot(root, p), { recursive: true, force: true });
+  });
+  await page.addInitScript(FOLDER);
+}
+
+/** The AI of a scene: answers written for it (no AI provider is called), through the Studio's own parsing. */
+async function scriptedAi(page, answers) {
+  await page.route('**/api/ai', (route) => route.fulfill({ json: { current: { apiKeySet: true, provider: 'demo' } } }));
+  await page.route('**/api/ai/assist', async (route) => {
+    // Newer tasks reach the app as a ready-made prompt (task 'chat'): the scene's one answer
+    const { task } = route.request().postDataJSON();
+    const text = answers[task] ?? answers.any;
+    if (!text) return route.fulfill({ status: 400, json: { error: `No demo answer for ${task}` } });
+    return route.fulfill({ json: { text, model: 'demo model', provider: 'Demo', sentChars: 900 } });
+  });
+}
 
 /** A visible cursor (recordings show no pointer) that follows the mouse and pulses on a click. */
 const CURSOR = () => {
@@ -77,7 +243,7 @@ function helpers(page, clock) {
     press,
     /** A button or tab by its text. */
     click: async (name) => press(await button(name)),
-    /** A hub in the sidebar, then a tab of it. */
+    /** A hub in the sidebar, then a tool in the hub's own sidebar. */
     tab: async (hub, tab) => {
       await press(
         page
@@ -85,7 +251,14 @@ function helpers(page, clock) {
           .filter({ has: page.locator('.hub-label', { hasText: new RegExp(`^${hub}$`) }) })
           .first()
       );
-      if (tab) await press(page.locator('.pane.active .hub-tab, .pane .hub-tab').filter({ hasText: tab }).first());
+      // The hub's own sidebar of tools, in its pane
+      if (tab)
+        await press(
+          page
+            .locator('.pane.active .pane-nav-item, .pane .pane-nav-item')
+            .filter({ has: page.locator('.pane-nav-label', { hasText: new RegExp(`^${esc(tab)}$`) }) })
+            .first()
+        );
       await pause(1500);
     },
     /** Types into a field like a person. */
@@ -143,6 +316,8 @@ function helpers(page, clock) {
       if (orgName && (await input.count())) await h.type(input, orgName);
       await press(dialog.locator('.ask-actions button.primary'));
     },
+    /** Any long wait, cut out of the video like a wait for Salesforce. */
+    waiting,
     /** Waits until a text shows (Salesforce answers in its own time). */
     until: (text, timeout = 60000) => waiting(() => page.getByText(text).first().waitFor({ timeout })),
     /** Until NomadSF stops waiting for Salesforce (its spinner and every working message are gone). */
@@ -175,6 +350,12 @@ async function record(scene, browser) {
   });
   await context.addInitScript(CURSOR);
   const page = await context.newPage();
+  if (scene.folder) await openFolder(page);
+  // DEMO_REAL_AI=1: the server's own AI answers (see server.mjs) instead of the scene's written answers
+  if (scene.ai && !process.env.DEMO_REAL_AI) await scriptedAi(page, scene.ai);
+  // A recording is a test too: an error in the page fails the scene
+  const pageErrors = [];
+  page.on('pageerror', (e) => pageErrors.push(e.message));
   const born = Date.now();
   await page.goto(`${BASE}/${scene.hash ? `#${scene.hash}` : ''}`);
   await page.locator('nav.side').waitFor();
@@ -187,6 +368,12 @@ async function record(scene, browser) {
   try {
     await scene.run(h);
     await h.pause(1800);
+    if (pageErrors.length) throw new Error(`Page error: ${pageErrors[0]}`);
+    // …and so does a problem in the Log the scene did not set out to show (scene.problems: a pattern it expects)
+    const problems = (await page.locator('.log-row.status-problem .log-text').allTextContents()).filter(
+      (t) => !(scene.problems && scene.problems.test(t))
+    );
+    if (problems.length) throw new Error(`Problem in the Log: ${problems[0]}`);
   } catch (e) {
     error = e;
     await page.screenshot({ path: join(work, `failed-${scene.name}.png`) }).catch(() => {});
@@ -264,6 +451,7 @@ async function record(scene, browser) {
   return { name: scene.name, seconds: Math.round(length) };
 }
 
+const scenes = process.env.DEMO_SCENES ? (await import(resolve(process.env.DEMO_SCENES))).scenes : guideScenes;
 const only = process.argv.slice(2);
 const browser = await chromium.launch({ channel: 'chrome' });
 const results = [];
@@ -273,4 +461,7 @@ for (const scene of scenes.filter((s) => !only.length || only.includes(s.name)))
   console.log(`${r.error ? '✗' : '✓'} ${r.name} ${r.seconds}s${r.error ? ` — ${r.error}` : ''}`);
 }
 await browser.close();
-writeFileSync(join(work, 'last-run.json'), JSON.stringify(results, null, 2));
+writeFileSync(
+  join(media === join(here, '../../../docs/media') ? work : media, 'last-run.json'),
+  JSON.stringify(results, null, 2)
+);

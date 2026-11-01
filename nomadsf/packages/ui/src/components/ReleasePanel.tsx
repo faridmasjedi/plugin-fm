@@ -9,7 +9,7 @@ import {
 } from '@nomadsf/core';
 import { StudioContext, type Studio } from '../context';
 import { detectHost, orgFacts } from '../host';
-import { Status } from '../statusLog';
+import { Status, ToolContext, statusLog } from '../statusLog';
 import { askTyped } from './Dialogs';
 import { DataTable, download } from './DataTable';
 import { TableTabs } from './TableTabs';
@@ -125,6 +125,27 @@ export function ReleasePanel(props: ReleasePanelProps) {
 
   const testList = (): string[] => tests.split(/[\s,]+/).filter(Boolean);
 
+  // The outcome is drawn below the buttons; the Log gets it as one line too
+  const tool = useContext(ToolContext);
+  const logOutcome = (result: DeployOutcome, org: string): void => {
+    const failures = result.componentFailures.length + result.testFailures.length + result.coverageWarnings.length;
+    statusLog.add({
+      tool,
+      org,
+      kind: result.success ? 'done' : 'problem',
+      text: `${result.success ? '✓' : '❌'} ${result.checkOnly ? 'Validation' : 'Deploy'} ${result.status} on ${org}${
+        failures
+          ? ` · ${[
+              `${result.componentFailures.length} component error(s)`,
+              `${result.testFailures.length} test failure(s)`,
+              ...result.coverageWarnings.map((w) => `${w.name}: ${w.message}`),
+            ].join(', ')}`
+          : ''
+      }`,
+      source: `release:${result.id}`,
+    });
+  };
+
   const send = async (checkOnly: boolean): Promise<void> => {
     if (!client || !target) return;
     if (level === 'RunSpecifiedTests' && !testList().length) {
@@ -143,7 +164,7 @@ export function ReleasePanel(props: ReleasePanelProps) {
         checkOnly,
         testLevel: level,
         runTests: level === 'RunSpecifiedTests' ? testList() : [],
-        onProgress: (s, done, total) => setStatus(`${checkOnly ? 'Validation' : 'Deploy'} · ${s} · ${done}/${total}`),
+        onProgress: (s, done, total) => setStatus(`${checkOnly ? 'Validation' : 'Deploy'} · ${s} · ${done}/${total}…`),
       });
       studio.logActivity(checkOnly ? 'validate package' : 'deploy package', {
         from,
@@ -154,6 +175,7 @@ export function ReleasePanel(props: ReleasePanelProps) {
       });
       setOutcome(result);
       setStatus('');
+      logOutcome(result, target.label);
       onDone?.(result, target);
     });
   };
@@ -162,7 +184,7 @@ export function ReleasePanel(props: ReleasePanelProps) {
     if (!outcome || !client || !target) return;
     if (!(await confirm(`Quick deploy validation ${outcome.id} to ${target.label}`))) return;
     await run('Quick deploy…', async () => {
-      const result = await quickDeploy(client, outcome.id, { onProgress: (s) => setStatus(`Quick deploy · ${s}`) });
+      const result = await quickDeploy(client, outcome.id, { onProgress: (s) => setStatus(`Quick deploy · ${s}…`) });
       studio.logActivity('quick deploy package', {
         from,
         target: target.label,
@@ -171,6 +193,7 @@ export function ReleasePanel(props: ReleasePanelProps) {
       });
       setOutcome(result);
       setStatus('');
+      logOutcome(result, target.label);
       onDone?.(result, target);
     });
   };
@@ -313,7 +336,9 @@ export function ReleasePanel(props: ReleasePanelProps) {
               </button>
             </div>
           )}
-          {(outcome.componentFailures.length > 0 || outcome.testFailures.length > 0) && (
+          {(outcome.componentFailures.length > 0 ||
+            outcome.testFailures.length > 0 ||
+            outcome.coverageWarnings.length > 0) && (
             <TableTabs
               tabs={[
                 {
@@ -343,8 +368,31 @@ export function ReleasePanel(props: ReleasePanelProps) {
                     />
                   ),
                 },
+                ...(outcome.coverageWarnings.length
+                  ? [
+                      {
+                        id: 'coverage',
+                        label: 'Code coverage',
+                        count: outcome.coverageWarnings.length,
+                        content: (
+                          <DataTable
+                            columns={['name', 'message']}
+                            rows={outcome.coverageWarnings.map((w, i) => ({ ...w, key: i }))}
+                            rowKey="key"
+                            name="coverage-warnings"
+                          />
+                        ),
+                      },
+                    ]
+                  : []),
               ]}
-              initial={outcome.componentFailures.length ? 'components' : 'tests'}
+              initial={
+                outcome.componentFailures.length
+                  ? 'components'
+                  : outcome.testFailures.length || !outcome.coverageWarnings.length
+                  ? 'tests'
+                  : 'coverage'
+              }
             />
           )}
         </div>

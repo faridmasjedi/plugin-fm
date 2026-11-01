@@ -47,12 +47,20 @@ export function AiMetadataDraft({
   const file = draft.files[Math.min(index, draft.files.length - 1)];
   const components = metadataComponentsOf(draft.files);
 
-  const build = async () => ({
-    zip: makeZip([
-      { path: 'package.xml', content: manifestXml(components, await studio.client.version()) },
-      ...draft.files.map((f) => ({ path: f.path, content: f.content })),
-    ]),
-  });
+  const build = async () => {
+    const version = await studio.client.version();
+    // An API version newer than the org's (the AI guessing one) would fail the whole deploy
+    const capped = (content: string): string =>
+      content.replace(/<apiVersion>([\d.]+)<\/apiVersion>/g, (whole, v: string) =>
+        Number(v) > Number(version) ? `<apiVersion>${version}</apiVersion>` : whole
+      );
+    return {
+      zip: makeZip([
+        { path: 'package.xml', content: manifestXml(components, version) },
+        ...draft.files.map((f) => ({ path: f.path, content: capped(f.content) })),
+      ]),
+    };
+  };
 
   // The tests: the org's Apex plus the draft's (a new class and its test reach each other)
   const findTests = async () => {

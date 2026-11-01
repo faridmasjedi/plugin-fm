@@ -10,18 +10,18 @@
 
 ## What's inside
 
-Tools are grouped into hubs. Open two or three side by side (drag a hub or a tab to the right of a pane), jump anywhere with <kbd>⌘K</kbd>, and every tab keeps its results until you reset it.
+Tools are grouped into hubs, each with its own sidebar of tools. Open two or three side by side (drag a hub or a tool to the right of a pane), jump anywhere with <kbd>⌘K</kbd>, and every tab keeps its results until you reset it.
 
 | Hub                 | Tools                                                                                                                                                                                                                                                        |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Develop**         | Code (Apex, triggers, Visualforce, LWC, Aura — with dependencies and a compare with your repository) · Execute Apex · Apex tests with coverage · Debug logs · Jobs · Automation (what runs on save) · Platform events and CDC · REST Explorer                |
 | **Data**            | Query (SOQL with autocomplete, saved queries, Bulk export) · Record (every field, history, and the related tree to copy into another org or save as Excel) · Import / Update / Delete from CSV or Excel · Compare with CSV · Lookup · Schema · Field usage   |
-| **Release**         | Project (repository vs org, validate and deploy) · Metadata · Deployments (history, failures, quick deploy)                                                                                                                                                  |
+| **Release**         | Project (repository vs org) · Compare & package (branch ↔ branch, manifest, branch ↔ org, org ↔ org) · Metadata · Deployments — every package validated, deployed or quick deployed the same way, with dependent tests                                       |
 | **Access**          | Users (everything a user has; snapshots) · Permission sets · Permissions (what a profile or set allows; edit) · Custom permissions · Groups & queues · Assigned users · Object access · Overview (every user's powerful permissions) · Compare · Your access |
 | **Org**             | Company · Org health (security check, licenses) · Limits and storage · Connected apps and OAuth usage · Logins & audit · Activity                                                                                                                            |
 | **Data protection** | Backup to your own folder (incremental, scheduled, files, encrypted) and Restore with relationships · Lifecycle jobs with approval                                                                                                                           |
 | **Org to org**      | One pair of orgs, A → B, for every tool: Migrate records (from an org, a backup or a workbook; keeps every link, masks personal data) · Org compare with a deployable package · Access (users and permissions in both) · Connected apps                      |
-| **✦ AI**            | Your own provider (Claude, OpenAI, Gemini, OpenRouter, Ollama, any endpoint) writes SOQL and Apex, explains logs and failures, reviews code                                                                                                                  |
+| **✦ AI**            | Your own provider (Claude, OpenAI, Gemini, OpenRouter, Ollama, any endpoint) writes SOQL, Apex and new metadata, changes a component from a sentence, explains logs and failures, reviews code                                                               |
 
 ![Query with a filterable table](docs/media/query.gif)
 

@@ -1,0 +1,15 @@
+<template>
+  <lightning-card title="Invoices" icon-name="custom:custom17">
+    <template lwc:if="{invoices.data}">
+      <lightning-datatable
+        key-field="Id"
+        data="{invoices.data}"
+        columns="{columns}"
+        hide-checkbox-column
+      ></lightning-datatable>
+    </template>
+    <template lwc:elseif="{invoices.error}">
+      <p class="slds-p-horizontal_small">The invoices could not be loaded.</p>
+    </template>
+  </lightning-card>
+</template>

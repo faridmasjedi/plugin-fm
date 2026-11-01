@@ -313,8 +313,12 @@ export async function orgComponentFiles(
   const files = retrieved.zipFile ? await zipCodeFiles(fromBase64(retrieved.zipFile)) : [];
   const pathsOf = new Map<string, string[]>();
   for (const f of retrieved.files) {
-    const key = `${f.type}:${f.fullName}`;
-    pathsOf.set(key, [...(pathsOf.get(key) ?? []), f.fileName.replace(/^unpackaged\//, '').replace(/\/$/, '')]);
+    // A bundle (Aura, LWC…) is listed file by file ("card/card.js"): it is the bundle, with its whole folder
+    const bundle = f.type.endsWith('Bundle') && f.fullName.includes('/') ? f.fullName.split('/')[0] : undefined;
+    const key = `${f.type}:${bundle ?? f.fullName}`;
+    const path = f.fileName.replace(/^unpackaged\//, '').replace(/\/$/, '');
+    const own = bundle ? path.slice(0, path.indexOf(`/${bundle}/`) + bundle.length + 1) : path;
+    if (!pathsOf.get(key)?.includes(own)) pathsOf.set(key, [...(pathsOf.get(key) ?? []), own]);
   }
   for (const c of components) {
     const paths = pathsOf.get(`${c.type}:${c.name}`) ?? [];

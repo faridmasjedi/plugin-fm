@@ -18,10 +18,72 @@ async function soql(org, q) {
   return JSON.parse((await res.json()).body).records;
 }
 const idOf = async (org, q) => (await soql(org, q))[0]?.Id;
+/** Changes a record in a demo org, as someone else would (Events hears it). */
+async function update(org, sobject, id, fields) {
+  await fetch(`${BASE}/api/sf/${org}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      method: 'PATCH',
+      path: `/services/data/v62.0/sobjects/${sobject}/${id}`,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(fields),
+    }),
+  });
+}
 const csv = (name, rows) => {
   const path = join(files, name);
   writeFileSync(path, rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n'));
   return path;
+};
+
+/** A validation in the shared Validate and deploy panel, waited for and checked. */
+async function validate(h, org = 'acme-uat') {
+  await h.click(`Validate on ${org}`);
+  await h.confirm(org);
+  await h.until(/Validation (Succeeded|Failed)/, 300000);
+  if (!(await h.page.getByText('✓ Validation Succeeded').count())) {
+    // The errors themselves, for whoever reads the failed run
+    const panel = await h.page.locator('.release-panel').last().innerText();
+    throw new Error(
+      `Validation failed: ${panel.slice(panel.indexOf('Validation Failed')).replace(/\s+/g, ' ').slice(0, 900)}`
+    );
+  }
+  await h.settle();
+}
+
+// The ✦ answers of the AI scenes (the recorder answers with these; no AI provider is called)
+const REVIEW = `**InvoiceService** is bulk-safe and short. Two things to look at:
+
+| # | What | Where | Suggestion |
+|---|------|-------|------------|
+| 1 | Overdue is decided by today's date in the running user's time zone | \`markOverdue\` | Fine for a nightly batch; say so in a comment |
+| 2 | **No check for a missing amount** | \`owedByAccount\` | \`SUM\` skips nulls — a draft without an amount is not counted |
+
+\`\`\`apex
+// Invoices without an amount are left out of what an account owes
+\`\`\`
+
+**What is fine:**
+- \`with sharing\` is declared.
+- No SOQL or DML inside loops.
+`;
+const TRIGGER = {
+  type: 'ApexTrigger',
+  name: 'InvoiceTrigger',
+  note: 'A thin trigger: InvoiceService marks sent invoices past their due date as Overdue when they are updated.',
+  files: [
+    {
+      path: 'triggers/InvoiceTrigger.trigger',
+      content:
+        'trigger InvoiceTrigger on Invoice__c (before update) {\n    InvoiceService.markOverdue(Trigger.new);\n}\n',
+    },
+    {
+      path: 'triggers/InvoiceTrigger.trigger-meta.xml',
+      content:
+        '<?xml version="1.0" encoding="UTF-8"?>\n<ApexTrigger xmlns="http://soap.sforce.com/2006/04/metadata">\n    <apiVersion>62.0</apiVersion>\n    <status>Active</status>\n</ApexTrigger>\n',
+    },
+  ],
 };
 
 export const scenes = [
@@ -141,6 +203,7 @@ export const scenes = [
       await h.select(h.page.locator('table.record select').first(), 'Gold');
       await h.pause(800);
       await h.click('Cancel');
+      await h.page.locator('input[placeholder="Filter fields and values"]').fill('');
       await h.click('Me');
       await h.until('Log in as this user');
       await h.pause(1500);
@@ -150,13 +213,19 @@ export const scenes = [
     name: 'history',
     hash: 'record',
     run: async (h) => {
-      const acme = await idOf('acme-uat', "SELECT Id FROM Account WHERE Name = 'Globex' LIMIT 1");
-      await h.type(h.page.locator('input[placeholder^="Record Id"]'), acme);
+      // An invoice whose status and amount changed (tracked fields)
+      const [changed] = await soql(
+        'acme-uat',
+        "SELECT ParentId FROM Invoice__History WHERE Field = 'Status__c' ORDER BY CreatedDate DESC LIMIT 1"
+      );
+      const invoice = changed.ParentId;
+      await h.type(h.page.locator('input[placeholder^="Record Id"]'), invoice);
       await h.click('Show all data');
       await h.until('Open in Salesforce');
       await h.click('History');
+      await h.until('Status');
       await h.settle();
-      await h.pause(1600);
+      await h.pause(2200);
     },
   },
   {
@@ -325,11 +394,19 @@ export const scenes = [
     name: 'automation',
     hash: 'automation',
     run: async (h) => {
-      await h.type(h.page.locator('input[placeholder="Object, e.g. Case"]'), 'Case');
+      // From the empty page: choose an object, then read what runs when one is saved
+      await h.pause(1500);
+      await h.type(h.page.locator('input[placeholder="Object, e.g. Case"]'), 'Opportunity');
       await h.page.keyboard.press('Enter');
-      await h.until('CaseTrigger', 60000);
+      await h.until('OpportunityTrigger', 60000);
+      await h.until('Amount_Required_When_Won');
       await h.settle();
-      await h.pause(1600);
+      await h.pause(2000);
+      await h.click(/^Table/);
+      await h.pause(1800);
+      await h.click(/^Order of a save/);
+      await h.type(h.page.locator('input[placeholder="Name contains…"]'), 'Amount');
+      await h.pause(1800);
     },
   },
   {
@@ -337,8 +414,17 @@ export const scenes = [
     hash: 'events',
     run: async (h) => {
       await h.click('Listen');
-      await h.settle();
-      await h.pause(1600);
+      await h.until('Listening on');
+      await h.pause(1500);
+      // Someone changes an account: its change event arrives
+      const hooli = await idOf('acme-uat', "SELECT Id FROM Account WHERE Name = 'Hooli' LIMIT 1");
+      await update('acme-uat', 'Account', hooli, { Phone: `+61 2 5550 ${Math.floor(1000 + Math.random() * 8999)}` });
+      const row = h.page.locator('tr', { hasText: '/data/ChangeEvents' }).first();
+      await h.waiting(() => row.waitFor({ timeout: 60000 }));
+      await h.pause(1000);
+      await h.press(row);
+      await h.until('ChangeEventHeader');
+      await h.pause(2200);
     },
   },
   {
@@ -359,14 +445,27 @@ export const scenes = [
     hash: 'metadata',
     run: async (h) => {
       await h.select(h.page.locator('.pane-body select').first(), 'ApexClass');
-      await h.until('AccountService', 90000);
+      await h.until('InvoiceController', 90000);
       await h.pause(800);
-      for (const name of ['AccountService', 'CaseHandler']) await h.press(h.row(name).locator('input[type=checkbox]'));
+      for (const name of ['InvoiceController', 'InvoiceService', 'InvoiceServiceTest'])
+        await h.press(h.row(name).locator('input[type=checkbox]'));
       await h.click(/^Add \d+ to package/);
       await h.pause(1500);
-      await h.press(h.page.locator('tr', { hasText: 'CaseHandler' }).last());
+      await h.press(h.page.locator('.package-contents button', { hasText: 'InvoiceService' }).first());
       await h.settle();
-      await h.pause(1600);
+      await h.pause(1800);
+      // Into the other org: validate, then quick deploy the validation (no second test run)
+      await h.select(h.page.locator('.release-panel select').first(), 'acme-dev');
+      await h.select(h.page.locator('.release-panel select').nth(1), 'RunSpecifiedTests');
+      await h.type(h.page.locator('.release-panel textarea'), 'InvoiceServiceTest');
+      await validate(h, 'acme-dev');
+      await h.pause(1200);
+      await h.click('Quick deploy (no second test run)');
+      await h.confirm('acme-dev');
+      await h.until(/Deploy (Succeeded|Failed)/, 300000);
+      await h.until('✓ Deploy Succeeded', 5000);
+      await h.settle();
+      await h.pause(2000);
     },
   },
   {
@@ -398,14 +497,16 @@ export const scenes = [
     name: 'permsets',
     hash: 'permsets',
     run: async (h) => {
+      await h.settle();
+      await h.pause(1000);
+      // One table, a box per kind: open the groups, then one group's users
+      await h.press(h.page.getByText('Permission set group', { exact: true }));
+      await h.pause(1000);
+      await h.press(h.page.locator('td', { hasText: /^Finance Team$/ }).first());
+      await h.until('Dina Patel');
+      await h.settle();
       await h.pause(1500);
-      await h.choose(
-        h.page
-          .locator('.pane-body select')
-          .filter({ has: h.page.locator('option', { hasText: 'Sales Ops' }) })
-          .first(),
-        /Sales Ops/
-      );
+      await h.click('Assign to users');
       await h.settle();
       await h.pause(1600);
     },
@@ -568,29 +669,62 @@ export const scenes = [
   },
   {
     name: 'activity',
-    hash: 'activity',
+    hash: 'record',
     run: async (h) => {
+      // Two changes first (a record, a test run), then where they are listed
+      const globex = await idOf('acme-uat', "SELECT Id FROM Account WHERE Name = 'Globex' LIMIT 1");
+      await h.type(h.page.locator('input[placeholder^="Record Id"]'), globex);
+      await h.click('Show all data');
+      await h.until('Open in Salesforce');
+      await h.type(h.page.locator('input[placeholder="Filter fields and values"]'), 'rating');
+      await h.click('Edit');
+      // A real change: whichever rating it does not have now
+      const rating = h.page.locator('table.record select').first();
+      await h.select(rating, (await rating.inputValue()) === 'Hot' ? 'Warm' : 'Hot');
+      await h.click(/^Save/);
+      await h.confirm('acme-uat');
       await h.settle();
-      await h.pause(1600);
+      await h.pause(1000);
+      await h.tab('Develop', 'Apex tests');
+      await h.press(h.page.locator('tr', { hasText: 'InvoiceServiceTest' }).locator('input[type=checkbox]'));
+      await h.click('Run selected');
+      await h.confirm('acme-uat').catch(() => {});
+      await h.until('Passed', 180000);
+      await h.settle();
+      await h.pause(1000);
+      await h.tab('Org', 'Activity');
+      await h.until('record update');
+      await h.settle();
+      await h.pause(2200);
     },
   },
   {
     name: 'backup',
     hash: 'backup',
+    folder: true,
     run: async (h) => {
-      // A new backup is already open as a draft
+      // A new backup is already open as a draft: name, objects, a folder, then a real backup into it
       await h.type(
         h.page.locator('.pane-body input:not([type=checkbox]):not([type=file])').first(),
         'Customers nightly'
       );
       await h.pause(800);
-      for (const name of ['Account', 'Contact', 'Case']) await h.pickObject(name);
+      for (const name of ['Account', 'Contact', 'Invoice']) await h.pickObject(name);
       await h.click('Count records');
+      await h.until('records in 3 objects', 120000);
       await h.settle();
-      await h.pause(1600);
+      await h.pause(1400);
       await h.click('Settings');
+      await h.pause(1000);
+      await h.click('Choose folder…');
+      await h.pause(1200);
+      await h.click('Back up now');
+      await h.until('last: ✓', 300000);
       await h.settle();
-      await h.pause(1600);
+      await h.pause(1200);
+      await h.click('Backups & restore');
+      await h.settle();
+      await h.pause(2200);
     },
   },
   {
@@ -642,10 +776,47 @@ export const scenes = [
         'acme-dev'
       );
       await h.settle();
-      await h.pause(1600);
+      await h.pause(1000);
+      // A few types, compared down to their files
+      await h.click('None');
+      for (const type of ['ApexClass', 'AuraDefinitionBundle', 'PermissionSet', 'PermissionSetGroup'])
+        await h.press(
+          h.page
+            .locator('label', { hasText: new RegExp(`^\\s*${type}\\s*$`) })
+            .locator('input[type=checkbox]')
+            .first()
+        );
       await h.click(/^Compare \d+ type/);
+      await h.settle(300000);
+      await h.pause(1000);
+      await h.click(/^Compare content of \d+ in both/);
+      await h.until('Content compared', 300000);
+      await h.settle(300000);
+      await h.pause(1500);
+      // A box per type; a choice per row, or for the whole type
+      await h.press(h.page.locator('.group-toggle', { hasText: 'PermissionSet' }).first());
+      await h.pause(1500);
+      await h.press(h.page.locator('.group-toggle', { hasText: 'ApexClass' }).first());
+      await h.pause(1200);
+      const row = (name) =>
+        h.page.locator('tr', { has: h.page.locator('td', { hasText: new RegExp(`^${name}$`) }) }).first();
+      await h.select(row('AccountService').locator('select.row-action'), 'deploy');
+      await h.select(row('Report_Builder').locator('select.row-action'), 'deploy');
+      await h.select(row('Finance_Read').locator('select.row-action'), 'deploy');
+      await h.press(
+        h.page
+          .locator('.group-head', { has: h.page.locator('.group-toggle b', { hasText: /^AuraDefinitionBundle$/ }) })
+          .locator('button', { hasText: '+ All to package' })
+      );
+      await h.pause(1500);
+      // What goes in, file by file, then the same validate and deploy as everywhere
+      await h.press(h.page.locator('.package-contents button', { hasText: 'AccountService' }).first());
       await h.settle();
-      await h.pause(1600);
+      await h.pause(2200);
+      await h.click('Find dependent tests');
+      await h.until('test class(es) found');
+      await validate(h, 'acme-dev');
+      await h.pause(2000);
     },
   },
   {
@@ -683,10 +854,16 @@ export const scenes = [
     run: async (h) => {
       await h.settle();
       await h.pause(1600);
+      await h.tab('Settings', 'AI');
+      await h.pause(1600);
+      await h.tab('Settings', 'Project');
+      await h.settle();
+      await h.pause(1800);
     },
   },
   {
     name: 'messages',
+    problems: /Salry__c|No such column/i,
     hash: 'query',
     run: async (h) => {
       await h.code('SELECT Name, Salry__c FROM Contact');
@@ -718,7 +895,112 @@ export const scenes = [
         );
       await h.click(/^Compare \d+ types/);
       await h.settle(120000);
+      await h.pause(1500);
+      await h.click(/^Compare content/);
+      await h.settle(120000);
+      await h.pause(1500);
+      // The project's permission sets into the org, through the same panel as everywhere
+      await h.press(
+        h.page
+          .locator('.group-head', { has: h.page.locator('.group-toggle b', { hasText: /^PermissionSet$/ }) })
+          .locator('button', { hasText: '+ All to package' })
+      );
+      await h.pause(1500);
+      await validate(h);
+      await h.pause(2000);
+    },
+  },
+  {
+    name: 'package',
+    hash: 'package',
+    folder: true,
+    run: async (h) => {
+      await h.click('Open the project folder…');
+      await h.until('Source — the branch with the changes');
+      await h.choose(h.page.locator('.compare-refs select').first(), /feature\/vip-discount/);
+      await h.choose(h.page.locator('.compare-refs select').nth(1), /^main$/);
+      await h.click('Compare');
+      await h.until('2 · Package');
+      await h.until('1 to delete');
+      await h.settle();
+      await h.pause(1200);
+      await h.press(h.page.locator('.group-toggle', { hasText: 'ApexClass' }));
+      await h.pause(1200);
+      await h.press(h.page.locator('button', { hasText: 'classes/AccountService.cls' }).first());
+      await h.until('Explain the difference');
+      await h.pause(1800);
+      await h.click('Find dependent tests');
+      await h.until('test class(es) found');
+      await h.pause(1000);
+      await validate(h);
+      await h.pause(1500);
+    },
+  },
+  {
+    name: 'aireview',
+    hash: 'code',
+    ai: { any: REVIEW },
+    run: async (h) => {
+      await h.type(h.page.locator('input[placeholder^="Filter"]').first(), 'Invoice');
+      await h.press(h.page.locator('.pane-body li button', { hasText: /^InvoiceService/ }).first());
+      await h.until('owedByAccount');
+      await h.pause(800);
+      await h.click('Review');
+      // The answer, formatted (a thinking model takes a while)
+      await h.waiting(() => h.page.locator('.ai-reply .md').first().waitFor({ timeout: 300000 }));
       await h.pause(2500);
+    },
+  },
+  {
+    name: 'aiwrite',
+    hash: 'code',
+    ai: { any: '```json\n' + JSON.stringify(TRIGGER, null, 2) + '\n```' },
+    run: async (h) => {
+      await h.click('Other metadata');
+      await h.pause(800);
+      await h.type(h.page.locator('.pane-body input[list]').first(), 'ApexTrigger');
+      await h.page.keyboard.press('Enter');
+      await h.settle();
+      await h.pause(800);
+      await h.type(
+        h.page.locator('input[placeholder^="✦ Describe a new"]'),
+        'A trigger on Invoice__c that marks sent invoices past their due date as Overdue'
+      );
+      await h.click(/^✦ Write the ApexTrigger/);
+      await h.until('Written by AI', 300000);
+      await h.pause(1500);
+      await h.click('Create / deploy…');
+      await h.click('Find dependent tests');
+      await h.until('test class(es) found');
+      await validate(h);
+      await h.pause(1500);
+    },
+  },
+  {
+    name: 'othermeta',
+    hash: 'code',
+    run: async (h) => {
+      await h.click('Other metadata');
+      await h.pause(800);
+      await h.type(h.page.locator('.pane-body input[list]').first(), 'PermissionSet');
+      await h.page.keyboard.press('Enter');
+      await h.settle();
+      await h.type(h.page.locator('input[placeholder^="Filter"]').last(), 'Invoice');
+      await h.press(h.page.locator('.code-list li button', { hasText: /^Invoice_Viewer/ }).first());
+      await h.until('Reads invoices.');
+      await h.settle();
+      await h.pause(1000);
+      // A change in the editor: saved only by deploying it
+      await h.press(h.page.locator('.monaco-editor .view-line', { hasText: 'Reads invoices.' }).first());
+      await h.page.keyboard.press('End');
+      for (let i = 0; i < '</description>'.length; i++) await h.page.keyboard.press('ArrowLeft');
+      await h.page.keyboard.type(' Shown on the account page.', { delay: 40 });
+      await h.until('edited here only');
+      await h.pause(1200);
+      await h.click(/^Save 1 edited file/);
+      await validate(h);
+      await h.until('Validated on acme-uat');
+      await h.pause(1500);
     },
   },
 ];

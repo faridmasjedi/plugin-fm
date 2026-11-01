@@ -1,0 +1,6 @@
+<apex:page standardController="Invoice__c" renderAs="pdf" showHeader="false">
+    <c:AcmeHeader title="Invoice {!Invoice__c.Name}" />
+    <p>Account: {!Invoice__c.Account__r.Name}</p>
+    <p>Amount: <apex:outputField value="{!Invoice__c.Amount__c}" /></p>
+    <p>Due: <apex:outputField value="{!Invoice__c.Due_Date__c}" /></p>
+</apex:page>

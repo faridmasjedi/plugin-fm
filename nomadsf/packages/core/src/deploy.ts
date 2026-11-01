@@ -31,6 +31,8 @@ export type DeployOutcome = {
   testsRun: number;
   componentFailures: Array<{ type: string; name: string; problem: string; line?: number }>;
   testFailures: Array<{ name: string; method: string; message: string }>;
+  /** Code coverage too low (a validation or deploy fails on it with no failed test). */
+  coverageWarnings: Array<{ name: string; message: string }>;
   errorMessage?: string;
 };
 
@@ -40,14 +42,17 @@ const num = (xml: string, tag: string): number => Number(xmlValue(xml, tag) ?? 0
 export function parseDeployResult(result: string, id: string): DeployOutcome {
   const details = xmlValue(result, 'details') ?? '';
   const runTests = xmlValue(details, 'runTestResult') ?? '';
+  // The deploy's own fields, without the details: each component there has a <success> of its own, and
+  // Salesforce lists the details first (a validation whose tests failed would read as a success)
+  const top = result.replace(/<(?:\w+:)?details(?:\s[^>]*)?>[\s\S]*<\/(?:\w+:)?details>/, '');
   return {
     id,
-    status: xmlValue(result, 'status') ?? 'Unknown',
-    success: xmlValue(result, 'success') === 'true',
-    checkOnly: xmlValue(result, 'checkOnly') === 'true',
-    componentsDeployed: num(result, 'numberComponentsDeployed'),
-    componentsTotal: num(result, 'numberComponentsTotal'),
-    testsRun: num(result, 'numberTestsCompleted') + num(result, 'numberTestErrors'),
+    status: xmlValue(top, 'status') ?? 'Unknown',
+    success: xmlValue(top, 'success') === 'true',
+    checkOnly: xmlValue(top, 'checkOnly') === 'true',
+    componentsDeployed: num(top, 'numberComponentsDeployed'),
+    componentsTotal: num(top, 'numberComponentsTotal'),
+    testsRun: num(top, 'numberTestsCompleted') + num(top, 'numberTestErrors'),
     componentFailures: xmlBlocks(details, 'componentFailures').map((f) => ({
       type: xmlValue(f, 'componentType') ?? '',
       name: xmlValue(f, 'fullName') ?? '',
@@ -59,7 +64,11 @@ export function parseDeployResult(result: string, id: string): DeployOutcome {
       method: xmlValue(f, 'methodName') ?? '',
       message: xmlValue(f, 'message') ?? '',
     })),
-    errorMessage: xmlValue(result, 'errorMessage') || undefined,
+    coverageWarnings: xmlBlocks(runTests, 'codeCoverageWarnings').map((w) => ({
+      name: xmlValue(w, 'name') ?? '',
+      message: xmlValue(w, 'message') ?? '',
+    })),
+    errorMessage: xmlValue(top, 'errorMessage') || undefined,
   };
 }
 
