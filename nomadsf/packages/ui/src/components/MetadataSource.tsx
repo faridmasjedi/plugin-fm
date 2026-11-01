@@ -102,6 +102,8 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
   const [chosen, setChosen] = useState<{ name: string; member?: MetadataComponent } | null>(null);
   const [files, setFiles] = useState<ComponentFile[] | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // What the last validation or deploy of the edits did
+  const [saved, setSaved] = useState('');
   const [fileIndex, setFileIndex] = useState(0);
   const [view, setView] = useState<View>('org');
   const [pairPath, setPairPath] = useState('');
@@ -169,6 +171,7 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
     setFileIndex(0);
     setInProject(undefined);
     setRelease(null);
+    setSaved('');
     setPairPath('');
     if (!chosen) return;
     if (!chosen.member) {
@@ -514,6 +517,7 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
                     );
                     if (!changed.length) throw new Error('The AI changed none of these files; try rephrasing.');
                     setDrafts({ ...drafts, ...Object.fromEntries(changed.map((f) => [f.path, f.content])) });
+                    setSaved('');
                     setFileIndex(
                       Math.max(
                         0,
@@ -526,6 +530,13 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
                   }}
                 />
               )}
+              {view === 'org' && changed.length > 0 && (
+                <p className="note">
+                  ✎ {changed.length} file(s) edited here only — not in the org yet. To save them, deploy them to the
+                  org: <b>Save</b>, then Validate (to check) and Deploy. Or <b>Undo</b>.
+                </p>
+              )}
+              {view === 'org' && saved && <Status text={saved} block />}
               {release && (
                 <ReleasePanel
                   key={`${release}:${type}:${name}`}
@@ -535,8 +546,21 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
                   build={build}
                   findTests={findTests}
                   zipName={`${name.replace(/[^\w.-]+/g, '_')}.zip`}
-                  onDone={(outcome) => {
-                    if (outcome.success && !outcome.checkOnly && release === 'edits' && files) {
+                  onDone={(outcome, target) => {
+                    if (release !== 'edits' || !files) return;
+                    if (!outcome.success) {
+                      setSaved(`❌ Not saved: the ${outcome.checkOnly ? 'validation' : 'deploy'} failed (see below).`);
+                      return;
+                    }
+                    if (outcome.checkOnly) {
+                      setSaved(
+                        `✓ Validated on ${target.label} — nothing is saved yet: Deploy or Quick deploy saves it.`
+                      );
+                      return;
+                    }
+                    setSaved(`✅ Saved: ${name} deployed to ${target.label}.`);
+                    // The files shown are the org's: they are the edits now when they went into this org
+                    if (target.id === org.id) {
                       setFiles(files.map((f) => ({ ...f, text: drafts[f.path] ?? f.text })));
                       setDrafts({});
                     }
@@ -607,7 +631,10 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
                           key={`org:${name}:${current.path}`}
                           language={languageOf(current.path)}
                           value={drafts[current.path] ?? current.text ?? ''}
-                          onChange={(v) => setDrafts({ ...drafts, [current.path]: v })}
+                          onChange={(v) => {
+                            setDrafts({ ...drafts, [current.path]: v });
+                            setSaved('');
+                          }}
                           readOnly={chosen.member?.manageableState === 'installed' && type !== 'Layout'}
                         />
                       </div>

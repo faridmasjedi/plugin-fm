@@ -44,8 +44,8 @@ export type ReleasePanelProps = {
   zipName?: string;
   /** The Studio, for a page drawn outside its context (Release › Project). */
   studio?: Studio;
-  /** After each validation, deploy or quick deploy (the page can refresh what it shows). */
-  onDone?: (outcome: DeployOutcome) => void;
+  /** After each validation, deploy or quick deploy (the page can refresh what it shows), with the org it ran in. */
+  onDone?: (outcome: DeployOutcome, target: { id: string; label: string }) => void;
 };
 
 const LEVELS: Array<{ id: TestLevel; label: string }> = [
@@ -154,7 +154,7 @@ export function ReleasePanel(props: ReleasePanelProps) {
       });
       setOutcome(result);
       setStatus('');
-      onDone?.(result);
+      onDone?.(result, target);
     });
   };
 
@@ -171,7 +171,7 @@ export function ReleasePanel(props: ReleasePanelProps) {
       });
       setOutcome(result);
       setStatus('');
-      onDone?.(result);
+      onDone?.(result, target);
     });
   };
 
