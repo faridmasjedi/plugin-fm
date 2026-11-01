@@ -283,6 +283,16 @@ export async function setupEntities(client: SalesforceClient, kind: SetupKind): 
     TabSet: "SELECT ApplicationId, Name, Label, NamespacePrefix FROM AppMenuItem WHERE Type = 'TabSet' ORDER BY Label",
   };
   const rows = (await query(client, soql[kind], { maxRows: 50_000 })).rows;
+  if (kind === 'TabSet') {
+    // The App Launcher lists only the apps the running user sees: every app comes from the Tooling API too
+    const seen = new Set(rows.map((r) => String(r.ApplicationId).slice(0, 15)));
+    const tooling = await query(
+      client,
+      'SELECT Id, DeveloperName, MasterLabel, NamespacePrefix FROM CustomApplication ORDER BY MasterLabel',
+      { tooling: true, maxRows: 50_000 }
+    ).catch(() => ({ rows: [] as Row[] }));
+    for (const r of tooling.rows) if (!seen.has(String(r.Id).slice(0, 15))) rows.push({ ...r, ApplicationId: r.Id });
+  }
   return rows.map((r) => ({
     id: String(kind === 'TabSet' ? r.ApplicationId : r.Id),
     name: String(r.Name ?? r.DeveloperName ?? ''),

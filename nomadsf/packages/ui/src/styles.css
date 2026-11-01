@@ -281,13 +281,13 @@ table.limits {
 .dt tbody tr:last-child td {
   border-bottom: 0;
 }
-.dt tbody tr:nth-child(even):not(.dt-group) {
-  background: color-mix(in srgb, var(--panel-2) 45%, transparent);
+.dt tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--accent) 4%, var(--panel));
 }
 .dt thead th {
   position: sticky;
   top: 0;
-  background: var(--panel-2);
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
   cursor: pointer;
   z-index: 1;
   font-weight: 600;
@@ -299,6 +299,9 @@ table.limits {
 }
 .dt thead th:hover {
   color: var(--text);
+}
+.dt tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
 }
 /* The table and its filters panel side by side */
 .dt-main {
@@ -344,43 +347,74 @@ table.limits {
   padding: 3px 6px;
   font-size: 12px;
 }
-.dt-picks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
-}
-.dt-pick {
-  padding: 1px 8px;
-  border-radius: 999px;
-  font-size: 11.5px;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.dt-pick.on {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
-}
 .dt-filters-toggle.active {
   border-color: var(--accent);
   color: var(--accent);
 }
-/* A group of rows (a metadata type): a line you open */
-.dt tr.dt-group td {
+/* A filter: the column, then what to look for (with that column's values to choose) */
+.dt-condition {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
   background: var(--panel-2);
-  cursor: pointer;
-  font-size: 12.5px;
 }
-.dt tr.dt-group .caret {
-  display: inline-block;
+.dt-condition-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.dt-condition-row select {
+  flex: 1 1 auto;
+}
+/* Rows grouped by type: a box per group, opened like a dropdown (as Release's lists) */
+.dt-groups {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dt-group-box {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.dt-group-box.open {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.dt-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+}
+.dt-group-box.open .dt-group-head {
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+.dt-group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: none;
+  padding: 2px 0;
+  color: var(--text);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.dt-group-toggle .caret {
   width: 12px;
   color: var(--muted);
 }
-.dt tr.dt-group:hover td {
-  color: var(--accent);
+.dt-group-box .dt-wrap {
+  border: 0;
+  border-radius: 0;
+  max-height: 50vh;
 }
 @media (max-width: 720px) {
   .dt-main.with-panel {
@@ -1094,7 +1128,21 @@ table.org-list tr.current {
   gap: 12px;
 }
 .ai-tools {
-  margin-bottom: 8px;
+  gap: 8px !important;
+  margin: 4px 0 12px;
+}
+/* The actions on a file (Dependencies, Explain, Review…): pills; the AI ones tinted */
+.ai-tools button {
+  border-radius: 999px;
+  padding: 5px 14px;
+}
+.ai-tools .ai-help > button {
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  color: var(--accent);
+}
+.ai-tools .ai-help > button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
 }
 /* AI answers sit under their row of buttons, not between them */
 .chips .ai-answer,
@@ -3713,37 +3761,36 @@ select.row-action {
   }
 }
 
-/* Automation: the save as lanes, left to right, a card per step */
+/* Automation: the save as a timeline, top to bottom; a band per moment, its steps as cards that wrap */
 .save-lanes {
   display: flex;
-  gap: 14px;
-  overflow-x: auto;
-  padding-bottom: 6px;
+  flex-direction: column;
+  gap: 0;
+  border-left: 2px solid var(--border);
+  margin-left: 10px;
 }
 .save-lane {
-  flex: 0 0 220px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: 6px 18px;
+  padding: 12px 0 12px 18px;
   position: relative;
 }
-.save-lane + .save-lane::before {
-  content: '→';
-  position: absolute;
-  left: -13px;
-  top: 4px;
-  color: var(--muted);
+.save-lane + .save-lane {
+  border-top: 1px dashed var(--border);
 }
 .save-lane-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-bottom: 6px;
-  border-bottom: 2px solid var(--accent);
+  grid-column: 1;
 }
 .save-lane-step {
-  width: 20px;
-  height: 20px;
+  position: absolute;
+  left: -12px;
+  top: 12px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -3751,6 +3798,27 @@ select.row-action {
   color: #fff;
   font-size: 11px;
   font-weight: 700;
+}
+.save-lane-hint {
+  grid-column: 1;
+  margin: 0;
+}
+.save-lane-cards {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+  align-content: start;
+}
+@container pane (max-width: 640px) {
+  .save-lane {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .save-lane-cards {
+    grid-column: 1;
+    grid-row: auto;
+  }
 }
 .save-card {
   display: flex;
@@ -3780,9 +3848,6 @@ select.row-action {
 .save-card-name {
   overflow-wrap: anywhere;
 }
-.save-lane.empty .save-lane-head {
-  border-bottom-color: var(--border);
-}
 .save-lane.empty .save-lane-step {
   background: var(--panel-2);
   color: var(--muted);
@@ -3793,4 +3858,38 @@ select.row-action {
 /* The bar of a pane: Hub › Tool at the left, its actions at the right */
 .pane-bar .grow {
   flex: 1 1 auto;
+}
+.dt tbody tr.selected,
+.dt tbody tr.selected:nth-child(even) {
+  background: var(--accent-soft);
+}
+
+/* Record › Related: what you can open (a relationship, a group of access) is a box like the grouped lists */
+.relation-tree:not(.root) > li:has(> button.link) {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 6px 10px;
+  margin: 6px 0;
+}
+.relation-tree:not(.root) > li:has(> .relation-tree) {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.relation-tree:not(.root) > li > .relation-tree {
+  border-left: 0;
+  padding-left: 12px;
+  margin: 6px -10px -6px;
+  padding: 4px 12px 6px 22px;
+  background: var(--panel-2);
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 10px 10px;
+}
+.relation-tree li > .relation-tree > li {
+  padding: 4px 0;
+}
+.relation-tree li > .relation-tree > li + li {
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+.relation-tree button.link {
+  font-size: 13px;
 }

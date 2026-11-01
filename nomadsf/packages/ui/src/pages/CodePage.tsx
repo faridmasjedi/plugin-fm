@@ -596,27 +596,6 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
               }}
             />
           )}
-          {item && projectFiles && view !== 'org' && (
-            <div className="chips ai-tools">
-              <button
-                className={showDeps ? 'primary' : ''}
-                title="What this uses, and what uses it: in the org, and in the project"
-                onClick={() => setShowDeps(!showDeps)}
-              >
-                Dependencies
-              </button>
-            </div>
-          )}
-          {showDeps && item && (
-            <div className="section">
-              <Dependencies
-                id={inOrg ? item.id : undefined}
-                type={CODE_LAYOUT[item.kind].type}
-                name={item.name}
-                inProject={projectOpen && index.has(item.name)}
-              />
-            </div>
-          )}
           {item && projectFiles && view !== 'org' ? (
             <ProjectCodeView
               pairs={pairs}
@@ -624,6 +603,27 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
               labels={[studio.org.label, projectLabel]}
               path={shownPair(pairs, pairPath)?.path ?? ''}
               onPath={setPairPath}
+              tools={
+                <button
+                  className={showDeps ? 'primary' : ''}
+                  title="What this uses, and what uses it: in the org, and in the project"
+                  onClick={() => setShowDeps(!showDeps)}
+                >
+                  Dependencies
+                </button>
+              }
+              toolsPanel={
+                showDeps && (
+                  <div className="section">
+                    <Dependencies
+                      id={inOrg ? item.id : undefined}
+                      type={CODE_LAYOUT[item.kind].type}
+                      name={item.name}
+                      inProject={projectOpen && index.has(item.name)}
+                    />
+                  </div>
+                )
+              }
             />
           ) : !file ? (
             <p className="muted">
@@ -683,6 +683,16 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
                   />
                 )}
               </div>
+              {showDeps && item && (
+                <div className="section">
+                  <Dependencies
+                    id={inOrg ? item.id : undefined}
+                    type={CODE_LAYOUT[item.kind].type}
+                    name={item.name}
+                    inProject={projectOpen && index.has(item.name)}
+                  />
+                </div>
+              )}
               <div className="editor-box tall">
                 <CodeEditor
                   key={file.id}

@@ -510,6 +510,7 @@ function SharesTable({
   ) : (
     <DataTable
       columns={['object', 'reason', 'a', 'b']}
+      groupBy="object"
       rows={rows.map((r, i) => ({ ...r, key: i }))}
       rowKey="key"
       name={name}

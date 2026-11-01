@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import type { Row } from '@nomadsf/core';
 import { useStudio } from '../context';
-import { EmptyHint } from './DataTable';
+import { DataTable, EmptyHint } from './DataTable';
 import { Status } from '../statusLog';
 
 /** `kind`: what it is (User, Role…), when the list offers several kinds to choose from first. */
@@ -80,38 +80,29 @@ export function ManagedList({
       {rows.length === 0 ? (
         <EmptyHint what={whatPlural ?? `${what}s`} />
       ) : (
-        <table className="edit-table">
-          <thead>
-            <tr>
-              {columns.map((c) => (
-                <th key={c}>{c}</th>
-              ))}
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={String(r[removeKey] ?? i)}>
-                {columns.map((c) => (
-                  <td key={c} className={c === 'Name' || c === 'DeveloperName' ? 'mono' : ''}>
-                    {r[c] == null ? '' : String(r[c])}
-                  </td>
-                ))}
-                <td>
-                  {r[removeKey] ? (
-                    <button
-                      className="link danger"
-                      disabled={busy}
-                      onClick={() => void act(`Remove ${what} ${name(r)}`, () => onRemove(r))}
-                    >
-                      Remove
-                    </button>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        // The same table as everywhere (filters, export, its look); Remove in its own column
+        <DataTable
+          columns={rows.some((r) => r[removeKey]) ? [...columns, 'Remove'] : columns}
+          rows={rows.map((r, i) => ({ ...r, __row: String(r[removeKey] ?? i) }))}
+          rowKey="__row"
+          name={(whatPlural ?? `${what}s`).replace(/\s+/g, '-')}
+          renderCell={(column, r) =>
+            column === 'Remove' ? (
+              r[removeKey] ? (
+                <button
+                  className="link danger"
+                  disabled={busy}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void act(`Remove ${what} ${name(r)}`, () => onRemove(r));
+                  }}
+                >
+                  Remove
+                </button>
+              ) : null
+            ) : undefined
+          }
+        />
       )}
       {onAdd && (
         <div className="form">

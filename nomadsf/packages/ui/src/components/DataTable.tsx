@@ -1,4 +1,4 @@
-import { Fragment, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useContext, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { InspectContext } from '../context';
 import { useRegisterTable } from '../pageTables';
 import { CopyId } from './CopyId';
@@ -52,8 +52,11 @@ export type DataTableProps = {
   groupBy?: string;
 };
 
-/** Columns with this many distinct values or fewer get value checkboxes in the filters panel. */
-const PICK_MAX = 12;
+/** A column's values offered in a filter's dropdown: at most this many (the box still takes anything typed). */
+const SUGGEST_MAX = 200;
+
+/** A filter: a column ('' = any column) and what to look for (same syntax as before: =exact !not >10 <5). */
+type Condition = { column: string; value: string };
 
 export function DataTable({
   columns,
@@ -71,12 +74,10 @@ export function DataTable({
   groupBy,
 }: DataTableProps) {
   const inspect = useContext(InspectContext);
+  const listId = useId();
   const selectable = Boolean(selected && onSelectedChange);
   const keyOf = (r: Row): string => String(r[rowKey] ?? '');
-  const [filter, setFilter] = useState('');
-  const [colFilters, setColFilters] = useState<Record<string, string>>({});
-  // Values picked per column in the filters panel (empty: all)
-  const [picks, setPicks] = useState<Record<string, string[]>>({});
+  const [conditions, setConditions] = useState<Condition[]>([]);
   const [ticked, setTicked] = useState<'all' | 'ticked' | 'unticked'>('all');
   const [panel, setPanel] = useState(false);
   const [sort, setSort] = useState<{ col: string; dir: 1 | -1 } | null>(null);
@@ -85,10 +86,12 @@ export function DataTable({
 
   const visible = useMemo(() => {
     let out = rows;
-    if (filter) out = out.filter((r) => columns.some((c) => matches(r[c], filter)));
-    for (const [c, f] of Object.entries(colFilters)) if (f) out = out.filter((r) => matches(r[c], f));
-    for (const [c, values] of Object.entries(picks))
-      if (values.length) out = out.filter((r) => values.includes(text(r[c])));
+    for (const { column, value } of conditions) {
+      if (!value) continue;
+      out = column
+        ? out.filter((r) => matches(r[column], value))
+        : out.filter((r) => columns.some((c) => matches(r[c], value)));
+    }
     if (selectable && ticked !== 'all') out = out.filter((r) => selected!.has(keyOf(r)) === (ticked === 'ticked'));
     if (sort || groupBy) {
       out = [...out].sort((a, b) => {
@@ -111,31 +114,26 @@ export function DataTable({
     return out;
     // keyOf reads rowKey, selected is read through ticked
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, columns, filter, colFilters, picks, ticked, selected, sort, groupBy]);
+  }, [rows, columns, conditions, ticked, selected, sort, groupBy]);
 
-  // The values a column takes, for the filters panel: only counted while the panel is open
-  const distinct = useMemo(() => {
-    if (!panel) return {} as Record<string, string[]>;
+  // The values of the columns being filtered, for their dropdowns: only those columns, at most SUGGEST_MAX each
+  const suggestions = useMemo(() => {
     const out: Record<string, string[]> = {};
-    for (const c of columns) {
+    for (const { column } of conditions) {
+      if (!column || out[column]) continue;
       const seen = new Set<string>();
       for (const r of rows) {
-        seen.add(text(r[c]));
-        if (seen.size > PICK_MAX) break;
+        const v = text(r[column]);
+        if (v) seen.add(v);
+        if (seen.size >= SUGGEST_MAX) break;
       }
-      if (seen.size <= PICK_MAX && seen.size > 1) out[c] = [...seen].sort();
+      out[column] = [...seen].sort();
     }
     return out;
-  }, [panel, rows, columns]);
-  const active =
-    Object.values(colFilters).filter(Boolean).length +
-    Object.values(picks).filter((v) => v.length).length +
-    (ticked !== 'all' ? 1 : 0);
-  const clearFilters = (): void => {
-    setColFilters({});
-    setPicks({});
-    setTicked('all');
-  };
+  }, [conditions, rows]);
+  const active = conditions.filter((c) => c.value).length + (ticked !== 'all' ? 1 : 0);
+  const setCondition = (i: number, next: Partial<Condition>): void =>
+    setConditions(conditions.map((c, j) => (j === i ? { ...c, ...next } : c)));
 
   // Groups: the rows of each value of groupBy, in order
   const groups = useMemo(() => {
@@ -149,7 +147,7 @@ export function DataTable({
     }
     return out;
   }, [groupBy, visible, maxShown]);
-  const isOpen = (g: string): boolean => (groups?.size ?? 0) <= 1 || Boolean(filter) || openGroups.has(g);
+  const isOpen = (g: string): boolean => (groups?.size ?? 0) <= 1 || active > 0 || openGroups.has(g);
   const toggleGroup = (g: string): void => {
     const next = new Set(openGroups);
     if (next.has(g)) next.delete(g);
@@ -237,23 +235,101 @@ export function DataTable({
     </tr>
   );
 
+  const header = (list: Row[]): ReactNode => (
+    <thead>
+      <tr>
+        {selectable && (
+          <th className="sel">
+            <input
+              type="checkbox"
+              title="Select all shown"
+              checked={list.length > 0 && list.every((r) => selected!.has(keyOf(r)))}
+              onChange={(e) => {
+                const next = new Set(selected);
+                for (const r of list) e.target.checked ? next.add(keyOf(r)) : next.delete(keyOf(r));
+                onSelectedChange!(next);
+              }}
+            />
+          </th>
+        )}
+        {/* Keys by position: a column name can repeat (a file's own column and a looked-up one) */}
+        {columns.map((c, ci) => (
+          <th
+            key={`${ci}:${c}`}
+            onClick={() => setSort(sort?.col === c ? { col: c, dir: sort.dir === 1 ? -1 : 1 } : { col: c, dir: 1 })}
+          >
+            {c}
+            {sort?.col === c ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+
+  const table =
+    groups && groups.size > 1 ? (
+      // Several groups: a box per group (a metadata type), opened like a dropdown — as in Release's lists
+      <div className="dt-groups">
+        {[...groups].map(([g, list]) => {
+          const open = isOpen(g);
+          const tickedHere = selectable ? list.filter((r) => selected!.has(keyOf(r))).length : 0;
+          return (
+            <div key={`group:${g}`} className={`dt-group-box ${open ? 'open' : ''}`}>
+              <div className="dt-group-head">
+                {selectable && (
+                  <input
+                    type="checkbox"
+                    title={`Tick every ${g}`}
+                    checked={tickedHere === list.length}
+                    onChange={(e) => {
+                      const next = new Set(selected);
+                      for (const r of list) e.target.checked ? next.add(keyOf(r)) : next.delete(keyOf(r));
+                      onSelectedChange!(next);
+                    }}
+                  />
+                )}
+                <button className="dt-group-toggle" aria-expanded={open} onClick={() => toggleGroup(g)}>
+                  <span className="caret">{open ? '▾' : '▸'}</span>
+                  <b>{g || '—'}</b>
+                  <span className="pill">{list.length}</span>
+                </button>
+                {tickedHere > 0 && <span className="pill good">{tickedHere} ticked</span>}
+              </div>
+              {open && (
+                <div className="dt-wrap">
+                  <table>
+                    {header(list)}
+                    <tbody>{list.map((r, i) => rowOf(r, i))}</tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    ) : (
+      <div className="dt-wrap">
+        <table>
+          {header(visible)}
+          <tbody>{visible.slice(0, maxShown).map((r, i) => rowOf(r, i))}</tbody>
+        </table>
+      </div>
+    );
+
   return (
     <div className="dt" ref={root}>
       <div className="dt-bar">
-        <input
-          className="dt-filter"
-          placeholder="Filter all columns…  (=exact  !not  >10  <5)"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
         <span className="muted dt-count">
           {visible.length.toLocaleString()} of {rows.length.toLocaleString()} rows {note}
         </span>
         <span className="dt-actions">
           <button
-            className={`dt-filters-toggle ${panel ? 'active' : ''}`}
-            title="Filter by any column, by its values, or by what is ticked"
-            onClick={() => setPanel(!panel)}
+            className={`dt-filters-toggle ${panel || active ? 'active' : ''}`}
+            title="Filter: choose a column, then type or choose a value"
+            onClick={() => {
+              if (!panel && !conditions.length) setConditions([{ column: '', value: '' }]);
+              setPanel(!panel);
+            }}
           >
             ⚲ Filters{active ? ` (${active})` : ''}
           </button>
@@ -273,89 +349,59 @@ export function DataTable({
         </span>
       </div>
       <div className={`dt-main ${panel ? 'with-panel' : ''}`}>
-        <div className="dt-wrap">
-          <table>
-            <thead>
-              <tr>
-                {selectable && (
-                  <th className="sel">
-                    <input
-                      type="checkbox"
-                      title="Select all shown"
-                      checked={visible.length > 0 && visible.every((r) => selected!.has(keyOf(r)))}
-                      onChange={(e) => {
-                        const next = new Set(selected);
-                        for (const r of visible) e.target.checked ? next.add(keyOf(r)) : next.delete(keyOf(r));
-                        onSelectedChange!(next);
-                      }}
-                    />
-                  </th>
-                )}
-                {/* Keys by position: a column name can repeat (a file's own column and a looked-up one) */}
-                {columns.map((c, ci) => (
-                  <th
-                    key={`${ci}:${c}`}
-                    onClick={() =>
-                      setSort(sort?.col === c ? { col: c, dir: sort.dir === 1 ? -1 : 1 } : { col: c, dir: 1 })
-                    }
-                  >
-                    {c}
-                    {sort?.col === c ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {groups
-                ? [...groups].map(([g, list]) => {
-                    const open = isOpen(g);
-                    const allOn = selectable && list.every((r) => selected!.has(keyOf(r)));
-                    return (
-                      <Fragment key={`group:${g}`}>
-                        {groups.size > 1 && (
-                          <tr className={`dt-group ${open ? 'open' : ''}`} onClick={() => toggleGroup(g)}>
-                            {selectable && (
-                              <td className="sel" onClick={(e) => e.stopPropagation()}>
-                                <input
-                                  type="checkbox"
-                                  title={`Tick every ${g}`}
-                                  checked={allOn}
-                                  onChange={(e) => {
-                                    const next = new Set(selected);
-                                    for (const r of list) e.target.checked ? next.add(keyOf(r)) : next.delete(keyOf(r));
-                                    onSelectedChange!(next);
-                                  }}
-                                />
-                              </td>
-                            )}
-                            <td colSpan={columns.length}>
-                              <span className="caret">{open ? '▾' : '▸'}</span> <b>{g || '—'}</b>{' '}
-                              <span className="muted">{list.length}</span>
-                              {selectable && (
-                                <span className="muted">
-                                  {' '}
-                                  · {list.filter((r) => selected!.has(keyOf(r))).length} ticked
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        )}
-                        {open && list.map((r, i) => rowOf(r, i))}
-                      </Fragment>
-                    );
-                  })
-                : visible.slice(0, maxShown).map((r, i) => rowOf(r, i))}
-            </tbody>
-          </table>
-        </div>
+        {table}
         {panel && (
           <aside className="dt-panel">
             <div className="dt-panel-head">
               <b>Filters</b>
-              <button className="link" disabled={!active} onClick={clearFilters}>
+              <button
+                className="link"
+                disabled={!active && conditions.length <= 1}
+                onClick={() => {
+                  setConditions([{ column: '', value: '' }]);
+                  setTicked('all');
+                }}
+              >
                 Clear
               </button>
             </div>
+            {conditions.map((c, i) => (
+              <div key={i} className="dt-condition">
+                <div className="dt-condition-row">
+                  <select value={c.column} onChange={(e) => setCondition(i, { column: e.target.value, value: '' })}>
+                    <option value="">Any column</option>
+                    {columns.map((col, ci) => (
+                      <option key={`${ci}:${col}`} value={col}>
+                        {col}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="link"
+                    title="Remove this filter"
+                    onClick={() => setConditions(conditions.filter((_, j) => j !== i))}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <input
+                  list={c.column ? `${listId}-${c.column}` : undefined}
+                  placeholder={c.column ? 'Type or choose a value…' : 'Text in any column…'}
+                  value={c.value}
+                  onChange={(e) => setCondition(i, { value: e.target.value })}
+                />
+                {c.column && (
+                  <datalist id={`${listId}-${c.column}`}>
+                    {(suggestions[c.column] ?? []).map((v) => (
+                      <option key={v} value={`=${v}`}>
+                        {v}
+                      </option>
+                    ))}
+                  </datalist>
+                )}
+              </div>
+            ))}
+            <button onClick={() => setConditions([...conditions, { column: '', value: '' }])}>+ Add a filter</button>
             {selectable && (
               <label>
                 <span>Ticked</span>
@@ -366,39 +412,7 @@ export function DataTable({
                 </select>
               </label>
             )}
-            {columns.map((c, ci) => (
-              <div key={`${ci}:${c}`} className="dt-panel-field">
-                <label>
-                  <span>{c}</span>
-                  <input
-                    placeholder="contains…  =exact  !not  >10"
-                    value={colFilters[c] ?? ''}
-                    onChange={(e) => setColFilters({ ...colFilters, [c]: e.target.value })}
-                  />
-                </label>
-                {distinct[c] && (
-                  <div className="dt-picks">
-                    {distinct[c].map((v) => {
-                      const on = (picks[c] ?? []).includes(v);
-                      return (
-                        <button
-                          key={v}
-                          className={`dt-pick ${on ? 'on' : ''}`}
-                          onClick={() =>
-                            setPicks({
-                              ...picks,
-                              [c]: on ? (picks[c] ?? []).filter((x) => x !== v) : [...(picks[c] ?? []), v],
-                            })
-                          }
-                        >
-                          {v || '(empty)'}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ))}
+            <p className="muted small">Plain text finds rows that contain it · =exact · !not · &gt;10 · &lt;5</p>
           </aside>
         )}
       </div>

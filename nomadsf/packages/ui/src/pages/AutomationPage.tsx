@@ -7,8 +7,8 @@ import { TableTabs } from '../components/TableTabs';
 import { Status } from '../statusLog';
 
 /**
- * The save as lanes, left to right: one column per moment of the save (before save, after save…), each step a card in
- * the order it runs — what a graph would show, without drawing one.
+ * The save as a timeline, top to bottom: one band per moment of the save (before save, after save…), its steps as cards
+ * in the order they run, wrapping — what a graph would show, without drawing one, and with room for many steps.
  */
 /** The moments of a save, in order, with what happens there (steps of other moments get their own lane). */
 const PHASES: Array<[string, string]> = [
@@ -39,16 +39,18 @@ function SaveLanes({ steps }: { steps: SaveStep[] }) {
             {list.length > 0 && <span className="muted">{list.length}</span>}
           </div>
           {hint && <p className="muted small save-lane-hint">{hint}</p>}
-          {list.map((s) => (
-            <div key={s.order} className={`save-card ${s.active ? '' : 'off'}`} title={s.detail}>
-              <span className="save-card-order">{s.order}</span>
-              <span className="pill">{s.kind}</span>
-              <b className="save-card-name">{s.name}</b>
-              {s.events && <span className="muted small">{s.events}</span>}
-              {!s.active && <span className="muted small">inactive</span>}
-            </div>
-          ))}
-          {!list.length && <p className="muted small">Nothing of yours here.</p>}
+          <div className="save-lane-cards">
+            {list.map((s) => (
+              <div key={s.order} className={`save-card ${s.active ? '' : 'off'}`} title={s.detail}>
+                <span className="save-card-order">{s.order}</span>
+                <span className="pill">{s.kind}</span>
+                <b className="save-card-name">{s.name}</b>
+                {s.events && <span className="muted small">{s.events}</span>}
+                {!s.active && <span className="muted small">inactive</span>}
+              </div>
+            ))}
+            {!list.length && <p className="muted small">Nothing of yours here.</p>}
+          </div>
         </div>
       ))}
     </div>

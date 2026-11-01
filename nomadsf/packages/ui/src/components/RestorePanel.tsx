@@ -361,6 +361,7 @@ export function RestorePanel({
           <h3>Changed since the backup ({new Set(changedRows.map((r) => `${r.object}:${r.Id}`)).size} records)</h3>
           <DataTable
             columns={['object', 'Id', 'field', 'backup', 'now']}
+            groupBy="object"
             rows={changedRows}
             rowKey="key"
             name="restore-changed"
@@ -380,6 +381,7 @@ export function RestorePanel({
           <h3>Deleted since the backup ({deletedRows.length})</h3>
           <DataTable
             columns={['object', 'Id', 'Name', 'recycle bin']}
+            groupBy="object"
             rows={deletedRows}
             rowKey="key"
             name="restore-deleted"

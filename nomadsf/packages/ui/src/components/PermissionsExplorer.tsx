@@ -40,7 +40,11 @@ export function PermissionsExplorer() {
   const [filter, setFilter] = useState('');
   const [kindShown, setKindShown] = useState<'all' | PermissionHolder['kind']>(() => storage.get('perms.kind', 'all'));
   const [holderId, setHolderId] = useState('');
-  const [tab, setTab] = useState<Tab>(() => storage.get('perms.tab', 'objects'));
+  // One table per tab (the old "All" tab stacked them; a saved "all" opens Object access)
+  const [tab, setTab] = useState<Tab>(() => {
+    const saved = storage.get<Tab>('perms.tab', 'objects');
+    return saved === 'all' ? 'objects' : saved;
+  });
   const [objects, setObjects] = useState<ObjectAccessRow[] | null>(null);
   const [fields, setFields] = useState<FieldAccessRow[] | null>(null);
   const [fieldObject, setFieldObject] = useState('');
@@ -228,7 +232,6 @@ export function PermissionsExplorer() {
           <div className="tabs">
             {(
               [
-                ['all', 'All'],
                 ['objects', 'Object access'],
                 ['fields', 'Field access'],
                 ['system', 'User & system permissions'],
@@ -332,6 +335,7 @@ export function PermissionsExplorer() {
               ) : (
                 <DataTable
                   columns={['object', 'field', 'read', 'edit']}
+                  groupBy="object"
                   rows={fields.map((f, i) => ({ ...f, read: yes(f.read), edit: yes(f.edit), key: i }))}
                   rowKey="key"
                   name={`${holder.name}-field-access`}

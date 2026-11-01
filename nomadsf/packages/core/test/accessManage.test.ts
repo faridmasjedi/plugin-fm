@@ -120,3 +120,24 @@ describe('groups and queues', () => {
     ]);
   });
 });
+
+describe('apps a permission set gives', () => {
+  it('names every app, also those the App Launcher does not show to the running user', async () => {
+    const { client } = fakeOrg({
+      'FROM SetupEntityAccess': [
+        { Id: '0J0000000000001AAA', SetupEntityId: '02u000000000001AAA', SetupEntityType: 'TabSet' },
+        { Id: '0J0000000000002AAA', SetupEntityId: '02u000000000002AAA', SetupEntityType: 'TabSet' },
+      ],
+      'FROM AppMenuItem': [{ ApplicationId: '02u000000000001AAA', Name: 'Sales', Label: 'Sales' }],
+      'FROM CustomApplication': [
+        { Id: '02u000000000001AAA', DeveloperName: 'Sales', MasterLabel: 'Sales' },
+        { Id: '02u000000000002AAA', DeveloperName: 'Hidden_App', MasterLabel: 'Hidden App' },
+      ],
+    });
+    const rows = await setupAccessOf(client, PS);
+    expect(rows.map((r) => [r.name, r.label])).toEqual([
+      ['Hidden_App', 'Hidden App'],
+      ['Sales', 'Sales'],
+    ]);
+  });
+});
