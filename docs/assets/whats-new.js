@@ -2,7 +2,8 @@
 // New changes go under "next"; the newest release without its own entry shows them.
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
-  next: [
+  next: [],
+  '2.3.0': [
     'Each hub has its own sidebar of tools; Settings has Orgs, AI and Project',
     'Tables: Filters by column (pick a value or type one), Ticked / Not ticked, a box per type, tabs instead of stacked tables',
     'Validate and deploy, the same everywhere a package is built: per row to package or destructive, What’s in the package file by file, Find dependent tests, quick deploy',
