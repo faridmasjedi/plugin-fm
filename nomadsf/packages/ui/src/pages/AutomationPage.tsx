@@ -78,8 +78,9 @@ function SaveLanes({ steps }: { steps: SaveStep[] }) {
 export function AutomationPage() {
   const { client, org } = useStudio();
   const [objects, setObjects] = useState<SObjectSummary[]>([]);
-  const [typed, setTyped] = useState(() => storage.get('automation.object', 'Case'));
-  const [name, setName] = useState(() => storage.get('automation.object', 'Case'));
+  // Empty the first time (nothing is read until an object is chosen); then the last one chosen
+  const [typed, setTyped] = useState(() => storage.get('automation.object', ''));
+  const [name, setName] = useState(() => storage.get('automation.object', ''));
   const [result, setResult] = useState<{ steps: SaveStep[]; notes: string[] } | null>(null);
   const [activeOnly, setActiveOnly] = useState(false);
   // What to show: one kind (validation rules, flows…) and part of a name
@@ -150,6 +151,7 @@ export function AutomationPage() {
         </label>
         <Status text={status} />
       </div>
+      {!name && <p className="muted">Choose an object to see what runs when one of its records is saved.</p>}
       {result && (
         <>
           {steps.length === 0 ? (
