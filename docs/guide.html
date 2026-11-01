@@ -990,10 +990,7 @@
                 it from the org. <b>Add all differences</b> takes everything that differs. A <code>.forceignore</code>
                 path leaves files out.
               </li>
-              <li>
-                Then <a href="#release-panel">What's in the package and Validate and deploy</a>. In the CLI app,
-                <b>Restore into project</b> also retrieves the ones only in the org into your folder.
-              </li>
+              <li>Then <a href="#release-panel">What's in the package and Validate and deploy</a>.</li>
             </ol>
             <div class="good-to-know">
               <h4>Good to know</h4>
@@ -1091,8 +1088,7 @@
                 component itself (its XML or code).
               </li>
               <li>
-                <b>Download zip</b> retrieves them; <b>package.xml</b> / <b>Copy package.xml</b> give the manifest;
-                <b>Retrieve into project</b> in the CLI app.
+                <b>Download zip</b> retrieves them; <b>package.xml</b> / <b>Copy package.xml</b> give the manifest.
               </li>
               <li>
                 To remove things from the org: tick them and <b>Add to delete</b>. Choose
@@ -1649,7 +1645,7 @@
                 controls
               ></video>
             </div>
-            <p>Every change made from NomadSF in this browser (and, in the CLI app, the project's shared log).</p>
+            <p>Every change made from NomadSF in this browser.</p>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
@@ -2192,10 +2188,7 @@
             </div>
             <ul>
               <li><b>Orgs</b>: the orgs you are logged in to.</li>
-              <li>
-                <b>AI</b> (browser extension): your own provider for the ✦ buttons — in the CLI app it is on the app's
-                AI page.
-              </li>
+              <li><b>AI</b> (browser extension): your own provider for the ✦ buttons.</li>
               <li>
                 <b>Project</b>: a folder on this computer or a GitHub repository and branch. Every page uses it; Compare
                 &amp; package needs the <b>folder</b>, as it reads the project's git history.
@@ -2274,74 +2267,6 @@
                 encrypted.
               </li>
             </ul>
-          </section>
-          <section class="tool" data-title="CLI and local app">
-            <h2 id="cli">CLI and local app (for developers and CI)</h2>
-            <p>
-              The same repository ships the <code>sf fm</code> plugin for the Salesforce CLI. It is what pipelines use,
-              and it runs a local app of its own (<code>sf fm dashboard</code>). NomadSF Studio — the browser extension
-              and the VS Code extension — does not need either.
-            </p>
-            <div class="callout">
-              The plugin is not published yet, so it cannot be installed with <code>sf plugins install</code> for now.
-              Build it from source instead. The browser and VS Code extensions do not need it.
-            </div>
-            <pre>
-  git clone https://github.com/faridmasjedi/plugin-fm
-  cd plugin-fm &amp;&amp; yarn &amp;&amp; yarn build
-  cd nomadsf &amp;&amp; yarn install &amp;&amp; yarn build &amp;&amp; cd ..
-  sf plugins link .
-  sf fm dashboard --open</pre
-            >
-            <table class="hub-table">
-              <tr>
-                <th>Command</th>
-                <th>What it does</th>
-              </tr>
-              <tr>
-                <td><code>sf fm build</code></td>
-                <td>
-                  Delta deployment artifacts from Git changes (submodules, bundles, granular labels and sharing rules)
-                </td>
-              </tr>
-              <tr>
-                <td><code>sf fm deploy</code></td>
-                <td>Validate, deploy and quick deploy, with tests chosen for the change; status and cancel</td>
-              </tr>
-              <tr>
-                <td><code>sf fm pipeline</code></td>
-                <td>The optional release train: stages, approvals, scripts, deployment waves</td>
-              </tr>
-              <tr>
-                <td><code>sf fm quality</code></td>
-                <td>Code Analyzer / PMD / ESLint on changed files, SARIF for pull requests</td>
-              </tr>
-              <tr>
-                <td><code>sf fm drift</code></td>
-                <td>What changed directly in the org compared with the repository</td>
-              </tr>
-              <tr>
-                <td><code>sf fm rollback</code></td>
-                <td>Back to an earlier successful deployment</td>
-              </tr>
-              <tr>
-                <td><code>sf fm org create</code></td>
-                <td>A scratch org or sandbox ready in one command</td>
-              </tr>
-              <tr>
-                <td><code>sf fm runbook</code> · <code>sf fm e2e</code></td>
-                <td>AI runbooks with approval for every change · Playwright scenarios against any org</td>
-              </tr>
-            </table>
-            <p>
-              Full reference:
-              <a href="https://github.com/faridmasjedi/plugin-fm/blob/main/COMMANDS.md">COMMANDS.md</a> ·
-              <a href="https://github.com/faridmasjedi/plugin-fm/blob/main/PIPELINE.md">PIPELINE.md</a> ·
-              <a href="https://github.com/faridmasjedi/plugin-fm/blob/main/QUALITY_COMMAND.md">QUALITY_COMMAND.md</a> ·
-              <a href="https://github.com/faridmasjedi/plugin-fm/blob/main/AI_RUNBOOKS.md">AI_RUNBOOKS.md</a> ·
-              <a href="https://github.com/faridmasjedi/plugin-fm/blob/main/CI_CD_USAGE.md">CI_CD_USAGE.md</a>. A Docker
-              image with the CLI, the plugin, Code Analyzer and Java: <code>ghcr.io/faridmasjedi/nomadsf</code>.
-            </p>
           </section>
           <section class="tool" data-title="Questions">
             <h2 id="faq">Questions</h2>

@@ -47,41 +47,15 @@ Then open any Salesforce page and click the NomadSF icon, or the **N** tab on th
 
 Details: [nomadsf/STUDIO.md](nomadsf/STUDIO.md).
 
-## For developers and CI: the `sf fm` plugin
-
-This repository also ships a Salesforce CLI plugin for release pipelines, and the local app it runs (`sf fm dashboard`). NomadSF Studio (the browser and VS Code extensions) needs neither:
-
-> The plugin is not published yet, so it cannot be installed with `sf plugins install` for now. Build it from source instead (see [Development](#development)). The browser and VS Code extensions do not need it.
-
-```bash
-# the image with the Salesforce CLI, the plugin, Code Analyzer and Java
-docker pull ghcr.io/faridmasjedi/nomadsf:latest
-```
-
-| Command                       | What it does                                                                                         | Docs                                     |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| `sf fm build`                 | Delta deployment artifacts from Git changes (submodules, bundles, granular labels and sharing rules) | [COMMANDS.md](COMMANDS.md)               |
-| `sf fm deploy`                | Validate, deploy and quick deploy with tests chosen for the change; status and cancel                | [COMMANDS.md](COMMANDS.md)               |
-| `sf fm pipeline`              | The optional release train: stages, approvals, scripts, deployment waves, Slack and Teams            | [PIPELINE.md](PIPELINE.md)               |
-| `sf fm quality`               | Code Analyzer / PMD / ESLint on changed files, SARIF for pull requests                               | [QUALITY_COMMAND.md](QUALITY_COMMAND.md) |
-| `sf fm drift`                 | What changed directly in the org compared with the repository                                        | [COMMANDS.md](COMMANDS.md)               |
-| `sf fm rollback`              | Back to an earlier successful deployment                                                             | [COMMANDS.md](COMMANDS.md)               |
-| `sf fm org create`            | A scratch org or sandbox ready in one command                                                        | [COMMANDS.md](COMMANDS.md)               |
-| `sf fm runbook` · `sf fm e2e` | AI runbooks with approval for every change · Playwright scenarios against any org                    | [AI_RUNBOOKS.md](AI_RUNBOOKS.md)         |
-
-CI/CD setup and deployment hooks: [CI_CD_USAGE.md](CI_CD_USAGE.md). Releasing and repository rules: [RELEASING.md](RELEASING.md).
-
 ## Development
 
 ```bash
 git clone https://github.com/faridmasjedi/plugin-fm
-cd plugin-fm && yarn && yarn build        # the CLI plugin
-sf plugins link .                         # use this build as `sf fm`
-cd nomadsf && yarn install && yarn build  # the Studio, the extension (nomadsf/apps/extension/dist) and VS Code
+cd plugin-fm/nomadsf && yarn install && yarn build  # the Studio, the extension (apps/extension/dist) and VS Code
 yarn test
 ```
 
-Manual checks before a release: [TESTING.md](TESTING.md). The website lives in [`docs/`](docs/) (GitHub Pages).
+Releasing: [RELEASING.md](RELEASING.md). Manual checks before a release: [TESTING.md](TESTING.md). The website lives in [`docs/`](docs/) (GitHub Pages).
 
 ## Contributing
 

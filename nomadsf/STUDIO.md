@@ -1,12 +1,11 @@
 # NomadSF Studio
 
-A Salesforce developer workbench in the spirit of the Developer Console and Salesforce Inspector Reloaded. One UI, several places to run it:
+A Salesforce developer workbench in the spirit of the Developer Console and Salesforce Inspector Reloaded. One UI, two places to run it:
 
-| Where                                | How it reaches Salesforce                                                                  | Status                     |
-| ------------------------------------ | ------------------------------------------------------------------------------------------ | -------------------------- |
-| **Browser extension** (Chrome, Edge) | the browser's own Salesforce session (`sid` cookie of the org you are on) — no CLI needed  | ✅ released (zip)          |
-| **VS Code extension**                | the Studio in an editor tab, on its own, with the Salesforce CLI's logins                  | ✅ released (.vsix)        |
-| **Local app** — `sf fm dashboard`    | through the local server with the Salesforce CLI's login; the token never reaches the page | ✅ with the `sf fm` plugin |
+| Where                                | How it reaches Salesforce                                                                 | Status              |
+| ------------------------------------ | ----------------------------------------------------------------------------------------- | ------------------- |
+| **Browser extension** (Chrome, Edge) | the browser's own Salesforce session (`sid` cookie of the org you are on) — no CLI needed | ✅ released (zip)   |
+| **VS Code extension**                | the Studio in an editor tab, on its own, with the Salesforce CLI's logins                 | ✅ released (.vsix) |
 
 Website and guide: <https://faridmasjedi.github.io/plugin-fm/>.
 
@@ -31,13 +30,12 @@ A hub opens on the tool used last; the pane bar shows Hub › Tool, and a narrow
 
 ## Features
 
-- **Settings** — **AI** (extension): connect your own AI without the CLI app — Anthropic Claude, OpenAI, Gemini, Mistral, Groq, OpenRouter (key or **Sign in with OpenRouter**), GitHub Models, Ollama on this computer, or any OpenAI-format endpoint (your model or a company gateway); choose the model, **Connect and test**, **Disconnect**. The key is kept in the extension's own storage (`chrome.storage.local`; websites cannot read it) and sent only to that provider; Chrome is asked for access to that provider's address only when you connect it. The ✦ buttons then use it: Query (Write SOQL), Execute Apex (Write Apex; Explain this error → Use the fixed code), REST Explorer (Build the request; Explain this response), Code (✦ Describe a new class → editable draft → Create this class; Explain, Review, Write test class → Create this test class; Explain compile errors → Use the fixed code), Debug logs and Apex tests (Explain). AI only fills editors or shows text: nothing runs or saves until you press the usual button (with the usual org-name check); without it they use the CLI app's AI when that runs. **Org**: in the extension, every org you are logged in to in this browser (its own Salesforce login: no CLI, nothing stored), with name, type (production, developer, sandbox, scratch) and whether the login still works; **Use** switches the Studio, **Log in to … ↗** opens the Salesforce login to add one (it appears when you come back). The header becomes an org dropdown when there are several. In the app: the Salesforce CLI's orgs. **Project**: choose the Salesforce project once and every page uses it: the NomadSF app's own project (in the app), a folder on this computer (read-only, nothing uploaded) or any GitHub repository and branch.
+- **Settings** — **AI** (extension): connect your own AI — Anthropic Claude, OpenAI, Gemini, Mistral, Groq, OpenRouter (key or **Sign in with OpenRouter**), GitHub Models, Ollama on this computer, or any OpenAI-format endpoint (your model or a company gateway); choose the model, **Connect and test**, **Disconnect**. The key is kept in the extension's own storage (`chrome.storage.local`; websites cannot read it) and sent only to that provider; Chrome is asked for access to that provider's address only when you connect it. The ✦ buttons then use it: Query (Write SOQL), Execute Apex (Write Apex; Explain this error → Use the fixed code), REST Explorer (Build the request; Explain this response), Code (✦ Describe a new class → editable draft → Create this class; Explain, Review, Write test class → Create this test class; Explain compile errors → Use the fixed code), Debug logs and Apex tests (Explain). AI only fills editors or shows text: nothing runs or saves until you press the usual button (with the usual org-name check). **Org**: in the extension, every org you are logged in to in this browser (its own Salesforce login: no CLI, nothing stored), with name, type (production, developer, sandbox, scratch) and whether the login still works; **Use** switches the Studio, **Log in to … ↗** opens the Salesforce login to add one (it appears when you come back). The header becomes an org dropdown when there are several. In VS Code: the Salesforce CLI's orgs. **Project**: choose the Salesforce project once and every page uses it: the workspace folder (in VS Code), a folder on this computer (read-only, nothing uploaded) or any GitHub repository and branch.
 - **Project** — a dashboard of the chosen project (with **Change** to go to Settings), in two tabs. **Overview**: components, package directories, manifests, API version and branch; click a type for its components or **Add all to package**; click a manifest to load it into Metadata. **Compare with the org**: tick the metadata types (or All) and compare them in one table (in both / only in org / only in project; components of installed packages and other namespaces are left out). **Check content** splits code in both (Apex, Visualforce, LWC, Aura) into different / same (other metadata types are not compared yet). Tick rows, then:
-  - **Restore into project** (only in org): retrieves them into the project on this computer (needs the NomadSF CLI app).
   - **Download zip** of what is in the org.
   - **Delete from org** (only in org): a destructive deploy run from the browser, so it works in the extension too.
   - **Open in Code** (one code row): the Code page with the org and project versions side by side.
-  - **Deploy to org** (in the project): code (Apex, Visualforce, LWC, Aura) deploys straight from the project in the browser, so it works in the extension with a folder or a GitHub branch; other metadata uses `sf project deploy start` through the CLI app.
+  - **Deploy to org** (in the project): validate, deploy or quick deploy the project's version with the Validate and deploy panel — source format is converted to the Metadata API's in the browser, so it works with a folder or a GitHub branch.
   - Delete and Deploy choose the tests (no tests in sandboxes only, specific classes, all local, all in org) and **Validate only** (on by default); a successful validation offers **Quick deploy**. Component and test failures are listed; everything asks for the org name and goes to Activity.
 - **Execute Anonymous** — Monaco editor with Apex highlighting and snippets (`debug`, `query`, `for`, `try`, `limits`), log level presets, run all (⌘/Ctrl+Enter) or the selection (⌘/Ctrl+Shift+Enter), compile errors marked on the line, history of the last 20 snippets.
 - **Code** — the Developer Console editor for every kind of source code the Tooling API can edit: Apex classes, triggers, Visualforce pages and components, LWC and Aura bundles (filterable lists; Monaco with Apex / JavaScript / HTML / CSS / XML colouring). **Check** compiles without saving; **Save** compiles and saves Apex and Visualforce (MetadataContainer, like the Developer Console) with problems marked on the line; LWC and Aura files save one by one (unsaved files marked •). **New …** creates any of them from a starter template (a trigger asks for its object; an LWC gets its .js and .html, Aura its .cmp and controller). Every create and save asks for the org name and goes to Activity. In production Salesforce only accepts Apex and Visualforce through a deployment, so their Save and New are off there (Developer Edition orgs allow them). **With a project open** (folder, GitHub branch or the app's project) the list also shows what is only in the project, and tags each item: ≠ different, = same, org / project when only on one side; **Check content** compares all of a kind at once, and a filter shows only the different ones (or only in org / only in project). Opening an item gives three views: **Org** (the editor), **Project** (read-only) and **Compare** (side by side, changed lines highlighted, ↑ ↓ between changes, ignore spaces, inline); LWC and Aura bundles file by file (● different, + only in the project, − only in the org). **Use project version** loads the project's code into the editor as unsaved changes (Check / Save as usual, Compare then shows no differences); **Deploy from project…** deploys a component that is only in the project, or a bundle with new files (no tests: sandboxes and developer orgs; production goes through Project → Compare with tests); **✦ Explain the difference** sends the diff of the file, not the whole file, to the AI. Configuration metadata (flows, objects, layouts…) is XML, not code: use the Metadata page for it. **Dependencies** (next to Explain) lists what the open component uses and what uses it (MetadataComponentDependency).
@@ -71,7 +69,7 @@ A hub opens on the tool used last; the pane bar shows Hub › Tool, and a narrow
 - **Deployments** — the org's deployments and validations (DeployRequest): who, when, components and tests, how many failed; click one for its component and test failures. A validation that succeeded with tests in the last 10 days can be **Quick deployed** (after the org name).
 - **Metadata** — every metadata type of the org; list components (folder types such as reports and dashboards folder by folder), build a package that mixes types, then **Download zip** (Metadata API retrieve), **package.xml** (download / copy), validate and deploy it into another org, or in the app **Retrieve into project** (`sf project retrieve start`).
 - **Compare & package** — from the project folder's git: what a branch brings into another (like a pull request, or everything that differs), a manifest with a branch's files checked against an org, a branch against the org, or two orgs; package.xml and destructiveChanges.xml, every changed file with its difference, then validate and deploy.
-- **AI help** (✦, with your own AI provider connected in Settings › AI in the browser extension; in `sf fm dashboard`, its AI page):
+- **AI help** (✦, with your own AI provider connected in Settings › AI in the browser extension):
   - **Query → Write SOQL** from a plain-English question, using the org's own objects and the fields of the objects you mention.
   - **Explain with AI** on any debug log (errors, limits, likely fix; long logs are cut down to the telling lines first).
   - **Explain failures with AI** for failed Apex tests.
@@ -83,12 +81,6 @@ A hub opens on the tool used last; the pane bar shows Hub › Tool, and a narrow
 - **Safety** — production orgs (including Dev Hubs) are shown in red. Every change — saving, validating, deploying, data, access and permissions — asks you to type the org name, in any org (in Org to org, B's name); running Apex or tests, debug logging and Log in as ask too.
 
 ## Run it
-
-```bash
-# From the plugin repository
-yarn build:studio              # builds nomadsf/ and copies the Studio into dashboard/studio
-sf fm dashboard --open         # NomadSF → Studio ↗  (http://127.0.0.1:7007/studio/)
-```
 
 ### Browser extension
 
@@ -122,7 +114,7 @@ nomadsf/
 ```bash
 yarn test        # core unit tests (vitest)
 yarn typecheck
-yarn --cwd packages/ui dev   # Studio with hot reload; /api is proxied to a running `sf fm dashboard`
+yarn --cwd packages/ui dev   # Studio with hot reload
 ```
 
 The core talks to Salesforce through a **transport**: `proxyTransport` (NomadSF app: the local server adds the token), `fetchTransport` (extension: session id). VS Code adds its own transport (through the extension), so the core and the UI stay the same everywhere.
