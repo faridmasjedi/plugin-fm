@@ -3,6 +3,15 @@
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
   next: [
+    'Each hub has its own sidebar of tools; Settings has Orgs, AI and Project',
+    'Tables: Filters by column (pick a value or type one), Ticked / Not ticked, a box per type, tabs instead of stacked tables',
+    'Validate and deploy, the same everywhere a package is built: per row to package or destructive, What’s in the package file by file, Find dependent tests, quick deploy',
+    'Compare & package: Branch ↔ Branch, From a manifest, Branch ↔ Org and Org ↔ Org',
+    'AI: write new metadata (trigger, LWC, Aura, Visualforce, field…), change a component from a sentence, SOQL from words, CSV mapping; answers formatted',
+    'Code › Other metadata: an edit is saved by deploying it, and the page says when it is',
+    'Automation: a timeline in save order, with kind and name filters',
+    'Fixed: a validation whose tests failed showed as passed; code coverage problems are shown',
+    'Fixed: Aura and LWC bundles in Org compare packages and in Project compare',
     "Release › Compare & package: what a branch brings into another, read from the project folder's git — components, every changed file, package.xml and destructiveChanges.xml to download",
     'Query: saved queries, history and files on top; run options next to the editor',
     'Record: find a user by name, and a Me button',

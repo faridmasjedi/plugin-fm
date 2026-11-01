@@ -103,8 +103,9 @@
           <section class="tool" data-title="Hubs and panes">
             <h2 id="layout">Hubs and panes</h2>
             <p>
-              The sidebar has seven hubs and Settings. A hub is a page with its tools as tabs, and opens on the tab you
-              used last.
+              The sidebar has seven hubs and Settings. A hub opens in a pane with <b>its own sidebar of tools</b> on the
+              left; the bar at the top says where you are (<i>Release › Compare &amp; package</i>). A hub opens on the
+              tool you used last. In a narrow pane the tools' sidebar shows icons only.
             </p>
             <div class="shot">
               <video
@@ -119,7 +120,7 @@
             </div>
             <ul>
               <li>
-                <b>Side by side</b>: drag a hub from the sidebar, or a tab, to the right half of a pane. Up to three
+                <b>Side by side</b>: drag a hub from the sidebar, or a tool, to the right half of a pane. Up to three
                 panes; drag the divider to resize, <b>⧉</b> opens the hub beside, <b>✕</b> closes a pane.
               </li>
               <li>
@@ -127,13 +128,21 @@
                 <kbd>Shift</kbd>+<kbd>Enter</kbd> to open beside).
               </li>
               <li>
-                <b>Results are kept</b> when you switch tabs or hubs or close another pane. <b>↻</b> on a pane starts
-                that tab again with a clean page.
+                <b>Results are kept</b> when you switch tools or hubs or close another pane. <b>↻</b> on a pane starts
+                that tool again with a clean page.
               </li>
               <li>
                 <b>⤓</b> on a pane downloads every table on the page as you see it (filters and sorting applied): an
                 <b>Excel workbook</b> with a sheet per table, a zip with a CSV per table, or JSON. The workbook and the
                 zip load back into Import / Update / Delete, Compare with CSV and Migrate.
+              </li>
+              <li>
+                <b>Tables</b> work the same everywhere. <b>Filters</b> opens conditions: choose a column (or
+                <i>Any column</i>), then pick a value from its list or type one; add as many as you need. Tables with
+                tick boxes also filter on <i>Ticked</i> / <i>Not ticked</i>. Long lists of the same thing come in
+                <b>boxes</b> — one per type, object or kind — that you open and close (<b>Open all</b> /
+                <b>Close all</b>). Related tables are <b>tabs</b> of one table, not a stack of tables. <b>Copy</b>,
+                <b>CSV</b> and <b>JSON</b> take the rows as shown.
               </li>
             </ul>
             <table class="hub-table">
@@ -151,7 +160,7 @@
               </tr>
               <tr>
                 <td><b>Release</b></td>
-                <td>Project · Metadata · Deployments</td>
+                <td>Project · Compare &amp; package · Metadata · Deployments</td>
               </tr>
               <tr>
                 <td><b>Access</b></td>
@@ -171,6 +180,10 @@
               <tr>
                 <td><b>Org to org</b></td>
                 <td>Migrate · Org compare · Access · Connected apps — for two orgs, A → B</td>
+              </tr>
+              <tr>
+                <td><b>Settings</b></td>
+                <td>Orgs · AI · Project</td>
               </tr>
             </table>
           </section>
@@ -247,15 +260,56 @@
               there (developer orgs allow it). Compile only still works.
             </div>
             <p>
-              <b>Dependencies</b> (next to <b>Explain</b> when a class, trigger or component is open): what it uses and
-              what uses it — classes, triggers, pages, flows, objects and fields.
+              <b>Dependencies</b> (next to <b>Explain</b> when a class, trigger or component is open): one table with
+              two tabs, <b>Uses</b> and <b>Used by</b>, grouped by type — classes, triggers, pages, flows, objects and
+              fields (a field shows its object). With a project chosen, the project's own references are added. Export
+              it with <b>CSV</b>.
             </p>
             <p>
               <b>Other metadata</b>: any other type — FlexiPages, flows, permission sets, layouts, custom metadata,
-              labels… Choose the type and a component to see its files; change them and <b>Validate…</b> (checks the
-              deploy without saving) or <b>Deploy</b> (you type the org name). <b>Dependencies</b> lists what it uses
-              and what uses it.
+              labels… Type the type (the list suggests as you type) and pick a component; its tabs are <b>Org</b>,
+              <b>Project</b>, <b>Compare</b> and <b>Dependencies</b>.
             </p>
+            <div class="shot">
+              <video
+                src="media/othermeta.mp4"
+                poster="media/othermeta.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ol class="steps">
+              <li>
+                Change a file in the editor. A note says it is <b>edited here only</b> — the org's file is not changed
+                yet.
+              </li>
+              <li>
+                <b>Save … edited file(s)</b> opens the <a href="#release-panel">Validate and deploy</a> panel: validate
+                first if you like, then deploy. Saving <i>is</i> the deploy; the page then says <b>✅ Saved</b> (or
+                <b>✓ Validated — nothing is saved yet</b>, or <b>❌ Not saved</b>). <b>Undo</b>
+                drops your edits.
+              </li>
+              <li><b>Deploy from project…</b> sends the project's version instead.</li>
+            </ol>
+            <p>
+              <b>✦ Describe a new …</b> (with AI): write a new component of the chosen type from a sentence. You read
+              and change its files, then <b>Create / deploy…</b> validates or deploys it. <b>✦ Change it</b> changes the
+              open component the same way.
+            </p>
+            <div class="shot">
+              <video
+                src="media/aiwrite.mp4"
+                poster="media/aiwrite.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
@@ -434,12 +488,18 @@
               ></video>
             </div>
             <p>
-              Choose an object and see <b>what runs when a record is saved</b>, in Salesforce's order of execution:
-              before-save flows, before triggers, validation rules, duplicate rules, after triggers, assignment and
-              workflow rules, after-save flows (and before-delete flows) — with which events (insert, update, delete),
-              whether each is active, and its error message or API name. Escalation and auto-response rules cannot be
-              read with the API; the page says when they also apply.
+              Choose an object and see <b>what runs when a record is saved</b>, in Salesforce's order of execution, as a
+              timeline: system validation, <b>before save</b> (before-save flows, before triggers, validation and
+              duplicate rules), saved, <b>after save</b> (after triggers, assignment and workflow rules, after-save
+              flows) and commit. Each card says which events it runs on (insert, update, delete) and whether it is
+              active; a step with many shows the first six and <b>Show all</b>.
             </p>
+            <ul>
+              <li>
+                Filter by <b>kind</b> (triggers, flows, validation rules…), by <b>name</b>, or <b>Active only</b>.
+              </li>
+              <li><b>Table</b> lists the same as rows, to sort, filter or export.</li>
+            </ul>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
@@ -851,6 +911,48 @@
 
         <section class="hub" id="hub-release" data-title="Release">
           <h2 id="release">Release</h2>
+          <section class="tool" data-title="Validate and deploy">
+            <h3 id="release-panel">Validate and deploy — the same everywhere</h3>
+            <p class="tool-lead">
+              Every place that builds a package ends with the same panel: Project, Compare &amp; package, Metadata, Org
+              compare, Code and the AI drafts.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <ul>
+              <li>
+                <b>Choose what goes in</b>: rows come in a box per metadata type. Each row has its own choice —
+                <b>to package</b> (package.xml) or <b>destructive</b> (destructiveChanges.xml) — and each box has
+                <b>+ All to package</b>, <b>− All destructive</b> and <b>Clear</b>.
+              </li>
+              <li>
+                <b>What's in the package</b> lists it file by file (A added, M changed, D deleted); click a file to see
+                its code.
+              </li>
+              <li>
+                <b>Into</b>: the org it goes to. <b>Tests</b>: no tests (not in production), these test classes, all
+                local tests, or all in the org. <b>Find dependent tests</b> names the test classes that reach the
+                classes and triggers of the package — add or remove any. <b>Deletions</b> run after the deploy, or
+                before it.
+              </li>
+              <li>
+                <b>Validate on …</b> checks it without changing the org; <b>Deploy to …</b> deploys it. After a
+                successful validation, <b>Quick deploy</b> deploys it without running the tests again. Component errors
+                and test failures show as tabs; the result goes to the Log too. <b>Deployable zip</b> downloads the
+                package for your pipeline.
+              </li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Source-format files (a project or a branch) are converted to what the Metadata API expects — objects
+                  with their fields, custom labels one by one, and so on. Anything that cannot be converted yet is named
+                  above the buttons and left out.
+                </li>
+                <li>Every validate and deploy asks you to type the org's name first.</li>
+              </ul>
+            </div>
+          </section>
           <section class="tool" data-title="Project">
             <h3 id="project">Project</h3>
             <p class="tool-lead">
@@ -875,28 +977,24 @@
             </p>
             <ol class="steps">
               <li>
-                <b>Overview</b>: the project's components by type, and its manifests (<code>package.xml</code> files).
+                <b>Overview</b>: the project's components in a box per type (<b>Open in Metadata</b> on each), and its
+                manifests (<code>package.xml</code> files).
               </li>
               <li>
-                <b>Compare with the org</b>: choose the metadata types (or <b>All</b>), then <b>Compare</b>. Every
-                component is listed as <i>same</i>, <i>different</i>, <i>only in org</i> or <i>only in project</i>;
-                filter by status. <b>Compare content</b> checks the files of components in both.
+                <b>Compare with the org</b>: choose the metadata types (or <b>All</b>), then <b>Compare</b>. The tiles
+                count <i>in both</i>, <i>only in org</i> and <i>only in project</i> — click one to show just those.
+                <b>Compare content</b> checks the files of components in both (<i>same</i> / <i>different</i>).
               </li>
-              <li>Tick the components you want, then act on just those:</li>
+              <li>
+                Choose per row or per type: <b>to package</b> deploys the project's version, <b>destructive</b> deletes
+                it from the org. <b>Add all differences</b> takes everything that differs. A <code>.forceignore</code>
+                path leaves files out.
+              </li>
+              <li>
+                Then <a href="#release-panel">What's in the package and Validate and deploy</a>. In the CLI app,
+                <b>Restore into project</b> also retrieves the ones only in the org into your folder.
+              </li>
             </ol>
-            <ul>
-              <li><b>Restore into project</b>: retrieve the ones only in the org into your project (CLI app).</li>
-              <li><b>Download zip</b>: retrieve them from the org.</li>
-              <li>
-                <b>Download delete package</b>: a zip with an empty <code>package.xml</code> and
-                <code>destructiveChanges.xml</code> for the ones only in the org — to deploy later from a pipeline.
-              </li>
-              <li><b>Delete from org</b>: delete them now (validate first if you like).</li>
-              <li>
-                <b>Deploy to org</b>: validate or deploy from the project, with a test level; then <b>Quick deploy</b> a
-                validation. Code deploys straight from the browser; other metadata needs the CLI app.
-              </li>
-            </ul>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
@@ -905,10 +1003,75 @@
               </ul>
             </div>
           </section>
+          <section class="tool" data-title="Compare &amp; package">
+            <h3 id="package">Compare &amp; package</h3>
+            <p class="tool-lead">
+              What one branch brings into another — like a pull request — as package.xml and destructiveChanges.xml; or
+              a branch against an org, a manifest, two orgs.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/package.mp4"
+                poster="media/package.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              Open the project <b>folder</b> (the repository with <code>sfdx-project.json</code>): Compare &amp; package
+              reads its git history, branches and tags, and writes nothing to it.
+            </p>
+            <ol class="steps">
+              <li>
+                <b>Branch ↔ Branch</b>: <b>Source</b> is the branch with the changes, <b>Target</b> where they go (⇄
+                swaps them). <b>Like a pull request</b> takes only what Source added since it branched from Target;
+                <b>Everything that differs</b> compares the two as they are now.
+              </li>
+              <li>
+                <b>Compare</b>: the package by type — added, changed, deleted — with a choice per row and per type.
+                Renamed files are a new component plus the old one deleted (keep the old one if you like). Custom labels
+                are counted one by one.
+              </li>
+              <li>
+                <b>Files</b> lists every file under <i>Changed / added</i> and <i>Deleted</i> (and what the
+                <code>.forceignore</code> left out). Click one to see the difference, and
+                <b>✦ Explain the difference</b> with AI.
+              </li>
+              <li>
+                Download the <b>Manifest (zip)</b> or the manifest <b>with the changed files</b>, or
+                <a href="#release-panel">validate and deploy</a> it.
+              </li>
+            </ol>
+            <p>The other ways to compare, from the switch at the top:</p>
+            <ul>
+              <li>
+                <b>From a manifest</b>: a <code>package.xml</code> (and optional destructiveChanges.xml) with the files
+                of a branch, checked against an org — what is the same, different, missing.
+              </li>
+              <li><b>Branch ↔ Org</b>: every type of a branch against the org at the top, then deploy what differs.</li>
+              <li><b>Org ↔ Org</b>: <a href="#orgdiff">Org compare</a>, here too.</li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  A GitHub project is read without its history, so it cannot be compared here; open the folder instead.
+                </li>
+                <li>
+                  <b>Find dependent tests</b> follows the classes and triggers of the package to the test classes that
+                  call them — in the branch, not only in the org.
+                </li>
+              </ul>
+            </div>
+          </section>
           <section class="tool" data-title="Metadata">
             <h3 id="metadata">Metadata</h3>
             <p class="tool-lead">Build a package (or a delete package) from any metadata of the org.</p>
-            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
                 src="media/metadata.mp4"
@@ -923,8 +1086,9 @@
             <p>Build a package by hand from any metadata type of the org.</p>
             <ol class="steps">
               <li>
-                Choose a type, tick components, <b>Add to package</b> — a package can mix types. What you ticked is
-                listed under the buttons; click a row to see the component itself (its XML or code).
+                Choose a type, tick components, <b>Add to package</b> — a package can mix types. The package is listed
+                in a box per type (click a row to remove it), then <b>What's in the package</b>, where a click shows the
+                component itself (its XML or code).
               </li>
               <li>
                 <b>Download zip</b> retrieves them; <b>package.xml</b> / <b>Copy package.xml</b> give the manifest;
@@ -942,8 +1106,8 @@
               <h4>Good to know</h4>
               <ul>
                 <li>
-                  Nothing is deployed from here: you download the zip or the manifest and deploy it with your pipeline,
-                  or from <a href="#orgdiff">Org compare</a>.
+                  Deploy the package to another org with <a href="#release-panel">Validate and deploy</a> under it —
+                  choose the org in <b>Into</b> — or download it for your pipeline.
                 </li>
               </ul>
             </div>
@@ -1063,10 +1227,14 @@
               ></video>
             </div>
             <p>
-              Show all, only permission sets or only groups; see who has one, assign it to users (found by usernames,
-              profile, role or public group, with an optional expiry) or remove it — you type the org name first.
-              <b>New permission set / New permission set group</b> creates one (label and API name), ready for
-              Permissions.
+              One table, with a box for <b>Permission set</b> and one for <b>Permission set group</b> (filter it, or
+              export it as CSV). Click a row: its <b>Assigned</b> tab lists who has it — tick users and
+              <b>Remove selected…</b> — and <b>Assign to users</b> finds users by name, username, profile, role or
+              public group, with an optional expiry. You type the org name first.
+            </p>
+            <p>
+              <b>+ New permission set or group</b>, in its own box at the top, creates one (label and API name), ready
+              for Permissions.
             </p>
             <div class="good-to-know">
               <h4>Good to know</h4>
@@ -1717,19 +1885,21 @@
             </div>
             <p>
               A (the source) and B (the target) side by side — sandbox ↔ sandbox, or ↔ production: choose the metadata
-              types and <b>Compare</b>. See what is only in A, only in B, or different, and <b>Compare content</b> of
-              those in both.
+              types (<b>Common</b> picks the usual ones) and <b>Compare</b>. The tiles count what is
+              <i>only in source</i>, <i>only in target</i> and <i>in both</i> — click one to show just those.
+              <b>Compare content</b> of those in both splits them into <i>different</i> and <i>same</i>.
             </p>
             <ol class="steps">
-              <li>Tick what to move (<b>Select the difference</b> ticks everything only in A or different).</li>
               <li>
-                <b>Build package</b> retrieves the ticked components from A into a zip with
-                <code>package.xml</code> (and <code>destructiveChangesPost.xml</code> with <i>also delete</i>, for those
-                only in B).
+                The components come in a box per type, with what each holds (2 only in source, 1 different…). Open a box
+                and choose per row — <b>Add to package</b> (from A) or <b>Destructive change</b> (delete from B) — or
+                for the whole type with <b>+ All to package</b> / <b>− All destructive</b>.
+                <b>Add all differences</b> takes everything only in A or different.
               </li>
+              <li><b>What's in the package</b> lists every file; click one to see A and B side by side.</li>
               <li>
-                Download it, or validate, deploy and quick deploy it into B with a test level — you type B's name, and a
-                production B is shown in red.
+                <a href="#release-panel">Validate and deploy</a> into B — <b>Find dependent tests</b>, validate, then
+                deploy or quick deploy. You type B's name; a production B is shown in red. Or download the package.
               </li>
             </ol>
           </section>
@@ -2008,6 +2178,7 @@
         <section class="hub" id="hub-setup" data-title="Settings">
           <section class="tool" data-title="Settings">
             <h2 id="settings">Settings</h2>
+            <p class="tool-lead">Three tools in the Settings sidebar: <b>Orgs</b>, <b>AI</b> and <b>Project</b>.</p>
             <div class="shot">
               <video
                 src="media/settings.mp4"
@@ -2019,23 +2190,59 @@
                 controls
               ></video>
             </div>
-            <p>
-              <b>Org</b>: the orgs you are logged in to. <b>Project</b>: a folder on this computer or a GitHub
-              repository and branch. <b>AI</b> (browser extension): your own provider for the ✦ buttons — in the CLI app
-              it is on the app's AI page.
-            </p>
+            <ul>
+              <li><b>Orgs</b>: the orgs you are logged in to.</li>
+              <li>
+                <b>AI</b> (browser extension): your own provider for the ✦ buttons — in the CLI app it is on the app's
+                AI page.
+              </li>
+              <li>
+                <b>Project</b>: a folder on this computer or a GitHub repository and branch. Every page uses it; Compare
+                &amp; package needs the <b>folder</b>, as it reads the project's git history.
+              </li>
+            </ul>
           </section>
           <section class="tool" data-title="AI">
             <h2 id="ai">AI</h2>
             <p>
               In <b>Settings → AI</b>, connect your own provider: Anthropic Claude, OpenAI, Gemini, Mistral, Groq,
               OpenRouter (key or sign-in), GitHub Models, Ollama on your computer, or any OpenAI-format endpoint. The ✦
-              buttons then write SOQL and Apex, explain debug logs, test failures, responses and code differences,
-              review code, write test classes, and choose objects for backups and migrations.
+              buttons then:
             </p>
+            <ul>
+              <li>
+                <b>Write</b>: SOQL from a sentence (Query, and the query of Import / Update / Delete), Apex, test
+                classes, and <b>new metadata</b> — a trigger, a Visualforce page, an LWC or Aura bundle, a field, any
+                other type (Code, and Code › Other metadata).
+              </li>
+              <li>
+                <b>Change</b> an open component from a sentence (Code › Other metadata › <b>Change it</b>): the changed
+                files show as unsaved edits to read first.
+              </li>
+              <li>
+                <b>Explain and review</b>: code, debug logs, test failures, responses, differences between two versions.
+                Answers come formatted — headings, lists, tables and code blocks.
+              </li>
+              <li>
+                <b>Choose</b>: objects for backups and migrations, and which CSV column goes to which field on an
+                import.
+              </li>
+            </ul>
+            <div class="shot">
+              <video
+                src="media/aireview.mp4"
+                poster="media/aireview.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <div class="callout">
-              AI only fills editors or shows text. Nothing runs or saves until you press the usual button. The key stays
-              in the extension's own storage and goes only to the provider you chose.
+              AI only fills editors or shows text. Nothing runs or saves until you press the usual button — metadata the
+              AI writes goes through the same Validate and deploy panel as everything else. The key stays in the
+              extension's own storage and goes only to the provider you chose.
             </div>
           </section>
         </section>
