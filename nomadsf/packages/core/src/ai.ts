@@ -205,6 +205,9 @@ export type BrowserAiTask =
   | 'change-metadata'
   | 'map-csv';
 const MAX_INPUT = 60_000;
+/** How explanations are written, so the Studio shows them well (its Markdown: headings, lists, tables, code). */
+const FORMAT =
+  'Write Markdown: short headings, lists, a table when comparing items; code only in fenced blocks, never inside a table cell, and no HTML (no <br>).';
 
 const SYSTEM: Record<BrowserAiTask, string> = {
   'pick-data':
@@ -408,7 +411,7 @@ export function aiTaskPrompt(task: BrowserAiTask, input: Record<string, unknown>
   // Code tasks: the code plus any extra context (errors, the class name…)
   const extra = String(input.extra ?? '').trim();
   return {
-    system: SYSTEM[task],
+    system: `${SYSTEM[task]} ${FORMAT}`,
     message:
       task === 'explain-log'
         ? `Debug log:\n${reduceDebugLog(text)}`
