@@ -10,6 +10,7 @@ import {
   deployZip,
   destructiveZip,
   makeZip,
+  parseDeployResult,
   quickDeploy,
   type HttpRequest,
 } from '../src/index.js';
@@ -73,6 +74,28 @@ describe('deploy', () => {
     expect(out.testFailures).toEqual([{ name: 'FooTest', method: 't1', message: 'boom' }]);
     expect(progress[0]).toBe('Failed 4/4');
     await expect(deployZip(client, 'x', { testLevel: 'RunSpecifiedTests' })).rejects.toThrow('test classes');
+  });
+
+  it("reads the deploy's own success, not a component's (Salesforce lists the details first)", () => {
+    const failedTests = `<checkOnly>true</checkOnly><details><componentSuccesses><fullName>InvoiceTrigger</fullName><success>true</success></componentSuccesses>
+<runTestResult><codeCoverageWarnings><id>01q1</id><message>Test coverage of selected Apex Trigger is 0%, at least 1% test coverage is required</message><name>OpportunityTrigger</name></codeCoverageWarnings>
+<failures><name>InvoiceServiceTest</name><methodName>t1</methodName><message>Expected: 1, Actual: 0</message></failures></runTestResult></details>
+<done>true</done><numberComponentsDeployed>1</numberComponentsDeployed><numberComponentsTotal>1</numberComponentsTotal><numberTestErrors>1</numberTestErrors>
+<numberTestsCompleted>6</numberTestsCompleted><status>Failed</status><success>false</success>`;
+    expect(parseDeployResult(failedTests, '0AfX')).toMatchObject({
+      success: false,
+      status: 'Failed',
+      checkOnly: true,
+      componentsDeployed: 1,
+      testsRun: 7,
+      testFailures: [{ name: 'InvoiceServiceTest', method: 't1', message: 'Expected: 1, Actual: 0' }],
+      coverageWarnings: [
+        {
+          name: 'OpportunityTrigger',
+          message: 'Test coverage of selected Apex Trigger is 0%, at least 1% test coverage is required',
+        },
+      ],
+    });
   });
 
   it('deletes with an empty package plus destructiveChanges.xml', async () => {
