@@ -6,13 +6,16 @@ window.NOMADSF_WHATS_NEW = {
     'Each hub has its own sidebar of tools; Settings has Orgs, AI and Project',
     'Tables: Filters by column (pick a value or type one), Ticked / Not ticked, a box per type, tabs instead of stacked tables',
     'Validate and deploy, the same everywhere a package is built: per row to package or destructive, What’s in the package file by file, Find dependent tests, quick deploy',
-    'Compare & package: Branch ↔ Branch, From a manifest, Branch ↔ Org and Org ↔ Org',
+    "Release › Compare & package: what a branch brings into another, read from the project folder's git — also a manifest, a branch against the org, or two orgs; package.xml, destructiveChanges.xml and every changed file",
     'AI: write new metadata (trigger, LWC, Aura, Visualforce, field…), change a component from a sentence, SOQL from words, CSV mapping; answers formatted',
     'Code › Other metadata: an edit is saved by deploying it, and the page says when it is',
     'Automation: a timeline in save order, with kind and name filters',
     'Fixed: a validation whose tests failed showed as passed; code coverage problems are shown',
     'Fixed: Aura and LWC bundles in Org compare packages and in Project compare',
-    "Release › Compare & package: what a branch brings into another, read from the project folder's git — components, every changed file, package.xml and destructiveChanges.xml to download",
+    'VS Code and the browser extension no longer look for a local app',
+  ],
+  '2.2.1': ['Migrate plan fits narrow panes; Related fields after a lookup that failed'],
+  '2.2.0': [
     'Query: saved queries, history and files on top; run options next to the editor',
     'Record: find a user by name, and a Me button',
     'Import / Update / Delete: upsert matches by Id or an External ID field you pick from a list',
@@ -44,9 +47,7 @@ window.NOMADSF_WHATS_NEW = {
     'Org to org › Connected apps: the users of an app in both orgs, and compare two of them',
     'Users: save a snapshot of a user (one CSV) and make a user in any org match it',
     'Data › Compare with CSV: a CSV next to the org, field by field; update and insert to match it',
-
     'Migrate › Plan: every object with its children and parents in one table; condition, limit and fields per object',
-
     '⤓ downloads an Excel workbook (a sheet per table); Import, Compare with CSV and Migrate read workbooks and zips',
     'Migrate from files: copy the sheets of a workbook into an org, keeping the links between them',
     'Record › Related: a record and what points to it as a tree; tick, then copy to another org or save as Excel to copy later',
