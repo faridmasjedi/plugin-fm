@@ -29,7 +29,10 @@ function zipOf(files: Record<string, string>): string {
   }
 }
 
-/** A fake org: lists components and answers retrieves with the given files. */
+/**
+ * A fake org: lists components and answers retrieves with the given files. Like Salesforce, a retrieve lists a
+ * bundle file by file ("card/card.js"), while listMetadata names the bundle.
+ */
 function org(
   components: Array<{ type: string; fullName: string; fileName: string; ns?: string }>,
   files: Record<string, string>
@@ -55,6 +58,17 @@ function org(
     if (body.includes('<met:retrieve>')) return xml('<result><id>09S1</id></result>');
     if (body.includes('checkRetrieveStatus')) {
       const props = components
+        .flatMap((c) =>
+          c.type.endsWith('Bundle')
+            ? Object.keys(files)
+                .filter((f) => f.startsWith(`unpackaged/${c.fileName}/`) && !f.endsWith('-meta.xml'))
+                .map((f) => ({
+                  ...c,
+                  fullName: f.slice(`unpackaged/${c.fileName}/`.length).replace(/^/, `${c.fullName}/`),
+                  fileName: f.slice('unpackaged/'.length),
+                }))
+            : [c]
+        )
         .map(
           (c) =>
             `<fileProperties><fullName>${c.fullName}</fullName><type>${c.type}</type><fileName>unpackaged/${c.fileName}</fileName></fileProperties>`
@@ -74,6 +88,7 @@ describe('org diff', () => {
     { type: 'ApexClass', fullName: 'New', fileName: 'classes/New.cls' },
     { type: 'ApexClass', fullName: 'Pkg', fileName: 'classes/pkg__Pkg.cls', ns: 'pkg' },
     { type: 'LightningComponentBundle', fullName: 'card', fileName: 'lwc/card' },
+    { type: 'AuraDefinitionBundle', fullName: 'welcome', fileName: 'aura/welcome' },
   ];
   const targetComponents = [
     { type: 'ApexClass', fullName: 'A', fileName: 'classes/A.cls' },
@@ -88,6 +103,10 @@ describe('org diff', () => {
     'unpackaged/classes/B.cls': 'class B { /* v2 */ }',
     'unpackaged/classes/New.cls': 'class New {}',
     'unpackaged/lwc/card/card.js': 'export default 1;',
+    'unpackaged/lwc/card/card.js-meta.xml': '<LightningComponentBundle/>',
+    'unpackaged/aura/welcome/welcome.cmp': '<aura:component/>',
+    'unpackaged/aura/welcome/welcomeController.js': '({})',
+    'unpackaged/aura/welcome/welcome.cmp-meta.xml': '<AuraDefinitionBundle/>',
   });
   const target = org(targetComponents, {
     'unpackaged/package.xml': '<Package/>',
@@ -142,5 +161,20 @@ describe('org diff', () => {
     );
     expect(pkg.components).toBe(2);
     await expect(buildDiffPackage(source, [])).rejects.toThrow('Choose');
+  });
+
+  it('packs a bundle with all its files (a retrieve lists them one by one)', async () => {
+    const pkg = await buildDiffPackage(source, [
+      { type: 'AuraDefinitionBundle', name: 'welcome' },
+      { type: 'LightningComponentBundle', name: 'card' },
+    ]);
+    expect([...(await readZip(fromBase64(pkg.zipBase64))).keys()].sort()).toEqual([
+      'aura/welcome/welcome.cmp',
+      'aura/welcome/welcome.cmp-meta.xml',
+      'aura/welcome/welcomeController.js',
+      'lwc/card/card.js',
+      'lwc/card/card.js-meta.xml',
+      'package.xml',
+    ]);
   });
 });
