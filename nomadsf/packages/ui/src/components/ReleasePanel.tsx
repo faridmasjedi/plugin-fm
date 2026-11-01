@@ -12,6 +12,7 @@ import { detectHost, orgFacts } from '../host';
 import { Status } from '../statusLog';
 import { askTyped } from './Dialogs';
 import { DataTable, download } from './DataTable';
+import { TableTabs } from './TableTabs';
 
 /**
  * Validate, deploy and quick deploy a package — the same everywhere a package is built (Compare & package, Project,
@@ -312,20 +313,38 @@ export function ReleasePanel(props: ReleasePanelProps) {
               </button>
             </div>
           )}
-          {outcome.componentFailures.length > 0 && (
-            <DataTable
-              columns={['type', 'name', 'line', 'problem']}
-              rows={outcome.componentFailures.map((f, i) => ({ ...f, key: i }))}
-              rowKey="key"
-              name="component-failures"
-            />
-          )}
-          {outcome.testFailures.length > 0 && (
-            <DataTable
-              columns={['name', 'method', 'message']}
-              rows={outcome.testFailures.map((f, i) => ({ ...f, key: i }))}
-              rowKey="key"
-              name="test-failures"
+          {(outcome.componentFailures.length > 0 || outcome.testFailures.length > 0) && (
+            <TableTabs
+              tabs={[
+                {
+                  id: 'components',
+                  label: 'Component errors',
+                  count: outcome.componentFailures.length,
+                  content: (
+                    <DataTable
+                      columns={['type', 'name', 'line', 'problem']}
+                      rows={outcome.componentFailures.map((f, i) => ({ ...f, key: i }))}
+                      rowKey="key"
+                      name="component-failures"
+                      groupBy="type"
+                    />
+                  ),
+                },
+                {
+                  id: 'tests',
+                  label: 'Test failures',
+                  count: outcome.testFailures.length,
+                  content: (
+                    <DataTable
+                      columns={['name', 'method', 'message']}
+                      rows={outcome.testFailures.map((f, i) => ({ ...f, key: i }))}
+                      rowKey="key"
+                      name="test-failures"
+                    />
+                  ),
+                },
+              ]}
+              initial={outcome.componentFailures.length ? 'components' : 'tests'}
             />
           )}
         </div>

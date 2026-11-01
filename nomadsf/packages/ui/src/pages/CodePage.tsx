@@ -38,7 +38,6 @@ import { askConfirm, askText } from '../components/Dialogs';
 import { MetadataSource } from '../components/MetadataSource';
 import { SHOW, TAG, type CodeStatus, type Show } from '../components/codeStatus';
 import { Dependencies } from '../components/Dependencies';
-import { ProjectDependencies } from '../components/ProjectDependencies';
 import { Status } from '../statusLog';
 
 const KINDS: Array<{ id: CodeKind; label: string; one: string }> = [
@@ -610,18 +609,12 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
           )}
           {showDeps && item && (
             <div className="section">
-              {inOrg && (
-                <>
-                  <h4 className="deps-where">In {studio.org.label}</h4>
-                  <Dependencies id={item.id} name={item.name} />
-                </>
-              )}
-              {projectOpen && index.has(item.name) && (
-                <>
-                  <h4 className="deps-where">In the project</h4>
-                  <ProjectDependencies type={CODE_LAYOUT[item.kind].type} name={item.name} />
-                </>
-              )}
+              <Dependencies
+                id={inOrg ? item.id : undefined}
+                type={CODE_LAYOUT[item.kind].type}
+                name={item.name}
+                inProject={projectOpen && index.has(item.name)}
+              />
             </div>
           )}
           {item && projectFiles && view !== 'org' ? (

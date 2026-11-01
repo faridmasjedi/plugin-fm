@@ -12,6 +12,7 @@ import {
   type PermissionHolder,
   type Row,
 } from '@nomadsf/core';
+import { TableTabs } from '../components/TableTabs';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { ManagedList } from '../components/ManagedList';
 import { storage, useStudio } from '../context';
@@ -285,39 +286,66 @@ function AppDetails({ appId }: { appId: string }) {
   return (
     <>
       {status && <Status text={status} block />}
-      <h4>Settings</h4>
-      {!details ? (
-        <p className="muted">Reading…</p>
-      ) : (
-        <DataTable columns={['Setting', 'Value']} rows={settings} rowKey="Setting" name={`app-${appId}-settings`} />
-      )}
-      <h4>Pre-authorized: profiles and permission sets that may use it</h4>
-      <p className="muted">
-        Counts when the app's OAuth policy is "Admin approved users are pre-authorized"
-        {details && 'OptionsAllowAdminApprovedUsersOnly' in details
-          ? ` (here: ${details.OptionsAllowAdminApprovedUsersOnly ? 'yes' : 'no — all users may self-authorize'})`
-          : ''}
-        .
-      </p>
-      {!holders ? (
-        <p className="muted">Reading…</p>
-      ) : (
-        <ManagedList
-          rows={holders}
-          columns={['Name', 'Kind']}
-          what="profile or permission set"
-          whatPlural="profiles or permission sets"
-          removeKey="AccessId"
-          onRemove={async (r) => fail(await revokeSetupAccess(client, [String(r.AccessId)]))}
-          choices={(all ?? [])
-            .filter((h) => h.kind !== 'Permission set group')
-            .filter((h) => !holders.some((x) => String(x.PermissionSetId).slice(0, 15) === h.id.slice(0, 15)))
-            .map((h) => ({ id: h.id, label: h.name, detail: h.kind }))}
-          addLabel="Pre-authorize a profile or permission set"
-          onAdd={async (c) => fail(await grantSetupAccess(client, c.id, [appId]))}
-          onChanged={() => void loadHolders()}
-        />
-      )}
+      <TableTabs
+        tabs={[
+          {
+            id: 'settings',
+            label: 'Settings',
+            count: settings.length,
+            content: (
+              <>
+                {!details ? (
+                  <p className="muted">Reading…</p>
+                ) : (
+                  <DataTable
+                    columns={['Setting', 'Value']}
+                    rows={settings}
+                    rowKey="Setting"
+                    name={`app-${appId}-settings`}
+                  />
+                )}
+              </>
+            ),
+          },
+          {
+            id: 'preauthorized',
+            label: 'Pre-authorized profiles and permission sets',
+            count: holders?.length,
+            content: (
+              <>
+                <p className="muted">
+                  Counts when the app's OAuth policy is "Admin approved users are pre-authorized"
+                  {details && 'OptionsAllowAdminApprovedUsersOnly' in details
+                    ? ` (here: ${
+                        details.OptionsAllowAdminApprovedUsersOnly ? 'yes' : 'no — all users may self-authorize'
+                      })`
+                    : ''}
+                  .
+                </p>
+                {!holders ? (
+                  <p className="muted">Reading…</p>
+                ) : (
+                  <ManagedList
+                    rows={holders}
+                    columns={['Name', 'Kind']}
+                    what="profile or permission set"
+                    whatPlural="profiles or permission sets"
+                    removeKey="AccessId"
+                    onRemove={async (r) => fail(await revokeSetupAccess(client, [String(r.AccessId)]))}
+                    choices={(all ?? [])
+                      .filter((h) => h.kind !== 'Permission set group')
+                      .filter((h) => !holders.some((x) => String(x.PermissionSetId).slice(0, 15) === h.id.slice(0, 15)))
+                      .map((h) => ({ id: h.id, label: h.name, detail: h.kind }))}
+                    addLabel="Pre-authorize a profile or permission set"
+                    onAdd={async (c) => fail(await grantSetupAccess(client, c.id, [appId]))}
+                    onChanged={() => void loadHolders()}
+                  />
+                )}
+              </>
+            ),
+          },
+        ]}
+      />
     </>
   );
 }

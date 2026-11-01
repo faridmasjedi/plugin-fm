@@ -235,6 +235,7 @@ export function FieldUsagePage() {
                   ) : (
                     <DataTable
                       columns={['type', 'name']}
+                      groupBy="type"
                       rows={deps.map((d) => ({ ...d }))}
                       rowKey="id"
                       name={`${field.name}-references`}

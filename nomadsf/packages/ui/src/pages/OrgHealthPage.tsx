@@ -7,6 +7,7 @@ import {
   type Row,
   type SecurityReport,
 } from '@nomadsf/core';
+import { TableTabs, type TableTab } from '../components/TableTabs';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { Status } from '../statusLog';
@@ -64,21 +65,24 @@ export function OrgHealthPage() {
     setTab(next);
     storage.set('health.tab', next);
   };
-  const section = (title: string, hint: string, rows: Row[], columns: string[], name: string) => (
-    <div className="section">
-      <h3>
-        {title} <span className={`pill ${rows.length ? 'bad' : 'good'}`}>{rows.length}</span>
-      </h3>
-      <p className="muted" style={{ margin: 0 }}>
-        {hint}
-      </p>
-      {rows.length ? (
-        <DataTable columns={columns} rows={rows} rowKey="__none" name={`${org.label}-${name}`} />
-      ) : (
-        <p className="good">✓ None.</p>
-      )}
-    </div>
-  );
+  /** One check of the security report: a tab with its count, its hint and its table. */
+  const section = (title: string, hint: string, rows: Row[], columns: string[], name: string): TableTab => ({
+    id: name,
+    label: title,
+    count: rows.length,
+    content: (
+      <div className="section">
+        <p className="muted" style={{ margin: 0 }}>
+          {hint}
+        </p>
+        {rows.length ? (
+          <DataTable columns={columns} rows={rows} rowKey="__none" name={`${org.label}-${name}`} />
+        ) : (
+          <p className="good">✓ None.</p>
+        )}
+      </div>
+    ),
+  });
 
   return (
     <div className="page">
@@ -140,48 +144,52 @@ export function OrgHealthPage() {
               <b>{report.staleTokens.length}</b>unused OAuth tokens
             </div>
           </div>
-          {section(
-            'Powerful permissions',
-            'Active users with Modify All Data, View All Data, Manage Users, Author Apex, Customize Application or API Enabled — and what gives it to them.',
-            report.powerUsers,
-            ['Name', 'Username', 'Permissions', 'GrantedBy'],
-            'powerful-permissions'
-          )}
-          {section(
-            `Not logged in for ${days} days`,
-            'Active users who have not logged in (or never have): candidates to freeze or deactivate.',
-            report.dormant,
-            ['Name', 'Username', 'Profile.Name', 'LastLoginDate', 'CreatedDate'],
-            'dormant-users'
-          )}
-          {section(
-            'Unassigned permission sets',
-            'Permission sets (not from a package) that nobody has: candidates to remove.',
-            report.unusedPermissionSets,
-            ['Label', 'Name', 'CreatedDate', 'LastModifiedDate'],
-            'unassigned-permission-sets'
-          )}
-          {section(
-            `OAuth tokens not used for ${days} days`,
-            'Connected app sessions nobody uses: revoke them in Setup › Connected Apps OAuth Usage.',
-            report.staleTokens,
-            ['AppName', 'User.Name', 'User.Username', 'UseCount', 'LastUsedDate'],
-            'stale-oauth'
-          )}
-          {section(
-            'Licenses held by inactive users',
-            'Permission set licenses still assigned to deactivated users.',
-            report.inactiveWithLicenses,
-            ['Assignee.Name', 'Assignee.Username', 'PermissionSetLicense.MasterLabel'],
-            'inactive-licenses'
-          )}
-          {section(
-            'Health Check risks',
-            "Salesforce's own Security Health Check: settings below the standard.",
-            report.risks,
-            ['RiskType', 'Setting', 'SettingGroup', 'OrgValue', 'StandardValue'],
-            'health-check'
-          )}
+          <TableTabs
+            tabs={[
+              section(
+                'Powerful permissions',
+                'Active users with Modify All Data, View All Data, Manage Users, Author Apex, Customize Application or API Enabled — and what gives it to them.',
+                report.powerUsers,
+                ['Name', 'Username', 'Permissions', 'GrantedBy'],
+                'powerful-permissions'
+              ),
+              section(
+                `Not logged in for ${days} days`,
+                'Active users who have not logged in (or never have): candidates to freeze or deactivate.',
+                report.dormant,
+                ['Name', 'Username', 'Profile.Name', 'LastLoginDate', 'CreatedDate'],
+                'dormant-users'
+              ),
+              section(
+                'Unassigned permission sets',
+                'Permission sets (not from a package) that nobody has: candidates to remove.',
+                report.unusedPermissionSets,
+                ['Label', 'Name', 'CreatedDate', 'LastModifiedDate'],
+                'unassigned-permission-sets'
+              ),
+              section(
+                `OAuth tokens not used for ${days} days`,
+                'Connected app sessions nobody uses: revoke them in Setup › Connected Apps OAuth Usage.',
+                report.staleTokens,
+                ['AppName', 'User.Name', 'User.Username', 'UseCount', 'LastUsedDate'],
+                'stale-oauth'
+              ),
+              section(
+                'Licenses held by inactive users',
+                'Permission set licenses still assigned to deactivated users.',
+                report.inactiveWithLicenses,
+                ['Assignee.Name', 'Assignee.Username', 'PermissionSetLicense.MasterLabel'],
+                'inactive-licenses'
+              ),
+              section(
+                'Health Check risks',
+                "Salesforce's own Security Health Check: settings below the standard.",
+                report.risks,
+                ['RiskType', 'Setting', 'SettingGroup', 'OrgValue', 'StandardValue'],
+                'health-check'
+              ),
+            ]}
+          />
         </>
       )}
 

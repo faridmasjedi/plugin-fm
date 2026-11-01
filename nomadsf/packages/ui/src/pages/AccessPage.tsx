@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   assignAccess,
   assignments,
@@ -11,6 +11,7 @@ import {
   type QueryResult,
   type Row,
 } from '@nomadsf/core';
+import { TableTabs } from '../components/TableTabs';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { PermissionsExplorer } from '../components/PermissionsExplorer';
 import { UserEditor } from '../components/UserEditor';
@@ -20,8 +21,9 @@ import { storage, useStudio } from '../context';
 import { NewPermissionSet } from './AccessManagePages';
 import { Status } from '../statusLog';
 
-type By = 'usernames' | 'profile' | 'role' | 'publicGroup';
+type By = 'names' | 'usernames' | 'profile' | 'role' | 'publicGroup';
 const BY_LABEL: Record<By, string> = {
+  names: 'Names (all or part of a name, comma or new line: Ann, Bob Ray)',
   usernames: 'Usernames (comma or new line)',
   profile: 'Profile name',
   role: 'Role name',
@@ -207,12 +209,10 @@ export function PermissionSetsPage() {
 
   // ---------- permission sets ----------
   const [targets, setTargets] = useState<AccessTarget[]>([]);
-  const [filter, setFilter] = useState('');
-  const [kindShown, setKindShown] = useState<'all' | AccessTarget['kind']>(() => storage.get('access.kind', 'all'));
   const [targetId, setTargetId] = useState('');
   const [assigned, setAssigned] = useState<QueryResult | null>(null);
   const [assignedSel, setAssignedSel] = useState<Set<string>>(new Set());
-  const [by, setBy] = useState<By>('usernames');
+  const [by, setBy] = useState<By>('names');
   const [value, setValue] = useState('');
   const [expires, setExpires] = useState('');
   const [users, setUsers] = useState<Row[]>([]);
@@ -228,15 +228,6 @@ export function PermissionSetsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client]);
   const target = targets.find((t) => t.id === targetId);
-  const shown = useMemo(
-    () =>
-      targets.filter(
-        (t) =>
-          (kindShown === 'all' || t.kind === kindShown) &&
-          (!filter || `${t.label} ${t.name}`.toLowerCase().includes(filter.toLowerCase()))
-      ),
-    [targets, filter, kindShown]
-  );
 
   const loadAssigned = async (t = target) => {
     if (!t) return;
@@ -256,7 +247,11 @@ export function PermissionSetsPage() {
     try {
       const list = await findUsers(
         client,
-        by === 'usernames' ? { usernames: value.split(/[\s,;]+/).filter(Boolean) } : { [by]: value.trim() }
+        by === 'usernames'
+          ? { usernames: value.split(/[\s,;]+/).filter(Boolean) }
+          : by === 'names'
+          ? { names: value.split(/[,;\n]+/).filter((n) => n.trim()) }
+          : { [by]: value.trim() }
       );
       setUsers(list);
       setUserSel(new Set(list.map((u) => String(u.Id))));
@@ -312,111 +307,106 @@ export function PermissionSetsPage() {
       <div className="card section">
         <h3>Permission sets &amp; groups</h3>
         <NewPermissionSet onCreated={() => void reloadTargets()} />
-        <div className="form">
-          <div className="segmented" role="group" aria-label="Show">
-            {(
-              [
-                ['all', `All (${targets.length})`],
-                ['permset', `Permission sets (${targets.filter((t) => t.kind === 'permset').length})`],
-                ['group', `Permission set groups (${targets.filter((t) => t.kind === 'group').length})`],
-              ] as Array<['all' | AccessTarget['kind'], string]>
-            ).map(([id, text]) => (
-              <button
-                key={id}
-                className={kindShown === id ? 'active' : ''}
-                onClick={() => {
-                  setKindShown(id);
-                  storage.set('access.kind', id);
-                }}
-              >
-                {text}
-              </button>
-            ))}
-          </div>
-          <input placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} />
-          <select value={targetId} onChange={(e) => setTargetId(e.target.value)} style={{ minWidth: 340 }}>
-            <option value="">
-              Choose{' '}
-              {kindShown === 'group'
-                ? 'a permission set group'
-                : kindShown === 'permset'
-                ? 'a permission set'
-                : 'a permission set or group'}{' '}
-              ({shown.length})
-            </option>
-            {shown.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.kind === 'group' ? '▣ ' : ''}
-                {t.label} ({t.name})
-              </option>
-            ))}
-          </select>
-        </div>
+        <DataTable
+          columns={['label', 'name', 'kind']}
+          rows={targets.map((t) => ({
+            key: t.id,
+            label: t.label,
+            name: t.name,
+            kind: t.kind === 'group' ? 'Permission set group' : 'Permission set',
+          }))}
+          rowKey="key"
+          name={`${org.label}-permission-sets`}
+          groupBy="kind"
+          selectedKey={targetId}
+          onRowClick={(row) => setTargetId(String(row.key))}
+          note={<span>· click one to see who has it, or to assign it</span>}
+        />
         <Status text={status} block />
         {target && (
-          <div className="grid2">
-            <div className="section">
-              <h3>Assigned ({assigned?.rows.length ?? 0})</h3>
-              {assigned && (
-                <DataTable
-                  columns={[
-                    'Assignee.Name',
-                    'Assignee.Username',
-                    'Assignee.Profile.Name',
-                    'Assignee.IsActive',
-                    'ExpirationDate',
-                  ]}
-                  rows={assigned.rows}
-                  name={`${target.name}-assignments`}
-                  selected={assignedSel}
-                  onSelectedChange={setAssignedSel}
-                />
-              )}
-              <div className="form">
-                <button className="danger" disabled={assignedSel.size === 0} onClick={() => void remove()}>
-                  Remove {assignedSel.size || ''} selected…
-                </button>
-              </div>
-            </div>
-            <div className="section">
-              <h3>Assign to users</h3>
-              <div className="form">
-                <label>
-                  Find users by
-                  <select value={by} onChange={(e) => setBy(e.target.value as By)}>
-                    {(Object.keys(BY_LABEL) as By[]).map((b) => (
-                      <option key={b} value={b}>
-                        {BY_LABEL[b].split(' (')[0]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Expires (optional)
-                  <input type="date" value={expires} onChange={(e) => setExpires(e.target.value)} />
-                </label>
-              </div>
-              <label className="muted" style={{ fontSize: 12.5 }}>
-                {BY_LABEL[by]}
-                <textarea rows={2} value={value} onChange={(e) => setValue(e.target.value)} />
-              </label>
-              <div className="form">
-                <button onClick={() => void find()}>Find users</button>
-                <button className="primary" disabled={userSel.size === 0} onClick={() => void assign()}>
-                  Assign to {userSel.size || ''} selected…
-                </button>
-              </div>
-              {users.length > 0 && (
-                <DataTable
-                  columns={['Name', 'Username', 'Profile.Name']}
-                  rows={users}
-                  name="users"
-                  selected={userSel}
-                  onSelectedChange={setUserSel}
-                />
-              )}
-            </div>
-          </div>
+          <TableTabs
+            key={target.id}
+            title={
+              <>
+                {target.kind === 'group' ? '▣ ' : ''}
+                {target.label} <span className="muted">({target.name})</span>
+              </>
+            }
+            tabs={[
+              {
+                id: 'assigned',
+                label: 'Assigned',
+                count: assigned?.rows.length ?? 0,
+                content: (
+                  <div className="section">
+                    {assigned && (
+                      <DataTable
+                        columns={[
+                          'Assignee.Name',
+                          'Assignee.Username',
+                          'Assignee.Profile.Name',
+                          'Assignee.IsActive',
+                          'ExpirationDate',
+                        ]}
+                        rows={assigned.rows}
+                        name={`${target.name}-assignments`}
+                        selected={assignedSel}
+                        onSelectedChange={setAssignedSel}
+                      />
+                    )}
+                    <div className="form">
+                      <button className="danger" disabled={assignedSel.size === 0} onClick={() => void remove()}>
+                        Remove {assignedSel.size || ''} selected…
+                      </button>
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                id: 'assign',
+                label: 'Assign to users',
+                content: (
+                  <div className="section">
+                    <div className="form">
+                      <label>
+                        Find users by
+                        <select value={by} onChange={(e) => setBy(e.target.value as By)}>
+                          {(Object.keys(BY_LABEL) as By[]).map((b) => (
+                            <option key={b} value={b}>
+                              {BY_LABEL[b].split(' (')[0]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Expires (optional)
+                        <input type="date" value={expires} onChange={(e) => setExpires(e.target.value)} />
+                      </label>
+                    </div>
+                    <label className="muted" style={{ fontSize: 12.5 }}>
+                      {BY_LABEL[by]}
+                      <textarea rows={2} value={value} onChange={(e) => setValue(e.target.value)} />
+                    </label>
+                    <div className="form">
+                      <button onClick={() => void find()}>Find users</button>
+                      <button className="primary" disabled={userSel.size === 0} onClick={() => void assign()}>
+                        Assign to {userSel.size || ''} selected…
+                      </button>
+                    </div>
+                    {users.length > 0 && (
+                      <DataTable
+                        columns={['Name', 'Username', 'Profile.Name']}
+                        rows={users}
+                        name="users"
+                        selected={userSel}
+                        onSelectedChange={setUserSel}
+                      />
+                    )}
+                  </div>
+                ),
+              },
+            ]}
+          />
         )}
       </div>
     </AccessTool>

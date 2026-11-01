@@ -317,6 +317,7 @@ export function MetadataPage() {
               {items.length > 0 && (
                 <DataTable
                   columns={['type', 'fullName']}
+                  groupBy="type"
                   rows={items.map((c) => ({ type: c.type, fullName: c.fullName, key: keyOf(c) }))}
                   rowKey="key"
                   name="package"
@@ -359,6 +360,7 @@ export function MetadataPage() {
                   </p>
                   <DataTable
                     columns={['type', 'fullName']}
+                    groupBy="type"
                     rows={deletes.map((c) => ({ type: c.type, fullName: c.fullName, key: keyOf(c) }))}
                     rowKey="key"
                     name="delete"
@@ -418,6 +420,7 @@ export function MetadataPage() {
               )}
               <DataTable
                 columns={['fullName', 'type', 'fileName', 'filePath', 'state']}
+                groupBy="type"
                 rows={retrieved.files as unknown as Array<Record<string, unknown>>}
                 rowKey="__none"
                 name="retrieved"

@@ -30,7 +30,6 @@ import { AiMetadataDraft } from './AiMetadataDraft';
 import { CodeEditor } from './CodeEditor';
 import { SHOW, TAG, type CodeStatus, type Show } from './codeStatus';
 import { Dependencies } from './Dependencies';
-import { ProjectDependencies } from './ProjectDependencies';
 import { ProjectCodeView } from './ProjectCodeView';
 import { ReleasePanel } from './ReleasePanel';
 import { Status } from '../statusLog';
@@ -524,20 +523,7 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
                 />
               )}
               {view === 'deps' ? (
-                <>
-                  {chosen.member?.id && (
-                    <>
-                      <h4 className="deps-where">In {org.label}</h4>
-                      <Dependencies id={chosen.member.id} name={name} />
-                    </>
-                  )}
-                  {hasProjectVersion && (
-                    <>
-                      <h4 className="deps-where">In the project</h4>
-                      <ProjectDependencies type={type} name={name} />
-                    </>
-                  )}
-                </>
+                <Dependencies id={chosen.member?.id} type={type} name={name} inProject={hasProjectVersion} />
               ) : view === 'project' || view === 'compare' ? (
                 !inProject ? (
                   <p className="muted">Reading the project…</p>

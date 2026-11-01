@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { POWER_PERMISSIONS, usersAccessMap, whoCanAccess, type Row } from '@nomadsf/core';
+import { TableTabs } from '../components/TableTabs';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { useAccessOf } from '../access';
 import { storage, useStudio } from '../context';
@@ -229,23 +230,41 @@ export function MyAccessPage() {
             </span>{' '}
             {access.summary}
           </p>
-          <h3>Tools</h3>
-          <DataTable
-            columns={['tool', 'read', 'change']}
-            rows={tools}
-            rowKey="tool"
-            name={`${org.label}-your-access`}
-            note={<span>· the permissions each tool usually needs (Salesforce still decides)</span>}
-          />
-          <h3>Your permissions ({access.permissions.size})</h3>
-          <div className="form">
-            <input placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} />
-          </div>
-          <DataTable
-            columns={['permission', 'api']}
-            rows={granted}
-            rowKey="api"
-            name={`${org.label}-your-permissions`}
+          <TableTabs
+            tabs={[
+              {
+                id: 'tools',
+                label: 'Tools',
+                count: tools.length,
+                content: (
+                  <DataTable
+                    columns={['tool', 'read', 'change']}
+                    rows={tools}
+                    rowKey="tool"
+                    name={`${org.label}-your-access`}
+                    note={<span>· the permissions each tool usually needs (Salesforce still decides)</span>}
+                  />
+                ),
+              },
+              {
+                id: 'permissions',
+                label: 'Your permissions',
+                count: access.permissions.size,
+                content: (
+                  <>
+                    <div className="form">
+                      <input placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+                    </div>
+                    <DataTable
+                      columns={['permission', 'api']}
+                      rows={granted}
+                      rowKey="api"
+                      name={`${org.label}-your-permissions`}
+                    />
+                  </>
+                ),
+              },
+            ]}
           />
         </>
       )}

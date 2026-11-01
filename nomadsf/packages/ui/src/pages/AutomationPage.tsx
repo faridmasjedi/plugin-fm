@@ -3,7 +3,57 @@ import { describeGlobal, saveOrder, type SaveStep, type SObjectSummary } from '@
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { ObjectOptions } from '../components/ObjectOptions';
+import { TableTabs } from '../components/TableTabs';
 import { Status } from '../statusLog';
+
+/**
+ * The save as lanes, left to right: one column per moment of the save (before save, after save…), each step a card in
+ * the order it runs — what a graph would show, without drawing one.
+ */
+/** The moments of a save, in order, with what happens there (steps of other moments get their own lane). */
+const PHASES: Array<[string, string]> = [
+  ['System validation', 'required fields, formats, lengths (always)'],
+  ['Before save', 'before-save flows, before triggers, validation and duplicate rules'],
+  ['Saved (not committed)', 'the record gets its Id'],
+  ['After save', 'after triggers, assignment and workflow rules, after-save flows'],
+  ['Commit', 'emails and platform events go out'],
+];
+
+function SaveLanes({ steps }: { steps: SaveStep[] }) {
+  const byWhen = new Map<string, SaveStep[]>();
+  for (const s of [...steps].sort((a, b) => a.order - b.order)) byWhen.set(s.when, [...(byWhen.get(s.when) ?? []), s]);
+  const lanes: Array<[string, string, SaveStep[]]> = [
+    // Moments outside a save (before delete…) first, then the save's own
+    ...[...byWhen.keys()]
+      .filter((w) => !PHASES.some(([p]) => p === w))
+      .map((w): [string, string, SaveStep[]] => [w, '', byWhen.get(w)!]),
+    ...PHASES.map(([p, hint]): [string, string, SaveStep[]] => [p, hint, byWhen.get(p) ?? []]),
+  ];
+  return (
+    <div className="save-lanes">
+      {lanes.map(([when, hint, list], i) => (
+        <div key={when} className={`save-lane ${list.length ? '' : 'empty'}`}>
+          <div className="save-lane-head">
+            <span className="save-lane-step">{i + 1}</span>
+            <b>{when}</b>
+            {list.length > 0 && <span className="muted">{list.length}</span>}
+          </div>
+          {hint && <p className="muted small save-lane-hint">{hint}</p>}
+          {list.map((s) => (
+            <div key={s.order} className={`save-card ${s.active ? '' : 'off'}`} title={s.detail}>
+              <span className="save-card-order">{s.order}</span>
+              <span className="pill">{s.kind}</span>
+              <b className="save-card-name">{s.name}</b>
+              {s.events && <span className="muted small">{s.events}</span>}
+              {!s.active && <span className="muted small">inactive</span>}
+            </div>
+          ))}
+          {!list.length && <p className="muted small">Nothing of yours here.</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /** What runs when a record of an object is saved, in Salesforce's order of execution. */
 export function AutomationPage() {
@@ -65,28 +115,32 @@ export function AutomationPage() {
       </div>
       {result && (
         <>
-          <ol className="save-order">
-            {[
-              ['System validation', 'required fields, field formats, lengths (always)'],
-              ['Before save', 'before-save flows, before triggers, validation and duplicate rules'],
-              ['Saved (not committed)', 'the record gets its Id'],
-              ['After save', 'after triggers, assignment and workflow rules, after-save flows'],
-              ['Commit', 'emails and platform events go out'],
-            ].map(([title, hint]) => (
-              <li key={title}>
-                <b>{title}</b> <span className="muted">{hint}</span>
-              </li>
-            ))}
-          </ol>
           {steps.length === 0 ? (
             <EmptyHint what="automation on this object" />
           ) : (
-            <DataTable
-              columns={['order', 'when', 'kind', 'name', 'active', 'events', 'detail']}
-              rows={steps.map((s) => ({ ...s, active: s.active ? '✓' : 'off' }))}
-              rowKey="order"
-              name={`${org.label}-${name}-automation`}
-              note={<span>· in the order Salesforce runs them on save</span>}
+            <TableTabs
+              tabs={[
+                {
+                  id: 'diagram',
+                  label: 'Order of a save',
+                  count: steps.length,
+                  content: <SaveLanes steps={steps} />,
+                },
+                {
+                  id: 'table',
+                  label: 'Table',
+                  count: steps.length,
+                  content: (
+                    <DataTable
+                      columns={['order', 'when', 'kind', 'name', 'active', 'events', 'detail']}
+                      rows={steps.map((s) => ({ ...s, active: s.active ? '✓' : 'off' }))}
+                      rowKey="order"
+                      name={`${org.label}-${name}-automation`}
+                      note={<span>· in the order Salesforce runs them on save</span>}
+                    />
+                  ),
+                },
+              ]}
             />
           )}
           {result.notes.length > 0 && (

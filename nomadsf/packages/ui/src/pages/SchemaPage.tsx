@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { describeGlobal, objectSchema, type SchemaField, type SchemaInfo, type SObjectSummary } from '@nomadsf/core';
+import { TableTabs } from '../components/TableTabs';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { ObjectOptions } from '../components/ObjectOptions';
@@ -200,30 +201,41 @@ export function SchemaPage() {
           {tab === 'relationships' && (
             <>
               <RelationshipDiagram schema={schema} onOpen={open} />
-              <div className="grid2">
-                <div className="section">
-                  <h3>Points to ({schema.parents.length})</h3>
-                  <DataTable
-                    columns={['field', 'to', 'relationship']}
-                    rows={schema.parents.map((p) => ({ ...p }))}
-                    rowKey="field"
-                    name={`${schema.name}-parents`}
-                    onRowClick={(row) => open(String(row.to))}
-                    note={<span>· click to open that object</span>}
-                  />
-                </div>
-                <div className="section">
-                  <h3>Pointed to by ({schema.children.length})</h3>
-                  <DataTable
-                    columns={['object', 'field', 'relationship', 'cascadeDelete']}
-                    rows={schema.children.map((c, i) => ({ ...c, cascadeDelete: yes(c.cascadeDelete), key: i }))}
-                    rowKey="key"
-                    name={`${schema.name}-children`}
-                    onRowClick={(row) => open(String(row.object))}
-                    note={<span>· click to open that object</span>}
-                  />
-                </div>
-              </div>
+              <TableTabs
+                tabs={[
+                  {
+                    id: 'parents',
+                    label: 'Points to',
+                    count: schema.parents.length,
+                    content: (
+                      <DataTable
+                        columns={['field', 'to', 'relationship']}
+                        rows={schema.parents.map((p) => ({ ...p }))}
+                        rowKey="field"
+                        name={`${schema.name}-parents`}
+                        onRowClick={(row) => open(String(row.to))}
+                        note={<span>· click to open that object</span>}
+                      />
+                    ),
+                  },
+                  {
+                    id: 'children',
+                    label: 'Pointed to by',
+                    count: schema.children.length,
+                    content: (
+                      <DataTable
+                        columns={['object', 'field', 'relationship', 'cascadeDelete']}
+                        rows={schema.children.map((c, i) => ({ ...c, cascadeDelete: yes(c.cascadeDelete), key: i }))}
+                        rowKey="key"
+                        name={`${schema.name}-children`}
+                        groupBy="object"
+                        onRowClick={(row) => open(String(row.object))}
+                        note={<span>· click to open that object</span>}
+                      />
+                    ),
+                  },
+                ]}
+              />
             </>
           )}
 

@@ -23,6 +23,7 @@ import {
   type UserAccess,
 } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
+import { TableTabs } from './TableTabs';
 import { DataTable, EmptyHint } from './DataTable';
 import { ManagedList } from './ManagedList';
 import { Status } from '../statusLog';
@@ -166,34 +167,48 @@ export function UserAccessPanel({ userId, label, details }: { userId: string; la
         !access ? (
           loading
         ) : (
-          <>
-            <h4>Permission set groups ({access.permissionSetGroups.length})</h4>
-            <ManagedList
-              rows={access.permissionSetGroups}
-              columns={['Label', 'Name', 'ExpirationDate']}
-              what="permission set group"
-              removeKey="AssignmentId"
-              onRemove={async (r) => fail(await removeAccess(client, [String(r.AssignmentId)]))}
-              choices={(targets ?? [])
-                .filter((t) => t.kind === 'group' && !access.permissionSetGroups.some((g) => g.Id === t.id))
-                .map((t) => ({ id: t.id, label: t.label, detail: t.name }))}
-              onAdd={async (c) => fail(await assignAccess(client, { kind: 'group', id: c.id }, [userId]))}
-              onChanged={refresh}
-            />
-            <h4>Permission sets ({access.permissionSets.length})</h4>
-            <ManagedList
-              rows={access.permissionSets}
-              columns={['Label', 'Name', 'ExpirationDate']}
-              what="permission set"
-              removeKey="AssignmentId"
-              onRemove={async (r) => fail(await removeAccess(client, [String(r.AssignmentId)]))}
-              choices={(targets ?? [])
-                .filter((t) => t.kind === 'permset' && !access.permissionSets.some((p) => p.Id === t.id))
-                .map((t) => ({ id: t.id, label: t.label, detail: t.name }))}
-              onAdd={async (c) => fail(await assignAccess(client, { kind: 'permset', id: c.id }, [userId]))}
-              onChanged={refresh}
-            />
-          </>
+          <TableTabs
+            tabs={[
+              {
+                id: 'sets',
+                label: 'Permission sets',
+                count: access.permissionSets.length,
+                content: (
+                  <ManagedList
+                    rows={access.permissionSets}
+                    columns={['Label', 'Name', 'ExpirationDate']}
+                    what="permission set"
+                    removeKey="AssignmentId"
+                    onRemove={async (r) => fail(await removeAccess(client, [String(r.AssignmentId)]))}
+                    choices={(targets ?? [])
+                      .filter((t) => t.kind === 'permset' && !access.permissionSets.some((p) => p.Id === t.id))
+                      .map((t) => ({ id: t.id, label: t.label, detail: t.name }))}
+                    onAdd={async (c) => fail(await assignAccess(client, { kind: 'permset', id: c.id }, [userId]))}
+                    onChanged={refresh}
+                  />
+                ),
+              },
+              {
+                id: 'groups',
+                label: 'Permission set groups',
+                count: access.permissionSetGroups.length,
+                content: (
+                  <ManagedList
+                    rows={access.permissionSetGroups}
+                    columns={['Label', 'Name', 'ExpirationDate']}
+                    what="permission set group"
+                    removeKey="AssignmentId"
+                    onRemove={async (r) => fail(await removeAccess(client, [String(r.AssignmentId)]))}
+                    choices={(targets ?? [])
+                      .filter((t) => t.kind === 'group' && !access.permissionSetGroups.some((g) => g.Id === t.id))
+                      .map((t) => ({ id: t.id, label: t.label, detail: t.name }))}
+                    onAdd={async (c) => fail(await assignAccess(client, { kind: 'group', id: c.id }, [userId]))}
+                    onChanged={refresh}
+                  />
+                ),
+              },
+            ]}
+          />
         )
       ) : tab === 'system' ? (
         !system ? (
