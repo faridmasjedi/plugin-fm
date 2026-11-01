@@ -302,8 +302,11 @@ function NewCustomPermission({ holders, onCreated }: { holders: PermissionHolder
 
   if (!open)
     return (
-      <div className="form">
-        <button onClick={() => setOpen(true)}>New custom permission…</button>
+      // Like every box that creates something: closed, apart from the list, until opened
+      <div className="card section create-box">
+        <button className="create-open" onClick={() => setOpen(true)}>
+          <b>+ New custom permission</b> <span className="muted">and the permission sets or profiles it goes to</span>
+        </button>
         {status && <Status text={status} />}
       </div>
     );
@@ -422,7 +425,7 @@ export function SetupAccessPanel({
           </button>
         ))}
       </div>
-      <p className="muted">{SETUP_HELP[kind]}</p>
+      <p className="note">{SETUP_HELP[kind]}</p>
       {status && <Status text={status} block />}
       {!rows ? (
         <p className="muted">Reading…</p>
@@ -445,7 +448,7 @@ export function SetupAccessPanel({
           onChanged={load}
         />
       )}
-      {!editable && reason && <p className="muted">{reason}</p>}
+      {!editable && reason && <p className="note">{reason}</p>}
     </div>
   );
 }
@@ -716,7 +719,8 @@ export function RecordTypesPanel({ holder, editable }: { holder: Holder; editabl
   const { client, org, confirmChange, logActivity } = useStudio();
   const [rows, setRows] = useState<RecordTypeAccess[] | null>(null);
   const [draft, setDraft] = useState<Map<string, RecordTypeAccess>>(new Map());
-  const [filter, setFilter] = useState('');
+  // Filtering is the table's (its Filters panel)
+  const filter = '';
   const [onlyVisible, setOnlyVisible] = useState(false);
   const [status, setStatus] = useState('');
   const profile = holder.kind === 'Profile';
@@ -776,11 +780,6 @@ export function RecordTypesPanel({ holder, editable }: { holder: Holder; editabl
   return (
     <div className="section">
       <div className="form">
-        <input
-          placeholder="Filter objects or record types"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
         <label className="check">
           <input type="checkbox" checked={onlyVisible} onChange={(e) => setOnlyVisible(e.target.checked)} /> Only the
           ones it can use
@@ -797,7 +796,7 @@ export function RecordTypesPanel({ holder, editable }: { holder: Holder; editabl
           </>
         )}
       </div>
-      <p className="muted">
+      <p className="note">
         {status ||
           (profile
             ? 'A profile also sets each object’s default record type. Saving deploys only these settings of the profile.'
@@ -808,53 +807,46 @@ export function RecordTypesPanel({ holder, editable }: { holder: Holder; editabl
       ) : shown.length === 0 ? (
         <EmptyHint what="record types" />
       ) : (
-        <table className="edit-table">
-          <thead>
-            <tr>
-              <th>object</th>
-              <th>record type</th>
-              <th>Visible</th>
-              {profile && <th>Default</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((r) => {
-              const v = now(r);
-              const isChanged = v.visible !== r.visible || v.isDefault !== r.isDefault;
+        <DataTable
+          columns={['object', 'record type', 'Visible', ...(profile ? ['Default'] : [])]}
+          rows={shown.map((r) => ({
+            ...r,
+            key: r.recordType,
+            'record type': `${r.label} · ${r.recordType.split('.')[1]}${r.active ? '' : ' · inactive'}`,
+          }))}
+          rowKey="key"
+          name="record-types"
+          groupBy="object"
+          renderCell={(column, row) => {
+            const r = shown.find((x) => x.recordType === row.key);
+            if (!r) return undefined;
+            const v = now(r);
+            const isChanged = v.visible !== r.visible || v.isDefault !== r.isDefault;
+            if (column === 'Visible')
               return (
-                <tr key={r.recordType}>
-                  <td>{r.object}</td>
-                  <td>
-                    {r.label} <span className="muted mono">{r.recordType.split('.')[1]}</span>
-                    {!r.active && <span className="muted"> · inactive</span>}
-                  </td>
-                  <td>
-                    <input
-                      type="checkbox"
-                      className={isChanged ? 'changed' : ''}
-                      disabled={!editable}
-                      checked={v.visible}
-                      onChange={(e) =>
-                        set(r, { visible: e.target.checked, ...(e.target.checked ? {} : { isDefault: false }) })
-                      }
-                    />
-                  </td>
-                  {profile && (
-                    <td>
-                      <input
-                        type="radio"
-                        name={`default-${r.object}`}
-                        disabled={!editable || !v.visible}
-                        checked={v.isDefault}
-                        onChange={() => set(r, { isDefault: true })}
-                      />
-                    </td>
-                  )}
-                </tr>
+                <input
+                  type="checkbox"
+                  className={isChanged ? 'changed' : ''}
+                  disabled={!editable}
+                  checked={v.visible}
+                  onChange={(e) =>
+                    set(r, { visible: e.target.checked, ...(e.target.checked ? {} : { isDefault: false }) })
+                  }
+                />
               );
-            })}
-          </tbody>
-        </table>
+            if (column === 'Default')
+              return (
+                <input
+                  type="radio"
+                  name={`default-${r.object}`}
+                  disabled={!editable || !v.visible}
+                  checked={v.isDefault}
+                  onChange={() => set(r, { isDefault: true })}
+                />
+              );
+            return undefined;
+          }}
+        />
       )}
     </div>
   );
@@ -867,7 +859,7 @@ export function LayoutsPanel({ profileId, editable }: { profileId: string; edita
   const [rows, setRows] = useState<LayoutAssignment[] | null>(null);
   const [layouts, setLayouts] = useState<Map<string, string[]>>(new Map());
   const [draft, setDraft] = useState<Map<string, string>>(new Map());
-  const [filter, setFilter] = useState('');
+  const filter = '';
   const [status, setStatus] = useState('');
   const key = (a: LayoutAssignment): string => `${a.object}|${a.recordType}`;
   const load = () => {
@@ -920,7 +912,6 @@ export function LayoutsPanel({ profileId, editable }: { profileId: string; edita
   return (
     <div className="section">
       <div className="form">
-        <input placeholder="Filter objects or layouts" value={filter} onChange={(e) => setFilter(e.target.value)} />
         <span className="grow" />
         {editable && (
           <>
@@ -933,51 +924,45 @@ export function LayoutsPanel({ profileId, editable }: { profileId: string; edita
           </>
         )}
       </div>
-      <p className="muted">
+      <p className="note">
         {status ||
           'The page layout this profile sees for each object (and record type). Permission sets have no layouts.'}
       </p>
       {!rows ? (
         <p className="muted">Reading…</p>
       ) : (
-        <table className="edit-table">
-          <thead>
-            <tr>
-              <th>object</th>
-              <th>record type</th>
-              <th>layout</th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((r) => {
-              const value = draft.get(key(r)) ?? r.layout;
-              const options = layouts.get(r.object) ?? [];
-              return (
-                <tr key={key(r)}>
-                  <td>{r.object}</td>
-                  <td className="muted">{r.recordType ? r.recordType.split('.')[1] : '(master)'}</td>
-                  <td>
-                    {editable && options.length ? (
-                      <select
-                        className={value !== r.layout ? 'changed' : ''}
-                        value={value}
-                        onChange={(e) => setDraft(new Map(draft).set(key(r), e.target.value))}
-                      >
-                        {[...new Set([r.layout, ...options])].filter(Boolean).map((l) => (
-                          <option key={l} value={l}>
-                            {l.slice(l.indexOf('-') + 1)}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      r.layout.slice(r.layout.indexOf('-') + 1)
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <DataTable
+          columns={['object', 'record type', 'layout']}
+          rows={shown.map((r) => ({
+            ...r,
+            key: key(r),
+            'record type': r.recordType ? r.recordType.split('.')[1] : '(master)',
+            layout: r.layout.slice(r.layout.indexOf('-') + 1),
+          }))}
+          rowKey="key"
+          name="page-layouts"
+          groupBy="object"
+          renderCell={(column, row) => {
+            if (column !== 'layout' || !editable) return undefined;
+            const r = shown.find((x) => key(x) === row.key);
+            const options = r ? layouts.get(r.object) ?? [] : [];
+            if (!r || !options.length) return undefined;
+            const value = draft.get(key(r)) ?? r.layout;
+            return (
+              <select
+                className={value !== r.layout ? 'changed' : ''}
+                value={value}
+                onChange={(e) => setDraft(new Map(draft).set(key(r), e.target.value))}
+              >
+                {[...new Set([r.layout, ...options])].filter(Boolean).map((l) => (
+                  <option key={l} value={l}>
+                    {l.slice(l.indexOf('-') + 1)}
+                  </option>
+                ))}
+              </select>
+            );
+          }}
+        />
       )}
     </div>
   );

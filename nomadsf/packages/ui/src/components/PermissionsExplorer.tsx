@@ -40,7 +40,12 @@ export function PermissionsExplorer() {
   const [filter, setFilter] = useState('');
   const [kindShown, setKindShown] = useState<'all' | PermissionHolder['kind']>(() => storage.get('perms.kind', 'all'));
   const [holderId, setHolderId] = useState('');
-  const [tab, setTab] = useState<Tab>(() => storage.get('perms.tab', 'objects'));
+  // One table per tab (the old "All" tab stacked them; a saved "all" opens Object access)
+  const chosenByKind = useRef<Partial<Record<'all' | PermissionHolder['kind'], string>>>({});
+  const [tab, setTab] = useState<Tab>(() => {
+    const saved = storage.get<Tab>('perms.tab', 'objects');
+    return saved === 'all' ? 'objects' : saved;
+  });
   const [objects, setObjects] = useState<ObjectAccessRow[] | null>(null);
   const [fields, setFields] = useState<FieldAccessRow[] | null>(null);
   const [fieldObject, setFieldObject] = useState('');
@@ -131,7 +136,12 @@ export function PermissionsExplorer() {
               key={k}
               className={kindShown === k ? 'active' : ''}
               onClick={() => {
+                // Each kind keeps the one chosen there: another kind starts empty, coming back shows it again
+                chosenByKind.current[kindShown] = holderId;
                 setKindShown(k);
+                setHolderId(chosenByKind.current[k] ?? '');
+                setEditing(false);
+                setCloning(false);
                 storage.set('perms.kind', k);
               }}
             >
@@ -157,31 +167,38 @@ export function PermissionsExplorer() {
               </optgroup>
             ))}
         </select>
-        {holder && <span className="pill">{holder.kind}</span>}
-        {holder && info?.editable && !editing && (
-          <button
-            onClick={() => setEditing(true)}
-            disabled={Boolean(blocked)}
-            title={blocked ?? 'Change object, field and user / system permissions'}
-          >
-            Edit…
-          </button>
-        )}
-        {holder && info && !editing && (
-          <button
-            onClick={() => setCloning(true)}
-            disabled={Boolean(blocked)}
-            title={blocked ?? `A copy of this ${holder.kind.toLowerCase()} under a new name`}
-          >
-            Clone…
-          </button>
-        )}
-        {holder && info?.editable && blocked && <span className="muted">{blocked}</span>}
-        {holder && info && !info.editable && info.kind !== 'Permission set group' && (
-          <span className="muted">{info.reason}</span>
-        )}
         <Status text={status} />
       </div>
+      {holder && (
+        // The one chosen: its name and kind, then what can be done with it
+        <div className="holder-bar">
+          <b>{holder.name}</b>
+          <span className="pill">{holder.kind}</span>
+          {holder && info?.editable && blocked && <span className="muted">{blocked}</span>}
+          <span className="grow" />
+          {holder && info?.editable && !editing && (
+            <button
+              onClick={() => setEditing(true)}
+              disabled={Boolean(blocked)}
+              title={blocked ?? 'Change object, field and user / system permissions'}
+            >
+              Edit…
+            </button>
+          )}
+          {holder && info && !editing && (
+            <button
+              onClick={() => setCloning(true)}
+              disabled={Boolean(blocked)}
+              title={blocked ?? `A copy of this ${holder.kind.toLowerCase()} under a new name`}
+            >
+              Clone…
+            </button>
+          )}
+        </div>
+      )}
+      {holder && info && !info.editable && info.kind !== 'Permission set group' && (
+        <p className="note">{info.reason}</p>
+      )}
       {holder && info && cloning && (
         <CloneHolder
           kind={holder.kind}
@@ -228,7 +245,6 @@ export function PermissionsExplorer() {
           <div className="tabs">
             {(
               [
-                ['all', 'All'],
                 ['objects', 'Object access'],
                 ['fields', 'Field access'],
                 ['system', 'User & system permissions'],
@@ -332,6 +348,7 @@ export function PermissionsExplorer() {
               ) : (
                 <DataTable
                   columns={['object', 'field', 'read', 'edit']}
+                  groupBy="object"
                   rows={fields.map((f, i) => ({ ...f, read: yes(f.read), edit: yes(f.edit), key: i }))}
                   rowKey="key"
                   name={`${holder.name}-field-access`}

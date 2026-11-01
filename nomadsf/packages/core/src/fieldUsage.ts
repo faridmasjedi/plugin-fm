@@ -251,12 +251,17 @@ export async function fieldAccessOf(
     } ORDER BY SobjectType, Field`,
     { maxRows: 50_000 }
   );
-  return result.rows.map((r) => ({
-    object: String(r.SobjectType),
-    field: String(r.Field).split('.').slice(1).join('.'),
-    read: r.PermissionsRead === true,
-    edit: r.PermissionsEdit === true,
-  }));
+  return (
+    result.rows
+      .map((r) => ({
+        object: String(r.SobjectType),
+        field: String(r.Field).split('.').slice(1).join('.'),
+        read: r.PermissionsRead === true,
+        edit: r.PermissionsEdit === true,
+      }))
+      // A record with no field after the object ("Case.") is not a field anyone can be given
+      .filter((r) => r.field)
+  );
 }
 
 export type SystemPermission = { api: string; label: string; enabled: boolean };

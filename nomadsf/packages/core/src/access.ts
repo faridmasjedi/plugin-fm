@@ -96,18 +96,32 @@ export function assignments(client: SalesforceClient, target: Pick<AccessTarget,
   );
 }
 
-export type UserFilter = { usernames?: string[]; profile?: string; role?: string; publicGroup?: string };
+export type UserFilter = {
+  usernames?: string[];
+  /** Names or parts of names (Ann, Bob Ray). */
+  names?: string[];
+  profile?: string;
+  role?: string;
+  publicGroup?: string;
+};
 
 /** Active users by usernames, profile, role or public group (direct members). */
 export async function findUsers(client: SalesforceClient, by: UserFilter): Promise<Row[]> {
   let where: string;
   if (by.usernames?.length) where = `Username IN (${by.usernames.map((u) => `'${soqlString(u.trim())}'`).join(',')})`;
+  // Names as people say them: each one matches part of the full name (Ann finds Ann Lee)
+  else if (by.names?.length)
+    where = by.names
+      .map((n) => n.trim())
+      .filter(Boolean)
+      .map((n) => `Name LIKE '%${soqlString(n).replace(/[%_]/g, '\\$&')}%'`)
+      .join(' OR ');
   else if (by.profile) where = `Profile.Name = '${soqlString(by.profile)}'`;
   else if (by.role) where = `UserRole.Name = '${soqlString(by.role)}'`;
   else if (by.publicGroup) {
     const g = soqlString(by.publicGroup);
     where = `Id IN (SELECT UserOrGroupId FROM GroupMember WHERE Group.DeveloperName = '${g}' OR Group.Name = '${g}')`;
-  } else throw new Error('Choose users by usernames, profile, role or public group.');
+  } else throw new Error('Choose users by name, usernames, profile, role or public group.');
   return (
     await query(
       client,

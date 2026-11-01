@@ -71,6 +71,43 @@ describe('dependencies', () => {
   });
 });
 
+describe('fields in dependencies', () => {
+  it('are named with their object, standard or custom', async () => {
+    const client = new SalesforceClient(async (r: HttpRequest) => {
+      const soql = decodeURIComponent(r.path.split('q=')[1] ?? '');
+      if (soql.includes('FROM MetadataComponentDependency'))
+        return json({
+          records: soql.includes("WHERE MetadataComponentId = '01p000000000001AAA'")
+            ? [
+                {
+                  RefMetadataComponentId: '00N000000000001AAA',
+                  RefMetadataComponentName: 'Customer_Tier',
+                  RefMetadataComponentType: 'CustomField',
+                },
+                {
+                  RefMetadataComponentId: '00N000000000002AAA',
+                  RefMetadataComponentName: 'Total',
+                  RefMetadataComponentType: 'CustomField',
+                },
+              ]
+            : [],
+        });
+      if (soql.includes('FROM CustomField'))
+        return json({
+          records: [
+            { Id: '00N000000000001AAA', DeveloperName: 'Customer_Tier', TableEnumOrId: 'Account' },
+            { Id: '00N000000000002AAA', DeveloperName: 'Total', TableEnumOrId: '01I000000000001AAA' },
+          ],
+        });
+      if (soql.includes('FROM CustomObject'))
+        return json({ records: [{ Id: '01I000000000001AAA', DeveloperName: 'Invoice' }] });
+      return json({ records: [] });
+    }, '62.0');
+    const deps = await dependenciesOf(client, '01p000000000001AAA');
+    expect(deps.uses.map((d) => d.name)).toEqual(['Account.Customer_Tier__c', 'Invoice__c.Total__c']);
+  });
+});
+
 describe('deploying a component', () => {
   const client = new SalesforceClient(async () => json({}), '62.0');
   it('refuses binary files and paths that leave the package', async () => {

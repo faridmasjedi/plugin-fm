@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { unifiedDiff, type CodePair } from '@nomadsf/core';
 import { AiExplain } from './AiHelp';
 import { CodeDiff } from './CodeDiff';
@@ -24,6 +25,8 @@ export function ProjectCodeView({
   labels,
   path,
   onPath,
+  tools,
+  toolsPanel,
 }: {
   pairs: CodePair[];
   view: 'project' | 'compare';
@@ -31,6 +34,10 @@ export function ProjectCodeView({
   labels: [string, string];
   path: string;
   onPath: (path: string) => void;
+  /** The page's own actions (Dependencies…), first in the row of AI buttons. */
+  tools?: ReactNode;
+  /** What those actions show (the dependencies), under the row. */
+  toolsPanel?: ReactNode;
 }) {
   const pair = shownPair(pairs, path);
   if (!pair) return <p className="muted">No files.</p>;
@@ -51,17 +58,42 @@ export function ProjectCodeView({
           ))}
         </div>
       )}
-      {pair.status === 'different' && (
+      {(tools || pair.status === 'different' || (view === 'project' && pair.project)) && (
         <div className="chips ai-tools">
-          <AiExplain
-            task="explain-diff"
-            label="Explain the difference"
-            what="the difference of this file (a diff, not the whole org)"
-            getText={() => unifiedDiff(pair.org!.source, pair.project!.source, labels)}
-            getExtra={() => `File: ${pair.path}`}
-          />
+          {tools}
+          {pair.status === 'different' && (
+            <AiExplain
+              key={`diff:${pair.path}`}
+              task="explain-diff"
+              label="Explain the difference"
+              what="the difference of this file (a diff, not the whole org)"
+              getText={() => unifiedDiff(pair.org!.source, pair.project!.source, labels)}
+              getExtra={() => `File: ${pair.path}`}
+            />
+          )}
+          {view === 'project' && pair.project && (
+            <>
+              <AiExplain
+                key={`explain:${pair.path}`}
+                task="explain-code"
+                label="Explain"
+                what={`this file (${labels[1]})`}
+                getText={() => pair.project!.source}
+                getExtra={() => `File: ${pair.path}`}
+              />
+              <AiExplain
+                key={`review:${pair.path}`}
+                task="review-code"
+                label="Review"
+                what={`this file (${labels[1]})`}
+                getText={() => pair.project!.source}
+                getExtra={() => `File: ${pair.path}`}
+              />
+            </>
+          )}
         </div>
       )}
+      {toolsPanel}
       {view === 'project' &&
         (pair.project ? (
           <div className="editor-box tall">

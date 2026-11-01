@@ -7,6 +7,7 @@ import {
   type Row,
   type SecurityReport,
 } from '@nomadsf/core';
+import { TableTabs, type TableTab } from '../components/TableTabs';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { Status } from '../statusLog';
@@ -60,25 +61,30 @@ export function OrgHealthPage() {
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
   }, [client, license]);
 
+  // The check shown below: a tile or a tab chooses it
+  const [check, setCheck] = useState('powerful-permissions');
   const choose = (next: Tab) => {
     setTab(next);
     storage.set('health.tab', next);
   };
-  const section = (title: string, hint: string, rows: Row[], columns: string[], name: string) => (
-    <div className="section">
-      <h3>
-        {title} <span className={`pill ${rows.length ? 'bad' : 'good'}`}>{rows.length}</span>
-      </h3>
-      <p className="muted" style={{ margin: 0 }}>
-        {hint}
-      </p>
-      {rows.length ? (
-        <DataTable columns={columns} rows={rows} rowKey="__none" name={`${org.label}-${name}`} />
-      ) : (
-        <p className="good">✓ None.</p>
-      )}
-    </div>
-  );
+  /** One check of the security report: a tab with its count, its hint and its table. */
+  const section = (title: string, hint: string, rows: Row[], columns: string[], name: string): TableTab => ({
+    id: name,
+    label: title,
+    count: rows.length,
+    content: (
+      <div className="section">
+        <p className="muted" style={{ margin: 0 }}>
+          {hint}
+        </p>
+        {rows.length ? (
+          <DataTable columns={columns} rows={rows} rowKey="__none" name={`${org.label}-${name}`} />
+        ) : (
+          <p className="good">✓ None.</p>
+        )}
+      </div>
+    ),
+  });
 
   return (
     <div className="page">
@@ -124,64 +130,79 @@ export function OrgHealthPage() {
             {report.notes.length > 0 && <span className="muted">Not available: {report.notes.join(' · ')}</span>}
           </div>
           <div className="metrics">
-            <div className={`metric ${report.score !== undefined && report.score < 80 ? 'bad' : ''}`}>
-              <b>{report.score ?? '—'}</b>Health Check score
-            </div>
-            <div className="metric">
-              <b>{report.powerUsers.length}</b>users with powerful permissions
-            </div>
-            <div className="metric">
-              <b>{report.dormant.length}</b>active users not logged in
-            </div>
-            <div className="metric">
-              <b>{report.unusedPermissionSets.length}</b>unassigned permission sets
-            </div>
-            <div className="metric">
-              <b>{report.staleTokens.length}</b>unused OAuth tokens
-            </div>
+            {(
+              [
+                [
+                  'health-check',
+                  report.score ?? '—',
+                  'Health Check score',
+                  report.score !== undefined && report.score < 80,
+                ],
+                ['powerful-permissions', report.powerUsers.length, 'users with powerful permissions', false],
+                ['dormant-users', report.dormant.length, 'active users not logged in', false],
+                ['unassigned-permission-sets', report.unusedPermissionSets.length, 'unassigned permission sets', false],
+                ['stale-oauth', report.staleTokens.length, 'unused OAuth tokens', false],
+              ] as Array<[string, number | string, string, boolean]>
+            ).map(([id, value, label, bad]) => (
+              <button
+                key={id}
+                className={`metric filter ${check === id ? 'active' : ''} ${bad ? 'bad' : ''}`}
+                title="Show them below"
+                onClick={() => setCheck(id)}
+              >
+                <b>{value}</b>
+                {label}
+              </button>
+            ))}
           </div>
-          {section(
-            'Powerful permissions',
-            'Active users with Modify All Data, View All Data, Manage Users, Author Apex, Customize Application or API Enabled — and what gives it to them.',
-            report.powerUsers,
-            ['Name', 'Username', 'Permissions', 'GrantedBy'],
-            'powerful-permissions'
-          )}
-          {section(
-            `Not logged in for ${days} days`,
-            'Active users who have not logged in (or never have): candidates to freeze or deactivate.',
-            report.dormant,
-            ['Name', 'Username', 'Profile.Name', 'LastLoginDate', 'CreatedDate'],
-            'dormant-users'
-          )}
-          {section(
-            'Unassigned permission sets',
-            'Permission sets (not from a package) that nobody has: candidates to remove.',
-            report.unusedPermissionSets,
-            ['Label', 'Name', 'CreatedDate', 'LastModifiedDate'],
-            'unassigned-permission-sets'
-          )}
-          {section(
-            `OAuth tokens not used for ${days} days`,
-            'Connected app sessions nobody uses: revoke them in Setup › Connected Apps OAuth Usage.',
-            report.staleTokens,
-            ['AppName', 'User.Name', 'User.Username', 'UseCount', 'LastUsedDate'],
-            'stale-oauth'
-          )}
-          {section(
-            'Licenses held by inactive users',
-            'Permission set licenses still assigned to deactivated users.',
-            report.inactiveWithLicenses,
-            ['Assignee.Name', 'Assignee.Username', 'PermissionSetLicense.MasterLabel'],
-            'inactive-licenses'
-          )}
-          {section(
-            'Health Check risks',
-            "Salesforce's own Security Health Check: settings below the standard.",
-            report.risks,
-            ['RiskType', 'Setting', 'SettingGroup', 'OrgValue', 'StandardValue'],
-            'health-check'
-          )}
+          <TableTabs
+            active={check}
+            onChange={setCheck}
+            tabs={[
+              section(
+                'Powerful permissions',
+                'Active users with Modify All Data, View All Data, Manage Users, Author Apex, Customize Application or API Enabled — and what gives it to them.',
+                report.powerUsers,
+                ['Name', 'Username', 'Permissions', 'GrantedBy'],
+                'powerful-permissions'
+              ),
+              section(
+                `Not logged in for ${days} days`,
+                'Active users who have not logged in (or never have): candidates to freeze or deactivate.',
+                report.dormant,
+                ['Name', 'Username', 'Profile.Name', 'LastLoginDate', 'CreatedDate'],
+                'dormant-users'
+              ),
+              section(
+                'Unassigned permission sets',
+                'Permission sets (not from a package) that nobody has: candidates to remove.',
+                report.unusedPermissionSets,
+                ['Label', 'Name', 'CreatedDate', 'LastModifiedDate'],
+                'unassigned-permission-sets'
+              ),
+              section(
+                `OAuth tokens not used for ${days} days`,
+                'Connected app sessions nobody uses: revoke them in Setup › Connected Apps OAuth Usage.',
+                report.staleTokens,
+                ['AppName', 'User.Name', 'User.Username', 'UseCount', 'LastUsedDate'],
+                'stale-oauth'
+              ),
+              section(
+                'Licenses held by inactive users',
+                'Permission set licenses still assigned to deactivated users.',
+                report.inactiveWithLicenses,
+                ['Assignee.Name', 'Assignee.Username', 'PermissionSetLicense.MasterLabel'],
+                'inactive-licenses'
+              ),
+              section(
+                'Health Check risks',
+                "Salesforce's own Security Health Check: settings below the standard.",
+                report.risks,
+                ['RiskType', 'Setting', 'SettingGroup', 'OrgValue', 'StandardValue'],
+                'health-check'
+              ),
+            ]}
+          />
         </>
       )}
 

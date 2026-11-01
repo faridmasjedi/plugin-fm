@@ -253,10 +253,13 @@ label.check {
   max-width: 420px;
 }
 .dt-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: auto;
   max-height: 60vh;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
+  background: var(--panel);
 }
 .dt table,
 table.limits {
@@ -266,7 +269,7 @@ table.limits {
 }
 .dt th,
 .dt td {
-  padding: 5px 8px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--border);
   text-align: left;
   white-space: nowrap;
@@ -275,24 +278,153 @@ table.limits {
   text-overflow: ellipsis;
   vertical-align: top;
 }
+.dt tbody tr:last-child td {
+  border-bottom: 0;
+}
+.dt tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--accent) 4%, var(--panel));
+}
 .dt thead th {
   position: sticky;
   top: 0;
-  background: var(--panel);
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
   cursor: pointer;
   z-index: 1;
   font-weight: 600;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: none;
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+.dt thead th:hover {
+  color: var(--text);
+}
+.dt tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
+}
+/* The table and its filters panel side by side */
+.dt-main {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.dt-panel {
+  flex: 0 0 240px;
+  max-height: 60vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12.5px;
+}
+.dt-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.dt-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   color: var(--muted);
 }
-.dt thead tr.dt-filters th {
-  top: 29px;
-  cursor: default;
+.dt-panel label > span {
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.dt-filters input {
+.dt-panel input,
+.dt-panel select {
   width: 100%;
-  min-width: 60px;
-  padding: 2px 6px;
+  box-sizing: border-box;
+  padding: 3px 6px;
   font-size: 12px;
+}
+.dt-filters-toggle.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+/* A filter: the column, then what to look for (with that column's values to choose) */
+.dt-condition {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.dt-condition-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.dt-condition-row select {
+  flex: 1 1 auto;
+}
+/* Rows grouped by type: a box per group, opened like a dropdown (as Release's lists) */
+.dt-groups {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dt-group-box {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.dt-group-box.open {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.dt-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+}
+.dt-group-box.open .dt-group-head {
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+.dt-group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: none;
+  padding: 2px 0;
+  color: var(--text);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.dt-group-toggle .caret {
+  width: 12px;
+  color: var(--muted);
+}
+.dt-group-box .dt-wrap {
+  border: 0;
+  border-radius: 0;
+  max-height: 50vh;
+}
+@media (max-width: 720px) {
+  .dt-main.with-panel {
+    flex-direction: column;
+  }
+  .dt-panel {
+    flex-basis: auto;
+    width: 100%;
+    box-sizing: border-box;
+  }
 }
 .dt tr.clickable {
   cursor: pointer;
@@ -930,16 +1062,38 @@ button.metric.filter.active {
 .column-check {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
 }
+/* A column per row: ticked to send, its check (✓ or ⚠) and why */
 .column-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 6px;
   font-size: 13px;
+}
+.column-list label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--good);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.column-list label.warn {
+  border-left-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 7%, var(--panel));
 }
 .column-list label.warn code {
   color: var(--warn);
+}
+.column-check > .error {
+  border-radius: 8px;
 }
 .egrid .muted-col {
   opacity: 0.4;
@@ -996,7 +1150,21 @@ table.org-list tr.current {
   gap: 12px;
 }
 .ai-tools {
-  margin-bottom: 8px;
+  gap: 8px !important;
+  margin: 4px 0 12px;
+}
+/* The actions on a file (Dependencies, Explain, Review…): pills; the AI ones tinted */
+.ai-tools button {
+  border-radius: 999px;
+  padding: 5px 14px;
+}
+.ai-tools .ai-help > button {
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  color: var(--accent);
+}
+.ai-tools .ai-help > button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
 }
 /* AI answers sit under their row of buttons, not between them */
 .chips .ai-answer,
@@ -2650,6 +2818,10 @@ button.working::before {
 .metadata-source .code-layout {
   grid-template-columns: 300px minmax(0, 1fr);
 }
+/* The component's side shrinks to its column (the buttons wrap, the diff fits) */
+.metadata-source .code-layout > div {
+  min-width: 0;
+}
 .metadata-source .code-list li button {
   display: block;
   overflow: hidden;
@@ -2831,9 +3003,6 @@ input[type='file']::file-selector-button:hover {
   flex-wrap: wrap;
   row-gap: 2px;
   mask-image: none;
-}
-.pane-bar > .grow {
-  display: none;
 }
 
 /* ======================================================================
@@ -3172,4 +3341,765 @@ details.compare-file-group > summary {
 .compare-table th:first-child,
 .compare-table td:first-child {
   width: 28px;
+}
+/* Compare & package forms: a label over each control, controls the same height, the action at the end of a row */
+.compare-manifest {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 16px;
+  align-items: end;
+  margin: 4px 0 12px;
+}
+.compare-manifest label,
+.compare-go label,
+.compare-refs label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.compare-manifest label > span,
+.compare-go label > span,
+.compare-refs label > span {
+  font-weight: 600;
+  color: var(--text);
+}
+.compare-manifest label i {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--muted);
+}
+.compare-manifest select,
+.compare-go select,
+.compare-go input,
+.compare-refs select {
+  width: 100%;
+  box-sizing: border-box;
+  height: 34px;
+}
+.compare-manifest input[type='file'] {
+  width: 100%;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 4px 6px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12.5px;
+}
+.compare-manifest input[type='file']::file-selector-button {
+  margin-right: 10px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+.compare-go {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+  margin-top: 4px;
+}
+.compare-go label {
+  flex: 0 1 300px;
+}
+.compare-go .compare-hint {
+  flex: 1 1 260px;
+  padding-bottom: 8px;
+  font-size: 12.5px;
+}
+.compare-go > button {
+  height: 34px;
+}
+
+/* Validate and deploy (every package): a head with what goes, label | controls rows, then the actions */
+.release-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-left: 3px solid var(--accent);
+}
+.release-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+}
+.release-head h3 {
+  margin: 0;
+}
+.release-counts {
+  font-size: 13px;
+}
+.release-grid {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 10px 12px;
+  align-items: center;
+}
+.release-label {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.release-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.release-row select {
+  min-width: 220px;
+}
+.release-tests {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--mono, monospace);
+}
+.release-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.release-outcome {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.release-outcome h4 {
+  margin: 0;
+}
+@media (max-width: 560px) {
+  .release-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .release-grid > span:empty {
+    display: none;
+  }
+}
+
+/* Release › Project: the action of a row (package / destructive change), coloured once chosen */
+select.row-action {
+  padding: 2px 6px;
+  font-size: 12.5px;
+}
+select.row-action.deploy {
+  border-color: var(--good, #1a7f37);
+  color: var(--good, #1a7f37);
+}
+select.row-action.delete {
+  border-color: var(--bad, #cf222e);
+  color: var(--bad, #cf222e);
+}
+/* Code › Other metadata: who changed the component and when, under the view tabs */
+.code-meta {
+  margin: 4px 0 8px;
+}
+.compare-mode[hidden] {
+  display: none;
+}
+
+/* A compare by type: one line per type you open (counts, what is chosen, all to package / destructive) */
+.grouped-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.grouped-actions .group {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.grouped-actions .group.open {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.grouped-actions .group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+}
+.grouped-actions .group.open .group-head {
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+.grouped-actions .group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: none;
+  padding: 2px 0;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+.grouped-actions .group-toggle .caret {
+  width: 12px;
+  color: var(--muted);
+}
+.grouped-actions .group-status,
+.grouped-actions .group-chosen,
+.grouped-actions .group-buttons {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.grouped-actions .group-buttons button {
+  padding: 3px 10px;
+  font-size: 12.5px;
+}
+.grouped-actions .group-rows {
+  width: 100%;
+  margin: 0;
+}
+.grouped-actions .group-rows td {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+}
+.grouped-actions .group-rows tr:first-child td {
+  border-top: 0;
+}
+.grouped-actions .group-rows td:first-child {
+  width: 55%;
+  overflow-wrap: anywhere;
+}
+.grouped-actions .group-rows .group-action {
+  width: 190px;
+  text-align: right;
+}
+.grouped-actions .group-rows tr.deploy td:first-child {
+  box-shadow: inset 3px 0 0 var(--good);
+}
+.grouped-actions .group-rows tr.delete td:first-child {
+  box-shadow: inset 3px 0 0 var(--bad);
+}
+.type-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Every action select the same width, so a column of them lines up */
+select.row-action {
+  width: 170px;
+}
+/* What's in the package: the manifests by type, then each component (click for its code) */
+.package-contents p {
+  margin: 4px 0;
+}
+.package-contents .package-list {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+.package-contents .package-list summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+.package-contents .package-list ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  columns: 2 320px;
+  column-gap: 24px;
+}
+.package-contents .package-list li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 2px 0;
+  break-inside: avoid;
+}
+.package-contents .package-list li .muted {
+  min-width: 150px;
+  font-size: 12.5px;
+}
+.package-contents .package-list li.active button {
+  font-weight: 600;
+}
+.package-contents .package-code {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.package-contents .package-code h4 {
+  margin: 0;
+}
+
+/* Compare & package: room between the boxes of a mode (compare, package, panel, diff) */
+.compare-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.compare-mode > .card,
+.compare-mode > .release-panel {
+  margin: 0;
+}
+.compare-file-row.active button.mono {
+  font-weight: 600;
+}
+/* A file opened from Compare & package's list: under the list, in the package's box */
+.compare-diff.package-code {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+/* Dependencies: the org's (Salesforce's tracking) and the project's (its files), each under its own heading */
+.deps-where {
+  margin: 14px 0 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* Several tables in one box: a tab each, with its count */
+.table-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.table-tabs-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.table-tabs-bar .tabs {
+  border-bottom: 0;
+}
+.table-tabs-title {
+  font-weight: 600;
+}
+.tab-count {
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.tab.active .tab-count {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* A hub's page: its own sidebar of tools at the left of the pane, the tool beside it */
+.pane-main {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+}
+.pane-nav {
+  flex: 0 0 214px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 8px;
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+  overflow-y: auto;
+}
+.pane-nav-item {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.pane-nav-item .icon {
+  text-align: center;
+  color: var(--muted);
+}
+.pane-nav-item:hover {
+  background: var(--panel-2);
+}
+.pane-nav-item.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.pane-nav-item.active .icon {
+  color: var(--accent);
+}
+.pane-nav-label {
+  white-space: normal;
+  line-height: 1.25;
+}
+.pane-nav-break {
+  height: 1px;
+  margin: 6px 10px;
+  background: var(--border);
+}
+.pane-main > .pane-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.pane-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.pane-tool .sep {
+  color: var(--muted);
+  font-weight: 400;
+}
+/* A narrow pane: the tools sidebar keeps its icons only */
+@container pane (max-width: 760px) {
+  .pane-nav {
+    flex-basis: 44px;
+    padding: 10px 4px;
+  }
+  .pane-nav-item {
+    grid-template-columns: 1fr;
+    padding: 8px 0;
+    justify-items: center;
+  }
+  .pane-nav-label {
+    display: none;
+  }
+}
+
+/* Automation: the save as a timeline, top to bottom; a band per moment, its steps as cards that wrap */
+.save-lanes {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-left: 2px solid var(--border);
+  margin-left: 10px;
+}
+.save-lane {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: 6px 18px;
+  padding: 12px 0 12px 18px;
+  position: relative;
+}
+.save-lane + .save-lane {
+  border-top: 1px dashed var(--border);
+}
+.save-lane-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  grid-column: 1;
+}
+.save-lane-step {
+  position: absolute;
+  left: -12px;
+  top: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.save-lane-hint {
+  grid-column: 1;
+  margin: 0;
+}
+.save-lane-cards {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+  align-content: start;
+}
+@container pane (max-width: 640px) {
+  .save-lane {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .save-lane-cards {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+.save-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--panel);
+  position: relative;
+}
+.save-card.off {
+  opacity: 0.55;
+  border-left-color: var(--border);
+}
+.save-card .pill {
+  align-self: flex-start;
+}
+.save-card-order {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.save-card-name {
+  overflow-wrap: anywhere;
+}
+.save-lane.empty .save-lane-step {
+  background: var(--panel-2);
+  color: var(--muted);
+}
+.save-lane-hint {
+  margin: 0;
+}
+/* The bar of a pane: Hub › Tool at the left, its actions at the right */
+.pane-bar .grow {
+  flex: 1 1 auto;
+}
+.dt tbody tr.selected,
+.dt tbody tr.selected:nth-child(even) {
+  background: var(--accent-soft);
+}
+
+/* Record › Related: what you can open (a relationship, a group of access) is a box like the grouped lists */
+.relation-tree:not(.root) > li:has(> button.link) {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 6px 10px;
+  margin: 6px 0;
+}
+.relation-tree:not(.root) > li:has(> .relation-tree) {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.relation-tree:not(.root) > li > .relation-tree {
+  border-left: 0;
+  padding-left: 12px;
+  margin: 6px -10px -6px;
+  padding: 4px 12px 6px 22px;
+  background: var(--panel-2);
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 10px 10px;
+}
+.relation-tree li > .relation-tree > li {
+  padding: 4px 0;
+}
+.relation-tree li > .relation-tree > li + li {
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+.relation-tree button.link {
+  font-size: 13px;
+}
+
+/* A box to create something (a permission set…): closed until opened, apart from the list */
+.create-box > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.create-box > summary::-webkit-details-marker {
+  display: none;
+}
+.create-box > summary b {
+  color: var(--accent);
+}
+.create-box[open] > summary {
+  margin-bottom: 12px;
+}
+.create-box > .create-open {
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.create-box > .create-open b {
+  color: var(--accent);
+}
+.save-more {
+  align-self: center;
+  justify-self: start;
+  border-style: dashed;
+}
+
+/* Permissions: the profile, permission set or group chosen, and what can be done with it */
+.holder-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.holder-bar > b {
+  font-size: 14px;
+}
+.holder-bar .grow {
+  flex: 1 1 auto;
+}
+/* A note on what a part does (Apex classes users may run…): a soft line with an accent edge */
+.note {
+  margin: 4px 0 10px;
+  padding: 8px 12px;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--accent) 6%, var(--panel));
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Nothing found: a quiet box, not a stray line */
+.empty-hint {
+  margin: 6px 0;
+  padding: 14px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 13px;
+}
+.empty-hint b {
+  color: var(--text);
+  font-weight: 600;
+}
+/* The create box's button sits at the left, like a summary line */
+.create-box {
+  align-items: flex-start;
+}
+.create-box > .create-open {
+  align-self: flex-start;
+  width: 100%;
+}
+/* An AI answer: a tinted card with its own header, the text readable, code in a panel */
+.ai-answer {
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent) 4%, var(--panel));
+  border-radius: 12px;
+}
+.ai-reply {
+  padding: 0;
+  overflow: hidden;
+}
+.ai-reply > .toolbar {
+  margin: 0;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+}
+.ai-reply > .toolbar > b {
+  color: var(--accent);
+}
+.ai-reply .ai-text {
+  padding: 12px 16px 14px;
+  line-height: 1.6;
+}
+.ai-answer .ai-code {
+  margin: 10px 0;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+}
+.create-box > .create-open {
+  justify-content: flex-start;
+  padding: 2px 0;
+}
+
+/* An AI answer's Markdown: readable paragraphs, headings, lists, tables like the Studio's, code framed */
+.ai-text .md {
+  white-space: normal;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.md p,
+.md ul,
+.md ol {
+  margin: 0;
+}
+.md ul,
+.md ol {
+  padding-left: 22px;
+}
+.md li + li {
+  margin-top: 3px;
+}
+.md h4,
+.md h5 {
+  margin: 6px 0 0;
+  color: var(--text);
+}
+.md code {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+.md pre code {
+  border: 0;
+  padding: 0;
+  background: none;
+}
+.md strong {
+  color: var(--text);
+}
+.md-table {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.md-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.md-table th,
+.md-table td {
+  padding: 7px 10px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+}
+.md-table th {
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  color: var(--muted);
+  font-weight: 600;
+}
+.md-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--accent) 4%, var(--panel));
+}
+.md-table tbody tr:last-child td {
+  border-bottom: 0;
 }

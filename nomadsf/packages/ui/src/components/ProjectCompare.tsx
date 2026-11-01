@@ -1,29 +1,34 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   checkCodeContent,
+  checkComponentsWithOrg,
+  componentFilePaths,
+  compareTypeWithProject,
   codeKindOf,
-  deleteFromOrg,
-  deployZip,
   destructiveZip,
+  folderBytes,
   fromBase64,
   listCode,
   listMetadata,
+  projectLabels,
   projectCodeIndex,
-  projectCodePackage,
-  quickDeploy,
+  projectMetadataZip,
+  projectTests,
   retrieveZip,
-  type DeployOutcome,
+  type ProjectFs,
   type ProjectInfo,
-  type TestLevel,
 } from '@nomadsf/core';
-import { DataTable } from './DataTable';
+import { PackageContents } from './PackageContents';
+import { ReleasePanel } from './ReleasePanel';
+import { GroupedActions } from './GroupedActions';
+import { withAction, type RowAction } from './RowActions';
 import type { Studio } from '../context';
 import { localAppBase, useProject } from '../project';
 import { Status } from '../statusLog';
 
 type Where = 'only in org' | 'only in project' | 'both' | 'different' | 'same';
 type CompareRow = { key: string; type: string; name: string; where: Where };
-type Action = 'delete' | 'deploy';
+type Action = RowAction;
 
 const FOLDER_BASED = new Set(['Report', 'Dashboard', 'Document', 'EmailTemplate']);
 const CODE_TYPE = {
@@ -35,12 +40,6 @@ const CODE_TYPE = {
   Aura: 'AuraDefinitionBundle',
 } as const;
 const inBoth = (where: Where): boolean => where === 'both' || where === 'different' || where === 'same';
-const LEVELS: Array<{ id: TestLevel; label: string }> = [
-  { id: 'NoTestRun', label: 'No tests (sandboxes only)' },
-  { id: 'RunSpecifiedTests', label: 'Specific test classes' },
-  { id: 'RunLocalTests', label: 'All local tests' },
-  { id: 'RunAllTestsInOrg', label: 'All tests in the org' },
-];
 
 const post = async <T,>(url: string, body: unknown): Promise<T> => {
   const res = await fetch(url, {
@@ -69,20 +68,29 @@ async function cliOrgFor(studio: Studio, base: string): Promise<string> {
 }
 
 /**
- * Compare many metadata types of the project with the org, select rows, then restore them into
- * the project, download, delete from the org, or deploy them, with the test level you choose.
+ * Compare many metadata types of the project with the org, select rows, then restore them into the project, download,
+ * delete them from the org, or deploy them — every type, converted in the browser — with the shared validate / deploy /
+ * quick deploy panel (test levels, dependent tests).
  */
 export function ProjectCompare({
   studio,
   info,
   onOpenCode,
+  branch,
 }: {
   studio: Studio;
   info: ProjectInfo;
   /** Opens the Code page (after project.openCodeItem). */
   onOpenCode?: () => void;
+  /** A branch of the folder's history instead of the folder as it is (Compare & package › Branch ↔ Org). */
+  branch?: { name: string; fs: ProjectFs; readBytes: (path: string) => Promise<Uint8Array> };
 }) {
   const project = useProject();
+  // Where the files come from: the branch, or the project as it is (its bytes from the folder when it is one)
+  const fs = branch?.fs ?? project.source?.fs;
+  const handle = project.source?.handle;
+  const readBytes = branch?.readBytes ?? (handle ? (path: string) => folderBytes(handle, path) : undefined);
+  const fromLabel = branch ? `the branch ${branch.name}` : `the project ${info.name}`;
   const base = localAppBase(studio.hostKind) ?? '';
   const types = useMemo(() => {
     const byType = new Map<string, Set<string>>();
@@ -95,37 +103,33 @@ export function ProjectCompare({
   }, [info]);
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [rows, setRows] = useState<CompareRow[] | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   // Which rows the table shows: all, or one of the three groups (the tiles above it)
   const [show, setShow] = useState<'all' | Where>('all');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
-  const [action, setAction] = useState<Action | null>(null);
-  const [level, setLevel] = useState<TestLevel>('RunLocalTests');
-  const [tests, setTests] = useState('');
-  const [validateOnly, setValidateOnly] = useState(true);
-  const [outcome, setOutcome] = useState<(DeployOutcome & { via: 'studio' | 'cli'; action: Action }) | null>(null);
-  const production = studio.facts ? !studio.facts.isSandbox : false;
+  const [actions, setActions] = useState<Map<string, Action>>(new Map());
+  const [forceignore, setForceignore] = useState('.forceignore');
 
   useEffect(() => {
     setRows(null);
-    setSelected(new Set());
+    setActions(new Map());
   }, [info, studio.org.id]);
 
   const compare = async () => {
     setBusy(true);
-    setOutcome(null);
-    setAction(null);
+    setActions(new Map());
     const out: CompareRow[] = [];
     let managed = 0;
     const list = types.filter((t) => chosen.has(t.type));
     try {
       for (const [i, t] of list.entries()) {
         setStatus(`Listing ${t.type} in ${studio.org.label}… ${i + 1}/${list.length}`);
+        // The labels file is every label, one by one: each in the project, and each only in the org
+        const type = t.type === 'CustomLabels' ? 'CustomLabel' : t.type;
         // eslint-disable-next-line no-await-in-loop
-        const listed = (await listMetadata(studio.client, t.type, FOLDER_BASED.has(t.type))).filter(
-          (c) => c.type === t.type
-        );
+        const names = type === 'CustomLabel' && fs ? new Set(await projectLabels(fs, info)) : t.names;
+        // eslint-disable-next-line no-await-in-loop
+        const listed = (await listMetadata(studio.client, type, FOLDER_BASED.has(type))).filter((c) => c.type === type);
         // Components of installed packages (or another namespace, e.g. Salesforce's own) are not yours to restore or delete
         const own = listed.filter(
           (c) =>
@@ -134,15 +138,14 @@ export function ProjectCompare({
         );
         managed += listed.length - own.length;
         const inOrg = new Set(own.map((c) => c.fullName));
-        for (const name of new Set([...inOrg, ...t.names])) {
+        for (const name of new Set([...inOrg, ...names])) {
           const where: Where =
-            inOrg.has(name) && t.names.has(name) ? 'both' : inOrg.has(name) ? 'only in org' : 'only in project';
-          out.push({ key: `${t.type}:${name}`, type: t.type, name, where });
+            inOrg.has(name) && names.has(name) ? 'both' : inOrg.has(name) ? 'only in org' : 'only in project';
+          out.push({ key: `${type}:${name}`, type, name, where });
         }
       }
       setRows(out.sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name)));
       setShow('all');
-      setSelected(new Set());
       setStatus(
         managed
           ? `${managed} component(s) of installed packages or other namespaces left out (not yours to restore or delete).`
@@ -157,7 +160,7 @@ export function ProjectCompare({
 
   /** Code in both places: same or different (other types need the source format converter). */
   const checkContent = async () => {
-    if (!rows || !project.source) return;
+    if (!rows || !fs) return;
     setBusy(true);
     try {
       const result = new Map<string, 'same' | 'different'>();
@@ -168,27 +171,24 @@ export function ProjectCompare({
         setStatus(`Comparing ${kind} with the project…`);
         /* eslint-disable no-await-in-loop */
         const items = await listCode(studio.client, kind);
-        const checked = await checkCodeContent(
-          studio.client,
-          project.source.fs,
-          kind,
-          items,
-          projectCodeIndex(info, kind),
-          (d, t) => setStatus(`Comparing ${kind} with the project… ${d}/${t}`)
+        const checked = await checkCodeContent(studio.client, fs, kind, items, projectCodeIndex(info, kind), (d, t) =>
+          setStatus(`Comparing ${kind} with the project… ${d}/${t}`)
         );
         /* eslint-enable no-await-in-loop */
         for (const [name, v] of checked) result.set(`${CODE_TYPE[kind]}:${name}`, v);
       }
+      // Every other type: retrieved from the org in one go per type, each component converted from the project
+      const others = [...new Set(rows.filter((r) => inBoth(r.where) && !codeKindOf(r.type)).map((r) => r.type))];
+      for (const type of others) {
+        const names = rows.filter((r) => r.type === type && inBoth(r.where)).map((r) => r.name);
+        /* eslint-disable-next-line no-await-in-loop */
+        const checked = await compareTypeWithProject(studio.client, { fs, info, readBytes }, type, names, setStatus);
+        for (const [name, v] of checked) result.set(`${type}:${name}`, v);
+      }
       setRows(rows.map((r) => (result.has(r.key) && inBoth(r.where) ? { ...r, where: result.get(r.key)! } : r)));
       const different = [...result.values()].filter((v) => v === 'different').length;
-      const notCode = rows.filter((r) => r.where === 'both' && !codeKindOf(r.type)).length;
-      setStatus(
-        `✓ ${result.size} code component(s) compared: ${different} different.${
-          notCode ? ` ${notCode} other component(s) are not compared yet (only code for now).` : ''
-        }`
-      );
+      setStatus(`✓ ${result.size} component(s) compared: ${different} different.`);
       if (different) setShow('different');
-      setSelected(new Set());
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
     } finally {
@@ -203,13 +203,11 @@ export function ProjectCompare({
     onOpenCode();
   };
 
-  const picked = (rows ?? []).filter((r) => selected.has(r.key));
+  // The rows chosen (to the package or destructive): what the downloads below take
+  const picked = (rows ?? []).filter((r) => actions.has(r.key));
   const onlyOrg = picked.filter((r) => r.where === 'only in org');
   const inProject = picked.filter((r) => r.where !== 'only in org');
   const inOrg = picked.filter((r) => r.where !== 'only in project');
-  // Code deploys straight from the project in the browser; other types still need the CLI app
-  const codeOnly = inProject.length > 0 && inProject.every((r) => codeKindOf(r.type));
-  const canDeploy = codeOnly || project.localAppReady;
   const count = (where: Where): number => (rows ?? []).filter((r) => r.where === where).length;
 
   /** A deployable zip that deletes the components only in the org: empty package.xml + destructiveChanges.xml. */
@@ -273,107 +271,43 @@ export function ProjectCompare({
     }
   };
 
-  const run = async () => {
-    if (!action) return;
-    const items = action === 'delete' ? onlyOrg : inProject;
-    const verb = validateOnly
-      ? `Validate ${action === 'delete' ? 'deleting' : 'deploying'}`
-      : action === 'delete'
-      ? 'DELETE'
-      : 'Deploy';
-    if (
-      !(await studio.confirmChange(
-        `${verb} ${items.length} component(s) ${action === 'delete' ? 'from' : 'to'} ${studio.org.label} (${level})`
-      ))
-    )
-      return;
-    setBusy(true);
-    setOutcome(null);
-    const runTests = tests.split(/[\s,]+/).filter(Boolean);
-    try {
-      let result: DeployOutcome;
-      if (action === 'delete') {
-        // Deleting needs no files: it runs from the browser in the app and the extension alike
-        result = await deleteFromOrg(
-          studio.client,
-          items.map((r) => ({ type: r.type, fullName: r.name })),
-          {
-            checkOnly: validateOnly,
-            testLevel: level,
-            runTests,
-            onProgress: (s, d, t) => setStatus(`${s} · ${d}/${t}`),
-          }
-        );
-      } else if (codeOnly && project.source) {
-        setStatus('Building the package from the project…');
-        const pkg = await projectCodePackage(
-          project.source.fs,
-          info,
-          items.map((r) => ({ type: r.type, name: r.name })),
-          await studio.client.version()
-        );
-        result = await deployZip(studio.client, pkg.zipBase64, {
-          checkOnly: validateOnly,
-          testLevel: level,
-          runTests,
-          onProgress: (s, d, t) => setStatus(`${validateOnly ? 'Validation' : 'Deploy'} · ${s} · ${d}/${t}`),
-        });
-      } else {
-        setStatus(`${validateOnly ? 'Validating' : 'Deploying'} with the Salesforce CLI… (this can take minutes)`);
-        result = await post<DeployOutcome>(`${base}/api/org/deploy`, {
-          org: await cliOrgFor(studio, base),
-          members: items.map((r) => r.key),
-          testLevel: level,
-          tests: runTests,
-          checkOnly: validateOnly,
-        });
-      }
-      studio.logActivity(
-        action === 'delete'
-          ? validateOnly
-            ? 'validate delete'
-            : 'delete metadata'
-          : validateOnly
-          ? 'validate deploy'
-          : 'deploy',
-        {
-          components: items.map((r) => r.key),
-          testLevel: level,
-          success: result.success,
-          id: result.id,
-        }
-      );
-      setOutcome({ ...result, via: action === 'delete' || codeOnly ? 'studio' : 'cli', action });
-      setStatus('');
-    } catch (e) {
-      setStatus(`❌ ${(e as Error).message}`);
-    } finally {
-      setBusy(false);
-    }
+  /** Which actions a row can take: deploy needs the project's files, delete needs the component in the org. */
+  const canDeploy = (r: CompareRow): boolean => r.where !== 'only in org';
+  const canDelete = (r: CompareRow): boolean => r.where !== 'only in project';
+  const toDeploy = (rows ?? []).filter((r) => actions.get(r.key) === 'deploy');
+  const toDelete = (rows ?? []).filter((r) => actions.get(r.key) === 'delete');
+  const setAction = (list: CompareRow[], action: Action | undefined): void =>
+    setActions(
+      withAction(
+        actions,
+        list,
+        action,
+        (r) => r.key,
+        (r, a) => (a === 'deploy' ? canDeploy(r) : canDelete(r))
+      )
+    );
+
+  /** The package for the panel: the rows to deploy from the project, the rows to delete from the org. */
+  const build = async (removeWhen: 'pre' | 'post') => {
+    if (!fs) throw new Error('Open the project first');
+    return projectMetadataZip({
+      fs,
+      info,
+      deploy: toDeploy.map((r) => ({ type: r.type, name: r.name })),
+      remove: toDelete.map((r) => ({ type: r.type, name: r.name })),
+      removeWhen,
+      apiVersion: await studio.client.version(),
+      forceignore,
+      readBytes,
+    });
   };
 
-  const runQuickDeploy = async () => {
-    if (!outcome) return;
-    if (!(await studio.confirmChange(`Quick deploy validation ${outcome.id} to ${studio.org.label}`))) return;
-    setBusy(true);
-    setStatus('Quick deploy…');
-    try {
-      const result =
-        outcome.via === 'studio'
-          ? await quickDeploy(studio.client, outcome.id, { onProgress: (s) => setStatus(`Quick deploy · ${s}`) })
-          : await post<DeployOutcome>(`${base}/api/org/deploy/quick`, {
-              org: await cliOrgFor(studio, base),
-              jobId: outcome.id,
-            });
-      studio.logActivity('quick deploy', { validation: outcome.id, success: result.success });
-      setOutcome({ ...result, via: outcome.via, action: outcome.action });
-      setStatus('');
-    } catch (e) {
-      setStatus(`❌ ${(e as Error).message}`);
-    } finally {
-      setBusy(false);
-    }
-  };
+  /** Every row the project changes (only in the project, or different) goes to Deploy; only-in-org rows stay for you. */
+  const addAllDifferences = () =>
+    setAction(
+      (rows ?? []).filter((r) => r.where === 'only in project' || r.where === 'different'),
+      'deploy'
+    );
 
   return (
     <div className="card section project-compare">
@@ -425,11 +359,7 @@ export function ProjectCompare({
                   className={`metric filter ${show === id ? 'active' : ''} ${
                     (id.startsWith('only') || id === 'different') && n ? 'bad' : ''
                   }`}
-                  onClick={() => {
-                    setShow(id);
-                    // Nothing hidden stays selected
-                    setSelected(new Set());
-                  }}
+                  onClick={() => setShow(id)}
                 >
                   <b>{n}</b>
                   {label}
@@ -438,46 +368,67 @@ export function ProjectCompare({
           </div>
           <div className="form">
             <button
-              disabled={busy || !rows.some((r) => inBoth(r.where) && codeKindOf(r.type))}
-              title="Compare the content of code (Apex, Visualforce, LWC, Aura) that is in both"
+              disabled={busy || !rows.some((r) => inBoth(r.where))}
+              title="Compare the content of every component in both: retrieved from the org, converted from the project"
               onClick={() => void checkContent()}
             >
               Compare content
             </button>
-            <span className="muted">Code only for now: Apex, Visualforce, LWC and Aura.</span>
+            <button
+              disabled={busy || !rows.some((r) => r.where === 'only in project' || r.where === 'different')}
+              title="Deploy every row only in the project or different (choose Delete for what is only in the org)"
+              onClick={() => {
+                setShow('all');
+                addAllDifferences();
+              }}
+            >
+              Add all differences
+            </button>
+            <label title="Files it names stay out of the package, like the CLI's deploy">
+              .forceignore
+              <input value={forceignore} onChange={(e) => setForceignore(e.target.value)} style={{ width: 140 }} />
+            </label>
           </div>
-          <DataTable
-            columns={['type', 'name', 'where']}
-            rows={show === 'all' ? rows : rows.filter((r) => r.where === show)}
-            rowKey="key"
-            name={`${info.name}-compare`}
-            selected={selected}
-            onSelectedChange={setSelected}
-            note={<span>· tick rows to act on them</span>}
+          <GroupedActions
+            rows={(show === 'all' ? rows : rows.filter((r) => r.where === show)).map((r) => ({
+              ...r,
+              status: r.where,
+            }))}
+            actions={actions}
+            onActions={setActions}
+            allowed={(r, a) => (a === 'deploy' ? canDeploy(r) : canDelete(r))}
+            tone={(st) => (st === 'same' ? 'good' : st === 'in both' ? '' : st === 'different' ? 'warn' : 'bad')}
+            renderName={(r) =>
+              onOpenCode && codeKindOf(r.type) && r.where !== 'only in org' ? (
+                <button className="link" title="Open in Code" onClick={() => openInCode(r)}>
+                  {r.name}
+                </button>
+              ) : (
+                r.name
+              )
+            }
           />
 
           {picked.length > 0 && (
             <div className="compare-actions">
               <span className="muted">
-                {picked.length} selected · {onlyOrg.length} only in org · {inProject.length} in the project
+                Of the {picked.length} chosen: {onlyOrg.length} only in org · {inProject.length} in{' '}
+                {branch ? branch.name : 'the project'}
               </span>
               <div className="form">
-                {onOpenCode && picked.length === 1 && codeKindOf(picked[0].type) && (
-                  <button className="primary" onClick={() => openInCode(picked[0])}>
-                    Open in Code
+                {!branch && (
+                  <button
+                    disabled={busy || !onlyOrg.length || !project.localAppReady}
+                    title={
+                      project.localAppReady
+                        ? 'Retrieve into the project on this computer'
+                        : 'Needs the NomadSF CLI app (sf fm dashboard)'
+                    }
+                    onClick={() => void restore()}
+                  >
+                    Restore into project ({onlyOrg.length})
                   </button>
                 )}
-                <button
-                  disabled={busy || !onlyOrg.length || !project.localAppReady}
-                  title={
-                    project.localAppReady
-                      ? 'Retrieve into the project on this computer'
-                      : 'Needs the NomadSF CLI app (sf fm dashboard)'
-                  }
-                  onClick={() => void restore()}
-                >
-                  Restore into project ({onlyOrg.length})
-                </button>
                 <button disabled={busy || !inOrg.length} onClick={() => void downloadZip()}>
                   Download zip ({inOrg.length})
                 </button>
@@ -488,122 +439,57 @@ export function ProjectCompare({
                 >
                   Download delete package ({onlyOrg.length})
                 </button>
-                <button
-                  className="danger"
-                  disabled={busy || !onlyOrg.length}
-                  onClick={() => {
-                    setAction('delete');
-                    setOutcome(null);
-                  }}
-                >
-                  Delete from org ({onlyOrg.length})…
-                </button>
-                <button
-                  disabled={busy || !inProject.length || !canDeploy}
-                  title={
-                    codeOnly
-                      ? 'Deploy the code from the project, straight from the browser'
-                      : project.localAppReady
-                      ? 'Deploy from the project with the Salesforce CLI'
-                      : 'Code deploys from here; other metadata needs the NomadSF CLI app (sf fm dashboard)'
-                  }
-                  onClick={() => {
-                    setAction('deploy');
-                    setOutcome(null);
-                  }}
-                >
-                  Deploy to org ({inProject.length})…
-                </button>
               </div>
-              {!project.localAppReady && (
-                <p className="muted" style={{ margin: 0 }}>
-                  Deploying code (Apex, Visualforce, LWC, Aura), Download and Delete work here; Restore, and deploying
-                  other metadata, need the NomadSF CLI app on this computer.
-                </p>
-              )}
             </div>
           )}
 
-          {action && (
-            <div className={`card section deploy-panel ${action === 'delete' ? 'danger-zone' : ''}`}>
-              <h3>
-                {action === 'delete'
-                  ? `Delete ${onlyOrg.length} component(s) from ${studio.org.label}`
-                  : `Deploy ${inProject.length} component(s) from the project to ${studio.org.label}`}
-              </h3>
+          {(toDeploy.length > 0 || toDelete.length > 0) && (
+            <>
               <div className="form">
-                <label>
-                  Tests
-                  <select value={level} onChange={(e) => setLevel(e.target.value as TestLevel)}>
-                    {LEVELS.map((l) => (
-                      <option key={l.id} value={l.id} disabled={l.id === 'NoTestRun' && production}>
-                        {l.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {level === 'RunSpecifiedTests' && (
-                  <label>
-                    Test classes
-                    <input
-                      value={tests}
-                      onChange={(e) => setTests(e.target.value)}
-                      placeholder="AccountTest, OrderTest"
-                      style={{ minWidth: 260 }}
-                    />
-                  </label>
-                )}
-                <label className="check">
-                  <input type="checkbox" checked={validateOnly} onChange={(e) => setValidateOnly(e.target.checked)} />{' '}
-                  Validate only (changes nothing)
-                </label>
-                <button className={validateOnly ? 'primary' : 'danger'} disabled={busy} onClick={() => void run()}>
-                  {validateOnly ? 'Validate' : action === 'delete' ? 'Delete' : 'Deploy'}
-                </button>
-                <button disabled={busy} onClick={() => setAction(null)}>
-                  Cancel
-                </button>
+                <span className="muted">{`Package: ${toDeploy.length} to deploy · ${toDelete.length} to delete`}</span>
+                <button onClick={() => setActions(new Map())}>Clear all actions</button>
               </div>
-              {production && <p className="muted">Production org: tests must run; "No tests" is off.</p>}
-            </div>
-          )}
-
-          {outcome && (
-            <div className="card section">
-              <h3>
-                {outcome.success ? '✓' : '❌'}{' '}
-                {outcome.checkOnly ? 'Validation' : outcome.action === 'delete' ? 'Delete' : 'Deploy'} {outcome.status}{' '}
-                <span className="muted mono">{outcome.id}</span>
-              </h3>
-              <p className="muted" style={{ margin: 0 }}>
-                {outcome.componentsDeployed}/{outcome.componentsTotal} components · {outcome.testsRun} tests run
-                {outcome.errorMessage ? ` · ${outcome.errorMessage}` : ''}
-              </p>
-              {outcome.success && outcome.checkOnly && (
-                <div className="form">
-                  <button className="primary" disabled={busy} onClick={() => void runQuickDeploy()}>
-                    Quick deploy this validation
-                  </button>
-                  <span className="muted">No second test run; possible for 10 days.</span>
-                </div>
-              )}
-              {outcome.componentFailures.length > 0 && (
-                <DataTable
-                  columns={['type', 'name', 'line', 'problem']}
-                  rows={outcome.componentFailures}
-                  rowKey="__none"
-                  name="deploy-component-failures"
-                />
-              )}
-              {outcome.testFailures.length > 0 && (
-                <DataTable
-                  columns={['name', 'method', 'message']}
-                  rows={outcome.testFailures}
-                  rowKey="__none"
-                  name="deploy-test-failures"
-                />
-              )}
-            </div>
+              <PackageContents
+                deploy={toDeploy}
+                remove={toDelete}
+                statusOf={(c) => ((c as CompareRow).where === 'only in project' ? 'A' : 'M')}
+                listFiles={fs ? (list) => componentFilePaths(fs, info, list) : undefined}
+                loadCode={async (c) => {
+                  if (!fs) throw new Error('Open the project first');
+                  const found = (await checkComponentsWithOrg(studio.client, { fs, info, readBytes }, [c])).get(
+                    `${c.type}:${c.name}`
+                  );
+                  return {
+                    before: found?.org.length ? found.org : undefined,
+                    after: found?.repo.length ? found.repo : undefined,
+                    labels: [studio.org.label, fromLabel],
+                  };
+                }}
+              />
+              <ReleasePanel
+                studio={studio}
+                key={`${[...actions]
+                  .map(([k, a]) => `${a}:${k}`)
+                  .sort()
+                  .join(',')}:${forceignore}`}
+                deployCount={toDeploy.length}
+                removeCount={toDelete.length}
+                from={fromLabel}
+                build={build}
+                findTests={
+                  fs && toDeploy.length
+                    ? () =>
+                        projectTests(
+                          fs,
+                          info,
+                          toDeploy.map((r) => ({ type: r.type, name: r.name }))
+                        )
+                    : undefined
+                }
+                targetId={studio.org.id}
+                zipName={`${info.name}-${studio.org.label}.zip`}
+              />
+            </>
           )}
         </>
       )}

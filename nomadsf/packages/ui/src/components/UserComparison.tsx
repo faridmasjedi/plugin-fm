@@ -15,6 +15,7 @@ import {
   type UserSharing,
 } from '@nomadsf/core';
 import { storage } from '../context';
+import { TableTabs } from './TableTabs';
 import { DataTable, EmptyHint } from './DataTable';
 import { DiffTable } from './DiffTable';
 import { Status } from '../statusLog';
@@ -159,26 +160,58 @@ export function UserComparison({ userA, userB, ...sides }: Sides & { userA: stri
       {tab === 'groups' && <HolderTab list={items('Permission set group')} sides={sides} what="permission set group" />}
       {tab === 'queues' && (
         <>
-          <h4>Groups &amp; queues they are in</h4>
-          <ItemTable list={items('Group / queue')} note={note} name="users-groups" />
           {sharingStatus && <Status text={sharingStatus} block />}
-          {sharing && (
-            <>
-              <h4>Queues and the objects they handle</h4>
-              <DataTable
-                columns={['queue', 'a', 'b']}
-                rows={mergeQueues(sharing.a.queues, sharing.b.queues)}
-                rowKey="queue"
-                name="users-queues"
-                note={<span>{note}</span>}
-              />
-              <h4>Records shared with their groups and queues</h4>
-              <SharesTable a={sharing.a.groupShares} b={sharing.b.groupShares} note={note} name="users-group-shares" />
-              <h4>Records shared with them directly (owned, manual, teams, rules…)</h4>
-              <SharesTable a={sharing.a.userShares} b={sharing.b.userShares} note={note} name="users-user-shares" />
-              <SharingNotes sharing={sharing} />
-            </>
-          )}
+          <TableTabs
+            tabs={[
+              {
+                id: 'groups',
+                label: 'Groups & queues they are in',
+                content: <ItemTable list={items('Group / queue')} note={note} name="users-groups" />,
+              },
+              ...(sharing
+                ? [
+                    {
+                      id: 'queues',
+                      label: 'Queues and their objects',
+                      content: (
+                        <DataTable
+                          columns={['queue', 'a', 'b']}
+                          rows={mergeQueues(sharing.a.queues, sharing.b.queues)}
+                          rowKey="queue"
+                          name="users-queues"
+                          note={<span>{note}</span>}
+                        />
+                      ),
+                    },
+                    {
+                      id: 'groupShares',
+                      label: 'Shared with their groups & queues',
+                      content: (
+                        <SharesTable
+                          a={sharing.a.groupShares}
+                          b={sharing.b.groupShares}
+                          note={note}
+                          name="users-group-shares"
+                        />
+                      ),
+                    },
+                    {
+                      id: 'userShares',
+                      label: 'Shared with them directly',
+                      content: (
+                        <SharesTable
+                          a={sharing.a.userShares}
+                          b={sharing.b.userShares}
+                          note={note}
+                          name="users-user-shares"
+                        />
+                      ),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+          {sharing && <SharingNotes sharing={sharing} />}
         </>
       )}
       {tab === 'role' && (
@@ -186,15 +219,35 @@ export function UserComparison({ userA, userB, ...sides }: Sides & { userA: stri
           {sharingStatus && <Status text={sharingStatus} block />}
           {sharing && (
             <>
-              <DataTable
-                columns={['field', 'a', 'b', 'differs']}
-                rows={roleRows(sharing.a, sharing.b)}
-                rowKey="field"
-                name="users-role"
-                note={<span>{note}</span>}
+              <TableTabs
+                tabs={[
+                  {
+                    id: 'role',
+                    label: 'Role',
+                    content: (
+                      <DataTable
+                        columns={['field', 'a', 'b', 'differs']}
+                        rows={roleRows(sharing.a, sharing.b)}
+                        rowKey="field"
+                        name="users-role"
+                        note={<span>{note}</span>}
+                      />
+                    ),
+                  },
+                  {
+                    id: 'roleShares',
+                    label: 'Shared with their role',
+                    content: (
+                      <SharesTable
+                        a={sharing.a.roleShares}
+                        b={sharing.b.roleShares}
+                        note={note}
+                        name="users-role-shares"
+                      />
+                    ),
+                  },
+                ]}
               />
-              <h4>Records shared with their role (and its subordinates)</h4>
-              <SharesTable a={sharing.a.roleShares} b={sharing.b.roleShares} note={note} name="users-role-shares" />
               <p className="muted">Users also see the records of the users below them in the role hierarchy.</p>
               <SharingNotes sharing={sharing} />
             </>
@@ -239,25 +292,41 @@ function DetailsTab({ result, note }: { result: Comparison; note: string }) {
         <input type="checkbox" checked={differencesOnly} onChange={(e) => setDifferencesOnly(e.target.checked)} />{' '}
         Differences only ({result.details.filter((d) => !d.same).length})
       </label>
-      <DataTable
-        columns={['field', 'a', 'b', 'differs']}
-        rows={details.map((d) => ({ ...d, differs: d.same ? '' : '≠' }))}
-        rowKey="field"
-        name="users-details"
-        note={<span>{note}</span>}
+      <TableTabs
+        tabs={[
+          {
+            id: 'details',
+            label: 'Details',
+            count: details.length,
+            content: (
+              <DataTable
+                columns={['field', 'a', 'b', 'differs']}
+                rows={details.map((d) => ({ ...d, differs: d.same ? '' : '≠' }))}
+                rowKey="field"
+                name="users-details"
+                note={<span>{note}</span>}
+              />
+            ),
+          },
+          {
+            id: 'permissions',
+            label: 'User & system permissions that differ',
+            count: result.permissions.length,
+            content:
+              result.permissions.length === 0 ? (
+                <p className="good">✓ The same user and system permissions.</p>
+              ) : (
+                <DataTable
+                  columns={['item', 'a', 'b']}
+                  rows={result.permissions.map((p, i) => ({ ...p, key: i }))}
+                  rowKey="key"
+                  name="users-permissions"
+                  note={<span>{note} · from the profile, permission sets and groups</span>}
+                />
+              ),
+          },
+        ]}
       />
-      <h4>User &amp; system permissions that differ (from the profile, permission sets and groups)</h4>
-      {result.permissions.length === 0 ? (
-        <p className="good">✓ The same user and system permissions.</p>
-      ) : (
-        <DataTable
-          columns={['item', 'a', 'b']}
-          rows={result.permissions.map((p, i) => ({ ...p, key: i }))}
-          rowKey="key"
-          name="users-permissions"
-          note={<span>{note}</span>}
-        />
-      )}
     </>
   );
 }
@@ -371,15 +440,18 @@ function AccessCompare({
   const note = <span>{` · A = ${labelA}, B = ${labelB}`}</span>;
   return (
     <div className="access-compare section">
-      <div className="segmented wrap" role="group" aria-label="Section">
+      <div className="tabs" role="tablist" aria-label="Section">
         {sections.map((s) => (
-          <button key={s.title} className={section.title === s.title ? 'active' : ''} onClick={() => setShown(s.title)}>
+          <button
+            key={s.title}
+            role="tab"
+            className={`tab ${section.title === s.title ? 'active' : ''}`}
+            onClick={() => setShown(s.title)}
+          >
             {s.title}
-            {s.noteA || s.noteB
-              ? ' (?)'
-              : both
-              ? ` (${s.rows.filter((r) => r.differs).length} ≠)`
-              : ` (${s.rows.length})`}
+            <span className="tab-count">
+              {s.noteA || s.noteB ? '?' : both ? `${s.rows.filter((r) => r.differs).length} ≠` : s.rows.length}
+            </span>
           </button>
         ))}
       </div>
@@ -421,7 +493,9 @@ function AccessCompare({
       ) : (
         <DataTable
           columns={['item', 'a', 'b', 'differs']}
-          rows={rows.map((r) => ({ ...r, differs: r.differs ? '≠' : '' }))}
+          // Fields (Account.Name…) in a box per object
+          rows={rows.map((r) => ({ ...r, differs: r.differs ? '≠' : '', object: r.item.split('.')[0] }))}
+          groupBy={/field/i.test(section.title) ? 'object' : undefined}
           rowKey="key"
           name={`${what}-${section.title}`}
           note={note}
@@ -457,6 +531,7 @@ function SharesTable({
   ) : (
     <DataTable
       columns={['object', 'reason', 'a', 'b']}
+      groupBy="object"
       rows={rows.map((r, i) => ({ ...r, key: i }))}
       rowKey="key"
       name={name}

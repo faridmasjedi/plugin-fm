@@ -117,7 +117,9 @@ export async function buildDiffPackage(
   source: SalesforceClient,
   deploy: Array<{ type: string; name: string }>,
   remove: Array<{ type: string; name: string }> = [],
-  onProgress?: (status: string) => void
+  onProgress?: (status: string) => void,
+  /** Deletions after the deploy (destructiveChangesPost.xml) or before it (destructiveChangesPre.xml). */
+  removeWhen: 'pre' | 'post' = 'post'
 ): Promise<DiffPackage> {
   if (!deploy.length && !remove.length) throw new Error('Choose components for the package.');
   const version = await source.version();
@@ -145,7 +147,11 @@ export async function buildDiffPackage(
         version
       )
     : undefined;
-  if (destructiveXml) files.set('destructiveChangesPost.xml', new TextEncoder().encode(destructiveXml));
+  if (destructiveXml)
+    files.set(
+      removeWhen === 'pre' ? 'destructiveChangesPre.xml' : 'destructiveChangesPost.xml',
+      new TextEncoder().encode(destructiveXml)
+    );
   return {
     packageXml: manifest,
     destructiveXml,

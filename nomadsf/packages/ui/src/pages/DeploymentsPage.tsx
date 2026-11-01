@@ -103,6 +103,7 @@ export function DeploymentsPage() {
                   <h4>Component failures ({details.componentFailures.length})</h4>
                   <DataTable
                     columns={['type', 'name', 'line', 'problem']}
+                    groupBy="type"
                     rows={details.componentFailures.map((f, i) => ({ ...f, key: i }))}
                     rowKey="key"
                     name={`${String(chosen.Id)}-components`}

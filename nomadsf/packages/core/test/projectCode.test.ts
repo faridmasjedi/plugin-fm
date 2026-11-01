@@ -115,7 +115,7 @@ describe('project code', () => {
     // Jest tests are not part of the bundle in the org
     expect(card.map((f) => f.path)).toEqual(['lwc/card/card.html', 'lwc/card/card.js', 'lwc/card/card.js-meta.xml']);
     const box = await readProjectCode(fs, 'Aura', 'box', projectCodeIndex(info, 'Aura').get('box')!);
-    expect(box.map((f) => f.path)).toEqual(['aura/box/box.cmp']);
+    expect(box.map((f) => f.path)).toEqual(['aura/box/box.cmp', 'aura/box/box.cmp-meta.xml']);
     expect(codeKindOf('LightningComponentBundle')).toBe('LWC');
     expect(codeKindOf('CustomObject')).toBeUndefined();
   });

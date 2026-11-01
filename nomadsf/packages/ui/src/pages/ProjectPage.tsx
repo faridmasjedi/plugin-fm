@@ -1,7 +1,19 @@
-import { useState } from 'react';
-import { parsePackageXml, type ProjectTypeSummary } from '@nomadsf/core';
+import { useEffect, useState } from 'react';
+import {
+  checkComponentsWithOrg,
+  componentFilePaths,
+  folderBytes,
+  parsePackageXml,
+  projectLabels,
+  projectMetadataZip,
+  projectTests,
+} from '@nomadsf/core';
 import { DataTable } from '../components/DataTable';
 import { ProjectCompare } from '../components/ProjectCompare';
+import { PackageContents } from '../components/PackageContents';
+import { ReleasePanel } from '../components/ReleasePanel';
+import { GroupedActions } from '../components/GroupedActions';
+import { type RowAction } from '../components/RowActions';
 import { useProject } from '../project';
 import { storage, type Studio } from '../context';
 import { Status } from '../statusLog';
@@ -19,10 +31,41 @@ export function ProjectPage({
   onOpenCode?: () => void;
 }) {
   const project = useProject();
-  const [type, setType] = useState<ProjectTypeSummary | null>(null);
   const [status, setStatus] = useState('');
   const [tab, setTab] = useState<'overview' | 'compare'>(() => storage.get('project.tab', 'overview'));
+  // Overview: components put into a package or made destructive changes (type:name → action)
+  const [actions, setActions] = useState<Map<string, RowAction>>(new Map());
   const { source, info } = project;
+  // The labels file is its labels: listed one by one (type CustomLabel)
+  const [labels, setLabels] = useState<string[]>([]);
+  useEffect(() => {
+    setLabels([]);
+    if (!source || !info) return undefined;
+    let canceled = false;
+    projectLabels(source.fs, info)
+      .then((names) => !canceled && setLabels(names))
+      .catch(() => undefined);
+    return () => {
+      canceled = true;
+    };
+  }, [source, info]);
+  // Every component of the project, its package directory beside it
+  const overviewRows = (info?.packageDirectories ?? []).flatMap((dir) =>
+    dir.types.flatMap((t) =>
+      (t.type === 'CustomLabels' ? labels : t.names).map((name) => {
+        const type = t.type === 'CustomLabels' ? 'CustomLabel' : t.type;
+        // The package directory only says something when there are several
+        const several = (info?.packageDirectories.length ?? 0) > 1;
+        return { key: `${type}:${name}`, type, name, status: several ? dir.path : '' };
+      })
+    )
+  );
+  const listed = (kind: RowAction): Array<{ type: string; name: string }> =>
+    [...actions]
+      .filter(([, a]) => a === kind)
+      .map(([key]) => ({ type: key.slice(0, key.indexOf(':')), name: key.slice(key.indexOf(':') + 1) }));
+  const toDeploy = listed('deploy');
+  const toDelete = listed('delete');
 
   const openManifest = async (path: string) => {
     const text = source ? await source.fs.readText(path) : undefined;
@@ -129,79 +172,109 @@ export function ProjectPage({
             ))}
 
           {tab === 'overview' && (
-            <div className="split">
+            <>
+              {/* Every component by type, as Release's lists: a box per type, its components to put in a package */}
               <div className="card section">
-                {info.packageDirectories.map((dir) => (
-                  <div key={dir.path} className="section">
-                    <h3>
-                      {dir.path} {dir.default && <span className="pill">default</span>}{' '}
+                <div className="form">
+                  {info.packageDirectories.map((dir) => (
+                    <span key={dir.path}>
+                      <b>{dir.path}</b> {dir.default && <span className="pill">default</span>}{' '}
                       {dir.package && (
                         <span className="pill good">
                           {dir.package} {dir.versionNumber}
                         </span>
                       )}
-                    </h3>
-                    <DataTable
-                      columns={['type', 'count', 'folder']}
-                      rows={dir.types.map((t) => ({ ...t, key: `${dir.path}:${t.type}` }))}
-                      rowKey="key"
-                      name={`${dir.path}-types`}
-                      onRowClick={(row) => {
-                        setType(dir.types.find((t) => t.type === row.type) ?? null);
-                      }}
-                      note={<span>· click a type</span>}
-                    />
-                  </div>
-                ))}
-                {info.manifests.length > 0 && (
-                  <div className="section">
-                    <h3>Manifests</h3>
-                    <DataTable
-                      columns={['path', 'types', 'members']}
-                      rows={info.manifests.map((m) => ({ ...m }))}
-                      rowKey="path"
-                      name="manifests"
-                      onRowClick={(row) => void openManifest(String(row.path))}
-                      note={<span>· click to load into Metadata</span>}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="card section">
-                {!type ? (
-                  <p className="muted">
-                    Click a type to see its components or put them in a package. To compare with the org, open the
-                    Compare tab.
-                  </p>
-                ) : (
-                  <>
-                    <h3>
-                      {type.type} <span className="muted">({type.count} in the project)</span>
-                    </h3>
-                    <div className="form">
+                    </span>
+                  ))}
+                </div>
+                <GroupedActions
+                  rows={overviewRows}
+                  actions={actions}
+                  onActions={setActions}
+                  allowed={() => true}
+                  tone={() => ''}
+                  groupExtra={(t, list) =>
+                    t === 'CustomLabel' ? null : (
                       <button
+                        title="Retrieve these from the org in Release › Metadata"
                         onClick={() => {
                           project.openPackage({
-                            label: `${type.type} from ${info.name}`,
-                            types: [{ type: type.type, members: type.names }],
+                            label: `${t} from ${info.name}`,
+                            types: [{ type: t, members: list.map((r) => r.name) }],
                           });
                           onOpenMetadata();
                         }}
                       >
-                        Add all to package
+                        Open in Metadata ›
                       </button>
-                    </div>
-                    <DataTable
-                      columns={['name']}
-                      rows={type.names.map((name) => ({ name }))}
-                      rowKey="name"
-                      name={`${type.type}-components`}
-                    />
-                  </>
-                )}
+                    )
+                  }
+                />
               </div>
-            </div>
+              {info.manifests.length > 0 && (
+                <div className="card section">
+                  <h3>Manifests</h3>
+                  <DataTable
+                    columns={['path', 'types', 'members']}
+                    rows={info.manifests.map((m) => ({ ...m }))}
+                    rowKey="path"
+                    name="manifests"
+                    onRowClick={(row) => void openManifest(String(row.path))}
+                    note={<span>· click to load into Metadata</span>}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          {tab === 'overview' && studio && source && (toDeploy.length > 0 || toDelete.length > 0) && (
+            <>
+              <div className="form">
+                <span className="muted">{`Package: ${toDeploy.length} to deploy · ${toDelete.length} to delete (from every type)`}</span>
+                <button onClick={() => setActions(new Map())}>Clear all actions</button>
+              </div>
+              <PackageContents
+                deploy={toDeploy}
+                remove={toDelete}
+                listFiles={(list) => componentFilePaths(source.fs, info, list)}
+                loadCode={async (c) => {
+                  const side = {
+                    fs: source.fs,
+                    info,
+                    readBytes: source.handle ? (path: string) => folderBytes(source.handle!, path) : undefined,
+                  };
+                  const found = (await checkComponentsWithOrg(studio.client, side, [c])).get(`${c.type}:${c.name}`);
+                  return {
+                    before: found?.org.length ? found.org : undefined,
+                    after: found?.repo.length ? found.repo : undefined,
+                    labels: [studio.org.label, `the project ${info.name}`],
+                  };
+                }}
+              />
+              <ReleasePanel
+                studio={studio}
+                key={[...actions]
+                  .map(([k, a]) => `${a}:${k}`)
+                  .sort()
+                  .join(',')}
+                deployCount={toDeploy.length}
+                removeCount={toDelete.length}
+                from={`the project ${info.name}`}
+                build={async (removeWhen) =>
+                  projectMetadataZip({
+                    fs: source.fs,
+                    info,
+                    deploy: toDeploy,
+                    remove: toDelete,
+                    removeWhen,
+                    apiVersion: await studio.client.version(),
+                    readBytes: source.handle ? (path) => folderBytes(source.handle!, path) : undefined,
+                  })
+                }
+                findTests={toDeploy.length ? () => projectTests(source.fs, info, toDeploy) : undefined}
+                zipName={`${info.name}-package.zip`}
+              />
+            </>
           )}
         </>
       )}

@@ -3,6 +3,7 @@ import { StudioContext } from '../context';
 import { aiAssist, aiTaskPrompt, extractCode, type BrowserAiTask } from '@nomadsf/core';
 import { aiUsable, loadExtensionAi } from '../extensionAi';
 import { localAppBase, useProject } from '../project';
+import { Markdown } from './Markdown';
 import type { HostKind } from '../host';
 
 const APP_TASKS = new Set(['explain-log', 'explain-test', 'soql']);
@@ -180,7 +181,7 @@ export function AiAnswerView({
 }) {
   const hasCode = /```/.test(answer.text);
   return (
-    <div className="card ai-answer">
+    <div className="card ai-answer ai-reply">
       <div className="toolbar">
         <b>✦ AI</b>
         <span className="muted">
@@ -196,16 +197,8 @@ export function AiAnswerView({
         <button onClick={onClose}>Close</button>
       </div>
       <div className="ai-text">
-        {/* Text and fenced code blocks (```lang … ```) */}
-        {answer.text.split(/```[\w-]*\n?/).map((part, i) =>
-          i % 2 === 1 ? (
-            <pre key={i} className="ai-code">
-              {part.replace(/\n$/, '')}
-            </pre>
-          ) : (
-            part.trim() && <span key={i}>{part}</span>
-          )
-        )}
+        {/* The answer's Markdown: headings, lists, tables, code (never put in the page as HTML) */}
+        <Markdown text={answer.text} />
       </div>
     </div>
   );

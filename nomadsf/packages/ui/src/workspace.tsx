@@ -56,7 +56,9 @@ export type ToolId =
   | 'audit'
   | 'myaccess'
   | 'orgapps'
-  | 'settings';
+  | 'settings'
+  | 'settingsai'
+  | 'settingsproject';
 
 export type Tool = { id: ToolId; label: string; icon: string; hint: string };
 
@@ -112,7 +114,9 @@ export const TOOLS: Tool[] = [
   { id: 'activity', label: 'Activity', icon: '⏱', hint: 'what was changed from here' },
   { id: 'orgaccess', label: 'Access', icon: '⚿', hint: 'users and permissions in two orgs' },
   { id: 'orgapps', label: 'Connected apps', icon: '⚷', hint: 'connected apps in two orgs' },
-  { id: 'settings', label: 'Settings', icon: '⚙', hint: 'org, project, AI' },
+  { id: 'settings', label: 'Orgs', icon: '◈', hint: 'the orgs you are logged in to' },
+  { id: 'settingsai', label: 'AI', icon: '✦', hint: 'the AI the ✦ buttons use' },
+  { id: 'settingsproject', label: 'Project', icon: '⌂', hint: 'the Salesforce project every page uses' },
 ];
 
 /** `breakBefore`: a thin divider before these tabs (Access: changing access, then reviewing it). */
@@ -154,7 +158,7 @@ export const HUBS: Hub[] = [
   { id: 'org', label: 'Org', icon: '◈', tools: ['company', 'health', 'limits', 'apps', 'audit', 'activity'] },
   { id: 'protect', label: 'Data protection', icon: '⛁', tools: ['backup', 'lifecycle'] },
   { id: 'between', label: 'Org to org', icon: '⇋', tools: ['migrate', 'orgdiff', 'orgaccess', 'orgapps'] },
-  { id: 'settings', label: 'Settings', icon: '⚙', tools: ['settings'] },
+  { id: 'settings', label: 'Settings', icon: '⚙', tools: ['settings', 'settingsai', 'settingsproject'] },
 ];
 
 /** Old page ids (links from the popup, VS Code, bookmarks) still open the right tool. */
@@ -164,7 +168,11 @@ export const toolOf = (id: string): Tool | undefined => TOOLS.find((t) => t.id =
 
 /** The guide's section for a tool (the website, docs/guide.html). */
 const GUIDE = 'https://faridmasjedi.github.io/plugin-fm/guide.html';
-const GUIDE_ANCHOR: Partial<Record<ToolId, string>> = { data: 'data-tool' };
+const GUIDE_ANCHOR: Partial<Record<ToolId, string>> = {
+  data: 'data-tool',
+  settingsai: 'settings',
+  settingsproject: 'settings',
+};
 export const guideUrl = (tool: ToolId): string => `${GUIDE}#${GUIDE_ANCHOR[tool] ?? tool}`;
 export const hubOf = (tool: ToolId): Hub => HUBS.find((h) => h.tools.includes(tool)) ?? HUBS[0];
 export const isTool = (id: string): id is ToolId => Boolean(toolOf(id));
@@ -421,31 +429,11 @@ export function Panes({
                   <span className="icon">{hub.icon}</span>
                   <span className="hub-name">{hub.label}</span>
                 </span>
-                <div className="hub-tabs" role="tablist">
-                  {tools.map((t) => {
-                    const meta = toolOf(t)!;
-                    return (
-                      <Fragment key={t}>
-                        {hub.breakBefore?.includes(t) && <span className="hub-tab-break" aria-hidden="true" />}
-                        <button
-                          key={t}
-                          role="tab"
-                          className={`hub-tab ${t === tool ? 'active' : ''}`}
-                          ref={
-                            t === tool ? (el) => el?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) : undefined
-                          }
-                          title={`${meta.hint} · drag to the right to open beside`}
-                          draggable
-                          onDragStart={dragTool(t)}
-                          onClick={() => ws.show(t, i)}
-                        >
-                          <span className="icon">{meta.icon}</span>
-                          {meta.label}
-                        </button>
-                      </Fragment>
-                    );
-                  })}
-                </div>
+                <span className="pane-tool">
+                  <span className="sep">›</span>
+                  <span className="icon">{toolOf(tool)?.icon}</span>
+                  {toolOf(tool)?.label}
+                </span>
                 <span className="grow" />
                 <button
                   className="pane-action help"
@@ -473,14 +461,37 @@ export function Panes({
                   </button>
                 )}
               </div>
-              <div className="pane-body">
-                {kept.map((t) => (
-                  <div key={`${t}:${resets[`${pane.key}:${t}`] ?? 0}`} className="tool-view" hidden={t !== tool}>
-                    <ToolContext.Provider value={toolOf(t)?.label ?? t}>
-                      <PageTablesProvider tables={tablesOf(`${pane.key}:${t}`)}>{render(t, i)}</PageTablesProvider>
-                    </ToolContext.Provider>
-                  </div>
-                ))}
+              <div className="pane-main">
+                <nav className="pane-nav" role="tablist" aria-label={`${hub.label} tools`}>
+                  {tools.map((t) => {
+                    const meta = toolOf(t)!;
+                    return (
+                      <Fragment key={t}>
+                        {hub.breakBefore?.includes(t) && <span className="pane-nav-break" aria-hidden="true" />}
+                        <button
+                          role="tab"
+                          className={`pane-nav-item ${t === tool ? 'active' : ''}`}
+                          title={`${meta.label}: ${meta.hint} · drag to the right to open beside`}
+                          draggable
+                          onDragStart={dragTool(t)}
+                          onClick={() => ws.show(t, i)}
+                        >
+                          <span className="icon">{meta.icon}</span>
+                          <span className="pane-nav-label">{meta.label}</span>
+                        </button>
+                      </Fragment>
+                    );
+                  })}
+                </nav>
+                <div className="pane-body">
+                  {kept.map((t) => (
+                    <div key={`${t}:${resets[`${pane.key}:${t}`] ?? 0}`} className="tool-view" hidden={t !== tool}>
+                      <ToolContext.Provider value={toolOf(t)?.label ?? t}>
+                        <PageTablesProvider tables={tablesOf(`${pane.key}:${t}`)}>{render(t, i)}</PageTablesProvider>
+                      </ToolContext.Provider>
+                    </div>
+                  ))}
+                </div>
               </div>
               {drag?.pane === i && (
                 <div className={`drop-zone ${drag.side}`}>

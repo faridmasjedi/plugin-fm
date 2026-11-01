@@ -277,13 +277,14 @@ export function App() {
         <ProjectPage
           studio={studio}
           onOpenMetadata={() => setPage('metadata')}
-          onOpenSettings={() => setPage('settings')}
+          onOpenSettings={() => setPage('settingsproject')}
           onOpenCode={() => setPage('code')}
         />
       );
-    if (tool === 'settings')
+    if (tool === 'settings' || tool === 'settingsai' || tool === 'settingsproject')
       return (
         <SettingsPage
+          section={tool === 'settingsai' ? 'ai' : tool === 'settingsproject' ? 'project' : 'org'}
           hostKind={host.kind}
           onOpenProject={() => setPage('project')}
           orgs={orgs}

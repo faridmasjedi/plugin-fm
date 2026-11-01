@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  apexSourcesFromOrg,
+  buildDiffPackage,
+  fromBase64,
+  orgComponentFiles,
+  testsForPackage,
   parsePackageXml,
   describeMetadata,
   listMetadata,
@@ -12,6 +17,8 @@ import {
 } from '@nomadsf/core';
 import { DataTable } from '../components/DataTable';
 import { ComponentPreview } from '../components/MetadataSource';
+import { PackageContents } from '../components/PackageContents';
+import { ReleasePanel } from '../components/ReleasePanel';
 import { useStudio } from '../context';
 import { useProject } from '../project';
 import { Status } from '../statusLog';
@@ -310,6 +317,7 @@ export function MetadataPage() {
               {items.length > 0 && (
                 <DataTable
                   columns={['type', 'fullName']}
+                  groupBy="type"
                   rows={items.map((c) => ({ type: c.type, fullName: c.fullName, key: keyOf(c) }))}
                   rowKey="key"
                   name="package"
@@ -348,10 +356,11 @@ export function MetadataPage() {
                     <code>
                       sf project deploy start --manifest package.xml {DELETE_FLAG[deleteFile]} {deleteFile}
                     </code>{' '}
-                    (Release › Project deletes straight from here).
+                    (or Validate and deploy, below, straight from here).
                   </p>
                   <DataTable
                     columns={['type', 'fullName']}
+                    groupBy="type"
                     rows={deletes.map((c) => ({ type: c.type, fullName: c.fullName, key: keyOf(c) }))}
                     rowKey="key"
                     name="delete"
@@ -364,6 +373,43 @@ export function MetadataPage() {
                   />
                 </div>
               )}
+              <PackageContents
+                deploy={items.map((c) => ({ type: c.type, name: c.fullName }))}
+                remove={deletes.map((c) => ({ type: c.type, name: c.fullName }))}
+                loadCode={async (c) => ({
+                  after: (await orgComponentFiles(client, [c])).get(`${c.type}:${c.name}`) ?? [],
+                  labels: ['', org.label],
+                })}
+              />
+              <ReleasePanel
+                key={[...basket.keys(), '|', ...toDelete.keys()].join(',')}
+                deployCount={items.length}
+                removeCount={deletes.length}
+                from={org.label}
+                build={async (removeWhen) => ({
+                  zip: fromBase64(
+                    (
+                      await buildDiffPackage(
+                        client,
+                        items.map((c) => ({ type: c.type, name: c.fullName })),
+                        deletes.map((c) => ({ type: c.type, name: c.fullName })),
+                        undefined,
+                        removeWhen
+                      )
+                    ).zipBase64
+                  ),
+                })}
+                findTests={
+                  items.length
+                    ? async () =>
+                        testsForPackage(
+                          await apexSourcesFromOrg(client),
+                          items.map((c) => ({ type: c.type, name: c.fullName }))
+                        )
+                    : undefined
+                }
+                zipName={`${org.label}-package-${stamp()}.zip`}
+              />
             </>
           )}
           {retrieved && (
@@ -374,6 +420,7 @@ export function MetadataPage() {
               )}
               <DataTable
                 columns={['fullName', 'type', 'fileName', 'filePath', 'state']}
+                groupBy="type"
                 rows={retrieved.files as unknown as Array<Record<string, unknown>>}
                 rowKey="__none"
                 name="retrieved"

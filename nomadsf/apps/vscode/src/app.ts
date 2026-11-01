@@ -68,7 +68,9 @@ export const STUDIO_PAGES = [
   ['orgdiff', 'Org compare', 'Org to org'],
   ['orgaccess', 'Access', 'Org to org'],
   ['orgapps', 'Connected apps', 'Org to org'],
-  ['settings', 'Settings', 'Settings'],
+  ['settings', 'Orgs', 'Settings'],
+  ['settingsai', 'AI', 'Settings'],
+  ['settingsproject', 'Project', 'Settings'],
 ] as const;
 
 /** The system's own "open this link" command, with the link as one argument (no shell). */
