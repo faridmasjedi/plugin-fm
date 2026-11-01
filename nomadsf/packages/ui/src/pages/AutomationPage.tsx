@@ -82,6 +82,9 @@ export function AutomationPage() {
   const [name, setName] = useState(() => storage.get('automation.object', 'Case'));
   const [result, setResult] = useState<{ steps: SaveStep[]; notes: string[] } | null>(null);
   const [activeOnly, setActiveOnly] = useState(false);
+  // What to show: one kind (validation rules, flows…) and part of a name
+  const [kind, setKind] = useState('');
+  const [named, setNamed] = useState('');
   const [status, setStatus] = useState('');
 
   useEffect(() => {
@@ -102,7 +105,13 @@ export function AutomationPage() {
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
   }, [client, name]);
 
-  const steps = (result?.steps ?? []).filter((s) => !activeOnly || s.active);
+  const kinds = [...new Set((result?.steps ?? []).map((s) => s.kind))].sort();
+  const steps = (result?.steps ?? []).filter(
+    (s) =>
+      (!activeOnly || s.active) &&
+      (!kind || s.kind === kind) &&
+      (!named.trim() || s.name.toLowerCase().includes(named.trim().toLowerCase()))
+  );
   const pick = (value: string) => {
     const match = objects.find((o) => o.name.toLowerCase() === value.trim().toLowerCase());
     if (match) setName(match.name);
@@ -127,6 +136,15 @@ export function AutomationPage() {
           onKeyDown={(e) => e.key === 'Enter' && !pick(typed) && setStatus(`❌ No object called "${typed.trim()}".`)}
         />
         <ObjectOptions id="automation-objects" objects={objects} typed={typed} />
+        <select value={kind} onChange={(e) => setKind(e.target.value)} title="Only one kind">
+          <option value="">Every kind ({result?.steps.length ?? 0})</option>
+          {kinds.map((k) => (
+            <option key={k} value={k}>
+              {k} ({(result?.steps ?? []).filter((s) => s.kind === k).length})
+            </option>
+          ))}
+        </select>
+        <input placeholder="Name contains…" value={named} onChange={(e) => setNamed(e.target.value)} />
         <label className="check">
           <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Active only
         </label>

@@ -1062,16 +1062,38 @@ button.metric.filter.active {
 .column-check {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
 }
+/* A column per row: ticked to send, its check (✓ or ⚠) and why */
 .column-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 6px;
   font-size: 13px;
+}
+.column-list label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--good);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.column-list label.warn {
+  border-left-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 7%, var(--panel));
 }
 .column-list label.warn code {
   color: var(--warn);
+}
+.column-check > .error {
+  border-radius: 8px;
 }
 .egrid .muted-col {
   opacity: 0.4;
@@ -3956,4 +3978,59 @@ select.row-action {
   background: color-mix(in srgb, var(--accent) 6%, var(--panel));
   color: var(--muted);
   font-size: 13px;
+}
+
+/* Nothing found: a quiet box, not a stray line */
+.empty-hint {
+  margin: 6px 0;
+  padding: 14px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 13px;
+}
+.empty-hint b {
+  color: var(--text);
+  font-weight: 600;
+}
+/* The create box's button sits at the left, like a summary line */
+.create-box {
+  align-items: flex-start;
+}
+.create-box > .create-open {
+  align-self: flex-start;
+  width: 100%;
+}
+/* An AI answer: a tinted card with its own header, the text readable, code in a panel */
+.ai-answer {
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent) 4%, var(--panel));
+  border-radius: 12px;
+}
+.ai-reply {
+  padding: 0;
+  overflow: hidden;
+}
+.ai-reply > .toolbar {
+  margin: 0;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+}
+.ai-reply > .toolbar > b {
+  color: var(--accent);
+}
+.ai-reply .ai-text {
+  padding: 12px 16px 14px;
+  line-height: 1.6;
+}
+.ai-answer .ai-code {
+  margin: 10px 0;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+}
+.create-box > .create-open {
+  justify-content: flex-start;
+  padding: 2px 0;
 }

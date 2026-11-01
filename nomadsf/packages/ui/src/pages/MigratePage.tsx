@@ -634,30 +634,54 @@ export function MigratePage({
         <h2>Migrate</h2>
         <span className="muted">Copy records between orgs, or from a backup, with their relationships</span>
       </div>
-      <OrgPairBar labelA="A — copy from" labelB="B — copy into" />
       <div className="card section">
         <h3 className="step-title">
           <span className="step">1</span> From and into
         </h3>
-        <div className="form">
-          <label>
-            From
-            <select
-              value={source.kind === 'org' ? `org:${source.org}` : source.kind}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v === 'files') setSource({ kind: 'files' });
-                else if (v === 'backup') {
+        {/* Where the records come from: another org, a backup, or files — a tab each, B chosen in all */}
+        <div className="tabs" role="tablist">
+          {(
+            [
+              ['org', 'From an org', 'Copy from org A into org B'],
+              ...(backupJobs.list().length
+                ? [['backup', 'From a backup', 'Bring back records from a backup of NomadSF into B']]
+                : []),
+              [
+                'files',
+                'From files (Excel, CSV or zip)',
+                'Files that work here: Record › Related › Save as Excel, a Query export (CSV), a Backup download (zip), or your own sheets with a header row of API field names (one sheet or file per object)',
+              ],
+            ] as Array<[string, string, string]>
+          ).map(([id, label, hint]) => (
+            <button
+              key={id}
+              role="tab"
+              title={hint}
+              className={`tab ${source.kind === id ? 'active' : ''}`}
+              onClick={() => {
+                if (id === 'files') setSource({ kind: 'files' });
+                else if (id === 'backup') {
                   const first = backupJobs.list()[0];
                   if (first) setSource({ kind: 'backup', jobId: first.id, folder: '' });
-                } else setSource({ kind: 'org', org: v.slice(4) });
+                } else setSource({ kind: 'org', org: pair.a });
               }}
             >
-              <option value={`org:${pair.a}`}>A — {orgs.find((o) => o.id === pair.a)?.label}</option>
-              {backupJobs.list().length > 0 && <option value="backup">A backup…</option>}
-              <option value="files">Files (Excel, CSV or zip)…</option>
-            </select>
-          </label>
+              {label}
+            </button>
+          ))}
+        </div>
+        {source.kind === 'org' ? (
+          <OrgPairBar labelA="A — copy from" labelB="B — copy into" />
+        ) : (
+          source.kind === 'files' && (
+            <p className="note">
+              Files that work: <b>Record › Related › Save as Excel</b>, a <b>Query</b> export (CSV), a <b>Backup</b>{' '}
+              download (zip), or your own sheets with a header row of API field names — one sheet or file per object.
+              Lookup columns holding Ids of other sheets are pointed to the new records.
+            </p>
+          )
+        )}
+        <div className="form">
           {source.kind === 'backup' && (
             <>
               <label>
@@ -684,11 +708,20 @@ export function MigratePage({
               </label>
             </>
           )}
-          <span className="arrow">→</span>
-          <span>
-            Into{'\u00a0'}
-            <b>{target ? `B — ${target.label}` : 'B (choose it above)'}</b>
-          </span>
+          {source.kind !== 'org' && (
+            <label>
+              B — copy into
+              <select value={pair.b !== pair.a ? pair.b : ''} onChange={(e) => setPair({ ...pair, b: e.target.value })}>
+                <option value="">Choose the org…</option>
+                {orgs.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                    {o.type ? ` — ${o.type}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           {facts.target && (
             <span className={`pill ${targetProduction ? 'bad' : 'good'}`}>
               {targetProduction ? 'Production' : 'Sandbox'}

@@ -206,6 +206,9 @@ export function DataTable({
     return s.length > 300 ? `${s.slice(0, 300)}…` : s;
   };
 
+  // In group boxes the grouped column is the box's title: not repeated on every row (exports keep it)
+  const shownColumns = groups && groups.size > 0 ? columns.filter((c) => c !== groupBy) : columns;
+
   const rowOf = (r: Row, i: number): ReactNode => (
     <tr
       key={`${String(r[rowKey] ?? '')}:${i}`}
@@ -227,7 +230,7 @@ export function DataTable({
           />
         </td>
       )}
-      {columns.map((c, ci) => (
+      {shownColumns.map((c, ci) => (
         // Long text is cut to the column: hovering shows all of it
         <td key={`${ci}:${c}`} title={fullText(r[c])}>
           {renderCell?.(c, r) ?? cell(c, r[c])}
@@ -254,7 +257,7 @@ export function DataTable({
           </th>
         )}
         {/* Keys by position: a column name can repeat (a file's own column and a looked-up one) */}
-        {columns.map((c, ci) => (
+        {shownColumns.map((c, ci) => (
           <th
             key={`${ci}:${c}`}
             onClick={() => setSort(sort?.col === c ? { col: c, dir: sort.dir === 1 ? -1 : 1 } : { col: c, dir: 1 })}
@@ -430,8 +433,9 @@ const fullText = (value: unknown): string | undefined =>
 /** Shown when Salesforce returns nothing: records the user cannot see are left out silently. */
 export function EmptyHint({ what = 'rows' }: { what?: string }) {
   return (
-    <p className="muted" style={{ margin: 0 }}>
-      No {what}. If you expected some, your user may not be able to see them (sharing, object or field permissions).
+    <p className="empty-hint">
+      <b>No {what}.</b> If you expected some, your user may not be able to see them (sharing, object or field
+      permissions).
     </p>
   );
 }

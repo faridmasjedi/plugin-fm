@@ -180,7 +180,7 @@ export function AiAnswerView({
 }) {
   const hasCode = /```/.test(answer.text);
   return (
-    <div className="card ai-answer">
+    <div className="card ai-answer ai-reply">
       <div className="toolbar">
         <b>✦ AI</b>
         <span className="muted">

@@ -39,7 +39,14 @@ export function Dependencies({
     setError('');
     setTicked(new Set());
     const fromOrg = (list: Dependency[]) =>
-      list.map((d) => ({ key: `org:${d.id}`, type: d.type, name: d.name, where: org.label, namespace: d.namespace }));
+      list.map((d) => ({
+        key: `org:${d.id}`,
+        // Salesforce's own name for a standard object
+        type: d.type === 'StandardEntity' ? 'Standard object' : d.type,
+        name: d.name,
+        where: org.label,
+        namespace: d.namespace,
+      }));
     const fromProject = (list: ProjectDependency[]) =>
       list.map((d) => ({
         key: `project:${d.type}:${d.name}`,
@@ -73,7 +80,7 @@ export function Dependencies({
     .join(' and ');
   const table = (rows: Array<Record<string, unknown>>, what: string) => (
     <DataTable
-      columns={['type', 'name', 'where', ...(id ? ['namespace'] : [])]}
+      columns={['type', 'name', 'where', ...(rows.some((r) => r.namespace) ? ['namespace'] : [])]}
       rows={rows}
       rowKey="key"
       name={`${name}-${what}`}

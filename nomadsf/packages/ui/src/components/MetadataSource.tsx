@@ -70,6 +70,15 @@ const languageOf = (path: string): 'javascript' | 'html' | 'css' | 'json' | 'xml
     ? 'json'
     : 'xml';
 
+/** A name as people write it: the API encodes some characters ("%28Marketing%29" is "(Marketing)"). */
+const displayName = (name: string): string => {
+  try {
+    return decodeURIComponent(name);
+  } catch {
+    return name;
+  }
+};
+
 /** The language for the Code views' file pairs (no plain text there). */
 const codeLanguageOf = (path: string): CodeFile['language'] => languageOf(path);
 
@@ -229,7 +238,7 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
   }
   const needle = filter.trim().toLowerCase();
   const shown = entries.filter(
-    (e) => (!needle || e.name.toLowerCase().includes(needle)) && (show === 'all' || statusOf(e) === show)
+    (e) => (!needle || displayName(e.name).toLowerCase().includes(needle)) && (show === 'all' || statusOf(e) === show)
   );
   const chosenStatus = chosen ? statusOf(chosen) : undefined;
 
@@ -316,6 +325,15 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
             ))}
           </datalist>
         </label>
+        <label title="Part of a name: Account, Case-Support…">
+          Filter
+          <input
+            placeholder={`Filter ${entries.length || ''} ${type}`}
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            style={{ minWidth: 240 }}
+          />
+        </label>
       </div>
       {status && <Status text={status} block />}
       <AiAsk
@@ -360,11 +378,6 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
       )}
       <div className="code-layout">
         <div className="card code-list">
-          <input
-            placeholder={`Filter ${entries.length || ''}`}
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
           {projectOpen && (
             <div className="code-project">
               <span className="muted" title={project.source?.name}>
@@ -401,7 +414,7 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
                     onClick={() => setChosen(e)}
                     title={`${e.name}${st ? ` · ${st}` : ''}${e.member?.fileName ? `\n${e.member.fileName}` : ''}`}
                   >
-                    {e.name}
+                    {displayName(e.name)}
                     {st && TAG[st] && <span className={`code-tag ${st.replace(/ /g, '-')}`}>{TAG[st]}</span>}
                   </button>
                 </li>

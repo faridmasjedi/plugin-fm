@@ -41,6 +41,7 @@ export function PermissionsExplorer() {
   const [kindShown, setKindShown] = useState<'all' | PermissionHolder['kind']>(() => storage.get('perms.kind', 'all'));
   const [holderId, setHolderId] = useState('');
   // One table per tab (the old "All" tab stacked them; a saved "all" opens Object access)
+  const chosenByKind = useRef<Partial<Record<'all' | PermissionHolder['kind'], string>>>({});
   const [tab, setTab] = useState<Tab>(() => {
     const saved = storage.get<Tab>('perms.tab', 'objects');
     return saved === 'all' ? 'objects' : saved;
@@ -135,7 +136,12 @@ export function PermissionsExplorer() {
               key={k}
               className={kindShown === k ? 'active' : ''}
               onClick={() => {
+                // Each kind keeps the one chosen there: another kind starts empty, coming back shows it again
+                chosenByKind.current[kindShown] = holderId;
                 setKindShown(k);
+                setHolderId(chosenByKind.current[k] ?? '');
+                setEditing(false);
+                setCloning(false);
                 storage.set('perms.kind', k);
               }}
             >
