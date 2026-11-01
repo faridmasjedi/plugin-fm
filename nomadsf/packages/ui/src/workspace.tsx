@@ -300,39 +300,9 @@ export function HubNav({ ws, available }: { ws: WorkspaceState; available: (tool
       {h.id !== 'settings' && <span className="hub-count">{h.tools.filter(available).length}</span>}
     </button>
   );
-  // The active pane's hub shows its tools under it: the sidebar is where you move between them
-  const activeTool = ws.panes[ws.active]?.tool;
-  const tools = (h: Hub) => (
-    <div className="hub-tools" role="tablist" aria-label={`${h.label} tools`}>
-      {h.tools.filter(available).map((t) => {
-        const meta = toolOf(t)!;
-        return (
-          <Fragment key={t}>
-            {h.breakBefore?.includes(t) && <span className="hub-tools-break" aria-hidden="true" />}
-            <button
-              role="tab"
-              className={`hub-tool ${t === activeTool ? 'active' : ''}`}
-              title={`${meta.hint} · drag to the right of a pane to open it beside`}
-              draggable
-              onDragStart={dragTool(t)}
-              onClick={() => ws.show(t)}
-            >
-              <span className="icon">{meta.icon}</span>
-              <span className="hub-tool-label">{meta.label}</span>
-            </button>
-          </Fragment>
-        );
-      })}
-    </div>
-  );
   return (
     <>
-      {hubs.map((h) => (
-        <Fragment key={h.id}>
-          {entry(h)}
-          {h.id === activeHub && tools(h)}
-        </Fragment>
-      ))}
+      {hubs.map(entry)}
       <div className="nav-spacer" />
       <div className="nav-hint">Drag a hub or a tab to the right of a pane to open it beside · ⌘K to jump</div>
       {entry(HUBS.find((h) => h.id === 'settings')!)}
@@ -451,38 +421,11 @@ export function Panes({
                   <span className="icon">{hub.icon}</span>
                   <span className="hub-name">{hub.label}</span>
                 </span>
-                {ws.panes.length === 1 && (
-                  <span className="pane-tool">
-                    <span className="sep">›</span>
-                    <span className="icon">{toolOf(tool)?.icon}</span>
-                    {toolOf(tool)?.label}
-                  </span>
-                )}
-                <div className="hub-tabs" role="tablist" hidden={ws.panes.length === 1}>
-                  {tools.map((t) => {
-                    const meta = toolOf(t)!;
-                    return (
-                      <Fragment key={t}>
-                        {hub.breakBefore?.includes(t) && <span className="hub-tab-break" aria-hidden="true" />}
-                        <button
-                          key={t}
-                          role="tab"
-                          className={`hub-tab ${t === tool ? 'active' : ''}`}
-                          ref={
-                            t === tool ? (el) => el?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) : undefined
-                          }
-                          title={`${meta.hint} · drag to the right to open beside`}
-                          draggable
-                          onDragStart={dragTool(t)}
-                          onClick={() => ws.show(t, i)}
-                        >
-                          <span className="icon">{meta.icon}</span>
-                          {meta.label}
-                        </button>
-                      </Fragment>
-                    );
-                  })}
-                </div>
+                <span className="pane-tool">
+                  <span className="sep">›</span>
+                  <span className="icon">{toolOf(tool)?.icon}</span>
+                  {toolOf(tool)?.label}
+                </span>
                 <span className="grow" />
                 <button
                   className="pane-action help"
@@ -510,14 +453,37 @@ export function Panes({
                   </button>
                 )}
               </div>
-              <div className="pane-body">
-                {kept.map((t) => (
-                  <div key={`${t}:${resets[`${pane.key}:${t}`] ?? 0}`} className="tool-view" hidden={t !== tool}>
-                    <ToolContext.Provider value={toolOf(t)?.label ?? t}>
-                      <PageTablesProvider tables={tablesOf(`${pane.key}:${t}`)}>{render(t, i)}</PageTablesProvider>
-                    </ToolContext.Provider>
-                  </div>
-                ))}
+              <div className="pane-main">
+                <nav className="pane-nav" role="tablist" aria-label={`${hub.label} tools`}>
+                  {tools.map((t) => {
+                    const meta = toolOf(t)!;
+                    return (
+                      <Fragment key={t}>
+                        {hub.breakBefore?.includes(t) && <span className="pane-nav-break" aria-hidden="true" />}
+                        <button
+                          role="tab"
+                          className={`pane-nav-item ${t === tool ? 'active' : ''}`}
+                          title={`${meta.label}: ${meta.hint} · drag to the right to open beside`}
+                          draggable
+                          onDragStart={dragTool(t)}
+                          onClick={() => ws.show(t, i)}
+                        >
+                          <span className="icon">{meta.icon}</span>
+                          <span className="pane-nav-label">{meta.label}</span>
+                        </button>
+                      </Fragment>
+                    );
+                  })}
+                </nav>
+                <div className="pane-body">
+                  {kept.map((t) => (
+                    <div key={`${t}:${resets[`${pane.key}:${t}`] ?? 0}`} className="tool-view" hidden={t !== tool}>
+                      <ToolContext.Provider value={toolOf(t)?.label ?? t}>
+                        <PageTablesProvider tables={tablesOf(`${pane.key}:${t}`)}>{render(t, i)}</PageTablesProvider>
+                      </ToolContext.Provider>
+                    </div>
+                  ))}
+                </div>
               </div>
               {drag?.pane === i && (
                 <div className={`drop-zone ${drag.side}`}>

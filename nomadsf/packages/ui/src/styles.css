@@ -2934,9 +2934,6 @@ input[type='file']::file-selector-button:hover {
   row-gap: 2px;
   mask-image: none;
 }
-.pane-bar > .grow {
-  display: none;
-}
 
 /* ======================================================================
    Messages: next to what started them (a tinted line with a kind), and the Log at the bottom
@@ -3630,53 +3627,65 @@ select.row-action {
   color: var(--accent);
 }
 
-/* The active hub's tools, under it in the sidebar (they replace the tab row at the top of a single pane) */
-nav.side .hub-tools {
+/* A hub's page: its own sidebar of tools at the left of the pane, the tool beside it */
+.pane-main {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+}
+.pane-nav {
+  flex: 0 0 196px;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  margin: 2px 0 6px 22px;
-  padding-left: 10px;
-  border-left: 1px solid var(--border);
+  gap: 2px;
+  padding: 12px 8px;
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+  overflow-y: auto;
 }
-nav.side .hub-tool {
-  display: flex;
+.pane-nav-item {
+  display: grid;
+  grid-template-columns: 22px 1fr;
   align-items: center;
   gap: 8px;
-  padding: 5px 8px;
+  padding: 7px 10px;
   border: 0;
   border-radius: 8px;
   background: none;
-  color: var(--muted);
+  color: var(--text);
   font-size: 13px;
   text-align: left;
   cursor: pointer;
 }
-nav.side .hub-tool .icon {
-  width: 16px;
-  height: auto;
-  background: none;
-  font-size: 12px;
+.pane-nav-item .icon {
   text-align: center;
+  color: var(--muted);
 }
-nav.side .hub-tool:hover {
+.pane-nav-item:hover {
   background: var(--panel-2);
-  color: var(--text);
 }
-nav.side .hub-tool.active {
+.pane-nav-item.active {
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
 }
-nav.side .hub-tool-label {
+.pane-nav-item.active .icon {
+  color: var(--accent);
+}
+.pane-nav-label {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-nav.side .hub-tools-break {
+.pane-nav-break {
   height: 1px;
-  margin: 4px 8px;
+  margin: 6px 10px;
   background: var(--border);
+}
+.pane-main > .pane-body {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .pane-tool {
   display: inline-flex;
@@ -3688,19 +3697,18 @@ nav.side .hub-tools-break {
   color: var(--muted);
   font-weight: 400;
 }
-/* One pane: the tools are in the sidebar, not in a tab row */
-.hub-tabs[hidden] {
-  display: none;
-}
-/* Narrow windows: the sidebar is a row of hubs, so the tools go back to the tab row */
-@media (max-width: 900px) {
-  nav.side .hub-tools {
-    display: none;
+/* A narrow pane: the tools sidebar keeps its icons only */
+@container pane (max-width: 760px) {
+  .pane-nav {
+    flex-basis: 44px;
+    padding: 10px 4px;
   }
-  .hub-tabs[hidden] {
-    display: flex !important;
+  .pane-nav-item {
+    grid-template-columns: 1fr;
+    padding: 8px 0;
+    justify-items: center;
   }
-  .pane-tool {
+  .pane-nav-label {
     display: none;
   }
 }
@@ -3781,4 +3789,8 @@ nav.side .hub-tools-break {
 }
 .save-lane-hint {
   margin: 0;
+}
+/* The bar of a pane: Hub › Tool at the left, its actions at the right */
+.pane-bar .grow {
+  flex: 1 1 auto;
 }
