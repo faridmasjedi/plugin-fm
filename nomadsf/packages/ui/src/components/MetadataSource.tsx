@@ -84,6 +84,8 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
   const project = useProject();
   const [types, setTypes] = useState<MetadataType[]>([]);
   const [type, setType] = useState(() => initial?.type ?? storage.get('code.metaType', 'FlexiPage'));
+  // What is typed in the Type box (the type changes when it names one)
+  const [typedType, setTypedType] = useState(type);
   const [members, setMembers] = useState<MetadataComponent[] | null>(null);
   const [filter, setFilter] = useState('');
   const [show, setShow] = useState<Show>('all');
@@ -287,24 +289,32 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
   return (
     <div className="metadata-source">
       <div className="form">
-        <label>
+        <label title="Type a few letters, or choose from the list">
           Type
-          <select
-            value={type}
+          <input
+            list="metadata-types"
+            value={typedType}
+            placeholder="FlexiPage, Flow, Layout…"
             onChange={(e) => {
-              // Another type: nothing of the last one stays open
-              setChosen(null);
-              setFiles(null);
-              setStatus('');
-              setShow('all');
-              setType(e.target.value);
+              setTypedType(e.target.value);
+              const match = typeList.find((t) => t.toLowerCase() === e.target.value.trim().toLowerCase());
+              if (match && match !== type) {
+                // Another type: nothing of the last one stays open
+                setChosen(null);
+                setFiles(null);
+                setStatus('');
+                setShow('all');
+                setType(match);
+              }
             }}
-            style={{ minWidth: 220 }}
-          >
+            onBlur={() => setTypedType(type)}
+            style={{ minWidth: 260 }}
+          />
+          <datalist id="metadata-types">
             {typeList.map((t) => (
-              <option key={t}>{t}</option>
+              <option key={t} value={t} />
             ))}
-          </select>
+          </datalist>
         </label>
       </div>
       {status && <Status text={status} block />}

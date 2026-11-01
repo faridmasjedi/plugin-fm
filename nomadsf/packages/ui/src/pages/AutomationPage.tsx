@@ -19,7 +19,11 @@ const PHASES: Array<[string, string]> = [
   ['Commit', 'emails and platform events go out'],
 ];
 
+/** Cards a moment shows before "Show all": a busy object (15 validation rules…) stays readable. */
+const FIRST = 6;
+
 function SaveLanes({ steps }: { steps: SaveStep[] }) {
+  const [opened, setOpened] = useState<Set<string>>(new Set());
   const byWhen = new Map<string, SaveStep[]>();
   for (const s of [...steps].sort((a, b) => a.order - b.order)) byWhen.set(s.when, [...(byWhen.get(s.when) ?? []), s]);
   const lanes: Array<[string, string, SaveStep[]]> = [
@@ -49,6 +53,19 @@ function SaveLanes({ steps }: { steps: SaveStep[] }) {
                 {!s.active && <span className="muted small">inactive</span>}
               </div>
             ))}
+            {list.length > FIRST && (
+              <button
+                className="save-more"
+                onClick={() => {
+                  const next = new Set(opened);
+                  if (next.has(when)) next.delete(when);
+                  else next.add(when);
+                  setOpened(next);
+                }}
+              >
+                {opened.has(when) ? 'Show fewer' : `Show all ${list.length}`}
+              </button>
+            )}
             {!list.length && <p className="muted small">Nothing of yours here.</p>}
           </div>
         </div>

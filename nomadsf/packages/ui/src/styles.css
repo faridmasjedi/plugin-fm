@@ -3683,7 +3683,7 @@ select.row-action {
   min-width: 0;
 }
 .pane-nav {
-  flex: 0 0 196px;
+  flex: 0 0 214px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -3722,9 +3722,8 @@ select.row-action {
   color: var(--accent);
 }
 .pane-nav-label {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  line-height: 1.25;
 }
 .pane-nav-break {
   height: 1px;
@@ -3923,4 +3922,38 @@ select.row-action {
 }
 .create-box > .create-open b {
   color: var(--accent);
+}
+.save-more {
+  align-self: center;
+  justify-self: start;
+  border-style: dashed;
+}
+
+/* Permissions: the profile, permission set or group chosen, and what can be done with it */
+.holder-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.holder-bar > b {
+  font-size: 14px;
+}
+.holder-bar .grow {
+  flex: 1 1 auto;
+}
+/* A note on what a part does (Apex classes users may run…): a soft line with an accent edge */
+.note {
+  margin: 4px 0 10px;
+  padding: 8px 12px;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--accent) 6%, var(--panel));
+  color: var(--muted);
+  font-size: 13px;
 }

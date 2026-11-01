@@ -18,6 +18,7 @@ export function GroupedActions<R extends GroupRow>({
   renderName,
   extra,
   hideFilter,
+  groupExtra,
 }: {
   rows: R[];
   actions: Map<string, RowAction>;
@@ -32,6 +33,8 @@ export function GroupedActions<R extends GroupRow>({
   extra?: (row: R) => ReactNode;
   /** The page filters the rows itself. */
   hideFilter?: boolean;
+  /** One more button in a type's line (Open in Metadata…). */
+  groupExtra?: (type: string, rows: R[]) => ReactNode;
 }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState('');
@@ -82,11 +85,13 @@ export function GroupedActions<R extends GroupRow>({
                 <span className="muted">{list.length}</span>
               </button>
               <span className="group-status">
-                {[...byStatus].map(([status, n]) => (
-                  <span key={status} className={`pill ${tone(status)}`}>
-                    {n} {status}
-                  </span>
-                ))}
+                {[...byStatus]
+                  .filter(([status]) => status)
+                  .map(([status, n]) => (
+                    <span key={status} className={`pill ${tone(status)}`}>
+                      {n} {status}
+                    </span>
+                  ))}
               </span>
               <span className="grow" />
               {(deploying > 0 || deleting > 0) && (
@@ -114,6 +119,7 @@ export function GroupedActions<R extends GroupRow>({
                 <button disabled={!deploying && !deleting} onClick={() => set(list, undefined)}>
                   Clear
                 </button>
+                {groupExtra?.(type, list)}
               </span>
             </div>
             {isOpen && (
@@ -122,9 +128,7 @@ export function GroupedActions<R extends GroupRow>({
                   {list.map((r) => (
                     <tr key={r.key} className={actions.get(r.key) ?? ''}>
                       <td>{renderName ? renderName(r) : r.name}</td>
-                      <td>
-                        <span className={`pill ${tone(r.status)}`}>{r.status}</span>
-                      </td>
+                      <td>{r.status && <span className={`pill ${tone(r.status)}`}>{r.status}</span>}</td>
                       {extra && <td>{extra(r)}</td>}
                       <td className="group-action">
                         <RowActionSelect

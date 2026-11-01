@@ -161,31 +161,38 @@ export function PermissionsExplorer() {
               </optgroup>
             ))}
         </select>
-        {holder && <span className="pill">{holder.kind}</span>}
-        {holder && info?.editable && !editing && (
-          <button
-            onClick={() => setEditing(true)}
-            disabled={Boolean(blocked)}
-            title={blocked ?? 'Change object, field and user / system permissions'}
-          >
-            Edit…
-          </button>
-        )}
-        {holder && info && !editing && (
-          <button
-            onClick={() => setCloning(true)}
-            disabled={Boolean(blocked)}
-            title={blocked ?? `A copy of this ${holder.kind.toLowerCase()} under a new name`}
-          >
-            Clone…
-          </button>
-        )}
-        {holder && info?.editable && blocked && <span className="muted">{blocked}</span>}
-        {holder && info && !info.editable && info.kind !== 'Permission set group' && (
-          <span className="muted">{info.reason}</span>
-        )}
         <Status text={status} />
       </div>
+      {holder && (
+        // The one chosen: its name and kind, then what can be done with it
+        <div className="holder-bar">
+          <b>{holder.name}</b>
+          <span className="pill">{holder.kind}</span>
+          {holder && info?.editable && blocked && <span className="muted">{blocked}</span>}
+          <span className="grow" />
+          {holder && info?.editable && !editing && (
+            <button
+              onClick={() => setEditing(true)}
+              disabled={Boolean(blocked)}
+              title={blocked ?? 'Change object, field and user / system permissions'}
+            >
+              Edit…
+            </button>
+          )}
+          {holder && info && !editing && (
+            <button
+              onClick={() => setCloning(true)}
+              disabled={Boolean(blocked)}
+              title={blocked ?? `A copy of this ${holder.kind.toLowerCase()} under a new name`}
+            >
+              Clone…
+            </button>
+          )}
+        </div>
+      )}
+      {holder && info && !info.editable && info.kind !== 'Permission set group' && (
+        <p className="note">{info.reason}</p>
+      )}
       {holder && info && cloning && (
         <CloneHolder
           kind={holder.kind}

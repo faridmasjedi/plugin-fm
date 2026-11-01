@@ -678,6 +678,7 @@ function PackageCard(props: {
       words.every((w) => `${c.type} ${c.name} ${c.change}`.toLowerCase().includes(w))
   );
   const count = (change: Change): number => components.filter((c) => c.change === change).length;
+  const changeOf = new Map(components.map((c) => [keyOf(c), c.change]));
   const kept2 = components.filter((c) => !excluded.has(keyOf(c)));
   const deploy = kept2.filter((c) => !isRemoval(c.change));
   const remove = kept2.filter((c) => isRemoval(c.change));
@@ -905,7 +906,15 @@ function PackageCard(props: {
         </>
       )}
 
-      {pkg.target !== 'manifest' && <FileGroups {...props} />}
+      {pkg.target !== 'manifest' && (
+        <FileGroups
+          {...props}
+          // "Show: Deleted" (or Added, Changed) shows only the files of those components
+          only={
+            changes.size ? (f) => f.components.some((k) => changes.has(changeOf.get(k) ?? ('' as Change))) : undefined
+          }
+        />
+      )}
       {props.diffView}
 
       <div className="form">
@@ -929,8 +938,11 @@ function FileGroups({
   openFiles,
   setOpenFiles,
   showDiff,
+  only,
 }: {
   pkg: ComparedPackage;
+  /** The files to list (the components shown); all when undefined. */
+  only?: (f: PackageFile) => boolean;
   excluded: Set<string>;
   openFiles: Set<string>;
   setOpenFiles: (s: Set<string>) => void;
@@ -942,7 +954,7 @@ function FileGroups({
     <div className="compare-files">
       <h4>Files</h4>
       {FILE_GROUPS.map(({ group, label, hint, always }) => {
-        const list = pkg.files.filter((f) => f.group === group);
+        const list = pkg.files.filter((f) => f.group === group && (!only || only(f)));
         if (!list.length && !always) return null;
         return (
           <details

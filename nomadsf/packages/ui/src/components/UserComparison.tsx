@@ -292,25 +292,41 @@ function DetailsTab({ result, note }: { result: Comparison; note: string }) {
         <input type="checkbox" checked={differencesOnly} onChange={(e) => setDifferencesOnly(e.target.checked)} />{' '}
         Differences only ({result.details.filter((d) => !d.same).length})
       </label>
-      <DataTable
-        columns={['field', 'a', 'b', 'differs']}
-        rows={details.map((d) => ({ ...d, differs: d.same ? '' : '≠' }))}
-        rowKey="field"
-        name="users-details"
-        note={<span>{note}</span>}
+      <TableTabs
+        tabs={[
+          {
+            id: 'details',
+            label: 'Details',
+            count: details.length,
+            content: (
+              <DataTable
+                columns={['field', 'a', 'b', 'differs']}
+                rows={details.map((d) => ({ ...d, differs: d.same ? '' : '≠' }))}
+                rowKey="field"
+                name="users-details"
+                note={<span>{note}</span>}
+              />
+            ),
+          },
+          {
+            id: 'permissions',
+            label: 'User & system permissions that differ',
+            count: result.permissions.length,
+            content:
+              result.permissions.length === 0 ? (
+                <p className="good">✓ The same user and system permissions.</p>
+              ) : (
+                <DataTable
+                  columns={['item', 'a', 'b']}
+                  rows={result.permissions.map((p, i) => ({ ...p, key: i }))}
+                  rowKey="key"
+                  name="users-permissions"
+                  note={<span>{note} · from the profile, permission sets and groups</span>}
+                />
+              ),
+          },
+        ]}
       />
-      <h4>User &amp; system permissions that differ (from the profile, permission sets and groups)</h4>
-      {result.permissions.length === 0 ? (
-        <p className="good">✓ The same user and system permissions.</p>
-      ) : (
-        <DataTable
-          columns={['item', 'a', 'b']}
-          rows={result.permissions.map((p, i) => ({ ...p, key: i }))}
-          rowKey="key"
-          name="users-permissions"
-          note={<span>{note}</span>}
-        />
-      )}
     </>
   );
 }
@@ -424,15 +440,18 @@ function AccessCompare({
   const note = <span>{` · A = ${labelA}, B = ${labelB}`}</span>;
   return (
     <div className="access-compare section">
-      <div className="segmented wrap" role="group" aria-label="Section">
+      <div className="tabs" role="tablist" aria-label="Section">
         {sections.map((s) => (
-          <button key={s.title} className={section.title === s.title ? 'active' : ''} onClick={() => setShown(s.title)}>
+          <button
+            key={s.title}
+            role="tab"
+            className={`tab ${section.title === s.title ? 'active' : ''}`}
+            onClick={() => setShown(s.title)}
+          >
             {s.title}
-            {s.noteA || s.noteB
-              ? ' (?)'
-              : both
-              ? ` (${s.rows.filter((r) => r.differs).length} ≠)`
-              : ` (${s.rows.length})`}
+            <span className="tab-count">
+              {s.noteA || s.noteB ? '?' : both ? `${s.rows.filter((r) => r.differs).length} ≠` : s.rows.length}
+            </span>
           </button>
         ))}
       </div>
@@ -474,7 +493,9 @@ function AccessCompare({
       ) : (
         <DataTable
           columns={['item', 'a', 'b', 'differs']}
-          rows={rows.map((r) => ({ ...r, differs: r.differs ? '≠' : '' }))}
+          // Fields (Account.Name…) in a box per object
+          rows={rows.map((r) => ({ ...r, differs: r.differs ? '≠' : '', object: r.item.split('.')[0] }))}
+          groupBy={/field/i.test(section.title) ? 'object' : undefined}
           rowKey="key"
           name={`${what}-${section.title}`}
           note={note}

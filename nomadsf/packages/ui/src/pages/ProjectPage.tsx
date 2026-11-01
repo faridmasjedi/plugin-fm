@@ -7,13 +7,13 @@ import {
   projectLabels,
   projectMetadataZip,
   projectTests,
-  type ProjectTypeSummary,
 } from '@nomadsf/core';
 import { DataTable } from '../components/DataTable';
 import { ProjectCompare } from '../components/ProjectCompare';
 import { PackageContents } from '../components/PackageContents';
 import { ReleasePanel } from '../components/ReleasePanel';
-import { RowActionBar, RowActionSelect, withAction, type RowAction } from '../components/RowActions';
+import { GroupedActions } from '../components/GroupedActions';
+import { type RowAction } from '../components/RowActions';
 import { useProject } from '../project';
 import { storage, type Studio } from '../context';
 import { Status } from '../statusLog';
@@ -31,18 +31,16 @@ export function ProjectPage({
   onOpenCode?: () => void;
 }) {
   const project = useProject();
-  const [type, setType] = useState<ProjectTypeSummary | null>(null);
   const [status, setStatus] = useState('');
   const [tab, setTab] = useState<'overview' | 'compare'>(() => storage.get('project.tab', 'overview'));
-  // Overview: components put into a package or made destructive changes (type:name → action), and the ticked ones
+  // Overview: components put into a package or made destructive changes (type:name → action)
   const [actions, setActions] = useState<Map<string, RowAction>>(new Map());
-  const [ticked, setTicked] = useState<Set<string>>(new Set());
   const { source, info } = project;
-  // The labels file is its labels: opening CustomLabels lists each one (type CustomLabel)
-  const [labels, setLabels] = useState<string[]>();
+  // The labels file is its labels: listed one by one (type CustomLabel)
+  const [labels, setLabels] = useState<string[]>([]);
   useEffect(() => {
-    setLabels(undefined);
-    if (type?.type !== 'CustomLabels' || !source || !info) return;
+    setLabels([]);
+    if (!source || !info) return undefined;
     let canceled = false;
     projectLabels(source.fs, info)
       .then((names) => !canceled && setLabels(names))
@@ -50,22 +48,23 @@ export function ProjectPage({
     return () => {
       canceled = true;
     };
-  }, [type, source, info]);
-  const shown: ProjectTypeSummary | null =
-    type?.type === 'CustomLabels' && labels
-      ? { ...type, type: 'CustomLabel', names: labels, count: labels.length }
-      : type;
-  const keyOf = (t: string, name: string): string => `${t}:${name}`;
+  }, [source, info]);
+  // Every component of the project, its package directory beside it
+  const overviewRows = (info?.packageDirectories ?? []).flatMap((dir) =>
+    dir.types.flatMap((t) =>
+      (t.type === 'CustomLabels' ? labels : t.names).map((name) => {
+        const type = t.type === 'CustomLabels' ? 'CustomLabel' : t.type;
+        // The package directory only says something when there are several
+        const several = (info?.packageDirectories.length ?? 0) > 1;
+        return { key: `${type}:${name}`, type, name, status: several ? dir.path : '' };
+      })
+    )
+  );
   const listed = (kind: RowAction): Array<{ type: string; name: string }> =>
     [...actions]
       .filter(([, a]) => a === kind)
       .map(([key]) => ({ type: key.slice(0, key.indexOf(':')), name: key.slice(key.indexOf(':') + 1) }));
   const toDeploy = listed('deploy');
-  /** A whole type's action: the same for every component of it, else none (some chosen one by one). */
-  const typeAction = (t: ProjectTypeSummary): RowAction | undefined => {
-    const first = actions.get(keyOf(t.type, t.names[0] ?? ''));
-    return first && t.names.every((n) => actions.get(keyOf(t.type, n)) === first) ? first : undefined;
-  };
   const toDelete = listed('delete');
 
   const openManifest = async (path: string) => {
@@ -173,141 +172,59 @@ export function ProjectPage({
             ))}
 
           {tab === 'overview' && (
-            <div className="split">
+            <>
+              {/* Every component by type, as Release's lists: a box per type, its components to put in a package */}
               <div className="card section">
-                {info.packageDirectories.map((dir) => (
-                  <div key={dir.path} className="section">
-                    <h3>
-                      {dir.path} {dir.default && <span className="pill">default</span>}{' '}
+                <div className="form">
+                  {info.packageDirectories.map((dir) => (
+                    <span key={dir.path}>
+                      <b>{dir.path}</b> {dir.default && <span className="pill">default</span>}{' '}
                       {dir.package && (
                         <span className="pill good">
                           {dir.package} {dir.versionNumber}
                         </span>
                       )}
-                    </h3>
-                    <DataTable
-                      columns={['type', 'count', 'action']}
-                      rows={dir.types.map((t) => ({ ...t, key: `${dir.path}:${t.type}`, action: typeAction(t) ?? '' }))}
-                      rowKey="key"
-                      name={`${dir.path}-types`}
-                      renderCell={(column, row) => {
-                        if (column !== 'action') return undefined;
-                        const t = dir.types.find((x) => x.type === row.type);
-                        if (!t) return undefined;
-                        if (t.type === 'CustomLabels')
-                          return <span className="muted small">open it: label by label</span>;
-                        const chosen = t.names.filter((n) => actions.has(keyOf(t.type, n))).length;
-                        return (
-                          <span className="type-action">
-                            <RowActionSelect
-                              value={typeAction(t)}
-                              onChange={(a) => setActions(withAction(actions, t.names, a, (n) => keyOf(t.type, n)))}
-                            />
-                            {chosen > 0 && !typeAction(t) && (
-                              <span className="muted small">
-                                {chosen}/{t.names.length}
-                              </span>
-                            )}
-                          </span>
-                        );
-                      }}
-                      onRowClick={(row) => {
-                        setType(dir.types.find((t) => t.type === row.type) ?? null);
-                        setTicked(new Set());
-                      }}
-                      note={<span>· click a type</span>}
-                    />
-                  </div>
-                ))}
-                {info.manifests.length > 0 && (
-                  <div className="section">
-                    <h3>Manifests</h3>
-                    <DataTable
-                      columns={['path', 'types', 'members']}
-                      rows={info.manifests.map((m) => ({ ...m }))}
-                      rowKey="path"
-                      name="manifests"
-                      onRowClick={(row) => void openManifest(String(row.path))}
-                      note={<span>· click to load into Metadata</span>}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="card section">
-                {!shown ? (
-                  <p className="muted">
-                    Click a type to see its components or put them in a package. To compare with the org, open the
-                    Compare tab.
-                  </p>
-                ) : (
-                  <>
-                    <h3>
-                      {shown.type} <span className="muted">({shown.count} in the project)</span>
-                    </h3>
-                    <div className="form">
-                      <button
-                        onClick={() =>
-                          setActions(withAction(actions, shown.names, 'deploy', (n) => keyOf(shown.type, n)))
-                        }
-                      >
-                        Add all to package
-                      </button>
-                      <button
-                        className="danger"
-                        onClick={() =>
-                          setActions(withAction(actions, shown.names, 'delete', (n) => keyOf(shown.type, n)))
-                        }
-                      >
-                        All as destructive changes
-                      </button>
-                      <span className="grow" />
+                    </span>
+                  ))}
+                </div>
+                <GroupedActions
+                  rows={overviewRows}
+                  actions={actions}
+                  onActions={setActions}
+                  allowed={() => true}
+                  tone={() => ''}
+                  groupExtra={(t, list) =>
+                    t === 'CustomLabel' ? null : (
                       <button
                         title="Retrieve these from the org in Release › Metadata"
                         onClick={() => {
                           project.openPackage({
-                            label: `${shown.type} from ${info.name}`,
-                            types: [{ type: shown.type, members: shown.names }],
+                            label: `${t} from ${info.name}`,
+                            types: [{ type: t, members: list.map((r) => r.name) }],
                           });
                           onOpenMetadata();
                         }}
                       >
                         Open in Metadata ›
                       </button>
-                    </div>
-                    {ticked.size > 0 && (
-                      <div className="form">
-                        <span className="muted">{ticked.size} ticked</span>
-                        <RowActionBar
-                          deployable={ticked.size}
-                          deletable={ticked.size}
-                          ticked={ticked.size}
-                          onSet={(a) => setActions(withAction(actions, [...ticked], a, (n) => keyOf(shown.type, n)))}
-                        />
-                      </div>
-                    )}
-                    <DataTable
-                      columns={['name', 'action']}
-                      rows={shown.names.map((name) => ({ name, action: actions.get(keyOf(shown.type, name)) ?? '' }))}
-                      rowKey="name"
-                      name={`${shown.type}-components`}
-                      selected={ticked}
-                      onSelectedChange={setTicked}
-                      renderCell={(column, row) =>
-                        column === 'action' ? (
-                          <RowActionSelect
-                            value={actions.get(keyOf(shown.type, String(row.name)))}
-                            onChange={(a) =>
-                              setActions(withAction(actions, [String(row.name)], a, (n) => keyOf(shown.type, n)))
-                            }
-                          />
-                        ) : undefined
-                      }
-                    />
-                  </>
-                )}
+                    )
+                  }
+                />
               </div>
-            </div>
+              {info.manifests.length > 0 && (
+                <div className="card section">
+                  <h3>Manifests</h3>
+                  <DataTable
+                    columns={['path', 'types', 'members']}
+                    rows={info.manifests.map((m) => ({ ...m }))}
+                    rowKey="path"
+                    name="manifests"
+                    onRowClick={(row) => void openManifest(String(row.path))}
+                    note={<span>· click to load into Metadata</span>}
+                  />
+                </div>
+              )}
+            </>
           )}
 
           {tab === 'overview' && studio && source && (toDeploy.length > 0 || toDelete.length > 0) && (

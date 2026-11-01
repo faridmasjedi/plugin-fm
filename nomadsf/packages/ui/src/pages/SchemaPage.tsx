@@ -210,6 +210,7 @@ export function SchemaPage() {
                     content: (
                       <DataTable
                         columns={['field', 'to', 'relationship']}
+                        groupBy="to"
                         rows={schema.parents.map((p) => ({ ...p }))}
                         rowKey="field"
                         name={`${schema.name}-parents`}

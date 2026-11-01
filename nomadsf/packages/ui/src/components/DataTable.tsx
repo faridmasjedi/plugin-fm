@@ -147,7 +147,8 @@ export function DataTable({
     }
     return out;
   }, [groupBy, visible, maxShown]);
-  const isOpen = (g: string): boolean => (groups?.size ?? 0) <= 1 || active > 0 || openGroups.has(g);
+  // One group starts open, several start closed; a click turns the default over; filtering opens them all
+  const isOpen = (g: string): boolean => active > 0 || (groups?.size ?? 0) <= 1 !== openGroups.has(g);
   const toggleGroup = (g: string): void => {
     const next = new Set(openGroups);
     if (next.has(g)) next.delete(g);
@@ -267,8 +268,8 @@ export function DataTable({
   );
 
   const table =
-    groups && groups.size > 1 ? (
-      // Several groups: a box per group (a metadata type), opened like a dropdown — as in Release's lists
+    groups && groups.size > 0 ? (
+      // Grouped: a box per group (a metadata type, an object…), opened like a dropdown — as in Release lists
       <div className="dt-groups">
         {[...groups].map(([g, list]) => {
           const open = isOpen(g);

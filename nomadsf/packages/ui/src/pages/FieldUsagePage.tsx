@@ -287,6 +287,7 @@ export function FieldUsagePage() {
                     </div>
                     <DataTable
                       columns={['access', 'kind', 'name']}
+                      groupBy="kind"
                       rows={access
                         .filter((x) => (kind === 'all' || x.kind === kind) && (level === 'all' || x.access === level))
                         .map((x, i) => ({ ...x, key: i }))}
