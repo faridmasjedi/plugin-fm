@@ -6,8 +6,26 @@ import { useState, type ReactNode } from 'react';
  */
 export type TableTab = { id: string; label: string; count?: number; content: ReactNode };
 
-export function TableTabs({ tabs, initial, title }: { tabs: TableTab[]; initial?: string; title?: ReactNode }) {
-  const [active, setActive] = useState(initial ?? tabs[0]?.id ?? '');
+export function TableTabs({
+  tabs,
+  initial,
+  title,
+  active: chosen,
+  onChange,
+}: {
+  tabs: TableTab[];
+  initial?: string;
+  title?: ReactNode;
+  /** The tab shown, when the page chooses it too (summary tiles that open a tab). */
+  active?: string;
+  onChange?: (id: string) => void;
+}) {
+  const [own, setOwn] = useState(initial ?? tabs[0]?.id ?? '');
+  const active = chosen ?? own;
+  const setActive = (id: string): void => {
+    setOwn(id);
+    onChange?.(id);
+  };
   const shown = tabs.find((t) => t.id === active) ?? tabs[0];
   if (!shown) return null;
   return (

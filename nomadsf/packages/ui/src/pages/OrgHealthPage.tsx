@@ -61,6 +61,8 @@ export function OrgHealthPage() {
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
   }, [client, license]);
 
+  // The check shown below: a tile or a tab chooses it
+  const [check, setCheck] = useState('powerful-permissions');
   const choose = (next: Tab) => {
     setTab(next);
     storage.set('health.tab', next);
@@ -128,23 +130,34 @@ export function OrgHealthPage() {
             {report.notes.length > 0 && <span className="muted">Not available: {report.notes.join(' · ')}</span>}
           </div>
           <div className="metrics">
-            <div className={`metric ${report.score !== undefined && report.score < 80 ? 'bad' : ''}`}>
-              <b>{report.score ?? '—'}</b>Health Check score
-            </div>
-            <div className="metric">
-              <b>{report.powerUsers.length}</b>users with powerful permissions
-            </div>
-            <div className="metric">
-              <b>{report.dormant.length}</b>active users not logged in
-            </div>
-            <div className="metric">
-              <b>{report.unusedPermissionSets.length}</b>unassigned permission sets
-            </div>
-            <div className="metric">
-              <b>{report.staleTokens.length}</b>unused OAuth tokens
-            </div>
+            {(
+              [
+                [
+                  'health-check',
+                  report.score ?? '—',
+                  'Health Check score',
+                  report.score !== undefined && report.score < 80,
+                ],
+                ['powerful-permissions', report.powerUsers.length, 'users with powerful permissions', false],
+                ['dormant-users', report.dormant.length, 'active users not logged in', false],
+                ['unassigned-permission-sets', report.unusedPermissionSets.length, 'unassigned permission sets', false],
+                ['stale-oauth', report.staleTokens.length, 'unused OAuth tokens', false],
+              ] as Array<[string, number | string, string, boolean]>
+            ).map(([id, value, label, bad]) => (
+              <button
+                key={id}
+                className={`metric filter ${check === id ? 'active' : ''} ${bad ? 'bad' : ''}`}
+                title="Show them below"
+                onClick={() => setCheck(id)}
+              >
+                <b>{value}</b>
+                {label}
+              </button>
+            ))}
           </div>
           <TableTabs
+            active={check}
+            onChange={setCheck}
             tabs={[
               section(
                 'Powerful permissions',
