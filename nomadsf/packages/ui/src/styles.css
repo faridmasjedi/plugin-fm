@@ -4103,3 +4103,19 @@ select.row-action {
 .md-table tbody tr:last-child td {
   border-bottom: 0;
 }
+
+/* Retrieve into the project: tick, A / M / =, the file — and its component under it */
+.retrieve-into .compare-file-row {
+  grid-template-columns: 18px 28px minmax(0, 1fr);
+  row-gap: 0;
+}
+.retrieve-into .compare-file-row .link {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.retrieve-into .compare-file-row .small {
+  grid-column: 3;
+}
+.retrieve-into > .form h3 {
+  margin: 0;
+}

@@ -18,6 +18,7 @@ import {
 import { DataTable } from '../components/DataTable';
 import { ComponentPreview } from '../components/MetadataSource';
 import { PackageContents } from '../components/PackageContents';
+import { RetrieveIntoProject } from '../components/RetrieveIntoProject';
 import { ReleasePanel } from '../components/ReleasePanel';
 import { useStudio } from '../context';
 import { useProject } from '../project';
@@ -61,6 +62,7 @@ export function MetadataPage() {
   // A component clicked in Browse: its files, read-only
   const [preview, setPreview] = useState<MetadataComponent | null>(null);
   const [basket, setBasket] = useState<Map<string, MetadataComponent>>(new Map());
+  const [intoProject, setIntoProject] = useState(false);
   // Components to delete from the org: destructiveChanges*.xml
   const [toDelete, setToDelete] = useState<Map<string, MetadataComponent>>(new Map());
   const [deleteFile, setDeleteFile] = useState<DeleteFile>('destructiveChanges.xml');
@@ -300,8 +302,18 @@ export function MetadataPage() {
                 <button className="primary" disabled={!items.length} onClick={() => void downloadZip()}>
                   Download zip
                 </button>
-                {hostKind === 'app' && (
-                  <button onClick={() => void retrieveIntoProject()}>Retrieve into project</button>
+                {(project.source?.kind === 'folder' || hostKind === 'app') && (
+                  <button
+                    className={intoProject ? 'active' : ''}
+                    disabled={!items.length}
+                    title="The package's components as files in the project — shown first, written only when you say"
+                    onClick={() =>
+                      // A project folder: shown and written here; the app's own project: through the app
+                      project.source?.kind === 'folder' ? setIntoProject(!intoProject) : void retrieveIntoProject()
+                    }
+                  >
+                    Retrieve into project…
+                  </button>
                 )}
                 <button onClick={() => save('package.xml', new Blob([xml], { type: 'text/xml' }))}>package.xml</button>
                 <button onClick={() => void navigator.clipboard.writeText(xml)}>Copy package.xml</button>
@@ -314,6 +326,12 @@ export function MetadataPage() {
                   Clear
                 </button>
               </div>
+              {intoProject && items.length > 0 && (
+                <RetrieveIntoProject
+                  key={items.map(keyOf).join('|')}
+                  components={items.map((c) => ({ type: c.type, name: c.fullName }))}
+                />
+              )}
               {items.length > 0 && (
                 <DataTable
                   columns={['type', 'fullName']}

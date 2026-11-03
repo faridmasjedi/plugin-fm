@@ -56,6 +56,7 @@ export * from './sourcePackage.js';
 export * from './gitFolder.js';
 export * from './compareEngine.js';
 export * from './sourceConvert.js';
+export * from './sourceRetrieve.js';
 export * from './apexGraph.js';
 export * from './dependentTests.js';
 export * from './projectRelease.js';
