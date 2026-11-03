@@ -99,6 +99,25 @@ export async function componentFilePaths(
 }
 
 /** A file's bytes from a picked folder (binary static resources survive, unlike text). */
+/**
+ * Writes a file into a folder the person chose (the project), making its folders; the folder must allow writing
+ * (ask with requestPermission({ mode: 'readwrite' }) first).
+ */
+export async function writeFolderFile(root: FolderHandle, path: string, content: Uint8Array): Promise<void> {
+  const parts = path.split('/').filter(Boolean);
+  let dir = root;
+  // eslint-disable-next-line no-await-in-loop
+  for (const part of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(part, { create: true });
+  const file = await dir.getFileHandle(parts[parts.length - 1], { create: true });
+  if (!file.createWritable) throw new Error('This folder cannot be written to.');
+  const writable = (await file.createWritable()) as unknown as {
+    write(data: Uint8Array): Promise<void>;
+    close(): Promise<void>;
+  };
+  await writable.write(content);
+  await writable.close();
+}
+
 export async function folderBytes(root: FolderHandle, path: string): Promise<Uint8Array> {
   const parts = path.split('/').filter(Boolean);
   let dir = root;

@@ -151,7 +151,7 @@ async function openFolder(page) {
   );
   // Writing only ever reaches the backups folder
   const writable = (root) => {
-    if (root !== 'backups') throw new Error('The demo repository is read-only.');
+    if (root !== 'backups' && !process.env.DEMO_REPO_WRITABLE) throw new Error('The demo repository is read-only.');
   };
   await page.exposeFunction('__fsMkdir', (root, p) => {
     writable(root);

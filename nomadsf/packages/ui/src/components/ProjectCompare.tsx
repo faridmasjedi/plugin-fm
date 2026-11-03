@@ -24,6 +24,7 @@ import { GroupedActions } from './GroupedActions';
 import { withAction, type RowAction } from './RowActions';
 import type { Studio } from '../context';
 import { localAppBase, useProject } from '../project';
+import { RetrieveIntoProject } from './RetrieveIntoProject';
 import { Status } from '../statusLog';
 
 type Where = 'only in org' | 'only in project' | 'both' | 'different' | 'same';
@@ -107,6 +108,7 @@ export function ProjectCompare({
   const [show, setShow] = useState<'all' | Where>('all');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const [intoProject, setIntoProject] = useState(false);
   const [actions, setActions] = useState<Map<string, Action>>(new Map());
   const [forceignore, setForceignore] = useState('.forceignore');
 
@@ -416,14 +418,20 @@ export function ProjectCompare({
                 {branch ? branch.name : 'the project'}
               </span>
               <div className="form">
-                {!branch && (
+                {!branch && project.source?.kind === 'folder' && (
                   <button
-                    disabled={busy || !onlyOrg.length || !project.localAppReady}
-                    title={
-                      project.localAppReady
-                        ? 'Retrieve into the project on this computer'
-                        : 'Needs the NomadSF CLI app (sf fm dashboard)'
-                    }
+                    className={intoProject ? 'active' : ''}
+                    disabled={busy || !inOrg.length}
+                    title="The org's version of the chosen components as files in the project — shown first, written only when you say"
+                    onClick={() => setIntoProject(!intoProject)}
+                  >
+                    Retrieve into project ({inOrg.length})…
+                  </button>
+                )}
+                {!branch && project.source?.kind !== 'folder' && project.localAppReady && (
+                  <button
+                    disabled={busy || !onlyOrg.length}
+                    title="Retrieve into the project on this computer"
                     onClick={() => void restore()}
                   >
                     Restore into project ({onlyOrg.length})
@@ -440,6 +448,12 @@ export function ProjectCompare({
                   Download delete package ({onlyOrg.length})
                 </button>
               </div>
+              {intoProject && inOrg.length > 0 && (
+                <RetrieveIntoProject
+                  key={inOrg.map((r) => r.key).join('|')}
+                  components={inOrg.map((r) => ({ type: r.type, name: r.name }))}
+                />
+              )}
             </div>
           )}
 

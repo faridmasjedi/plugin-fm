@@ -64,7 +64,7 @@ const LANGUAGE: Record<string, CodeFile['language']> = {
   tokens: 'xml',
 };
 
-const languageOf = (path: string): CodeFile['language'] =>
+export const codeLanguageOf = (path: string): CodeFile['language'] =>
   path.endsWith('-meta.xml') ? 'xml' : LANGUAGE[path.split('.').pop() ?? ''] ?? 'html';
 
 /** Files the org never holds in a bundle: Jest tests (Aura's -meta.xml is shown from the bundle record). */
@@ -99,7 +99,7 @@ export async function readProjectCode(
       // eslint-disable-next-line no-await-in-loop
       const source = await fs.readText(`${folder}/${file}`);
       if (source !== undefined)
-        return [{ id: `project:${folder}/${file}`, path: file, language: languageOf(file), source }];
+        return [{ id: `project:${folder}/${file}`, path: file, language: codeLanguageOf(file), source }];
       continue;
     }
     let paths: string[];
@@ -116,7 +116,7 @@ export async function readProjectCode(
       // eslint-disable-next-line no-await-in-loop
       const source = await fs.readText(full);
       if (source === undefined) continue;
-      files.push({ id: `project:${full}`, path: `${layout.folder}/${rel}`, language: languageOf(rel), source });
+      files.push({ id: `project:${full}`, path: `${layout.folder}/${rel}`, language: codeLanguageOf(rel), source });
     }
     if (files.length) return files.sort((a, b) => a.path.localeCompare(b.path));
   }
