@@ -4209,3 +4209,16 @@ select.row-action {
   padding-left: 12px;
   border-left: 1px dashed var(--border);
 }
+.quick-jump {
+  width: min(680px, calc(100vw - 32px));
+}
+.quick-jump .qj-say {
+  font-weight: 500;
+}
+.qj-ai-note {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}

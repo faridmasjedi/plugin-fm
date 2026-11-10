@@ -424,7 +424,7 @@ export function App() {
           <Panes ws={ws} available={available} render={render} />
           <LogDrawer />
         </main>
-        <QuickJump ws={ws} available={available} />
+        <QuickJump ws={ws} available={available} hostKind={host.kind} />
       </div>
     </ProjectStateContext.Provider>
   );

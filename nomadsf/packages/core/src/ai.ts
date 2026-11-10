@@ -217,7 +217,8 @@ export type BrowserAiTask =
   | 'explain-diff'
   | 'write-metadata'
   | 'change-metadata'
-  | 'map-csv';
+  | 'map-csv'
+  | 'find-place';
 const MAX_INPUT = 60_000;
 /** How explanations are written, so the Studio shows them well (its Markdown: headings, lists, tables, code). */
 const FORMAT =
@@ -258,6 +259,8 @@ const SYSTEM: Record<BrowserAiTask, string> = {
     'You change one Salesforce metadata component. You get its files as the Metadata API returns them, then the change wanted. Answer with one ```json code block and nothing else, holding {"files": [{"path": "<the same path>", "content": "<the whole new file>"}], "note": "<one short sentence on what you changed>"}. Return only the files you change, each complete, with the same paths; keep everything else in them exactly as it was (order, values, formatting). Do not invent fields, objects or values that the request or the files do not name.',
   'map-csv':
     'You map the columns of a CSV file to the fields of a Salesforce object for a data load. Answer with one ```json code block and nothing else, holding {"mapping": {"<column exactly as given>": "<field API name, or empty to skip>"}, "note": "<one short sentence>"}. Use only field API names from the list given; match by meaning (labels, abbreviations, other languages), not only by spelling; a column holding record Ids of the object maps to Id; a lookup column maps to the lookup field (…Id or …__c). Leave a column empty when no field fits; never map two columns to one field.',
+  'find-place':
+    'You help someone find the right place in NomadSF Studio, a Salesforce tool. They say what they want to do; you get the list of places, one per line as "<id> | <where> | <what it does>". Answer with one ```json code block and nothing else, holding {"places": ["<id>", …], "note": "<one short sentence on how to do it there>"}: at most 3 ids from the list, best first, and an empty list when nothing fits. Use only ids from the list.',
   soql: 'You write Salesforce SOQL. Answer with exactly one SOQL query in a ```sql code block and nothing else. Use only the objects and fields given; use relationship names for lookups; add LIMIT 200 unless the question asks for everything or for a count.',
 };
 
@@ -400,6 +403,14 @@ export function aiTaskPrompt(task: BrowserAiTask, input: Record<string, unknown>
         0,
         MAX_INPUT
       )}\n\nChange: ${request}`,
+    };
+  }
+  if (task === 'find-place') {
+    const question = String(input.question ?? '').trim();
+    if (!question) throw new Error('Say what you want to do.');
+    return {
+      system: SYSTEM[task],
+      message: `Places:\n${String(input.places ?? '').slice(0, MAX_INPUT)}\n\nWhat they want to do: ${question}`,
     };
   }
   if (task === 'map-csv') {

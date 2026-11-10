@@ -10,7 +10,7 @@
 
 ## What's inside
 
-Tools are grouped into hubs, each with its own sidebar of tools. Open two or three side by side (drag a hub or a tool to the right of a pane), jump anywhere with <kbd>⌘K</kbd>, and every tab keeps its results until you reset it.
+Tools are grouped into hubs, each with its own sidebar of tools. Open two or three side by side (drag a hub or a tool to the right of a pane), jump anywhere with <kbd>⌘K</kbd> (a tool's name, or what you want to do: "stop a batch job"), and every tab keeps its results until you reset it.
 
 | Hub                 | Tools                                                                                                                                                                                                                                                        |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

@@ -41,8 +41,10 @@ export function CompareAccess({ between }: { between?: OrgSides }) {
   const labelB = between?.labelB ?? labelA;
   const other = Boolean(between);
   const [mode, setMode] = useState<Mode>(() => {
-    const saved = storage.get<string>('compare.mode', 'users');
-    return saved === 'sets' ? 'Profile' : (saved as Mode);
+    // Its own key (Compare & package keeps its mode under compare.mode)
+    const saved = storage.get<string>('access.compare.mode', 'users');
+    const known = ['users', 'all', ...KINDS.map(([k]) => k)];
+    return (known.includes(saved) && (saved !== 'all' || other) ? saved : 'users') as Mode;
   });
   const [filter, setFilter] = useState('');
   const [userA, setUserA] = useState<UserMatch | null>(null);
@@ -161,7 +163,7 @@ export function CompareAccess({ between }: { between?: OrgSides }) {
               className={shownMode === id ? 'active' : ''}
               onClick={() => {
                 setMode(id);
-                storage.set('compare.mode', id);
+                storage.set('access.compare.mode', id);
               }}
             >
               {text}
