@@ -86,6 +86,34 @@ const TRIGGER = {
   ],
 };
 
+/** A caption over the page for a release video (not part of the Studio): bottom centre, until the next one. */
+async function caption(h, text, ms = 1800) {
+  await h.page.evaluate((t) => {
+    let el = document.getElementById('__caption');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = '__caption';
+      el.style.cssText =
+        'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:99999;max-width:80%;padding:12px 22px;' +
+        'border-radius:14px;background:rgba(15,23,42,.88);color:#fff;font:600 22px/1.35 system-ui,sans-serif;' +
+        'text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.25);pointer-events:none;transition:opacity .25s';
+      document.body.appendChild(el);
+    }
+    el.style.opacity = t ? '1' : '0';
+    if (t) el.textContent = t;
+  }, text);
+  await h.pause(ms);
+}
+
+/** The Search box: types what you want to do, then opens the first place it finds. */
+async function searchFor(h, text) {
+  await h.press(h.page.locator('.header-search'));
+  await h.type(h.page.locator('.quick-jump input'), text);
+  await h.pause(1300);
+  await h.press(h.page.locator('.quick-jump li button').first());
+  await h.settle();
+}
+
 export const scenes = [
   {
     name: 'hubs',
@@ -355,6 +383,9 @@ export const scenes = [
     name: 'apextests',
     hash: 'apextests',
     run: async (h) => {
+      // Find the test classes by name (a long list in a real org), tick them
+      await h.type(h.page.locator('input[placeholder^="Find test classes"]'), 'account*, casehandler');
+      await h.pause(900);
       for (const name of ['AccountServiceTest', 'CaseHandlerTest'])
         await h.press(h.page.locator('tr', { hasText: name }).locator('input[type=checkbox]'));
       await h.click('Run selected');
@@ -455,6 +486,9 @@ export const scenes = [
       await h.select(h.page.locator('.pane-body select').first(), 'ApexClass');
       await h.until('InvoiceController', 90000);
       await h.pause(800);
+      // A long list: find the ones you want by name
+      await h.type(h.page.locator('input[placeholder^="Find "]'), 'invoice*');
+      await h.pause(1000);
       for (const name of ['InvoiceController', 'InvoiceService', 'InvoiceServiceTest'])
         await h.press(h.row(name).locator('input[type=checkbox]'));
       await h.click(/^Add \d+ to package/);
@@ -1090,6 +1124,91 @@ export const scenes = [
       await validate(h);
       await h.until('Validated on acme-uat');
       await h.pause(1500);
+    },
+  },
+  {
+    // The release video (LinkedIn, the site): what is new in 2.4, with captions
+    name: 'whatsnew',
+    hash: 'query',
+    folder: true,
+    run: async (h) => {
+      await caption(h, 'NomadSF 2.4 — what’s new', 2000);
+      await caption(h, 'Search: say what you want to do…', 300);
+      await searchFor(h, 'what runs when a record is saved');
+      await h.type(h.page.locator('input[placeholder="Object, e.g. Case"]'), 'Opportunity');
+      await h.page.keyboard.press('Enter');
+      await h.until('OpportunityTrigger', 60000);
+      await h.settle();
+      await caption(h, 'Automation: click a trigger to see what it runs', 300);
+      await h.press(h.page.locator('.save-card.opens', { hasText: 'OpportunityTrigger' }).first());
+      await h.waiting(() => h.page.locator('.auto-node-children .auto-node').first().waitFor({ timeout: 90000 }));
+      await h.pause(2000);
+
+      await caption(h, '');
+      await searchFor(h, 'sharing recalculation');
+      await caption(h, 'Jobs: Scheduled, Apex jobs and Background jobs', 2000);
+
+      await caption(h, '');
+      await searchFor(h, 'who is in a role inside a group');
+      await h.until('Support Team', 60000);
+      await h.press(h.row('Support Team'));
+      await h.settle();
+      await h.press(
+        h.page
+          .locator('.card.section button', { hasText: 'Who is in it' })
+          .and(h.page.locator('tr', { hasText: 'Support Manager' }).locator('button'))
+          .first()
+      );
+      await caption(h, 'Groups & queues: who is in a role or group inside a group', 300);
+      await h.waiting(() =>
+        h.page.locator('.member-tree .auto-node-children .auto-node').first().waitFor({ timeout: 60000 })
+      );
+      await h.pause(2000);
+
+      await caption(h, '');
+      await searchFor(h, 'compare two users');
+      const users = h.page.locator('input[placeholder="Name, username or email"]');
+      await h.type(users.first(), 'Ann');
+      await h.pause(1200);
+      await h.choose(
+        h.page
+          .locator('.pane-body select')
+          .filter({ has: h.page.locator('option', { hasText: 'Ann Lee' }) })
+          .first(),
+        /Ann Lee/
+      );
+      await h.type(users.last(), 'Bob');
+      await h.pause(1200);
+      await h.choose(
+        h.page
+          .locator('.pane-body select')
+          .filter({ has: h.page.locator('option', { hasText: 'Bob Ray' }) })
+          .first(),
+        /Bob Ray/
+      );
+      await h.click('Compare');
+      await h.settle();
+      await caption(h, 'Compare two users: every field, side by side', 300);
+      await h.press(h.page.locator('.dt-group-toggle', { hasText: 'Other fields' }).first());
+      await h.pause(1800);
+
+      await caption(h, '');
+      await h.tab('Settings', 'Project');
+      await h.click('Choose project folder…');
+      await h.settle();
+      await h.tab('Release', 'Metadata');
+      await h.select(h.page.locator('.pane-body select:visible').first(), 'ApexClass');
+      await h.until('InvoiceController', 90000);
+      await h.press(h.row('AccountService').locator('input[type=checkbox]'));
+      await h.click(/^Add \d+ to package/);
+      await h.click(/^Retrieve into project/);
+      await caption(h, 'Retrieve into project: the org’s version, file by file', 300);
+      await h.click('Read from the org');
+      await h.settle(120000);
+      await h.press(h.page.locator('.retrieve-into button.link').first());
+      await h.pause(2200);
+
+      await caption(h, 'NomadSF 2.4 — free, in Chrome, Edge and VS Code', 3200);
     },
   },
 ];

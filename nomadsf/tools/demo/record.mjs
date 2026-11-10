@@ -13,7 +13,10 @@ const here = fileURLToPath(new URL('.', import.meta.url));
 const media = process.env.DEMO_MEDIA ?? join(here, '../../../docs/media');
 const work = join(here, '.recordings');
 const BASE = process.env.DEMO_URL ?? 'http://localhost:7171';
-const SIZE = { width: 1440, height: 860 };
+// A full HD screen, recorded 1:1 (no scaling): the Studio as it looks on a big monitor, sharp
+const SIZE = { width: 1920, height: 1080 };
+const SCALE = 1;
+const VIDEO = SIZE;
 const GIFS = ['hubs', 'query', 'migrate', 'search'];
 // The demo git repository (make-repo.mjs), opened as "the project folder" by scenes with `folder: true`; a folder
 // a backup is written to (Backup's "Choose folder…", in readwrite mode), emptied before each recording
@@ -343,9 +346,9 @@ async function record(scene, browser) {
   mkdirSync(work, { recursive: true });
   const context = await browser.newContext({
     viewport: SIZE,
-    deviceScaleFactor: 1,
+    deviceScaleFactor: SCALE,
     colorScheme: 'light',
-    recordVideo: { dir: work, size: SIZE },
+    recordVideo: { dir: work, size: VIDEO },
     acceptDownloads: true,
   });
   await context.addInitScript(CURSOR);
@@ -402,7 +405,7 @@ async function record(scene, browser) {
     '-i',
     video,
     '-vf',
-    `fps=25,${keep}scale=1280:-2`,
+    `fps=25,${keep}scale=1920:-2`,
     '-c:v',
     'libx264',
     '-pix_fmt',
