@@ -4119,3 +4119,93 @@ select.row-action {
 .retrieve-into > .form h3 {
   margin: 0;
 }
+.type-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.type-picker .type-find {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.type-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 84px;
+  overflow: auto;
+}
+.type-chips .chip {
+  font-size: 12px;
+  padding: 1px 8px;
+}
+.form label.type-names {
+  flex-direction: row;
+}
+.type-picker .type-names {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.type-picker .type-names input {
+  flex: 1;
+  min-width: 0;
+}
+.save-card.opens {
+  cursor: pointer;
+}
+.save-card.opens:hover {
+  border-color: var(--accent);
+}
+.save-card.open {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.save-lane > .auto-tree {
+  grid-column: 1 / -1;
+}
+.auto-tree {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow-x: auto;
+}
+.auto-tree > p {
+  margin: 6px 0 0;
+}
+.auto-node-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 2px 0;
+}
+.auto-node-toggle {
+  width: 22px;
+  min-width: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+}
+.auto-node-label {
+  cursor: pointer;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.auto-node.missing .auto-node-label {
+  cursor: default;
+  font-weight: 400;
+  color: var(--muted);
+}
+.auto-node.off {
+  opacity: 0.6;
+}
+.auto-node-children {
+  margin-left: 10px;
+  padding-left: 12px;
+  border-left: 1px dashed var(--border);
+}

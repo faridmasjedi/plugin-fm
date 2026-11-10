@@ -458,9 +458,10 @@
             </div>
             <p>
               <b>Scheduled</b>: every scheduled job (scheduled Apex, report runs, dashboard refreshes, scheduled flows…)
-              with its next and last run and cron expression. <b>Background Apex</b>: batch, queueable and future jobs
-              of the last days with progress, errors and status. Tick jobs and <b>Stop</b> them — you type the org name
-              first.
+              with its next and last run and cron expression. <b>Apex jobs</b>: batch, queueable and future jobs of the
+              last days with progress, errors and status. Tick jobs and <b>Stop</b> them — you type the org name first.
+              <b>Background jobs</b>: Salesforce's own work, as Setup › Background Jobs shows it (sharing
+              recalculations, index builds, cleanups…), with status and errors; these cannot be stopped.
             </p>
             <div class="good-to-know">
               <h4>Good to know</h4>
@@ -468,7 +469,7 @@
                 <li>
                   Stopping a scheduled job deletes the schedule: it no longer runs until someone schedules it again.
                 </li>
-                <li>Background Apex covers the last days only, as Salesforce keeps it.</li>
+                <li>Apex jobs and background jobs cover the last days only, as Salesforce keeps them.</li>
               </ul>
             </div>
           </section>
