@@ -476,15 +476,21 @@
                 controls
               ></video>
             </div>
-            <p>
-              <b>Scheduled</b>: every scheduled job (scheduled Apex, report runs, dashboard refreshes, scheduled flows…)
-              with its next and last run and cron expression. <b>Apex jobs</b>: batch, queueable and future jobs of the
-              last days with progress, errors and status. Tick jobs and <b>Stop</b> them — you type the org name first.
-              <b>Background jobs</b>: Salesforce's own work, as Setup › Background Jobs shows it (sharing
-              recalculations, index builds, cleanups…), with status and errors; these cannot be stopped. Setup also
-              lists Salesforce's own jobs (Chatter digests, status updates…) that no tool can read through the API:
-              <b>Open Setup › Background Jobs</b> takes you there.
-            </p>
+            <ul class="parts">
+              <li>
+                <b>Scheduled</b>: every scheduled job (scheduled Apex, report runs, dashboard refreshes, scheduled
+                flows…) with its next and last run and cron expression.
+              </li>
+              <li>
+                <b>Apex jobs</b>: batch, queueable and future jobs of the last days, with progress, errors and status.
+              </li>
+              <li>
+                <b>Background jobs</b>: Salesforce's own work that the API can read (sharing recalculations, index
+                builds, cleanups…), with status and errors. Setup › Background Jobs also lists jobs no tool can read
+                through the API (Chatter digests, status updates…): <b>Open Setup › Background Jobs</b> takes you there.
+              </li>
+              <li><b>Stop</b>: tick scheduled or Apex jobs and stop them — you type the org name first.</li>
+            </ul>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
@@ -689,15 +695,25 @@
               the record they point to. For users, <b>Log in as</b>. The <b>History</b> tab lists the record's tracked
               field changes — when, which field, from, to and by whom — for objects with field history tracking on.
             </p>
-            <p>
-              <b>Related</b>: the record and what points to it as a tree (an Account's Contacts, Cases…, and ▸ what
-              points to those). Tick what you want: a relationship takes all its records, ▸ opens it to pick some;
-              <b>Query</b> opens them in Query. Choose an org and <b>Copy</b>: exactly the ticked records are created
-              there, the links between them kept, and <b>Undo this copy</b> deletes them again.
-              <b>Save as Excel</b> keeps them; <b>Open a saved copy…</b> (next to New…) copies them into any org later.
-              On a user, the tree is their access: the ticked permission sets, groups and licenses go with them (the
-              user is created if missing, and so are missing permission sets and groups).
-            </p>
+            <p><b>Related</b>: the record and what points to it, as a tree (an Account's Contacts, Cases…).</p>
+            <ul class="parts">
+              <li>
+                <b>Pick</b>: tick a relationship to take all its records, or open it (▸) to pick some; <b>Query</b>
+                opens them in Query.
+              </li>
+              <li>
+                <b>Copy</b>: choose an org — exactly the ticked records are created there, with the links between them;
+                <b>Undo this copy</b> deletes them again.
+              </li>
+              <li>
+                <b>Save as Excel</b> keeps them; <b>Open a saved copy…</b> (next to New…) copies them into any org
+                later.
+              </li>
+              <li>
+                <b>On a user</b>: the tree is their access — the ticked permission sets, groups and licenses go with
+                them (the user, and missing permission sets and groups, are created).
+              </li>
+            </ul>
             <div class="shot">
               <video
                 src="media/related.mp4"
@@ -779,10 +795,12 @@
                 its code, message and <b>What it means</b>. Download the successful rows and the failures as CSV.
               </li>
             </ol>
-            <p>
-              <b>Delete records matching a query</b>: count what a query returns, then delete it. And
-              <b>edit query results in a grid</b>: query records, change cells, and only the changed cells are sent.
-            </p>
+            <ul class="parts">
+              <li><b>Delete records matching a query</b>: count what a query returns, then delete it.</li>
+              <li>
+                <b>Edit query results in a grid</b>: query records, change cells — only the changed cells are sent.
+              </li>
+            </ul>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
@@ -1338,14 +1356,19 @@
               A permission set group gets its permissions from its permission sets: choose the group to add or remove
               permission sets, and Salesforce recalculates it.
             </p>
+            <ul class="parts">
+              <li>
+                <b>Apps, classes &amp; more</b>: the Apex classes, Visualforce pages, custom permissions, connected apps
+                (pre-authorized OAuth access) and apps (App Launcher) a permission set or custom profile gives access to
+                — add and remove them.
+              </li>
+              <li><b>Record types</b>: which ones it may use (and, for a profile, each object's default).</li>
+              <li><b>Page layouts</b> (profiles): the layout for each object and record type.</li>
+              <li><b>Tabs</b> (permission sets): Visible, Available or Hidden.</li>
+              <li><b>Login IP ranges</b>: any profile, standard ones too.</li>
+            </ul>
             <p>
-              <b>Apps, classes &amp; more</b>: the Apex classes, Visualforce pages, custom permissions, connected apps
-              (pre-authorized OAuth access) and apps (App Launcher) a permission set or custom profile gives access to —
-              add and remove them. <b>Record types</b>: which ones it may use (and, for a profile, each object's
-              default). <b>Page layouts</b> (profiles): the layout for each object and record type.
-              <b>Tabs</b> (permission sets): Visible, Available or Hidden. <b>Login IP ranges</b> (any profile, standard
-              ones too). Record types, layouts and login settings are deployed with the Metadata API: only those
-              settings change.
+              Record types, layouts and login settings are deployed with the Metadata API: only those settings change.
             </p>
             <p>
               <b>Field access</b> while editing: choose an object to list every field that can have field permissions,

@@ -885,3 +885,10 @@ section.cheat-group {
     break-after: avoid;
   }
 }
+/* One labelled part per line (Scheduled: … / Apex jobs: … ) */
+.doc ul.parts {
+  padding-left: 18px;
+}
+.doc ul.parts li {
+  margin: 4px 0;
+}
