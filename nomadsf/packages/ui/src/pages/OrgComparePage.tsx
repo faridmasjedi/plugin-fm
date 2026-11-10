@@ -6,6 +6,7 @@ import {
   compareOrgs,
   describeMetadata,
   fromBase64,
+  nameMatcher,
   orgComponentFiles,
   testsForPackage,
   type DiffPackage,
@@ -23,6 +24,7 @@ import { ReleasePanel } from '../components/ReleasePanel';
 import { GroupedActions } from '../components/GroupedActions';
 import { withAction, type RowAction } from '../components/RowActions';
 import { Status } from '../statusLog';
+import { TypePicker } from '../components/TypePicker';
 
 const COMMON = [
   'ApexClass',
@@ -62,6 +64,7 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
   const [targetFacts, setTargetFacts] = useState<OrgFacts>();
   const [types, setTypes] = useState<MetadataType[]>([]);
   const [chosen, setChosen] = useState<Set<string>>(() => new Set(storage.get<string[]>('orgdiff.types', COMMON)));
+  const [nameFilter, setNameFilter] = useState('');
   const [rows, setRows] = useState<OrgDiffRow[] | null>(null);
   const [show, setShow] = useState<Show>('all');
   // Each row: deployed from A (package.xml) or deleted from B (destructiveChanges.xml)
@@ -141,7 +144,8 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
       const result = await compareOrgs(clients.source, clients.target, types, (done, total, type) =>
         setStatus(`Listing ${type} (${done + 1} of ${total})…`)
       );
-      setRows(result.rows);
+      const wanted = nameMatcher(nameFilter);
+      setRows(result.rows.filter((r) => wanted(r.name)));
       setActions(new Map());
       setShow('all');
       setStatus(
@@ -223,38 +227,24 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
         <p className="bad-text">⚠ B ({target?.label}) is a PRODUCTION org: deploys there ask for its name.</p>
       )}
       <div className="card section">
-        <div className="form">
-          <b>Metadata types</b>
-          <button onClick={() => setChosen(new Set(types.map((t) => t.xmlName)))}>All</button>
-          <button onClick={() => setChosen(new Set(COMMON))}>Common</button>
-          <button onClick={() => setChosen(new Set())}>None</button>
-          <button
-            className="primary"
-            disabled={busy || !chosen.size || !clients.source || !clients.target}
-            onClick={() => void compare()}
-          >
-            Compare {chosen.size} type(s)
-          </button>
-        </div>
-        {types.length > 0 && (
-          <div className="field-checks">
-            {types.map((t) => (
-              <label key={t.xmlName} className="check">
-                <input
-                  type="checkbox"
-                  checked={chosen.has(t.xmlName)}
-                  onChange={(e) => {
-                    const next = new Set(chosen);
-                    if (e.target.checked) next.add(t.xmlName);
-                    else next.delete(t.xmlName);
-                    setChosen(next);
-                  }}
-                />{' '}
-                {t.xmlName}
-              </label>
-            ))}
-          </div>
-        )}
+        <b>Metadata types</b>
+        <TypePicker
+          types={types.map((t) => ({ type: t.xmlName }))}
+          chosen={chosen}
+          onChosen={setChosen}
+          names={nameFilter}
+          onNames={setNameFilter}
+          buttons={<button onClick={() => setChosen(new Set(COMMON))}>Common</button>}
+          action={
+            <button
+              className="primary"
+              disabled={busy || !chosen.size || !clients.source || !clients.target}
+              onClick={() => void compare()}
+            >
+              Compare {chosen.size} type(s)
+            </button>
+          }
+        />
       </div>
 
       {status && statusAt === 'top' && <Status text={status} block />}

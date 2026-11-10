@@ -124,8 +124,12 @@
                 panes; drag the divider to resize, <b>⧉</b> opens the hub beside, <b>✕</b> closes a pane.
               </li>
               <li>
-                <b>Quick jump</b>: <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>K</kbd>, type a few letters, <kbd>Enter</kbd> (or
-                <kbd>Shift</kbd>+<kbd>Enter</kbd> to open beside).
+                <b>Search</b> (top right, or <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>K</kbd>): a tool's name, or what you
+                want to do in your own words — <i>stop a batch job</i>, <i>who changed setup</i>,
+                <i>compare prod and uat</i>, <i>why can't Ann edit cases</i>. <kbd>Enter</kbd> opens the place on the
+                right tab (<kbd>Shift</kbd>+<kbd>Enter</kbd> beside). It understands word forms, Salesforce synonyms and
+                small typos, with no AI and nothing sent; for a sentence, <b>✦ Ask AI where</b> sends only the sentence
+                and the list of places to your AI. See it in <a href="#search">the video below</a>.
               </li>
               <li>
                 <b>Results are kept</b> when you switch tools or hubs or close another pane. <b>↻</b> on a pane starts
@@ -186,6 +190,22 @@
                 <td>Orgs · AI · Project</td>
               </tr>
             </table>
+            <h4 id="search">Search: say what you want to do</h4>
+            <p>
+              Press <b>Search</b> at the top (or <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>K</kbd>) and type what you want to
+              do; the place opens on the right tab.
+            </p>
+            <div class="shot">
+              <video
+                src="media/search.mp4"
+                poster="media/search.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
           </section>
           <section class="tool" data-title="Messages and the Log">
             <h2 id="messages">Messages and the Log</h2>
@@ -456,19 +476,28 @@
                 controls
               ></video>
             </div>
-            <p>
-              <b>Scheduled</b>: every scheduled job (scheduled Apex, report runs, dashboard refreshes, scheduled flows…)
-              with its next and last run and cron expression. <b>Background Apex</b>: batch, queueable and future jobs
-              of the last days with progress, errors and status. Tick jobs and <b>Stop</b> them — you type the org name
-              first.
-            </p>
+            <ul class="parts">
+              <li>
+                <b>Scheduled</b>: every scheduled job (scheduled Apex, report runs, dashboard refreshes, scheduled
+                flows…) with its next and last run and cron expression.
+              </li>
+              <li>
+                <b>Apex jobs</b>: batch, queueable and future jobs of the last days, with progress, errors and status.
+              </li>
+              <li>
+                <b>Background jobs</b>: Salesforce's own work that the API can read (sharing recalculations, index
+                builds, cleanups…), with status and errors. Setup › Background Jobs also lists jobs no tool can read
+                through the API (Chatter digests, status updates…): <b>Open Setup › Background Jobs</b> takes you there.
+              </li>
+              <li><b>Stop</b>: tick scheduled or Apex jobs and stop them — you type the org name first.</li>
+            </ul>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
                 <li>
                   Stopping a scheduled job deletes the schedule: it no longer runs until someone schedules it again.
                 </li>
-                <li>Background Apex covers the last days only, as Salesforce keeps it.</li>
+                <li>Apex jobs and background jobs cover the last days only, as Salesforce keeps them.</li>
               </ul>
             </div>
           </section>
@@ -494,6 +523,12 @@
               flows) and commit. Each card says which events it runs on (insert, update, delete) and whether it is
               active; a step with many shows the first six and <b>Show all</b>.
             </p>
+            <p>
+              <b>Click a trigger or flow</b> to see what it runs, as a tree under its moment of the save, one level per
+              click: a trigger → the methods it calls → what those call and the objects they write → the triggers and
+              flows of those objects; a flow → its Apex actions (the invocable method), subflows, other actions and the
+              records it creates, updates or deletes. ↺ marks a call back into something already open.
+            </p>
             <ul>
               <li>
                 Filter by <b>kind</b> (triggers, flows, validation rules…), by <b>name</b>, or <b>Active only</b>.
@@ -510,6 +545,10 @@
                   Escalation and auto-response rules cannot be read with the API; the page says when they also apply.
                 </li>
                 <li>Then turn on <a href="#logs">Debug logs</a> and save the record again to see each one run.</li>
+                <li>
+                  The tree is read from the code and the flow definitions: calls through interfaces, dynamic Apex or
+                  managed packages cannot be followed.
+                </li>
               </ul>
             </div>
           </section>
@@ -656,15 +695,25 @@
               the record they point to. For users, <b>Log in as</b>. The <b>History</b> tab lists the record's tracked
               field changes — when, which field, from, to and by whom — for objects with field history tracking on.
             </p>
-            <p>
-              <b>Related</b>: the record and what points to it as a tree (an Account's Contacts, Cases…, and ▸ what
-              points to those). Tick what you want: a relationship takes all its records, ▸ opens it to pick some;
-              <b>Query</b> opens them in Query. Choose an org and <b>Copy</b>: exactly the ticked records are created
-              there, the links between them kept, and <b>Undo this copy</b> deletes them again.
-              <b>Save as Excel</b> keeps them; <b>Open a saved copy…</b> (next to New…) copies them into any org later.
-              On a user, the tree is their access: the ticked permission sets, groups and licenses go with them (the
-              user is created if missing, and so are missing permission sets and groups).
-            </p>
+            <p><b>Related</b>: the record and what points to it, as a tree (an Account's Contacts, Cases…).</p>
+            <ul class="parts">
+              <li>
+                <b>Pick</b>: tick a relationship to take all its records, or open it (▸) to pick some; <b>Query</b>
+                opens them in Query.
+              </li>
+              <li>
+                <b>Copy</b>: choose an org — exactly the ticked records are created there, with the links between them;
+                <b>Undo this copy</b> deletes them again.
+              </li>
+              <li>
+                <b>Save as Excel</b> keeps them; <b>Open a saved copy…</b> (next to New…) copies them into any org
+                later.
+              </li>
+              <li>
+                <b>On a user</b>: the tree is their access — the ticked permission sets, groups and licenses go with
+                them (the user, and missing permission sets and groups, are created).
+              </li>
+            </ul>
             <div class="shot">
               <video
                 src="media/related.mp4"
@@ -746,10 +795,12 @@
                 its code, message and <b>What it means</b>. Download the successful rows and the failures as CSV.
               </li>
             </ol>
-            <p>
-              <b>Delete records matching a query</b>: count what a query returns, then delete it. And
-              <b>edit query results in a grid</b>: query records, change cells, and only the changed cells are sent.
-            </p>
+            <ul class="parts">
+              <li><b>Delete records matching a query</b>: count what a query returns, then delete it.</li>
+              <li>
+                <b>Edit query results in a grid</b>: query records, change cells — only the changed cells are sent.
+              </li>
+            </ul>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
@@ -991,10 +1042,23 @@
                 path leaves files out.
               </li>
               <li>
-                Then <a href="#release-panel">What's in the package and Validate and deploy</a>. In the CLI app,
-                <b>Restore into project</b> also retrieves the ones only in the org into your folder.
+                Then <a href="#release-panel">What's in the package and Validate and deploy</a>, or
+                <b>Retrieve into project…</b>: the org's version of the chosen components, in source format where each
+                already is in the project (labels merged, objects split per field). Each file shows as new, changed or
+                the same with its difference; nothing is written until <b>Write</b>.
               </li>
             </ol>
+            <div class="shot">
+              <video
+                src="media/retrieve.mp4"
+                poster="media/retrieve.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
@@ -1053,6 +1117,10 @@
                 of a branch, checked against an org — what is the same, different, missing.
               </li>
               <li><b>Branch ↔ Org</b>: every type of a branch against the org at the top, then deploy what differs.</li>
+              <li>
+                Choosing types: <b>type to find them</b> (<i>flow, perm*</i>), <b>Tick shown</b>; the ticked ones stay
+                as chips. <b>Names</b> keeps only components whose names match (<i>Case*, Billing</i>).
+              </li>
               <li><b>Org ↔ Org</b>: <a href="#orgdiff">Org compare</a>, here too.</li>
             </ul>
             <div class="good-to-know">
@@ -1060,6 +1128,10 @@
               <ul>
                 <li>
                   A GitHub project is read without its history, so it cannot be compared here; open the folder instead.
+                </li>
+                <li>
+                  Components are found in sub-folders too (<code>classes/services/Billing.cls</code>), and Apex or other
+                  metadata kept outside its type folder is known by its file name, as the Salesforce CLI does.
                 </li>
                 <li>
                   <b>Find dependent tests</b> follows the classes and triggers of the package to the test classes that
@@ -1092,7 +1164,8 @@
               </li>
               <li>
                 <b>Download zip</b> retrieves them; <b>package.xml</b> / <b>Copy package.xml</b> give the manifest;
-                <b>Retrieve into project</b> in the CLI app.
+                <b>Retrieve into project…</b> writes them into your project folder in source format, after showing each
+                file as new, changed or the same.
               </li>
               <li>
                 To remove things from the org: tick them and <b>Add to delete</b>. Choose
@@ -1283,14 +1356,19 @@
               A permission set group gets its permissions from its permission sets: choose the group to add or remove
               permission sets, and Salesforce recalculates it.
             </p>
+            <ul class="parts">
+              <li>
+                <b>Apps, classes &amp; more</b>: the Apex classes, Visualforce pages, custom permissions, connected apps
+                (pre-authorized OAuth access) and apps (App Launcher) a permission set or custom profile gives access to
+                — add and remove them.
+              </li>
+              <li><b>Record types</b>: which ones it may use (and, for a profile, each object's default).</li>
+              <li><b>Page layouts</b> (profiles): the layout for each object and record type.</li>
+              <li><b>Tabs</b> (permission sets): Visible, Available or Hidden.</li>
+              <li><b>Login IP ranges</b>: any profile, standard ones too.</li>
+            </ul>
             <p>
-              <b>Apps, classes &amp; more</b>: the Apex classes, Visualforce pages, custom permissions, connected apps
-              (pre-authorized OAuth access) and apps (App Launcher) a permission set or custom profile gives access to —
-              add and remove them. <b>Record types</b>: which ones it may use (and, for a profile, each object's
-              default). <b>Page layouts</b> (profiles): the layout for each object and record type.
-              <b>Tabs</b> (permission sets): Visible, Available or Hidden. <b>Login IP ranges</b> (any profile, standard
-              ones too). Record types, layouts and login settings are deployed with the Metadata API: only those
-              settings change.
+              Record types, layouts and login settings are deployed with the Metadata API: only those settings change.
             </p>
             <p>
               <b>Field access</b> while editing: choose an object to list every field that can have field permissions,
@@ -1339,6 +1417,16 @@
               the objects a queue can own. Choose one to add members (first choose what: a user, a public group, a role
               or a role and its subordinates) or remove them.
             </p>
+            <ul class="parts">
+              <li>
+                <b>Who is in it ▸</b> on a group or role member: who is inside, under the list — a public group's
+                members, a role's users, or the users of a role and every role below it (with each user's role).
+              </li>
+              <li>
+                <b>▸</b> on a group or role inside opens it too, one level per click; nothing is read until you click. ↺
+                marks a group already open above.
+              </li>
+            </ul>
           </section>
           <section class="tool" data-title="Assigned users">
             <h3 id="assigned">Assigned users</h3>
@@ -1437,7 +1525,9 @@
             </div>
             <ul>
               <li>
-                <b>Two users</b> side by side, in tabs — <i>Details</i>; <i>Profile</i>, <i>Permission sets</i> and
+                <b>Two users</b> side by side, in tabs — <i>Details</i> (every field of the user, in boxes: main,
+                settings &amp; feature licences, other fields; a lookup by its name); <i>Licenses</i> (permission set
+                licenses and managed package licenses); <i>Profile</i>, <i>Permission sets</i> and
                 <i>Permission set groups</i> with everything each allows (object, field and system permissions, Apex
                 classes, Visualforce pages, apps, custom permissions, connected apps, tab settings, record types, page
                 layouts); <i>Groups &amp; queues</i> and <i>Role</i> with the records shared with them;
@@ -1885,9 +1975,11 @@
             </div>
             <p>
               A (the source) and B (the target) side by side — sandbox ↔ sandbox, or ↔ production: choose the metadata
-              types (<b>Common</b> picks the usual ones) and <b>Compare</b>. The tiles count what is
-              <i>only in source</i>, <i>only in target</i> and <i>in both</i> — click one to show just those.
-              <b>Compare content</b> of those in both splits them into <i>different</i> and <i>same</i>.
+              types (type to find them — <i>apex, perm</i> — then <b>Tick shown</b>; <b>Common</b> picks the usual
+              ones), optionally <b>Names</b> (<i>Account*, Finance</i>) for only the components you want, and
+              <b>Compare</b>. The tiles count what is <i>only in source</i>, <i>only in target</i> and <i>in both</i> —
+              click one to show just those. <b>Compare content</b> of those in both splits them into
+              <i>different</i> and <i>same</i>.
             </p>
             <ol class="steps">
               <li>

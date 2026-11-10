@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { SalesforceClient, compareUsersFully, type HttpRequest } from '../src/index.js';
 
-function fakeOrg(answers: Array<[RegExp, unknown[]]>) {
+function fakeOrg(answers: Array<[RegExp, unknown[]]>, fields: unknown[] = []) {
   return new SalesforceClient(async (r: HttpRequest) => {
-    if (r.path.includes('/describe')) return { status: 200, headers: {}, body: JSON.stringify({ fields: [] }) };
+    if (r.path.includes('/describe')) return { status: 200, headers: {}, body: JSON.stringify({ fields }) };
     const q = decodeURIComponent(r.path.split('q=')[1] ?? '').replace(/\+/g, ' ');
     const rows = answers.find(([re]) => re.test(q))?.[1] ?? [];
     return { status: 200, headers: {}, body: JSON.stringify({ totalSize: rows.length, done: true, records: rows }) };
@@ -60,6 +60,7 @@ describe('two users side by side', () => {
       a: 'Sales',
       b: 'Sales Rep',
       same: false,
+      area: 'Main',
     });
     expect(result.details.find((d) => d.field === 'User license')?.same).toBe(true);
     expect(result.items.map((i) => [i.area, i.item, i.in, i.idA, i.idB])).toEqual([
@@ -70,5 +71,43 @@ describe('two users side by side', () => {
     ]);
     expect(result.loginsA).toHaveLength(1);
     expect(result.loginsB).toEqual([]);
+  });
+
+  it('compares every field of the user, a lookup by its name; a field only one org has is not a difference', async () => {
+    const field = (
+      name: string,
+      label: string,
+      type = 'string',
+      referenceTo: string[] = [],
+      relationshipName?: string
+    ) => ({
+      name,
+      label,
+      type,
+      referenceTo,
+      relationshipName,
+    });
+    const common = [
+      field('Phone', 'Phone'),
+      field('ManagerId', 'Manager ID', 'reference', ['User'], 'Manager'),
+      field('UserPreferencesHideS1BrowserUI', 'Hide S1 browser UI', 'boolean'),
+      field('Address', 'Address', 'address'),
+      field('SystemModstamp', 'System Modstamp', 'datetime'),
+    ];
+    const row = (extra: Record<string, unknown>) =>
+      [/FROM User WHERE Id/, [{ Name: 'Ann', Profile: { Name: 'Sales' }, ...extra }]] as [RegExp, unknown[]];
+    const a = fakeOrg(
+      [row({ Phone: '1', Manager: { Name: 'Bob' }, UserPreferencesHideS1BrowserUI: true, Badge__c: 'x' })],
+      [...common, field('Badge__c', 'Badge')]
+    );
+    const b = fakeOrg([row({ Phone: '2', Manager: { Name: 'Bob' }, UserPreferencesHideS1BrowserUI: false })], common);
+    const result = await compareUsersFully(a, '005000000000001AAA', '005000000000002AAA', b);
+    const other = result.details.filter((d) => d.area !== 'Main').map((d) => [d.area, d.field, d.a, d.b, d.same]);
+    expect(other).toEqual([
+      ['Other fields', 'Badge', 'x', '—', true],
+      ['Settings & feature licences', 'Hide S1 browser UI', 'true', 'false', false],
+      ['Other fields', 'Manager', 'Bob', 'Bob', true],
+      ['Other fields', 'Phone', '1', '2', false],
+    ]);
   });
 });

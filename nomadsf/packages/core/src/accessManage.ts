@@ -114,7 +114,16 @@ export async function listGroups(client: SalesforceClient): Promise<GroupInfo[]>
     .sort((a, b) => a.Kind.localeCompare(b.Kind) || a.Name.localeCompare(b.Name));
 }
 
-export type GroupMemberRow = { MemberId: string; Kind: string; Name: string; Detail: string; UserOrGroupId: string };
+export type GroupMemberRow = {
+  MemberId: string;
+  Kind: string;
+  Name: string;
+  Detail: string;
+  UserOrGroupId: string;
+  /** A role member: the role, and whether its subordinates count (only internal ones for …Internal). */
+  RoleId?: string;
+  Subordinates?: 'all' | 'internal';
+};
 
 /** Direct members of a group or queue: users, roles (and subordinates), other groups. */
 export async function listGroupMembers(client: SalesforceClient, groupId: string): Promise<GroupMemberRow[]> {
@@ -126,6 +135,7 @@ export async function listGroupMembers(client: SalesforceClient, groupId: string
   const groupIds = members.rows.map((m) => String(m.UserOrGroupId)).filter((id) => id.startsWith('00G'));
   const inList = (ids: string[]): string => ids.map((id) => `'${anyId(id)}'`).join(',');
   const names = new Map<string, { kind: string; name: string; detail: string }>();
+  const roleOf = new Map<string, Pick<GroupMemberRow, 'RoleId' | 'Subordinates'>>();
   for (let i = 0; i < userIds.length; i += 500) {
     // eslint-disable-next-line no-await-in-loop
     const users = await query(
@@ -155,6 +165,15 @@ export async function listGroupMembers(client: SalesforceClient, groupId: string
     for (const g of groups.rows) {
       const type = String(g.Type ?? '');
       const role = roleName.get(String(g.RelatedId ?? ''));
+      if (role !== undefined)
+        roleOf.set(String(g.Id), {
+          RoleId: String(g.RelatedId),
+          ...(type === 'RoleAndSubordinatesInternal'
+            ? { Subordinates: 'internal' as const }
+            : type.startsWith('RoleAndSubordinates')
+            ? { Subordinates: 'all' as const }
+            : {}),
+        });
       names.set(String(g.Id), {
         kind:
           type === 'Role'
@@ -178,9 +197,74 @@ export async function listGroupMembers(client: SalesforceClient, groupId: string
         Name: who?.name ?? String(m.UserOrGroupId),
         Detail: who?.detail ?? '',
         UserOrGroupId: String(m.UserOrGroupId),
+        ...roleOf.get(String(m.UserOrGroupId)),
       };
     })
     .sort((a, b) => a.Kind.localeCompare(b.Kind) || a.Name.localeCompare(b.Name));
+}
+
+/** Whether a member has members of its own to show: a public group, a role, a role and its subordinates. */
+export const opensMembers = (m: GroupMemberRow): boolean => Boolean(m.RoleId) || m.Kind === 'Public group';
+
+/**
+ * Who is inside a member of a group, one level, when it is clicked: a public group's own members (users, groups,
+ * roles); a role's users; a role and subordinates' users in that role and every role below it (internal roles only
+ * for "…internal"), each with their role. Read only.
+ */
+export async function whoIsIn(client: SalesforceClient, member: GroupMemberRow): Promise<GroupMemberRow[]> {
+  if (!member.RoleId) return member.Kind === 'Public group' ? listGroupMembers(client, member.UserOrGroupId) : [];
+  const roleId = idOf('00E', member.RoleId, 'role');
+  let roles = new Map([[roleId, '']]);
+  if (member.Subordinates) {
+    const all = (await query(client, 'SELECT Id, Name, ParentRoleId, PortalType FROM UserRole', { maxRows: 50_000 }))
+      .rows;
+    const children = new Map<string, Row[]>();
+    for (const r of all) {
+      const parent = String(r.ParentRoleId ?? '');
+      children.set(parent, [...(children.get(parent) ?? []), r]);
+    }
+    const name = new Map(all.map((r) => [String(r.Id), String(r.Name ?? '')]));
+    roles = new Map([[roleId, name.get(roleId) ?? '']]);
+    const walk = (id: string): void => {
+      for (const c of children.get(id) ?? []) {
+        const cid = String(c.Id);
+        if (roles.has(cid)) continue;
+        if (member.Subordinates === 'internal' && c.PortalType && c.PortalType !== 'None') continue;
+        roles.set(cid, String(c.Name ?? ''));
+        walk(cid);
+      }
+    };
+    walk(roleId);
+  }
+  const ids = [...roles.keys()];
+  const users: Row[] = [];
+  for (let i = 0; i < ids.length; i += 300) {
+    // eslint-disable-next-line no-await-in-loop
+    const page = await query(
+      client,
+      `SELECT Id, Name, Username, IsActive, UserRole.Name FROM User WHERE UserRoleId IN (${ids
+        .slice(i, i + 300)
+        .map((id) => `'${anyId(id)}'`)
+        .join(',')})`,
+      { maxRows: 50_000 }
+    );
+    users.push(...page.rows);
+  }
+  return users
+    .map((u) => ({
+      MemberId: '',
+      Kind: 'User',
+      Name: String(u.Name ?? ''),
+      Detail: [
+        String(u.Username ?? ''),
+        member.Subordinates ? `role ${String(u['UserRole.Name'] ?? '')}` : '',
+        u.IsActive === false ? 'inactive' : '',
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      UserOrGroupId: String(u.Id),
+    }))
+    .sort((a, b) => a.Name.localeCompare(b.Name));
 }
 
 /** Adds users (005) or groups (00G, e.g. a role's group) to a group or queue; members already in are skipped. */

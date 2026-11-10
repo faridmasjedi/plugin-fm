@@ -17,6 +17,8 @@ sf apex run -o nomadsf-demo -f seed.apex                       # accounts, conta
 sed "s/DOMAIN/acme-$RANDOM.example.com/" users.apex > /tmp/u.apex && sf apex run -o nomadsf-demo -f /tmp/u.apex
 sf apex run -o nomadsf-demo -f seed-more.apex                  # more accounts, contacts, cases, opportunities; invoices
 sf apex run -o nomadsf-demo -f seed-access.apex                # the newer permission sets and groups for the users
+sf apex run -o nomadsf-demo -f seed-groups.apex                # roles Support Manager › Support Lead for Dina, Chen, Bob
+sf apex run -o nomadsf-demo -f seed-groups-members.apex        # a group and roles inside Support Team and Tier 1 Support
 ```
 
 The project holds an Invoice object, classes with their tests (a trigger, a batch, a selector, an LWC

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { describeGlobal, saveOrder, type SaveStep, type SObjectSummary } from '@nomadsf/core';
+import { useEffect, useMemo, useState } from 'react';
+import { AutomationTree, describeGlobal, saveOrder, type SaveStep, type SObjectSummary } from '@nomadsf/core';
+import { AutomationTreeView } from '../components/AutomationTreeView';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { ObjectOptions } from '../components/ObjectOptions';
@@ -22,8 +23,10 @@ const PHASES: Array<[string, string]> = [
 /** Cards a moment shows before "Show all": a busy object (15 validation rules…) stays readable. */
 const FIRST = 6;
 
-function SaveLanes({ steps }: { steps: SaveStep[] }) {
+function SaveLanes({ steps, tree }: { steps: SaveStep[]; tree: AutomationTree }) {
   const [opened, setOpened] = useState<Set<string>>(new Set());
+  // The step whose tree is open (a trigger or a flow): shown under its moment of the save
+  const [treeOf, setTreeOf] = useState<number>();
   const byWhen = new Map<string, SaveStep[]>();
   for (const s of [...steps].sort((a, b) => a.order - b.order)) byWhen.set(s.when, [...(byWhen.get(s.when) ?? []), s]);
   const lanes: Array<[string, string, SaveStep[]]> = [
@@ -45,7 +48,15 @@ function SaveLanes({ steps }: { steps: SaveStep[] }) {
           {hint && <p className="muted small save-lane-hint">{hint}</p>}
           <div className="save-lane-cards">
             {list.map((s) => (
-              <div key={s.order} className={`save-card ${s.active ? '' : 'off'}`} title={s.detail}>
+              <div
+                key={s.order}
+                className={`save-card ${s.active ? '' : 'off'} ${AutomationTree.rootOf(s) ? 'opens' : ''} ${
+                  treeOf === s.order ? 'open' : ''
+                }`}
+                title={AutomationTree.rootOf(s) ? 'Show what it runs' : s.detail}
+                role={AutomationTree.rootOf(s) ? 'button' : undefined}
+                onClick={() => AutomationTree.rootOf(s) && setTreeOf(treeOf === s.order ? undefined : s.order)}
+              >
                 <span className="save-card-order">{s.order}</span>
                 <span className="pill">{s.kind}</span>
                 <b className="save-card-name">{s.name}</b>
@@ -68,6 +79,11 @@ function SaveLanes({ steps }: { steps: SaveStep[] }) {
             )}
             {!list.length && <p className="muted small">Nothing of yours here.</p>}
           </div>
+          {list
+            .filter((s) => s.order === treeOf)
+            .map((s) => (
+              <AutomationTreeView key={s.order} tree={tree} root={AutomationTree.rootOf(s)!} />
+            ))}
         </div>
       ))}
     </div>
@@ -87,6 +103,8 @@ export function AutomationPage() {
   const [kind, setKind] = useState('');
   const [named, setNamed] = useState('');
   const [status, setStatus] = useState('');
+  // What triggers and flows run: read when a card is opened, kept while the org is the same
+  const tree = useMemo(() => new AutomationTree(client), [client]);
 
   useEffect(() => {
     describeGlobal(client)
@@ -163,7 +181,7 @@ export function AutomationPage() {
                   id: 'diagram',
                   label: 'Order of a save',
                   count: steps.length,
-                  content: <SaveLanes steps={steps} />,
+                  content: <SaveLanes steps={steps} tree={tree} />,
                 },
                 {
                   id: 'table',

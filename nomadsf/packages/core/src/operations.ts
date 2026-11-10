@@ -19,6 +19,8 @@ export type SaveStep = {
   active: boolean;
   events: string;
   detail: string;
+  /** What it is in the org: the trigger's name or the flow's API name (to open what it runs). */
+  ref?: string;
 };
 
 /**
@@ -84,11 +86,28 @@ export async function saveOrder(
       .replace('Update', 'update')
       .replace('Delete', 'delete');
   const steps: Array<Omit<SaveStep, 'order'> & { rank: number }> = [];
-  const add = (rank: number, when: string, kind: string, name: string, active: boolean, ev: string, detail = '') =>
-    steps.push({ rank, when, kind, name, active, events: ev, detail });
+  const add = (
+    rank: number,
+    when: string,
+    kind: string,
+    name: string,
+    active: boolean,
+    ev: string,
+    detail = '',
+    ref?: string
+  ) => steps.push({ rank, when, kind, name, active, events: ev, detail, ...(ref ? { ref } : {}) });
 
   for (const f of flows.filter((x) => x.TriggerType === 'RecordBeforeDelete'))
-    add(0, 'Before delete', 'Flow (before delete)', String(f.Label), f.IsActive === true, 'delete', String(f.ApiName));
+    add(
+      0,
+      'Before delete',
+      'Flow (before delete)',
+      String(f.Label),
+      f.IsActive === true,
+      'delete',
+      String(f.ApiName),
+      String(f.ApiName)
+    );
   for (const f of flows.filter((x) => x.TriggerType === 'RecordBeforeSave'))
     add(
       1,
@@ -97,10 +116,20 @@ export async function saveOrder(
       String(f.Label),
       f.IsActive === true,
       flowEvents(f),
-      `${f.ApiName}${f.TriggerOrder ? ` · order ${f.TriggerOrder}` : ''}`
+      `${f.ApiName}${f.TriggerOrder ? ` · order ${f.TriggerOrder}` : ''}`,
+      String(f.ApiName)
     );
   for (const t of triggers.filter((x) => events(x, 'Before')))
-    add(2, 'Before save', 'Apex trigger (before)', String(t.Name), t.Status === 'Active', events(t, 'Before'));
+    add(
+      2,
+      'Before save',
+      'Apex trigger (before)',
+      String(t.Name),
+      t.Status === 'Active',
+      events(t, 'Before'),
+      '',
+      String(t.Name)
+    );
   for (const r of rules)
     add(
       3,
@@ -114,7 +143,16 @@ export async function saveOrder(
   for (const d of duplicates)
     add(4, 'Before save', 'Duplicate rule', String(d.MasterLabel), d.IsActive === true, 'insert, update');
   for (const t of triggers.filter((x) => events(x, 'After')))
-    add(5, 'After save', 'Apex trigger (after)', String(t.Name), t.Status === 'Active', events(t, 'After'));
+    add(
+      5,
+      'After save',
+      'Apex trigger (after)',
+      String(t.Name),
+      t.Status === 'Active',
+      events(t, 'After'),
+      '',
+      String(t.Name)
+    );
   for (const a of assignment) add(6, 'After save', 'Assignment rule', String(a.Name), a.Active === true, 'insert');
   for (const w of workflow)
     add(7, 'After save', 'Workflow rule', String(w.Name), true, 'insert, update', 'legacy workflow');
@@ -126,7 +164,8 @@ export async function saveOrder(
       String(f.Label),
       f.IsActive === true,
       flowEvents(f),
-      `${f.ApiName}${f.TriggerOrder ? ` · order ${f.TriggerOrder}` : ''}`
+      `${f.ApiName}${f.TriggerOrder ? ` · order ${f.TriggerOrder}` : ''}`,
+      String(f.ApiName)
     );
 
   if (['Case', 'Lead'].includes(sobject))
@@ -191,6 +230,34 @@ export async function asyncJobs(client: SalesforceClient, lastDays = 7): Promise
     Detail: r.ExtendedStatus ?? '',
     Started: r.CreatedDate,
     Finished: r.CompletedDate ?? '',
+    By: r['CreatedBy.Name'],
+  }));
+}
+
+/**
+ * Salesforce's own background jobs (Setup › Background Jobs): sharing recalculations, index builds, field changes,
+ * cleanups… of the last days. They cannot be stopped from here.
+ */
+export async function backgroundJobs(client: SalesforceClient, lastDays = 7): Promise<Row[]> {
+  const days = Math.max(1, Math.min(180, Math.floor(lastDays)));
+  const rows = (
+    await query(
+      client,
+      `SELECT Id, Name, Type, Status, SubmittedAt, StartedAt, FinishedAt, Error, NumFollowers, RetryCount, CreatedBy.Name FROM BackgroundOperation WHERE SubmittedAt = LAST_N_DAYS:${days} ORDER BY SubmittedAt DESC`,
+      { maxRows: 5000 }
+    )
+  ).rows;
+  return rows.map((r) => ({
+    Id: r.Id,
+    Name: r.Name,
+    Type: r.Type,
+    Status: r.Status,
+    Submitted: r.SubmittedAt ?? '',
+    Started: r.StartedAt ?? '',
+    Finished: r.FinishedAt ?? '',
+    Error: r.Error ?? '',
+    Retries: r.RetryCount ?? 0,
+    Waiting: r.NumFollowers ?? 0,
     By: r['CreatedBy.Name'],
   }));
 }

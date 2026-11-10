@@ -2,7 +2,16 @@
 // New changes go under "next"; the newest release without its own entry shows them.
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
-  next: [],
+  next: [
+    'Search: say what you want to do (“stop a batch job”, “compare prod and uat”) and go straight to the right tool and tab — no AI needed; ✦ Ask AI where for anything else',
+    'Release › Project and Metadata: Retrieve into project — the org’s version in source format, shown file by file, written only when you say',
+    'Develop › Automation: click a trigger or flow to see what it runs, as a tree — methods, the objects they write and their triggers, flow actions and subflows',
+    'Develop › Jobs: Scheduled, Apex jobs and Background jobs, with a link to Setup for the jobs the API cannot read',
+    'Compare & package and Org compare: find metadata types by typing, and compare only the names you want',
+    'Access › Compare: every field of two users, and their licenses',
+    'Access › Groups & queues: open a role or group inside a group or queue to see who is in it',
+    'Fixed: classes (and every other type) kept in sub-folders of a project showed as only in the org',
+  ],
   '2.3.0': [
     'Each hub has its own sidebar of tools; Settings has Orgs, AI and Project',
     'Tables: Filters by column (pick a value or type one), Ticked / Not ticked, a box per type, tabs instead of stacked tables',

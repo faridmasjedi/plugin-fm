@@ -1,5 +1,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { writeWorkbook } from '@nomadsf/core';
+import { rankPlaces, writeWorkbook } from '@nomadsf/core';
+import { PLACES, type StudioPlace } from './places';
+import { askAi } from './components/AiHelp';
+import type { HostKind } from './host';
 import { storage } from './context';
 import { openExternal } from './embed';
 import { PageTables, PageTablesProvider, tablesZip } from './pageTables';
@@ -217,6 +220,20 @@ export function useWorkspace(initial: ToolId) {
     });
   }, []);
 
+  /** Shows a tool afresh (it reads its remembered tab again): the pane it is open in, or the active one. */
+  const reopen = useCallback((tool: ToolId) => {
+    setLayout((l) => {
+      const open = l.panes.findIndex((p) => p.tool === tool);
+      const at = open >= 0 ? open : l.active;
+      return {
+        ...l,
+        active: at,
+        panes: l.panes.map((p, i) => (i === at ? { ...p, tool, key: newKey() } : p)),
+        lastTab: { ...l.lastTab, [hubOf(tool).id]: tool },
+      };
+    });
+  }, []);
+
   /** Opens a hub (its last used tab) in the active pane. */
   const openHub = useCallback((hub: Hub) => {
     setLayout((l) => {
@@ -272,7 +289,17 @@ export function useWorkspace(initial: ToolId) {
     []
   );
 
-  return { ...layout, show, openHub, openBeside, close, resize, focus, full: layout.panes.length >= MAX_PANES };
+  return {
+    ...layout,
+    show,
+    reopen,
+    openHub,
+    openBeside,
+    close,
+    resize,
+    focus,
+    full: layout.panes.length >= MAX_PANES,
+  };
 }
 
 export type WorkspaceState = ReturnType<typeof useWorkspace>;
@@ -508,11 +535,33 @@ export function Panes({
   );
 }
 
-/** ⌘/Ctrl + K: type a few letters, Enter opens the tool (Shift+Enter opens it beside). */
-export function QuickJump({ ws, available }: { ws: WorkspaceState; available: (tool: ToolId) => boolean }) {
+/** Opens the ⌘K box from a button: window.dispatchEvent(new Event(OPEN_JUMP)). */
+export const OPEN_JUMP = 'nomadsf:jump';
+
+type Jump = { kind: 'tool'; tool: Tool } | { kind: 'place'; place: StudioPlace } | { kind: 'ai' };
+
+/** Where a place is: Hub › Tool › Tab. */
+const placePath = (p: StudioPlace): string =>
+  [hubOf(p.tool).label, toolOf(p.tool)?.label, p.where].filter(Boolean).join(' › ');
+
+/**
+ * ⌘/Ctrl + K: a tool by name, or what you want to do in your own words ("stop a batch job", "who can edit cases")
+ * → the place it is done, on the right tab. Nothing typed is sent anywhere, unless you choose "Ask AI where"
+ * (only the sentence and the list of places go to your AI).
+ */
+export function QuickJump({
+  ws,
+  available,
+  hostKind,
+}: {
+  ws: WorkspaceState;
+  available: (tool: ToolId) => boolean;
+  hostKind: HostKind;
+}) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [at, setAt] = useState(0);
+  const [ai, setAi] = useState<{ asked: string; places?: StudioPlace[]; note?: string; error?: string }>();
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -520,74 +569,154 @@ export function QuickJump({ ws, available }: { ws: WorkspaceState; available: (t
         setOpen((o) => !o);
         setText('');
         setAt(0);
+        setAi(undefined);
       } else if (e.key === 'Escape') setOpen(false);
     };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
-  }, []);
-  // Names first (starting with the text, then containing it), then hubs, then descriptions
-  const found = useMemo(() => {
-    const q = text.trim().toLowerCase();
-    const score = (t: Tool): number => {
-      const label = t.label.toLowerCase();
-      if (!q) return 1;
-      if (label.startsWith(q)) return 4;
-      if (label.includes(q)) return 3;
-      if (hubOf(t.id).label.toLowerCase().includes(q)) return 2;
-      return t.hint.toLowerCase().includes(q) ? 1 : 0;
+    // The header's Search button (VS Code keeps ⌘K for its own shortcuts)
+    const fromButton = () => {
+      setOpen(true);
+      setText('');
+      setAt(0);
+      setAi(undefined);
     };
-    return TOOLS.filter((t) => available(t.id))
-      .map((t) => ({ t, s: score(t) }))
-      .filter((x) => x.s > 0)
-      .sort((a, b) => b.s - a.s)
-      .map((x) => x.t);
-  }, [text, available]);
+    window.addEventListener('keydown', key);
+    window.addEventListener(OPEN_JUMP, fromButton);
+    return () => {
+      window.removeEventListener('keydown', key);
+      window.removeEventListener(OPEN_JUMP, fromButton);
+    };
+  }, []);
+  const places = useMemo(() => PLACES.filter((p) => available(p.tool)), [available]);
+  const found = useMemo((): Jump[] => {
+    const q = text.trim().toLowerCase();
+    const tools = TOOLS.filter((t) => available(t.id));
+    if (!q) return tools.map((tool) => ({ kind: 'tool', tool }));
+    // A tool by its name first, then what it is for (the places), then tools by hub or hint
+    const named = tools
+      .filter((t) => t.label.toLowerCase().includes(q))
+      .sort((a, b) => Number(b.label.toLowerCase().startsWith(q)) - Number(a.label.toLowerCase().startsWith(q)));
+    const asTasks = rankPlaces(q, [...places, ...tools.map(toolPlace)], 8)
+      .filter((r) => r.score >= 0.45)
+      .map((r) => r.place);
+    const out: Jump[] = named.map((tool) => ({ kind: 'tool', tool }));
+    for (const p of asTasks) {
+      if ('id' in p) {
+        if (!named.some((t) => t.id === p.id)) out.push({ kind: 'tool', tool: p as Tool });
+      } else out.push({ kind: 'place', place: p });
+    }
+    if (q.split(/\s+/).length >= 2) out.push({ kind: 'ai' });
+    return out.slice(0, 12);
+  }, [text, available, places]);
+
   if (!open) return null;
-  const go = (tool: ToolId, beside: boolean) => {
+  const goTool = (tool: ToolId, beside: boolean) => {
     if (beside) ws.openBeside(tool);
     else ws.show(tool);
     setOpen(false);
   };
+  const goPlace = (p: StudioPlace, beside: boolean) => {
+    for (const [k, v] of Object.entries(p.set ?? {})) storage.set(k, v);
+    if (beside) ws.openBeside(p.tool);
+    else if (p.set) ws.reopen(p.tool);
+    else ws.show(p.tool);
+    setOpen(false);
+  };
+  const askAiWhere = async () => {
+    const asked = text.trim();
+    setAi({ asked });
+    try {
+      const list = places.map((p, i) => `${i} | ${placePath(p)} | ${p.say}`).join('\n');
+      const answer = await askAi(hostKind, { task: 'find-place', question: asked, places: list });
+      const json = /\{[\s\S]*\}/.exec(answer.text)?.[0] ?? '{}';
+      const parsed = JSON.parse(json) as { places?: Array<string | number>; note?: string };
+      const picked = (parsed.places ?? []).map((id) => places[Number(id)]).filter(Boolean);
+      setAi({ asked, places: picked, note: parsed.note });
+      setAt(0);
+    } catch (e) {
+      setAi({ asked, error: (e as Error).message });
+    }
+  };
+  const go = (j: Jump, beside: boolean) => {
+    if (j.kind === 'tool') goTool(j.tool.id, beside);
+    else if (j.kind === 'place') goPlace(j.place, beside);
+    else void askAiWhere();
+  };
+  const shown: Jump[] = ai?.places?.length ? ai.places.map((place) => ({ kind: 'place', place })) : found;
   return (
     <div className="quick-jump-backdrop" onMouseDown={() => setOpen(false)}>
       <div className="quick-jump" onMouseDown={(e) => e.stopPropagation()}>
         <input
           autoFocus
-          placeholder="Jump to… (Enter opens, Shift+Enter opens beside)"
+          placeholder="Go to a tool, or say what you want to do (stop a batch job…)"
           value={text}
           onChange={(e) => {
             setText(e.target.value);
             setAt(0);
+            setAi(undefined);
           }}
           onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') setAt((a) => Math.min(found.length - 1, a + 1));
+            if (e.key === 'ArrowDown') setAt((a) => Math.min(shown.length - 1, a + 1));
             else if (e.key === 'ArrowUp') setAt((a) => Math.max(0, a - 1));
-            else if (e.key === 'Enter' && found[at]) go(found[at].id, e.shiftKey);
+            else if (e.key === 'Enter' && shown[at]) go(shown[at], e.shiftKey);
             else return;
             e.preventDefault();
           }}
         />
+        {ai && (
+          <p className="qj-ai-note">
+            {ai.error
+              ? `❌ ${ai.error}`
+              : !ai.places
+              ? '✦ Asking your AI where…'
+              : ai.places.length
+              ? `✦ ${ai.note ?? 'Your AI suggests:'}`
+              : '✦ Your AI found no place for that.'}
+          </p>
+        )}
         <ul>
-          {found.map((t, i) => (
-            <li key={t.id}>
+          {shown.map((j, i) => (
+            <li key={j.kind === 'tool' ? `t:${j.tool.id}` : j.kind === 'place' ? `p:${PLACES.indexOf(j.place)}` : 'ai'}>
               <button
                 className={i === at ? 'active' : ''}
                 onMouseEnter={() => setAt(i)}
-                onClick={(e) => go(t.id, e.shiftKey)}
+                onClick={(e) => go(j, e.shiftKey)}
               >
-                <span className="icon">{t.icon}</span>
-                <span className="qj-label">{t.label}</span>
-                <span className="muted">{t.hint}</span>
-                <span className="qj-hub">{hubOf(t.id).label}</span>
+                {j.kind === 'tool' && (
+                  <>
+                    <span className="icon">{j.tool.icon}</span>
+                    <span className="qj-label">{j.tool.label}</span>
+                    <span className="muted">{j.tool.hint}</span>
+                    <span className="qj-hub">{hubOf(j.tool.id).label}</span>
+                  </>
+                )}
+                {j.kind === 'place' && (
+                  <>
+                    <span className="icon">{toolOf(j.place.tool)?.icon}</span>
+                    <span className="qj-label qj-say">{j.place.say}</span>
+                    <span />
+                    <span className="qj-hub">{placePath(j.place)}</span>
+                  </>
+                )}
+                {j.kind === 'ai' && (
+                  <>
+                    <span className="icon">✦</span>
+                    <span className="qj-label">Ask AI where</span>
+                    <span className="muted">sends only your sentence and the list of places to your AI</span>
+                    <span />
+                  </>
+                )}
               </button>
             </li>
           ))}
-          {!found.length && <li className="muted qj-none">Nothing matches.</li>}
+          {!shown.length && <li className="muted qj-none">Nothing matches.</li>}
         </ul>
       </div>
     </div>
   );
 }
+
+/** A tool as a place: its name and hint are what it is for. */
+const toolPlace = (t: Tool): Tool & { say: string; also: string } => ({ ...t, say: t.label, also: t.hint });
 
 /** ⤓ in a pane: every table on the page in an Excel workbook (a sheet each), a zip of CSVs, or JSON. */
 function PageDownload({ tables, name }: { tables: PageTables; name: string }) {
