@@ -2,7 +2,8 @@
 // New changes go under "next"; the newest release without its own entry shows them.
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
-  next: [
+  next: [],
+  '2.4.0': [
     'Search: say what you want to do (“stop a batch job”, “compare prod and uat”) and go straight to the right tool and tab — no AI needed; ✦ Ask AI where for anything else',
     'Release › Project and Metadata: Retrieve into project — the org’s version in source format, shown file by file, written only when you say',
     'Develop › Automation: click a trigger or flow to see what it runs, as a tree — methods, the objects they write and their triggers, flow actions and subflows',
