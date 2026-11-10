@@ -535,6 +535,9 @@ export function Panes({
   );
 }
 
+/** Opens the ⌘K box from a button: window.dispatchEvent(new Event(OPEN_JUMP)). */
+export const OPEN_JUMP = 'nomadsf:jump';
+
 type Jump = { kind: 'tool'; tool: Tool } | { kind: 'place'; place: StudioPlace } | { kind: 'ai' };
 
 /** Where a place is: Hub › Tool › Tab. */
@@ -569,8 +572,19 @@ export function QuickJump({
         setAi(undefined);
       } else if (e.key === 'Escape') setOpen(false);
     };
+    // The header's Search button (VS Code keeps ⌘K for its own shortcuts)
+    const fromButton = () => {
+      setOpen(true);
+      setText('');
+      setAt(0);
+      setAi(undefined);
+    };
     window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
+    window.addEventListener(OPEN_JUMP, fromButton);
+    return () => {
+      window.removeEventListener('keydown', key);
+      window.removeEventListener(OPEN_JUMP, fromButton);
+    };
   }, []);
   const places = useMemo(() => PLACES.filter((p) => available(p.tool)), [available]);
   const found = useMemo((): Jump[] => {

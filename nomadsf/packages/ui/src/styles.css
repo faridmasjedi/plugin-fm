@@ -4222,3 +4222,26 @@ select.row-action {
   border-bottom: 1px solid var(--border);
   color: var(--muted);
 }
+.header-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  min-width: 150px;
+  justify-content: space-between;
+}
+.header-search kbd {
+  font-size: 11px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 4px;
+  background: var(--panel-2);
+}
+@media (max-width: 700px) {
+  .header-search {
+    min-width: 0;
+  }
+  .header-search kbd {
+    display: none;
+  }
+}

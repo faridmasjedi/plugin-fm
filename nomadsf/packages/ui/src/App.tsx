@@ -53,7 +53,7 @@ import { ProjectStateContext, useProjectState } from './project';
 import { PairContext, type OrgPair } from './pair';
 import { OrgAccessPage } from './pages/OrgAccessPage';
 import { OrgAppsPage } from './pages/OrgAppsPage';
-import { HubNav, Panes, QuickJump, isTool, useWorkspace, type ToolId } from './workspace';
+import { HubNav, OPEN_JUMP, Panes, QuickJump, isTool, useWorkspace, type ToolId } from './workspace';
 
 const host = detectHost();
 // Pages of the NomadSF CLI app (CLI orgs, AI settings) only make sense inside the extension
@@ -413,6 +413,13 @@ export function App() {
               ← NomadSF
             </a>
           )}
+          <button
+            className="header-search"
+            onClick={() => window.dispatchEvent(new Event(OPEN_JUMP))}
+            title="Go to a tool, or say what you want to do (⌘K / Ctrl+K)"
+          >
+            ⌕ Search <kbd>⌘K</kbd>
+          </button>
           <button onClick={toggleTheme} title="Toggle theme">
             ◐
           </button>
