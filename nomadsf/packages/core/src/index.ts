@@ -60,3 +60,4 @@ export * from './sourceRetrieve.js';
 export * from './apexGraph.js';
 export * from './dependentTests.js';
 export * from './projectRelease.js';
+export * from './nameFilter.js';

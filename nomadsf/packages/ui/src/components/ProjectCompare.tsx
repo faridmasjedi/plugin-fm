@@ -10,6 +10,7 @@ import {
   fromBase64,
   listCode,
   listMetadata,
+  nameMatcher,
   projectLabels,
   projectCodeIndex,
   projectMetadataZip,
@@ -25,6 +26,7 @@ import { withAction, type RowAction } from './RowActions';
 import type { Studio } from '../context';
 import { localAppBase, useProject } from '../project';
 import { RetrieveIntoProject } from './RetrieveIntoProject';
+import { TypePicker } from './TypePicker';
 import { Status } from '../statusLog';
 
 type Where = 'only in org' | 'only in project' | 'both' | 'different' | 'same';
@@ -103,6 +105,7 @@ export function ProjectCompare({
     return [...byType].map(([type, names]) => ({ type, names })).sort((a, b) => a.type.localeCompare(b.type));
   }, [info]);
   const [chosen, setChosen] = useState<Set<string>>(new Set());
+  const [nameFilter, setNameFilter] = useState('');
   const [rows, setRows] = useState<CompareRow[] | null>(null);
   // Which rows the table shows: all, or one of the three groups (the tiles above it)
   const [show, setShow] = useState<'all' | Where>('all');
@@ -123,6 +126,7 @@ export function ProjectCompare({
     const out: CompareRow[] = [];
     let managed = 0;
     const list = types.filter((t) => chosen.has(t.type));
+    const wanted = nameMatcher(nameFilter);
     try {
       for (const [i, t] of list.entries()) {
         setStatus(`Listing ${t.type} in ${studio.org.label}… ${i + 1}/${list.length}`);
@@ -141,6 +145,7 @@ export function ProjectCompare({
         managed += listed.length - own.length;
         const inOrg = new Set(own.map((c) => c.fullName));
         for (const name of new Set([...inOrg, ...names])) {
+          if (!wanted(name)) continue;
           const where: Where =
             inOrg.has(name) && names.has(name) ? 'both' : inOrg.has(name) ? 'only in org' : 'only in project';
           out.push({ key: `${type}:${name}`, type, name, where });
@@ -314,31 +319,18 @@ export function ProjectCompare({
   return (
     <div className="card section project-compare">
       <h3>Compare with {studio.org.label}</h3>
-      <div className="form">
-        <span className="muted">Metadata types:</span>
-        <button onClick={() => setChosen(new Set(types.map((t) => t.type)))}>All</button>
-        <button onClick={() => setChosen(new Set())}>None</button>
-        <button className="primary" disabled={!chosen.size || busy} onClick={() => void compare()}>
-          Compare {chosen.size || ''} type{chosen.size === 1 ? '' : 's'}
-        </button>
-      </div>
-      <div className="field-checks">
-        {types.map((t) => (
-          <label key={t.type} className="check">
-            <input
-              type="checkbox"
-              checked={chosen.has(t.type)}
-              onChange={(e) => {
-                const next = new Set(chosen);
-                if (e.target.checked) next.add(t.type);
-                else next.delete(t.type);
-                setChosen(next);
-              }}
-            />{' '}
-            {t.type} <span className="muted">({t.names.size})</span>
-          </label>
-        ))}
-      </div>
+      <TypePicker
+        types={types.map((t) => ({ type: t.type, count: t.names.size }))}
+        chosen={chosen}
+        onChosen={setChosen}
+        names={nameFilter}
+        onNames={setNameFilter}
+        action={
+          <button className="primary" disabled={!chosen.size || busy} onClick={() => void compare()}>
+            Compare {chosen.size || ''} type{chosen.size === 1 ? '' : 's'}
+          </button>
+        }
+      />
       {status && <Status text={status} block />}
 
       {rows && (
