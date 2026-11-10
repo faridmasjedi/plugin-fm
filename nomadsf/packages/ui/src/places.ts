@@ -176,6 +176,11 @@ export const PLACES: StudioPlace[] = [
   ),
   P('custperms', 'who has a custom permission', 'custom permission grant'),
   P('groups', 'add users to a public group or queue', 'group queue members add remove'),
+  P(
+    'groups',
+    'who is in a role or group inside a group or queue',
+    'members of role subordinates nested group queue who is in'
+  ),
   P('assigned', 'list users of a profile, role or license', 'assigned users members profile role license group queue'),
   P('objectaccess', 'who can edit an object', 'why cant user edit read create delete object records access users'),
   P('objectaccess', 'who can see a field on an object', 'field visibility users'),

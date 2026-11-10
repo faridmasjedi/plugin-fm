@@ -9,6 +9,7 @@ window.NOMADSF_WHATS_NEW = {
     'Develop › Jobs: Scheduled, Apex jobs and Background jobs, with a link to Setup for the jobs the API cannot read',
     'Compare & package and Org compare: find metadata types by typing, and compare only the names you want',
     'Access › Compare: every field of two users, and their licenses',
+    'Access › Groups & queues: open a role or group inside a group or queue to see who is in it',
     'Fixed: classes (and every other type) kept in sub-folders of a project showed as only in the org',
   ],
   '2.3.0': [

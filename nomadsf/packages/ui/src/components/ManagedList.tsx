@@ -24,6 +24,7 @@ export function ManagedList({
   onChanged,
   extra,
   kinds,
+  renderCell,
 }: {
   rows: Row[];
   columns: string[];
@@ -42,6 +43,8 @@ export function ManagedList({
   extra?: ReactNode;
   /** Kinds of choices (User, Public group…): a list to pick the kind first. */
   kinds?: string[];
+  /** The page's own cells (a button in a column of its own); Remove stays the list's. */
+  renderCell?: (column: string, row: Row) => ReactNode | undefined;
 }) {
   const { org, confirmChange, logActivity } = useStudio();
   const [adding, setAdding] = useState('');
@@ -100,7 +103,9 @@ export function ManagedList({
                   Remove
                 </button>
               ) : null
-            ) : undefined
+            ) : (
+              renderCell?.(column, r)
+            )
           }
         />
       )}

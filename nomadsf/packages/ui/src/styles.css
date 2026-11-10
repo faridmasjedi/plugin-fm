@@ -4245,3 +4245,15 @@ select.row-action {
     display: none;
   }
 }
+.member-tree {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  max-height: 480px;
+  overflow: auto;
+}
+.member-tree > p {
+  margin: 0 0 6px;
+}

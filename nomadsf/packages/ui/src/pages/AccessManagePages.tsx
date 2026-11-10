@@ -11,6 +11,8 @@ import {
   customPermissionHolders,
   grantSetupAccess,
   listGroupMembers,
+  opensMembers,
+  whoIsIn,
   layoutAssignments,
   listGroups,
   listMetadata,
@@ -58,6 +60,8 @@ export function GroupsPage() {
   const [kind, setKind] = useState<'all' | GroupInfo['Kind']>('all');
   const [chosen, setChosen] = useState<GroupInfo | null>(null);
   const [members, setMembers] = useState<GroupMemberRow[] | null>(null);
+  // The member (a role, a public group) whose own members are shown under the list
+  const [inside, setInside] = useState<GroupMemberRow | null>(null);
   const [choices, setChoices] = useState<Choice[] | null>(null);
   const [status, setStatus] = useState('');
 
@@ -74,6 +78,7 @@ export function GroupsPage() {
 
   useEffect(() => {
     setMembers(null);
+    setInside(null);
     if (!chosen) return;
     listGroupMembers(client, chosen.Id)
       .then(setMembers)
@@ -144,7 +149,22 @@ export function GroupsPage() {
           ) : (
             <ManagedList
               rows={members}
-              columns={['Name', 'Kind', 'Detail']}
+              columns={['Name', 'Kind', 'Detail', 'Inside']}
+              renderCell={(column, r) =>
+                column === 'Inside' ? (
+                  opensMembers(r as GroupMemberRow) ? (
+                    <button
+                      className={`link ${inside?.UserOrGroupId === r.UserOrGroupId ? 'active' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setInside(inside?.UserOrGroupId === r.UserOrGroupId ? null : (r as GroupMemberRow));
+                      }}
+                    >
+                      {inside?.UserOrGroupId === r.UserOrGroupId ? 'Hide ▾' : 'Who is in it ▸'}
+                    </button>
+                  ) : null
+                ) : undefined
+              }
               what="member"
               removeKey="MemberId"
               onRemove={async (r) => fail(await removeGroupMembers(client, [String(r.MemberId)]))}
@@ -160,6 +180,63 @@ export function GroupsPage() {
               }}
             />
           )}
+          {inside && (
+            <div className="member-tree">
+              <p className="muted small">
+                Who is in {inside.Kind.toLowerCase()} <b>{inside.Name}</b> — read when you open it; ▸ opens a group or
+                role inside it.
+              </p>
+              <MemberNode key={inside.UserOrGroupId} member={inside} path={[chosen.Id]} root />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A member of a group and who is inside it, one level per click: a public group's members, a role's users, a role
+ * and its subordinates' users. A group already open above on the branch is marked ↺ (groups can hold each other).
+ */
+function MemberNode({ member, path, root }: { member: GroupMemberRow; path: string[]; root?: boolean }) {
+  const { client } = useStudio();
+  const loop = path.includes(member.UserOrGroupId);
+  const opens = opensMembers(member) && !loop;
+  const [open, setOpen] = useState(Boolean(root));
+  const [list, setList] = useState<GroupMemberRow[] | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    if (!open || !opens || list || error) return;
+    whoIsIn(client, member)
+      .then(setList)
+      .catch((e: Error) => setError(e.message));
+  }, [open, opens, list, error, client, member]);
+  const row = (
+    <div className="auto-node-row">
+      <button className="auto-node-toggle" disabled={!opens} onClick={() => setOpen(!open)}>
+        {loop ? '↺' : !opens ? '·' : open ? '▾' : '▸'}
+      </button>
+      <span className="pill">{member.Kind}</span>
+      <b className="auto-node-label" onClick={() => opens && setOpen(!open)}>
+        {member.Name}
+      </b>
+      {member.Detail && <span className="muted small">{member.Detail}</span>}
+      {loop && <span className="muted small">already open above</span>}
+      {open && list && <span className="muted small">{list.length} inside</span>}
+    </div>
+  );
+  return (
+    <div className="auto-node">
+      {row}
+      {open && opens && (
+        <div className="auto-node-children">
+          {!list && !error && <span className="muted small">Reading…</span>}
+          {error && <span className="bad-text small">❌ {error}</span>}
+          {list?.length === 0 && <span className="muted small">No one.</span>}
+          {list?.map((m) => (
+            <MemberNode key={m.UserOrGroupId} member={m} path={[...path, member.UserOrGroupId]} />
+          ))}
         </div>
       )}
     </div>

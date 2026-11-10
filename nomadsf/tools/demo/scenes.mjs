@@ -549,6 +549,30 @@ export const scenes = [
       await h.press(h.row('Tier 1 Support'));
       await h.settle();
       await h.pause(1600);
+      // A group with a group and a role inside: open them to see who is in each, one level per click
+      await h.press(h.row('Support Team'));
+      await h.settle();
+      await h.pause(1200);
+      await h.press(
+        h.page
+          .locator('.card.section button', { hasText: 'Who is in it' })
+          .and(h.page.locator('tr', { hasText: 'Support Manager' }).locator('button'))
+          .first()
+      );
+      await h.waiting(() =>
+        h.page.locator('.member-tree .auto-node-children .auto-node').first().waitFor({ timeout: 60000 })
+      );
+      await h.pause(1800);
+      await h.press(
+        h.page
+          .locator('.card.section button', { hasText: 'Who is in it' })
+          .and(h.page.locator('tr', { hasText: 'Sales Leads' }).locator('button'))
+          .first()
+      );
+      await h.waiting(() =>
+        h.page.locator('.member-tree .auto-node-children .auto-node').first().waitFor({ timeout: 60000 })
+      );
+      await h.pause(2000);
     },
   },
   {
