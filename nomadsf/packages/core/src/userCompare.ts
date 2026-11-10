@@ -1,17 +1,25 @@
 import type { SalesforceClient } from './client.js';
 import type { Difference } from './orgHealth.js';
-import { query, type Row } from './query.js';
+import { describeSObject, query, type Row } from './query.js';
 import { effectivePermissions, userAccess } from './userAccess.js';
 
 /** Two users side by side (the same org or two orgs): details, everything assigned, permissions, last logins. */
 
 const USER_ID = /^005\w{12}(\w{3})?$/;
 
-export type UserDetail = { field: string; a: string; b: string; same: boolean };
+/** One field of the user; area: the main ones first, then settings (preferences, feature licences), then the rest. */
+export type UserDetail = { field: string; a: string; b: string; same: boolean; area?: string };
 
 /** One thing a user has; idA / idB are the permission sets to compare when both have one (profile, set, group). */
 export type UserItem = {
-  area: 'Profile' | 'Permission set' | 'Permission set group' | 'License' | 'Group / queue' | 'OAuth app';
+  area:
+    | 'Profile'
+    | 'Permission set'
+    | 'Permission set group'
+    | 'License'
+    | 'Package license'
+    | 'Group / queue'
+    | 'OAuth app';
   item: string;
   /** "not read in B": A has it, B's could not be read (unknown, not "only in A"). */
   in: 'both' | 'only in A' | 'only in B' | 'not read in A' | 'not read in B';
@@ -49,8 +57,38 @@ const DETAILS: Array<[string, string]> = [
   ['Created', 'CreatedDate'],
 ];
 
+/** Fields that change by themselves or say nothing about the user. */
+const NOISE = new Set([
+  'Id',
+  'LastModifiedDate',
+  'SystemModstamp',
+  'LastViewedDate',
+  'LastReferencedDate',
+  'LastModifiedById',
+]);
+/** Lookups shown by the name of what they point to. */
+const NAMED = new Set(['User', 'Profile', 'UserRole', 'Contact', 'Account', 'CallCenter', 'Group']);
+
+/** Every other field of the user the org lets us read: label and the path to query (a lookup by its name). */
+async function userFields(client: SalesforceClient): Promise<Array<{ label: string; path: string }>> {
+  const main = new Set(DETAILS.map(([, f]) => f));
+  const { fields } = await describeSObject(client, 'User');
+  const out: Array<{ label: string; path: string }> = [];
+  for (const f of fields) {
+    if (NOISE.has(f.name) || main.has(f.name) || ['address', 'location', 'base64'].includes(f.type)) continue;
+    const named =
+      f.type === 'reference' && f.relationshipName && f.referenceTo.length === 1 && NAMED.has(f.referenceTo[0]);
+    const path = named ? `${f.relationshipName}.Name` : f.name;
+    if (!main.has(path)) out.push({ label: named ? f.label.replace(/ ID$/, '') : f.label, path });
+  }
+  return out;
+}
+
 type Side = {
   user: Row;
+  /** Every field read beyond the main ones. */
+  fields: Array<{ label: string; path: string }>;
+  packageLicenses: Row[] | null;
   /** null: could not be read (see notes). */
   access: Awaited<ReturnType<typeof userAccess>> | null;
   permissions: Awaited<ReturnType<typeof effectivePermissions>> | null;
@@ -69,14 +107,23 @@ async function side(client: SalesforceClient, userId: string): Promise<Side> {
       notes.push(`${what}: ${e.message}`);
       return fallback;
     });
-  const [user, access, permissions, logins] = await Promise.all([
-    part(
-      'Details',
-      query(client, `SELECT ${DETAILS.map(([, f]) => f).join(', ')}, ProfileId FROM User WHERE Id = '${userId}'`).then(
-        (r) => r.rows[0] ?? {}
-      ),
-      {} as Row
-    ),
+  const main = `${DETAILS.map(([, f]) => f).join(', ')}, ProfileId`;
+  const readUser = async (): Promise<{ user: Row; fields: Side['fields'] }> => {
+    const fields = await userFields(client).catch(() => []);
+    // Every field; when one of them cannot be read with the others, the main ones alone
+    const byQuery = async (extra: Side['fields']) =>
+      (await query(client, `SELECT ${[main, ...extra.map((f) => f.path)].join(', ')} FROM User WHERE Id = '${userId}'`))
+        .rows[0] ?? {};
+    try {
+      return { user: await byQuery(fields), fields };
+    } catch (e) {
+      if (!fields.length) throw e;
+      notes.push(`Other fields: ${(e as Error).message}`);
+      return { user: await byQuery([]), fields: [] };
+    }
+  };
+  const [{ user, fields }, access, permissions, logins, packageLicenses] = await Promise.all([
+    part('Details', readUser(), { user: {} as Row, fields: [] }),
     part('Permission sets, groups, licenses, groups & queues, OAuth apps', userAccess(client, userId), null),
     part('User & system permissions', effectivePermissions(client, userId), null),
     part(
@@ -86,6 +133,14 @@ async function side(client: SalesforceClient, userId: string): Promise<Side> {
         `SELECT LoginTime, Status, SourceIp, Application, Browser, Platform, LoginType FROM LoginHistory WHERE UserId = '${userId}' ORDER BY LoginTime DESC LIMIT 10`
       ).then((r) => r.rows),
       [] as Row[]
+    ),
+    part<Row[] | null>(
+      'Managed package licenses',
+      query(
+        client,
+        `SELECT PackageLicense.NamespacePrefix, PackageLicense.Status, PackageLicense.ExpirationDate FROM UserPackageLicense WHERE UserId = '${userId}'`
+      ).then((r) => r.rows),
+      null
     ),
   ]);
   // The permission sets behind the profile and the groups (what their access comparison reads)
@@ -113,6 +168,8 @@ async function side(client: SalesforceClient, userId: string): Promise<Side> {
   ]);
   return {
     user,
+    fields,
+    packageLicenses,
     access,
     permissions,
     logins,
@@ -177,10 +234,28 @@ export async function compareUsersFully(
   const [a, b] = await Promise.all([side(client, userA), side(clientB, userB)]);
   const unreadA = !Object.keys(a.user).length;
   const unreadB = !Object.keys(b.user).length;
-  const details = DETAILS.map(([field, f]) => {
+  const details: UserDetail[] = DETAILS.map(([field, f]) => {
     const [x, y] = [unreadA ? '?' : text(a.user[f]), unreadB ? '?' : text(b.user[f])];
-    return { field, a: x, b: y, same: unreadA || unreadB || x === y };
+    return { field, a: x, b: y, same: unreadA || unreadB || x === y, area: 'Main' };
   });
+  // Every other field either org has; one the other org does not have is "—" there (not a difference)
+  const labels = new Map<string, string>();
+  for (const f of [...a.fields, ...b.fields]) if (!labels.has(f.path)) labels.set(f.path, f.label);
+  const hasA = new Set(a.fields.map((f) => f.path));
+  const hasB = new Set(b.fields.map((f) => f.path));
+  const settings = /^(UserPreferences|UserPermissions)/;
+  for (const [path, label] of [...labels].sort((x, y) => x[1].localeCompare(y[1]))) {
+    const x = unreadA ? '?' : hasA.has(path) ? text(a.user[path]) : '—';
+    const y = unreadB ? '?' : hasB.has(path) ? text(b.user[path]) : '—';
+    const known = x !== '?' && y !== '?' && x !== '—' && y !== '—';
+    details.push({
+      field: label,
+      a: x,
+      b: y,
+      same: !known || x === y,
+      area: settings.test(path) ? 'Settings & feature licences' : 'Other fields',
+    });
+  }
   const profileA = text(a.user['Profile.Name']);
   const profileB = text(b.user['Profile.Name']);
   const items: UserItem[] = [
@@ -219,6 +294,20 @@ export async function compareUsersFully(
       (r) => text(r.Name),
       (r) => text(r.Label),
       (r) => [text(r.Status), r.ExpirationDate ? `until ${text(r.ExpirationDate)}` : ''].filter(Boolean).join(', ')
+    ),
+    ...pairUp(
+      'Package license',
+      a.packageLicenses,
+      b.packageLicenses,
+      (r) => text(r['PackageLicense.NamespacePrefix']),
+      (r) => text(r['PackageLicense.NamespacePrefix']),
+      (r) =>
+        [
+          text(r['PackageLicense.Status']),
+          r['PackageLicense.ExpirationDate'] ? `until ${text(r['PackageLicense.ExpirationDate']).slice(0, 10)}` : '',
+        ]
+          .filter(Boolean)
+          .join(', ')
     ),
     ...pairUp(
       'Group / queue',

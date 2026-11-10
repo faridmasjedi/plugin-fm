@@ -20,12 +20,13 @@ import { DataTable, EmptyHint } from './DataTable';
 import { DiffTable } from './DiffTable';
 import { Status } from '../statusLog';
 
-type Tab = 'details' | 'profile' | 'sets' | 'groups' | 'queues' | 'role' | 'oauth' | 'logins';
+type Tab = 'details' | 'profile' | 'sets' | 'groups' | 'licenses' | 'queues' | 'role' | 'oauth' | 'logins';
 const TABS: Array<[Tab, string]> = [
   ['details', 'Details'],
   ['profile', 'Profile'],
   ['sets', 'Permission sets'],
   ['groups', 'Permission set groups'],
+  ['licenses', 'Licenses'],
   ['queues', 'Groups & queues'],
   ['role', 'Role'],
   ['oauth', 'OAuth apps'],
@@ -89,6 +90,10 @@ export function UserComparison({ userA, userB, ...sides }: Sides & { userA: stri
   if (!result) return <Status text={status} block />;
   const note = ` · A = ${labelA}, B = ${labelB}`;
   const items = (area: UserItem['area']) => result.items.filter((i) => i.area === area);
+  const licenses = [
+    ...items('License'),
+    ...items('Package license').map((i) => ({ ...i, item: `${i.item} (managed package)` })),
+  ];
   // Unknown ("not read in A/B") is not a difference
   const differences = (list: UserItem[]) =>
     list.filter((i) => (i.in === 'only in A' || i.in === 'only in B' || i.a !== i.b) && !i.in.startsWith('not read'))
@@ -98,6 +103,7 @@ export function UserComparison({ userA, userB, ...sides }: Sides & { userA: stri
     sets: differences(items('Permission set')),
     groups: differences(items('Permission set group')),
     queues: differences(items('Group / queue')),
+    licenses: differences(licenses),
     oauth: differences(items('OAuth app')),
   };
   const profile = items('Profile')[0];
@@ -254,6 +260,13 @@ export function UserComparison({ userA, userB, ...sides }: Sides & { userA: stri
           )}
         </>
       )}
+      {tab === 'licenses' && (
+        <ItemTable
+          list={licenses}
+          note={`${note} · permission set licenses and managed package licenses (the user license is under Details)`}
+          name="users-licenses"
+        />
+      )}
       {tab === 'oauth' && <ItemTable list={items('OAuth app')} note={note} name="users-oauth" />}
       {tab === 'logins' && (
         <div className="grid2">
@@ -301,8 +314,9 @@ function DetailsTab({ result, note }: { result: Comparison; note: string }) {
             content: (
               <DataTable
                 columns={['field', 'a', 'b', 'differs']}
-                rows={details.map((d) => ({ ...d, differs: d.same ? '' : '≠' }))}
-                rowKey="field"
+                rows={details.map((d, i) => ({ ...d, key: i, differs: d.same ? '' : '≠' }))}
+                rowKey="key"
+                groupBy="area"
                 name="users-details"
                 note={<span>{note}</span>}
               />
