@@ -51,7 +51,7 @@ export const PLACES: StudioPlace[] = [
   P(
     'jobs',
     'see background jobs',
-    'sharing recalculation index rebuild cleanup setup background operation',
+    'sharing recalculation index rebuild cleanup chatter digest setup background operation',
     'Background jobs',
     {
       'jobs.tab2': 'background',

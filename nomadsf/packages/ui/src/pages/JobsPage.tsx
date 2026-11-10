@@ -3,6 +3,14 @@ import { abortJob, asyncJobs, backgroundJobs, scheduledJobs, type Row } from '@n
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { Status } from '../statusLog';
+import { openExternal } from '../embed';
+import type { OrgChoice } from '../host';
+
+/** Setup › Background Jobs of the org (its menu path: Environments › Jobs › Background Jobs). */
+function setupUrl(org: OrgChoice): string | undefined {
+  const host = org.instanceUrl ?? (/\.(salesforce|force)\.com$/.test(org.id) ? `https://${org.id}` : undefined);
+  return host ? `${host.replace(/\/$/, '')}/lightning/setup/ParallelJobsStatus/home` : undefined;
+}
 
 type Tab = 'scheduled' | 'apex' | 'background';
 
@@ -132,6 +140,17 @@ export function JobsPage() {
         )}
         <Status text={status} />
       </div>
+      {tab === 'background' && (
+        <div className="note">
+          Setup › Background Jobs also lists Salesforce's own jobs (Chatter digests, status updates, sharing
+          recalculations…) that the API does not let any tool read; this tab shows the ones it can.{' '}
+          {setupUrl(org) ? (
+            <button onClick={() => openExternal(setupUrl(org)!)}>Open Setup › Background Jobs ↗</button>
+          ) : (
+            <span className="muted">In Setup: Environments › Jobs › Background Jobs.</span>
+          )}
+        </div>
+      )}
       {rows &&
         (rows.length === 0 ? (
           <EmptyHint what="jobs" />
