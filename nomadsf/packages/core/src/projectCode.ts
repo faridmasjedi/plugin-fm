@@ -38,7 +38,9 @@ export function projectCodeIndex(info: ProjectInfo | undefined, kind: CodeKind):
     for (const summary of dir.types) {
       if (summary.type !== type) continue;
       const folders = summary.paths.filter((p) => p.split('/').pop() === folder);
-      for (const name of summary.names) index.set(name, [...(index.get(name) ?? []), ...folders]);
+      // A component in a sub-folder (classes/services) or outside a type folder: its own folder
+      for (const name of summary.names)
+        index.set(name, [...(index.get(name) ?? []), ...(summary.at?.[name] ? [summary.at[name]] : folders)]);
     }
   }
   return index;

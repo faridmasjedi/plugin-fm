@@ -138,7 +138,8 @@ function resolveInner(path: string, packageDirs: string[]): SourceComponent | un
   if (!dir) return undefined;
   const parts = path.slice(dir.length + 1).split('/');
   const at = parts.findIndex((p) => SOURCE_TYPES[p]);
-  if (at < 0 || at === parts.length - 1) return undefined;
+  if (at < 0) return codeOutsideTypeFolder(path);
+  if (at === parts.length - 1) return undefined;
   const typeFolder = parts[at];
   const type = SOURCE_TYPES[typeFolder];
   const base = `${dir}/${parts.slice(0, at + 1).join('/')}`;
@@ -200,10 +201,68 @@ function resolveInner(path: string, packageDirs: string[]): SourceComponent | un
   }
 
   // One component per file (and its -meta.xml): classes/Hello.cls + Hello.cls-meta.xml, permissionsets/X.permissionset-meta.xml
-  if (rest.length !== 1) return undefined;
+  // — also in sub-folders the project keeps them in (classes/services/Hello.cls), as the Salesforce CLI allows
+  const own = rest.length > 1 ? { typeFolder, base: `${base}/${rest.slice(0, -1).join('/')}` } : {};
   if (file.endsWith('-meta.xml'))
-    return { type, name: metaName(file).replace(/\.(cls|trigger|page|component)$/, ''), xml: path };
-  return { type, name: file.replace(/\.[^.]+$/, ''), xml: `${path}-meta.xml` };
+    return { type, name: metaName(file).replace(/\.(cls|trigger|page|component)$/, ''), xml: path, ...own };
+  return { type, name: file.replace(/\.[^.]+$/, ''), xml: `${path}-meta.xml`, ...own };
+}
+
+/**
+ * File suffix → the type folder it goes into in a deploy: what the Salesforce CLI finds by suffix when a project keeps a
+ * component outside its type folder (force-app/main/default/cases/CaseService.cls, …/cases/Case_Close.flow-meta.xml).
+ */
+export const SUFFIX_FOLDERS: Record<string, string> = {
+  cls: 'classes',
+  trigger: 'triggers',
+  page: 'pages',
+  component: 'components',
+  app: 'applications',
+  approvalProcess: 'approvalProcesses',
+  assignmentRules: 'assignmentRules',
+  autoResponseRules: 'autoResponseRules',
+  cachePartition: 'cachePartitions',
+  connectedApp: 'connectedApps',
+  cspTrustedSite: 'cspTrustedSites',
+  customPermission: 'customPermissions',
+  duplicateRule: 'duplicateRules',
+  escalationRules: 'escalationRules',
+  flexipage: 'flexipages',
+  flow: 'flows',
+  globalValueSet: 'globalValueSets',
+  layout: 'layouts',
+  matchingRule: 'matchingRules',
+  md: 'customMetadata',
+  messageChannel: 'messageChannels',
+  namedCredential: 'namedCredentials',
+  pathAssistant: 'pathAssistants',
+  permissionset: 'permissionsets',
+  permissionsetgroup: 'permissionsetgroups',
+  platformEventChannel: 'platformEventChannels',
+  profile: 'profiles',
+  queue: 'queues',
+  quickAction: 'quickActions',
+  remoteSite: 'remoteSiteSettings',
+  reportType: 'reportTypes',
+  role: 'roles',
+  sharingRules: 'sharingRules',
+  standardValueSet: 'standardValueSets',
+  tab: 'tabs',
+  workflow: 'workflows',
+};
+const CODE_SOURCE = new Set(['cls', 'trigger', 'page', 'component']);
+
+/** A one-file component kept outside its type folder: the CLI knows it by its suffix. */
+function codeOutsideTypeFolder(path: string): SourceComponent | undefined {
+  const slash = path.lastIndexOf('/');
+  const file = path.slice(slash + 1);
+  const m = /^(.+)\.(\w+)(-meta\.xml)$/.exec(file) ?? /^(.+)\.(\w+)()$/.exec(file);
+  const typeFolder = m && SUFFIX_FOLDERS[m[2]];
+  const type = typeFolder && SOURCE_TYPES[typeFolder];
+  // Only Apex has a file beside its -meta.xml; other types are the -meta.xml alone
+  if (!m || !typeFolder || !type || (!m[3] && !CODE_SOURCE.has(m[2]))) return undefined;
+  const xml = m[3] ? path : `${path}-meta.xml`;
+  return { type, name: m[1], xml, typeFolder, base: path.slice(0, slash) };
 }
 
 /**
@@ -213,6 +272,8 @@ function resolveInner(path: string, packageDirs: string[]): SourceComponent | un
 export function resolveComponent(path: string, packageDirs: string[]): SourceComponent | undefined {
   const found = resolveInner(path, packageDirs);
   if (!found) return undefined;
+  // In a sub-folder of its type folder, or outside one: the resolver said where its files start
+  if (found.base && found.typeFolder) return found;
   const dir = packageDirs.find((d) => path.startsWith(`${d}/`)) ?? '';
   const parts = path.slice(dir.length + 1).split('/');
   const at = parts.findIndex((p) => SOURCE_TYPES[p]);

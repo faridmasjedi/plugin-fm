@@ -3,6 +3,8 @@
  * same code works with the local NomadSF app (HTTP) and a folder picked in the browser.
  */
 
+import { SUFFIX_FOLDERS } from './sourcePackage.js';
+
 export type ProjectEntry = { name: string; kind: 'file' | 'dir' };
 
 export type ProjectFs = {
@@ -85,7 +87,15 @@ const FOLDER_COMPONENTS = new Set([
 /** Types whose components live in sub-folders (reports/MyFolder/Report.report-meta.xml). */
 const FOLDERED = new Set(['reports', 'dashboards', 'documents', 'email']);
 
-export type ProjectTypeSummary = { folder: string; type: string; count: number; names: string[]; paths: string[] };
+export type ProjectTypeSummary = {
+  folder: string;
+  type: string;
+  count: number;
+  names: string[];
+  paths: string[];
+  /** The folder of each component kept elsewhere than right in one of the paths (a sub-folder, or no type folder). */
+  at?: Record<string, string>;
+};
 
 export type PackageDirectory = {
   path: string;
@@ -128,6 +138,7 @@ async function summarizeTypeFolder(
 ): Promise<ProjectTypeSummary> {
   const entries = await fs.list(path);
   let names: string[];
+  const at: Record<string, string> = {};
   if (FOLDER_COMPONENTS.has(folder)) {
     names = entries.filter((e) => e.kind === 'dir').map((e) => e.name);
   } else if (FOLDERED.has(folder)) {
@@ -142,10 +153,31 @@ async function summarizeTypeFolder(
       );
     }
   } else {
-    names = entries.filter((e) => e.kind === 'file' && e.name.endsWith('-meta.xml')).map((e) => componentName(e.name));
+    // One file per component — also in sub-folders the project keeps them in (classes/services/Hello.cls)
+    names = [];
+    const walk = async (dir: string, list: ProjectEntry[], depth: number): Promise<void> => {
+      for (const e of list) {
+        if (e.kind === 'file' && e.name.endsWith('-meta.xml')) {
+          const name = componentName(e.name);
+          names.push(name);
+          if (dir !== path) at[name] = dir;
+        } else if (e.kind === 'dir' && depth < 6) {
+          // eslint-disable-next-line no-await-in-loop
+          await walk(join(dir, e.name), await fs.list(join(dir, e.name)).catch(() => []), depth + 1);
+        }
+      }
+    };
+    await walk(path, entries, 0);
   }
   names = [...new Set(names)].sort();
-  return { folder, type: folderTypes[folder], count: names.length, names: names.slice(0, 5000), paths: [path] };
+  return {
+    folder,
+    type: folderTypes[folder],
+    count: names.length,
+    names,
+    paths: [path],
+    ...(Object.keys(at).length ? { at } : {}),
+  };
 }
 
 /** Walks a package directory (max depth 5) and summarizes every known type folder in it. */
@@ -155,27 +187,47 @@ async function scanPackageDirectory(
   folderTypes: Record<string, string>
 ): Promise<ProjectTypeSummary[]> {
   const byType = new Map<string, ProjectTypeSummary>();
+  const add = (summary: ProjectTypeSummary): void => {
+    const existing = byType.get(summary.type);
+    if (!existing) {
+      byType.set(summary.type, summary);
+      return;
+    }
+    existing.names = [...new Set([...existing.names, ...summary.names])].sort();
+    existing.count = existing.names.length;
+    existing.paths.push(...summary.paths.filter((p) => !existing.paths.includes(p)));
+    if (summary.at) existing.at = { ...existing.at, ...summary.at };
+  };
   const walk = async (dir: string, depth: number): Promise<void> => {
-    if (depth > 5) return;
+    if (depth > 8) return;
     let entries: ProjectEntry[];
     try {
       entries = await fs.list(dir);
     } catch {
       return;
     }
+    // Components outside a type folder, known by their suffix (force-app/main/default/cases/CaseService.cls)
+    const loose = new Map<string, string[]>();
+    for (const e of entries) {
+      const m = e.kind === 'file' ? /^(.+)\.(\w+)-meta\.xml$/.exec(e.name) : null;
+      const folder = m && SUFFIX_FOLDERS[m[2]];
+      if (m && folder) loose.set(folder, [...(loose.get(folder) ?? []), m[1]]);
+    }
+    for (const [folder, names] of loose)
+      if (folderTypes[folder])
+        add({
+          folder,
+          type: folderTypes[folder],
+          count: names.length,
+          names,
+          paths: [],
+          at: Object.fromEntries(names.map((n) => [n, dir])),
+        });
     for (const entry of entries.filter((e) => e.kind === 'dir')) {
       const path = join(dir, entry.name);
       if (folderTypes[entry.name]) {
         // eslint-disable-next-line no-await-in-loop
-        const summary = await summarizeTypeFolder(fs, entry.name, path, folderTypes);
-        const existing = byType.get(summary.type);
-        if (existing) {
-          existing.names = [...new Set([...existing.names, ...summary.names])].sort();
-          existing.count = existing.names.length;
-          existing.paths.push(path);
-        } else {
-          byType.set(summary.type, summary);
-        }
+        add(await summarizeTypeFolder(fs, entry.name, path, folderTypes));
       } else {
         // eslint-disable-next-line no-await-in-loop
         await walk(path, depth + 1);
