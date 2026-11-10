@@ -38,6 +38,10 @@
         </span>
         <button type="button" class="btn cheat-print">Print</button>
       </div>
+      <p class="cheat-tip">
+        Not sure where something is? In the Studio, press <b>Search</b> (<kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>K</kbd>) and
+        say what you want to do.
+      </p>
       <p class="cheat-none" hidden>Nothing matches. Try another word, or <a href="guide.html">search the guide</a>.</p>
 
       <section class="cheat-group">
@@ -64,7 +68,7 @@
             <span class="where">Access › Object access</span><span class="badge read">reads</span>
           </a>
           <a class="cheat-row" href="guide.html#compare">
-            <span class="job">Compare two users, profiles or permission sets side by side</span>
+            <span class="job">Compare two users (every field, licenses), profiles or permission sets side by side</span>
             <span class="where">Access › Compare</span><span class="badge read">reads</span>
           </a>
           <a class="cheat-row" href="guide.html#accessmap">
@@ -194,11 +198,17 @@
             <span class="where">Develop › Debug logs</span><span class="badge ask">asks</span>
           </a>
           <a class="cheat-row" href="guide.html#jobs">
-            <span class="job">Scheduled and background jobs — and stop one</span>
+            <span class="job">Scheduled, Apex and background jobs — and stop one</span>
             <span class="where">Develop › Jobs</span><span class="badge ask">asks</span>
           </a>
           <a class="cheat-row" href="guide.html#automation">
             <span class="job">What runs when a record is saved, in order</span>
+            <span class="where">Develop › Automation</span><span class="badge read">reads</span>
+          </a>
+          <a class="cheat-row" href="guide.html#automation">
+            <span class="job"
+              >What a trigger or flow runs: methods, records written and their triggers, flow actions</span
+            >
             <span class="where">Develop › Automation</span><span class="badge read">reads</span>
           </a>
           <a class="cheat-row" href="guide.html#events">
@@ -219,6 +229,10 @@
               >Your project next to the org: what differs, per row to package or destructive, then deploy</span
             >
             <span class="where">Release › Project</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#project">
+            <span class="job">Bring the org’s version into your project folder, file by file</span>
+            <span class="where">Release › Project · Metadata</span><span class="badge read">reads</span>
           </a>
           <a class="cheat-row" href="guide.html#package">
             <span class="job"
@@ -303,7 +317,9 @@
             <span class="where">Org to org › Org compare</span><span class="badge ask">asks</span>
           </a>
           <a class="cheat-row" href="guide.html#orgaccess">
-            <span class="job">Compare users or permission sets between a sandbox and production</span>
+            <span class="job"
+              >Compare users (every field, licenses) or permission sets between a sandbox and production</span
+            >
             <span class="where">Org to org › Access</span><span class="badge read">reads</span>
           </a>
           <a class="cheat-row" href="guide.html#orgapps">

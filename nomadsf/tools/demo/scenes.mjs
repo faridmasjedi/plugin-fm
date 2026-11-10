@@ -388,6 +388,10 @@ export const scenes = [
       await h.click('Apex jobs');
       await h.settle();
       await h.pause(1600);
+      // Salesforce's own jobs: what the API can read, and Setup for the rest
+      await h.click('Background jobs');
+      await h.settle();
+      await h.pause(1600);
     },
   },
   {
@@ -402,6 +406,10 @@ export const scenes = [
       await h.until('Amount_Required_When_Won');
       await h.settle();
       await h.pause(2000);
+      // What the trigger runs, as a tree under its moment of the save
+      await h.press(h.page.locator('.save-card.opens', { hasText: 'OpportunityTrigger' }).first());
+      await h.waiting(() => h.page.locator('.auto-node-children .auto-node').first().waitFor({ timeout: 90000 }));
+      await h.pause(2500);
       await h.click(/^Table/);
       await h.pause(1800);
       await h.click(/^Order of a save/);
@@ -606,6 +614,9 @@ export const scenes = [
       await h.click('Compare');
       await h.settle();
       await h.pause(1600);
+      // Every field of both, in boxes
+      await h.press(h.page.locator('.dt-group-toggle', { hasText: 'Other fields' }).first());
+      await h.pause(2500);
     },
   },
   {
@@ -777,15 +788,18 @@ export const scenes = [
       );
       await h.settle();
       await h.pause(1000);
-      // A few types, compared down to their files
+      // A few types, found by typing, compared down to their files
       await h.click('None');
-      for (const type of ['ApexClass', 'AuraDefinitionBundle', 'PermissionSet', 'PermissionSetGroup'])
-        await h.press(
-          h.page
-            .locator('label', { hasText: new RegExp(`^\\s*${type}\\s*$`) })
-            .locator('input[type=checkbox]')
-            .first()
-        );
+      await h.type(h.page.locator('input.type-find'), 'apexclass, aura*, permissionset');
+      await h.click(/^Tick shown/);
+      const wanted = ['ApexClass', 'AuraDefinitionBundle', 'PermissionSet', 'PermissionSetGroup'];
+      for (const chip of await h.page.locator('.type-chips .chip').allInnerTexts()) {
+        const type = chip.replace(/\s*×\s*$/, '').trim();
+        if (!wanted.includes(type))
+          await h.press(h.page.locator('.type-chips .chip', { hasText: new RegExp(`^${type} ×$`) }).first());
+      }
+      await h.page.locator('input.type-find').fill('');
+      await h.pause(800);
       await h.click(/^Compare \d+ type/);
       await h.settle(300000);
       await h.pause(1000);
@@ -876,6 +890,57 @@ export const scenes = [
       await h.click('Run');
       await h.settle();
       await h.pause(1600);
+    },
+  },
+  {
+    name: 'search',
+    hash: 'query',
+    run: async (h) => {
+      // Say what you want to do: the place, on the right tab
+      await h.pause(1000);
+      await h.press(h.page.locator('.header-search'));
+      await h.type(h.page.locator('.quick-jump input'), 'kill the running batch');
+      await h.pause(1600);
+      await h.press(h.page.locator('.quick-jump li button').first());
+      await h.settle();
+      await h.pause(1800);
+      await h.press(h.page.locator('.header-search'));
+      await h.type(h.page.locator('.quick-jump input'), 'compare two profiles');
+      await h.pause(1600);
+      await h.press(h.page.locator('.quick-jump li button').first());
+      await h.settle();
+      await h.pause(1800);
+      await h.press(h.page.locator('.header-search'));
+      await h.type(h.page.locator('.quick-jump input'), 'why cant ann edit cases');
+      await h.pause(2000);
+      await h.page.keyboard.press('Enter');
+      await h.settle();
+      await h.pause(1800);
+    },
+  },
+  {
+    name: 'retrieve',
+    hash: 'settingsproject',
+    folder: true,
+    run: async (h) => {
+      // The project folder, then the org's version of a few classes into it: shown file by file first
+      await h.click('Choose project folder…');
+      await h.settle();
+      await h.pause(1200);
+      await h.tab('Release', 'Metadata');
+      await h.select(h.page.locator('.pane-body select:visible').first(), 'ApexClass');
+      await h.until('InvoiceController', 90000);
+      await h.pause(800);
+      for (const name of ['AccountService', 'InvoiceService'])
+        await h.press(h.row(name).locator('input[type=checkbox]'));
+      await h.click(/^Add \d+ to package/);
+      await h.pause(1200);
+      await h.click(/^Retrieve into project/);
+      await h.click('Read from the org');
+      await h.settle(120000);
+      await h.pause(1500);
+      await h.press(h.page.locator('.retrieve-into button.link').first());
+      await h.pause(2500);
     },
   },
   {

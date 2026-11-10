@@ -791,6 +791,13 @@ a.eyebrow:hover {
 .cheat-more {
   color: var(--muted);
 }
+.cheat-tip {
+  color: var(--muted);
+  margin: 0 0 16px;
+}
+.cheat-tip kbd {
+  font-size: 12px;
+}
 .cheat-more {
   margin-top: 32px;
 }
@@ -857,6 +864,7 @@ section.cheat-group {
   .cheat-bar input,
   .cheat-print,
   .cheat-none,
+  .cheat-tip,
   .cheat-more {
     display: none;
   }

@@ -14,7 +14,7 @@ const media = process.env.DEMO_MEDIA ?? join(here, '../../../docs/media');
 const work = join(here, '.recordings');
 const BASE = process.env.DEMO_URL ?? 'http://localhost:7171';
 const SIZE = { width: 1440, height: 860 };
-const GIFS = ['hubs', 'query', 'migrate'];
+const GIFS = ['hubs', 'query', 'migrate', 'search'];
 // The demo git repository (make-repo.mjs), opened as "the project folder" by scenes with `folder: true`; a folder
 // a backup is written to (Backup's "Choose folder…", in readwrite mode), emptied before each recording
 const ROOTS = { repo: join(work, 'acme-project'), backups: join(work, 'backups') };

@@ -10,13 +10,13 @@
 
 - **NomadSF in the status bar.** Click **NomadSF** in the status bar to open the Studio in an editor tab. Nothing else to install or start.
 - **Your orgs, no CLI needed**: the orgs logged in to with the Salesforce CLI on this computer show up by alias; **NomadSF: Log in to an org** (or Studio → Settings) logs in to a new one in your browser and saves it where the CLI keeps it, so both see it.
-- **Every Studio tool**, grouped into hubs, with tools side by side and <kbd>⌘K</kbd> to jump:
+- **Every Studio tool**, grouped into hubs, with tools side by side and **Search** (top right, or <kbd>⌘K</kbd>) to jump to a tool or to what you want to do:
 
   | Hub                 | Tools                                                                                                                                            |
   | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
   | **Develop**         | Code (with dependencies) · Execute Apex · Apex tests · Debug logs · Jobs · Automation · Events · REST Explorer                                   |
   | **Data**            | Query · Record (with the related tree: copy or save as Excel) · Import / Update / Delete · Compare with CSV · Lookup · Schema · Field usage      |
-  | **Release**         | Project · Metadata · Deployments                                                                                                                 |
+  | **Release**         | Project (with Retrieve into project) · Compare & package · Metadata · Deployments                                                                |
   | **Access**          | Users · Permission sets · Permissions · Custom permissions · Groups & queues · Assigned users · Object access · Overview · Compare · Your access |
   | **Org**             | Company · Org health · Limits · Connected apps · Logins & audit · Activity                                                                       |
   | **Data protection** | Backup and restore · Lifecycle jobs with approval                                                                                                |
