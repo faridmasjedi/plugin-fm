@@ -383,6 +383,9 @@ export const scenes = [
     name: 'apextests',
     hash: 'apextests',
     run: async (h) => {
+      // Find the test classes by name (a long list in a real org), tick them
+      await h.type(h.page.locator('input[placeholder^="Find test classes"]'), 'account*, casehandler');
+      await h.pause(900);
       for (const name of ['AccountServiceTest', 'CaseHandlerTest'])
         await h.press(h.page.locator('tr', { hasText: name }).locator('input[type=checkbox]'));
       await h.click('Run selected');
@@ -483,6 +486,9 @@ export const scenes = [
       await h.select(h.page.locator('.pane-body select').first(), 'ApexClass');
       await h.until('InvoiceController', 90000);
       await h.pause(800);
+      // A long list: find the ones you want by name
+      await h.type(h.page.locator('input[placeholder^="Find "]'), 'invoice*');
+      await h.pause(1000);
       for (const name of ['InvoiceController', 'InvoiceService', 'InvoiceServiceTest'])
         await h.press(h.row(name).locator('input[type=checkbox]'));
       await h.click(/^Add \d+ to package/);

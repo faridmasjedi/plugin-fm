@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   apexSourcesFromOrg,
+  nameMatcher,
   buildDiffPackage,
   fromBase64,
   orgComponentFiles,
@@ -58,6 +59,8 @@ export function MetadataPage() {
   const [typeFilter, setTypeFilter] = useState('');
   const [type, setType] = useState('');
   const [components, setComponents] = useState<MetadataComponent[]>([]);
+  // Names to find in a long list (a type can have thousands): one, a pattern (Case*) or several
+  const [nameFilter, setNameFilter] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // A component clicked in Browse: its files, read-only
   const [preview, setPreview] = useState<MetadataComponent | null>(null);
@@ -109,11 +112,16 @@ export function MetadataPage() {
     [types, typeFilter]
   );
   const current = types.find((t) => t.xmlName === type);
+  const shownComponents = useMemo(() => {
+    const wanted = nameMatcher(nameFilter);
+    return components.filter((c) => wanted(c.fullName));
+  }, [components, nameFilter]);
 
   const list = async (name: string) => {
     setType(name);
     setComponents([]);
     setSelected(new Set());
+    setNameFilter('');
     setStatus(`Listing ${name}…`);
     try {
       const found = await listMetadata(client, name, types.find((t) => t.xmlName === name)?.inFolder);
@@ -252,9 +260,25 @@ export function MetadataPage() {
           )}
           <Status text={status} block />
           {components.length > 0 && (
+            <div className="form">
+              <input
+                type="search"
+                className="grow"
+                placeholder={`Find ${components.length.toLocaleString()} ${type} by name… (AccountService, Case*, several with commas)`}
+                value={nameFilter}
+                onChange={(e) => setNameFilter(e.target.value)}
+              />
+              {nameFilter.trim() && (
+                <span className="muted">
+                  {shownComponents.length.toLocaleString()} of {components.length.toLocaleString()}
+                </span>
+              )}
+            </div>
+          )}
+          {components.length > 0 && (
             <DataTable
               columns={['fullName', 'type', 'lastModifiedDate', 'lastModifiedByName', 'manageableState']}
-              rows={components.map((c) => ({ ...c, key: keyOf(c) }))}
+              rows={shownComponents.map((c) => ({ ...c, key: keyOf(c) }))}
               rowKey="key"
               name={`${type}-components`}
               selected={selected}

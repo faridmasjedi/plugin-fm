@@ -3,6 +3,7 @@ import type { OnMount } from '@monaco-editor/react';
 import {
   codeCoverage,
   listTestClasses,
+  nameMatcher,
   openCode,
   runTests,
   waitForTests,
@@ -76,6 +77,9 @@ export function ApexTestsPage() {
   const [coverage, setCoverage] = useState<{ orgWide?: number; classes: ClassCoverage[] } | null>(null);
   const [open, setOpen] = useState<ClassCoverage | null>(null);
   const [status, setStatus] = useState('');
+  // A long list (hundreds of test classes): only the names typed (a name, Invoice*, several with commas)
+  const [nameFilter, setNameFilter] = useState('');
+  const wanted = nameMatcher(nameFilter);
   const abort = useRef<AbortController>(undefined);
 
   useEffect(() => {
@@ -121,7 +125,8 @@ export function ApexTestsPage() {
   };
 
   const failed = (results ?? []).filter((r) => r.outcome !== 'Pass');
-  const shownClasses = classes ?? [];
+  const shownClasses = (classes ?? []).filter((c) => wanted(c.name));
+  const shownCoverage = (coverage?.classes ?? []).filter((c) => wanted(c.name));
 
   return (
     <div className="page">
@@ -146,6 +151,25 @@ export function ApexTestsPage() {
         {tab === 'coverage' && <button onClick={() => void loadCoverage()}>Refresh</button>}
       </div>
       {status && <Status text={status} block />}
+      {(tab === 'run' ? classes?.length : coverage?.classes.length) ? (
+        <div className="form">
+          <input
+            type="search"
+            className="grow"
+            placeholder={`Find ${
+              tab === 'run' ? 'test classes' : 'classes'
+            } by name… (InvoiceServiceTest, Invoice*, several with commas)`}
+            value={nameFilter}
+            onChange={(e) => setNameFilter(e.target.value)}
+          />
+          {nameFilter.trim() && (
+            <span className="muted">
+              {(tab === 'run' ? shownClasses : shownCoverage).length.toLocaleString()} of{' '}
+              {(tab === 'run' ? classes ?? [] : coverage?.classes ?? []).length.toLocaleString()}
+            </span>
+          )}
+        </div>
+      ) : null}
 
       {tab === 'run' && (
         <div className="split">
@@ -234,7 +258,7 @@ export function ApexTestsPage() {
                 <div className="card">
                   <DataTable
                     columns={['name', 'percent', 'covered', 'uncovered']}
-                    rows={coverage.classes.map((c) => ({ ...c }))}
+                    rows={shownCoverage.map((c) => ({ ...c }))}
                     rowKey="id"
                     name="code-coverage"
                     onRowClick={(row) => setOpen(coverage.classes.find((c) => c.id === row.id) ?? null)}
