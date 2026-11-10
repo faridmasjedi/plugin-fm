@@ -14,7 +14,10 @@ const media = process.env.DEMO_MEDIA ?? join(here, '../../../docs/media');
 const work = join(here, '.recordings');
 const BASE = process.env.DEMO_URL ?? 'http://localhost:7171';
 // A full HD screen, recorded 1:1 (no scaling): the Studio as it looks on a big monitor, sharp
-const SIZE = { width: 1920, height: 1080 };
+// DEMO_SIZE=1080x1350 and DEMO_ZOOM=1.15: a portrait video for phones (LinkedIn), the Studio drawn bigger in it
+const [envW, envH] = (process.env.DEMO_SIZE ?? '').split('x').map(Number);
+const SIZE = envW && envH ? { width: envW, height: envH } : { width: 1920, height: 1080 };
+const ZOOM = Number(process.env.DEMO_ZOOM ?? 1) || 1;
 const SCALE = 1;
 const VIDEO = SIZE;
 const GIFS = ['hubs', 'query', 'migrate', 'search'];
@@ -352,6 +355,13 @@ async function record(scene, browser) {
     acceptDownloads: true,
   });
   await context.addInitScript(CURSOR);
+  // Zoom: the page laid out smaller and drawn bigger (sharp, not stretched)
+  if (ZOOM !== 1)
+    await context.addInitScript((z) => {
+      const apply = () => document.documentElement.style.setProperty('zoom', String(z));
+      if (document.documentElement) apply();
+      document.addEventListener('DOMContentLoaded', apply);
+    }, ZOOM);
   const page = await context.newPage();
   if (scene.folder) await openFolder(page);
   // DEMO_REAL_AI=1: the server's own AI answers (see server.mjs) instead of the scene's written answers
@@ -405,7 +415,7 @@ async function record(scene, browser) {
     '-i',
     video,
     '-vf',
-    `fps=25,${keep}scale=1920:-2`,
+    `fps=25,${keep}scale=${SIZE.width}:-2`,
     '-c:v',
     'libx264',
     '-pix_fmt',

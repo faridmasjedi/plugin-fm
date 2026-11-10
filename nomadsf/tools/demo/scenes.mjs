@@ -95,7 +95,8 @@ async function caption(h, text, ms = 1800) {
       el.id = '__caption';
       el.style.cssText =
         'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:99999;max-width:80%;padding:12px 22px;' +
-        'border-radius:14px;background:rgba(15,23,42,.88);color:#fff;font:600 22px/1.35 system-ui,sans-serif;' +
+        'border-radius:14px;background:rgba(15,23,42,.88);color:#fff;' +
+        `font:600 ${window.innerWidth < 1200 ? 30 : 22}px/1.35 system-ui,sans-serif;` +
         'text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.25);pointer-events:none;transition:opacity .25s';
       document.body.appendChild(el);
     }
