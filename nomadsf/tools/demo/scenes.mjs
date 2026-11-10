@@ -385,7 +385,7 @@ export const scenes = [
     hash: 'jobs',
     run: async (h) => {
       await h.pause(1500);
-      await h.click('Background Apex');
+      await h.click('Apex jobs');
       await h.settle();
       await h.pause(1600);
     },

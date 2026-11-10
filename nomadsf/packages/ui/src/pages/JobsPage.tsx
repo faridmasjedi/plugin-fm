@@ -1,15 +1,31 @@
 import { useEffect, useState } from 'react';
-import { abortJob, asyncJobs, scheduledJobs, type Row } from '@nomadsf/core';
+import { abortJob, asyncJobs, backgroundJobs, scheduledJobs, type Row } from '@nomadsf/core';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
 import { Status } from '../statusLog';
 
-type Tab = 'scheduled' | 'background';
+type Tab = 'scheduled' | 'apex' | 'background';
 
-/** Scheduled jobs (CronTrigger) and background Apex jobs (batch, queueable, future), with Stop. */
+const COLUMNS: Record<Tab, string[]> = {
+  scheduled: ['Name', 'Type', 'State', 'NextRun', 'LastRun', 'Cron', 'Runs', 'By'],
+  apex: ['Type', 'Class', 'Status', 'Progress', 'Errors', 'Detail', 'Started', 'Finished', 'By'],
+  background: ['Name', 'Type', 'Status', 'Submitted', 'Started', 'Finished', 'Error', 'Retries', 'Waiting', 'By'],
+};
+
+/**
+ * Scheduled jobs (CronTrigger), Apex jobs (batch, queueable, future) with Stop, and Salesforce's background jobs
+ * (BackgroundOperation: sharing recalculations, index builds…), as Setup shows them.
+ */
 export function JobsPage() {
   const { client, org, confirmChange, logActivity } = useStudio();
-  const [tab, setTab] = useState<Tab>(() => storage.get('jobs.tab', 'scheduled'));
+  const [tab, setTab] = useState<Tab>(() => {
+    // 'background' used to be the Apex jobs
+    const saved = storage.get<string>(
+      'jobs.tab2',
+      storage.get<string>('jobs.tab', 'scheduled') === 'background' ? 'apex' : 'scheduled'
+    );
+    return (Object.keys(COLUMNS).includes(saved) ? saved : 'scheduled') as Tab;
+  });
   const [days, setDays] = useState(7);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -20,7 +36,13 @@ export function JobsPage() {
     setSelected(new Set());
     setStatus('Reading jobs…');
     try {
-      setRows(t === 'scheduled' ? await scheduledJobs(client) : await asyncJobs(client, d));
+      setRows(
+        t === 'scheduled'
+          ? await scheduledJobs(client)
+          : t === 'apex'
+          ? await asyncJobs(client, d)
+          : await backgroundJobs(client, d)
+      );
       setStatus('');
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
@@ -60,7 +82,7 @@ export function JobsPage() {
     <div className="page">
       <div className="toolbar">
         <h2>Jobs</h2>
-        <span className="muted">Scheduled and background jobs on {org.label}</span>
+        <span className="muted">Scheduled, Apex and background jobs on {org.label}</span>
         <span className="grow" />
         <button onClick={() => void load()}>Refresh</button>
       </div>
@@ -68,7 +90,8 @@ export function JobsPage() {
         {(
           [
             ['scheduled', 'Scheduled'],
-            ['background', 'Background Apex'],
+            ['apex', 'Apex jobs'],
+            ['background', 'Background jobs'],
           ] as Array<[Tab, string]>
         ).map(([id, text]) => (
           <button
@@ -76,7 +99,7 @@ export function JobsPage() {
             className={`tab ${tab === id ? 'active' : ''}`}
             onClick={() => {
               setTab(id);
-              storage.set('jobs.tab', id);
+              storage.set('jobs.tab2', id);
             }}
           >
             {text}
@@ -84,7 +107,7 @@ export function JobsPage() {
         ))}
       </div>
       <div className="form">
-        {tab === 'background' && (
+        {tab !== 'scheduled' && (
           <label>
             Last
             <select
@@ -102,9 +125,11 @@ export function JobsPage() {
             </select>
           </label>
         )}
-        <button className="danger" disabled={selected.size === 0} onClick={() => void stop()}>
-          Stop {selected.size || ''} selected…
-        </button>
+        {tab !== 'background' && (
+          <button className="danger" disabled={selected.size === 0} onClick={() => void stop()}>
+            Stop {selected.size || ''} selected…
+          </button>
+        )}
         <Status text={status} />
       </div>
       {rows &&
@@ -112,24 +137,25 @@ export function JobsPage() {
           <EmptyHint what="jobs" />
         ) : (
           <DataTable
-            columns={
-              tab === 'scheduled'
-                ? ['Name', 'Type', 'State', 'NextRun', 'LastRun', 'Cron', 'Runs', 'By']
-                : ['Type', 'Class', 'Status', 'Progress', 'Errors', 'Detail', 'Started', 'Finished', 'By']
-            }
+            columns={COLUMNS[tab]}
             rows={rows}
             rowKey="Id"
             name={`${org.label}-${tab}-jobs`}
-            selected={selected}
-            onSelectedChange={(next) =>
-              setSelected(new Set([...next].filter((id) => running(rows.find((r) => String(r.Id) === id) ?? {}))))
+            selected={tab === 'background' ? undefined : selected}
+            onSelectedChange={
+              tab === 'background'
+                ? undefined
+                : (next) =>
+                    setSelected(new Set([...next].filter((id) => running(rows.find((r) => String(r.Id) === id) ?? {}))))
             }
             note={
               <span>
                 ·{' '}
                 {tab === 'scheduled'
                   ? 'tick jobs to stop them (they no longer run)'
-                  : 'tick queued or running jobs to stop them'}
+                  : tab === 'apex'
+                  ? 'tick queued or running jobs to stop them'
+                  : "Salesforce's own work (sharing recalculations, index builds, cleanups); it cannot be stopped here"}
               </span>
             }
           />
