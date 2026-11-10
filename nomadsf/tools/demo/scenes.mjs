@@ -1211,4 +1211,110 @@ export const scenes = [
       await caption(h, 'NomadSF 2.4 — free, in Chrome, Edge and VS Code', 3200);
     },
   },
+  {
+    // The release video of 2.4 and 2.5 together (LinkedIn): with captions
+    name: 'whatsnew-2.5',
+    hash: 'query',
+    folder: true,
+    run: async (h) => {
+      await caption(h, 'NomadSF 2.4 and 2.5 — what’s new', 2200);
+      await caption(h, 'Search: say what you want to do…', 300);
+      await searchFor(h, 'what runs when a record is saved');
+      await h.type(h.page.locator('input[placeholder="Object, e.g. Case"]'), 'Opportunity');
+      await h.page.keyboard.press('Enter');
+      await h.until('OpportunityTrigger', 60000);
+      await h.settle();
+      await caption(h, 'Automation: click a trigger to see what it runs', 300);
+      await h.press(h.page.locator('.save-card.opens', { hasText: 'OpportunityTrigger' }).first());
+      await h.waiting(() => h.page.locator('.auto-node-children .auto-node').first().waitFor({ timeout: 90000 }));
+      await h.pause(2000);
+
+      await caption(h, '');
+      await searchFor(h, 'sharing recalculation');
+      await caption(h, 'Jobs: Scheduled, Apex jobs and Background jobs', 2000);
+
+      await caption(h, '');
+      await searchFor(h, 'who is in a role inside a group');
+      await h.until('Support Team', 60000);
+      await h.press(h.row('Support Team'));
+      await h.settle();
+      await h.press(
+        h.page
+          .locator('.card.section button', { hasText: 'Who is in it' })
+          .and(h.page.locator('tr', { hasText: 'Support Manager' }).locator('button'))
+          .first()
+      );
+      await caption(h, 'Groups & queues: who is in a role or group inside a group', 300);
+      await h.waiting(() =>
+        h.page.locator('.member-tree .auto-node-children .auto-node').first().waitFor({ timeout: 60000 })
+      );
+      await h.pause(2000);
+
+      await caption(h, '');
+      await searchFor(h, 'compare two users');
+      const users = h.page.locator('input[placeholder="Name, username or email"]');
+      await h.type(users.first(), 'Ann');
+      await h.pause(1200);
+      await h.choose(
+        h.page
+          .locator('.pane-body select')
+          .filter({ has: h.page.locator('option', { hasText: 'Ann Lee' }) })
+          .first(),
+        /Ann Lee/
+      );
+      await h.type(users.last(), 'Bob');
+      await h.pause(1200);
+      await h.choose(
+        h.page
+          .locator('.pane-body select')
+          .filter({ has: h.page.locator('option', { hasText: 'Bob Ray' }) })
+          .first(),
+        /Bob Ray/
+      );
+      await h.click('Compare');
+      await h.settle();
+      await caption(h, 'Compare two users: every field, side by side', 300);
+      await h.press(h.page.locator('.dt-group-toggle', { hasText: 'Other fields' }).first());
+      await h.pause(1800);
+
+      await caption(h, '');
+      await h.tab('Settings', 'Project');
+      await h.click('Choose project folder…');
+      await h.settle();
+      await h.tab('Release', 'Metadata');
+      await h.select(h.page.locator('.pane-body select:visible').first(), 'ApexClass');
+      await h.until('InvoiceController', 90000);
+      await h.press(h.row('AccountService').locator('input[type=checkbox]'));
+      await h.click(/^Add \d+ to package/);
+      await h.click(/^Retrieve into project/);
+      await caption(h, 'Retrieve into project: the org’s version, file by file', 300);
+      await h.click('Read from the org');
+      await h.settle(120000);
+      await h.press(h.page.locator('.retrieve-into button.link').first());
+      await h.pause(2200);
+
+      await caption(h, '');
+      // 2.5: find by name in a long list
+      await h.select(h.page.locator('.pane-body select:visible').first(), 'ApexClass');
+      await h.until('InvoiceController', 90000);
+      await caption(h, '2.5 — Metadata: find components by name in a long list', 300);
+      await h.type(h.page.locator('input[placeholder^="Find "]:visible'), 'invoice*');
+      await h.pause(1800);
+
+      await caption(h, '');
+      await h.tab('Develop', 'Apex tests');
+      await caption(h, '2.5 — Apex tests: find test classes by name, then run them', 300);
+      await h.type(h.page.locator('input[placeholder^="Find test classes"]'), 'account*, casehandler');
+      await h.pause(900);
+      for (const name of ['AccountServiceTest', 'CaseHandlerTest'])
+        await h.press(h.page.locator('tr', { hasText: name }).locator('input[type=checkbox]'));
+      await h.click('Run selected');
+      await h.confirm('acme-uat').catch(() => {});
+      await h.until('Passed', 180000).catch(() => {});
+      await h.settle();
+      await h.pause(1800);
+
+      await caption(h, 'NomadSF — free, in Chrome, Edge and VS Code', 3200);
+    },
+  },
 ];

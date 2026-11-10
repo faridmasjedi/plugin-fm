@@ -8,7 +8,7 @@
 
 ![NomadSF Studio: hubs, and two side by side](docs/media/hubs.gif)
 
-▶ **[What's new in 2.4](docs/media/whatsnew.mp4)** (1½ min video): search by task, the automation tree, background jobs, who is in a group, every field of two users, retrieve into the project.
+▶ **[What's new in 2.4 and 2.5](docs/media/whatsnew-2.5.mp4)** (2 min video): search by task, the automation tree, background jobs, who is in a group, every field of two users, retrieve into the project, find by name in long lists.
 
 ## What's inside
 

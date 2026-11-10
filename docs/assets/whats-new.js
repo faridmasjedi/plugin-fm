@@ -2,7 +2,8 @@
 // New changes go under "next"; the newest release without its own entry shows them.
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
-  next: [
+  next: [],
+  '2.5.0': [
     'Release › Metadata and Develop › Apex tests: find what you want by name in a long list (a name, Invoice*, several with commas)',
     'Guide videos in full HD (1920 × 1080)',
   ],
