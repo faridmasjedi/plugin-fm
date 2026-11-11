@@ -1134,8 +1134,10 @@
                   A GitHub project is read without its history, so it cannot be compared here; open the folder instead.
                 </li>
                 <li>
-                  Components are found in sub-folders too (<code>classes/services/Billing.cls</code>), and Apex or other
-                  metadata kept outside its type folder is known by its file name, as the Salesforce CLI does.
+                  Every metadata type the Salesforce CLI knows (almost 500) is recognised the way the CLI does: in its
+                  folder, in sub-folders (<code>classes/services/Billing.cls</code>,
+                  <code>reports/Sales/EMEA/Pipeline</code>), and outside a type folder by its file name where Salesforce
+                  allows it.
                 </li>
                 <li>
                   <b>Find dependent tests</b> follows the classes and triggers of the package to the test classes that

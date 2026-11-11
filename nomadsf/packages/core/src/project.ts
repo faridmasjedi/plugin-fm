@@ -3,7 +3,7 @@
  * same code works with the local NomadSF app (HTTP) and a folder picked in the browser.
  */
 
-import { SUFFIX_FOLDERS } from './sourcePackage.js';
+import { resolveComponent, type SourceComponent } from './sourcePackage.js';
 
 export type ProjectEntry = { name: string; kind: 'file' | 'dir' };
 
@@ -74,19 +74,6 @@ export const FOLDER_TYPES: Record<string, string> = {
   workflows: 'Workflow',
 };
 
-/** Types whose components are folders (bundles, objects) rather than single files. */
-const FOLDER_COMPONENTS = new Set([
-  'aura',
-  'lwc',
-  'experiences',
-  'objects',
-  'objectTranslations',
-  'wave',
-  'genAiPlannerBundles',
-]);
-/** Types whose components live in sub-folders (reports/MyFolder/Report.report-meta.xml). */
-const FOLDERED = new Set(['reports', 'dashboards', 'documents', 'email']);
-
 export type ProjectTypeSummary = {
   folder: string;
   type: string;
@@ -130,112 +117,77 @@ const join = (...parts: string[]): string => parts.filter(Boolean).join('/').rep
 /** Component name of a source file: "Account.object-meta.xml" -> "Account", "A.cls-meta.xml" -> "A". */
 const componentName = (file: string): string => file.replace(/-meta\.xml$/, '').replace(/\.[^.]+$/, '');
 
-async function summarizeTypeFolder(
-  fs: ProjectFs,
-  folder: string,
-  path: string,
-  folderTypes: Record<string, string>
-): Promise<ProjectTypeSummary> {
-  const entries = await fs.list(path);
-  let names: string[];
-  const at: Record<string, string> = {};
-  if (FOLDER_COMPONENTS.has(folder)) {
-    names = entries.filter((e) => e.kind === 'dir').map((e) => e.name);
-  } else if (FOLDERED.has(folder)) {
-    names = [];
-    for (const sub of entries.filter((e) => e.kind === 'dir')) {
-      // eslint-disable-next-line no-await-in-loop
-      const inner = await fs.list(join(path, sub.name));
-      names.push(
-        ...inner
-          .filter((e) => e.kind === 'file' && e.name.endsWith('-meta.xml'))
-          .map((e) => `${sub.name}/${componentName(e.name)}`)
-      );
-    }
-  } else {
-    // One file per component — also in sub-folders the project keeps them in (classes/services/Hello.cls)
-    names = [];
-    const walk = async (dir: string, list: ProjectEntry[], depth: number): Promise<void> => {
-      for (const e of list) {
-        if (e.kind === 'file' && e.name.endsWith('-meta.xml')) {
-          const name = componentName(e.name);
-          names.push(name);
-          if (dir !== path) at[name] = dir;
-        } else if (e.kind === 'dir' && depth < 6) {
-          // eslint-disable-next-line no-await-in-loop
-          await walk(join(dir, e.name), await fs.list(join(dir, e.name)).catch(() => []), depth + 1);
-        }
-      }
-    };
-    await walk(path, entries, 0);
-  }
-  names = [...new Set(names)].sort();
-  return {
-    folder,
-    type: folderTypes[folder],
-    count: names.length,
-    names,
-    paths: [path],
-    ...(Object.keys(at).length ? { at } : {}),
-  };
-}
+const SKIP = new Set(['node_modules', '.git', '.sfdx', '.sf']);
 
-/** Walks a package directory (max depth 5) and summarizes every known type folder in it. */
+/**
+ * Every component of a package directory, by type: each file resolved the way a deploy resolves it (the Salesforce
+ * CLI's rules for every type it knows: type folders, sub-folders, files known by their ending), so the project's list
+ * and its packages always agree. An object's fields and the like count as the object.
+ */
 async function scanPackageDirectory(
   fs: ProjectFs,
   root: string,
-  folderTypes: Record<string, string>
+  extraFolderTypes: Record<string, string>
 ): Promise<ProjectTypeSummary[]> {
-  const byType = new Map<string, ProjectTypeSummary>();
-  const add = (summary: ProjectTypeSummary): void => {
-    const existing = byType.get(summary.type);
-    if (!existing) {
-      byType.set(summary.type, summary);
-      return;
-    }
-    existing.names = [...new Set([...existing.names, ...summary.names])].sort();
-    existing.count = existing.names.length;
-    existing.paths.push(...summary.paths.filter((p) => !existing.paths.includes(p)));
-    if (summary.at) existing.at = { ...existing.at, ...summary.at };
-  };
-  const walk = async (dir: string, depth: number): Promise<void> => {
-    if (depth > 8) return;
+  const files: string[] = [];
+  const walk = async (dir: string): Promise<void> => {
     let entries: ProjectEntry[];
     try {
       entries = await fs.list(dir);
     } catch {
       return;
     }
-    // Components outside a type folder, known by their suffix (force-app/main/default/cases/CaseService.cls)
-    const loose = new Map<string, string[]>();
     for (const e of entries) {
-      const m = e.kind === 'file' ? /^(.+)\.(\w+)-meta\.xml$/.exec(e.name) : null;
-      const folder = m && SUFFIX_FOLDERS[m[2]];
-      if (m && folder) loose.set(folder, [...(loose.get(folder) ?? []), m[1]]);
-    }
-    for (const [folder, names] of loose)
-      if (folderTypes[folder])
-        add({
-          folder,
-          type: folderTypes[folder],
-          count: names.length,
-          names,
-          paths: [],
-          at: Object.fromEntries(names.map((n) => [n, dir])),
-        });
-    for (const entry of entries.filter((e) => e.kind === 'dir')) {
-      const path = join(dir, entry.name);
-      if (folderTypes[entry.name]) {
-        // eslint-disable-next-line no-await-in-loop
-        add(await summarizeTypeFolder(fs, entry.name, path, folderTypes));
-      } else {
-        // eslint-disable-next-line no-await-in-loop
-        await walk(path, depth + 1);
-      }
+      if (SKIP.has(e.name)) continue;
+      const path = join(dir, e.name);
+      // eslint-disable-next-line no-await-in-loop
+      if (e.kind === 'dir') await walk(path);
+      else files.push(path);
     }
   };
-  await walk(root, 0);
-  return [...byType.values()].sort((a, b) => b.count - a.count || a.type.localeCompare(b.type));
+  await walk(root);
+  const byType = new Map<
+    string,
+    { folder: string; names: Set<string>; paths: Set<string>; at: Record<string, string> }
+  >();
+  for (const path of files) {
+    let c: Pick<SourceComponent, 'type' | 'name' | 'typeFolder' | 'base' | 'object' | 'labels'> | undefined =
+      resolveComponent(path, [root]);
+    if (!c) {
+      // A folder only the org's describe names (Settings › Project): one component per -meta.xml in it
+      const parts = path.split('/');
+      const at = parts.findIndex((part) => extraFolderTypes[part]);
+      if (at < 0 || !path.endsWith('-meta.xml')) continue;
+      c = {
+        type: extraFolderTypes[parts[at]],
+        name: componentName(parts[parts.length - 1]),
+        typeFolder: parts[at],
+        base: parts.slice(0, -1).join('/'),
+      };
+    }
+    // A folder of reports (reports/Sales.reportFolder-meta.xml) is not listed as a report
+    if (/Folder-meta\.xml$/.test(path)) continue;
+    const type = c.object ? (c.type === 'CustomObjectTranslation' ? c.type : 'CustomObject') : c.type;
+    const name = c.object ?? c.name;
+    const folder = c.typeFolder ?? '';
+    const typePath = path.slice(0, path.indexOf(`/${folder}/`) + folder.length + 1);
+    const entry = byType.get(type) ?? { folder, names: new Set(), paths: new Set(), at: {} };
+    byType.set(type, entry);
+    entry.names.add(name);
+    // Right in a type folder (classes/Hello.cls), or elsewhere: a sub-folder, or outside one (known by its ending)
+    if (path.includes(`/${folder}/`) && (c.object || !c.base || c.base === typePath)) entry.paths.add(typePath);
+    else if (c.base) entry.at[name] = c.base;
+  }
+  return [...byType]
+    .map(([type, e]) => ({
+      folder: e.folder,
+      type,
+      count: e.names.size,
+      names: [...e.names].sort(),
+      paths: [...e.paths],
+      ...(Object.keys(e.at).length ? { at: e.at } : {}),
+    }))
+    .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type));
 }
 
 /** Parses package.xml into [{ type, members }]. */
