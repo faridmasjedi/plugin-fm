@@ -1,7 +1,7 @@
 // Lists every GitHub release with its downloads (the public API; 60 requests an hour per visitor).
 (async () => {
+  // The home page shows the latest only; releases.html lists every version (#versions)
   const box = document.getElementById('versions');
-  if (!box) return;
   const repo = 'faridmasjedi/plugin-fm';
   const label = (name) =>
     /extension.*\.zip$/.test(name)
@@ -59,8 +59,10 @@
         }</td></tr>`;
       })
       .join('');
+    if (!box) return;
     box.innerHTML = `<table class="versions"><thead><tr><th>Version</th><th>Date</th><th>What's new</th><th>Downloads</th></tr></thead><tbody>${rows}</tbody></table>`;
   } catch {
-    box.innerHTML = `<p class="note">The list of versions could not be loaded here. See <a href="https://github.com/${repo}/releases">all releases on GitHub</a>.</p>`;
+    if (box)
+      box.innerHTML = `<p class="note">The list of versions could not be loaded here. See <a href="https://github.com/${repo}/releases">all releases on GitHub</a>.</p>`;
   }
 })();

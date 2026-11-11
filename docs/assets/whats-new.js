@@ -3,6 +3,10 @@
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
   next: [
+    'Guide and site videos drawn 1.5× bigger, and every video can be enlarged',
+    'Website: a Releases page with every version; the home page shows the latest',
+  ],
+  '2.6.1': [
     'Guide videos re-recorded in full HD on the current Studio (Search in the header, Activity under Settings)',
     'Fixed: Data protection › Lifecycle asked to discard changes when starting from a template on a new, untouched job',
   ],
