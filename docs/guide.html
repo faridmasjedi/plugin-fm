@@ -175,7 +175,7 @@
               </tr>
               <tr>
                 <td><b>Org</b></td>
-                <td>Company · Org health · Limits · Connected apps · Logins &amp; audit · Activity</td>
+                <td>Company · Org health · Limits · Connected apps · Logins &amp; audit</td>
               </tr>
               <tr>
                 <td><b>Data protection</b></td>
@@ -187,7 +187,7 @@
               </tr>
               <tr>
                 <td><b>Settings</b></td>
-                <td>Orgs · AI · Project</td>
+                <td>Orgs · AI · Project · Activity</td>
               </tr>
             </table>
             <h4 id="search">Search: say what you want to do</h4>
@@ -1732,32 +1732,6 @@
               </ul>
             </div>
           </section>
-          <section class="tool" data-title="Activity">
-            <h3 id="activity">Activity</h3>
-            <p class="tool-lead">Every change made from NomadSF in this browser.</p>
-            <p class="tool-meta"><span class="badge read">Reads only</span></p>
-            <div class="shot">
-              <video
-                src="media/activity.mp4"
-                poster="media/activity.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>Every change made from NomadSF in this browser (and, in the CLI app, the project's shared log).</p>
-            <div class="good-to-know">
-              <h4>Good to know</h4>
-              <ul>
-                <li>
-                  It is kept in this browser only. For what anyone changed in setup, see
-                  <a href="#audit">Logins &amp; audit</a>.
-                </li>
-              </ul>
-            </div>
-          </section>
         </section>
 
         <section class="hub" id="hub-protect" data-title="Data protection">
@@ -2343,6 +2317,32 @@
               AI only fills editors or shows text. Nothing runs or saves until you press the usual button — metadata the
               AI writes goes through the same Validate and deploy panel as everything else. The key stays in the
               extension's own storage and goes only to the provider you chose.
+            </div>
+          </section>
+          <section class="tool" data-title="Activity">
+            <h3 id="activity">Activity</h3>
+            <p class="tool-lead">What you changed or exported with NomadSF, in every org: the app's own record.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/activity.mp4"
+                poster="media/activity.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>Every change made from NomadSF in this browser (and, in the CLI app, the project's shared log).</p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  It is kept in this browser only. For what anyone changed in setup, see
+                  <a href="#audit">Logins &amp; audit</a>.
+                </li>
+              </ul>
             </div>
           </section>
         </section>

@@ -61,7 +61,6 @@ export const STUDIO_PAGES = [
   ['limits', 'Limits', 'Org'],
   ['apps', 'Connected apps', 'Org'],
   ['audit', 'Logins & audit', 'Org'],
-  ['activity', 'Activity', 'Org'],
   ['backup', 'Backup and restore', 'Data protection'],
   ['lifecycle', 'Lifecycle', 'Data protection'],
   ['migrate', 'Migrate', 'Org to org'],
@@ -71,6 +70,7 @@ export const STUDIO_PAGES = [
   ['settings', 'Orgs', 'Settings'],
   ['settingsai', 'AI', 'Settings'],
   ['settingsproject', 'Project', 'Settings'],
+  ['activity', 'Activity', 'Settings'],
 ] as const;
 
 /** The system's own "open this link" command, with the link as one argument (no shell). */

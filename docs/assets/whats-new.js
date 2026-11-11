@@ -5,6 +5,7 @@ window.NOMADSF_WHATS_NEW = {
   next: [
     'Projects: every metadata type the Salesforce CLI knows (almost 500, not only the common ones) is recognised in its folder, in sub-folders and outside type folders — bots, Agentforce (GenAI) metadata, Industries and Field Service types and the rest',
     'Fixed: reports, dashboards and email templates in nested folders kept their full folder path',
+    'Activity (what you changed or exported with NomadSF) moved from Org to Settings: it is the app’s own record, across every org',
   ],
   '2.5.0': [
     'Release › Metadata and Develop › Apex tests: find what you want by name in a long list (a name, Invoice*, several with commas)',

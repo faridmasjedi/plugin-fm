@@ -18,7 +18,7 @@
   | **Data**            | Query · Record (with the related tree: copy or save as Excel) · Import / Update / Delete · Compare with CSV · Lookup · Schema · Field usage      |
   | **Release**         | Project (with Retrieve into project) · Compare & package · Metadata · Deployments                                                                |
   | **Access**          | Users · Permission sets · Permissions · Custom permissions · Groups & queues · Assigned users · Object access · Overview · Compare · Your access |
-  | **Org**             | Company · Org health · Limits · Connected apps · Logins & audit · Activity                                                                       |
+  | **Org**             | Company · Org health · Limits · Connected apps · Logins & audit                                                                                  |
   | **Data protection** | Backup and restore · Lifecycle jobs with approval                                                                                                |
   | **Org to org**      | Migrate · Org compare · Access · Connected apps — for one pair of orgs, A → B                                                                    |
 

@@ -218,7 +218,7 @@ export const PLACES: StudioPlace[] = [
       'audit.tab': 'audit',
     }
   ),
-  P('activity', 'what did I change from here', 'activity history changes made by nomadsf'),
+  P('activity', 'what did I change or export with NomadSF', 'activity history changes made by nomadsf my log audit'),
 
   // ---------- Data protection ----------
   P('backup', 'back up data', 'backup records objects files', 'What to back up', { 'backup.tab': 'what' }),

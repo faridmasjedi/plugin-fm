@@ -114,7 +114,7 @@ export const TOOLS: Tool[] = [
   { id: 'limits', label: 'Limits', icon: '▤', hint: 'org limits and storage' },
   { id: 'events', label: 'Events', icon: '⚡', hint: 'platform events, CDC' },
   { id: 'rest', label: 'REST Explorer', icon: '⇄', hint: 'any REST call' },
-  { id: 'activity', label: 'Activity', icon: '⏱', hint: 'what was changed from here' },
+  { id: 'activity', label: 'Activity', icon: '⏱', hint: 'what you changed or exported with NomadSF, in every org' },
   { id: 'orgaccess', label: 'Access', icon: '⚿', hint: 'users and permissions in two orgs' },
   { id: 'orgapps', label: 'Connected apps', icon: '⚷', hint: 'connected apps in two orgs' },
   { id: 'settings', label: 'Orgs', icon: '◈', hint: 'the orgs you are logged in to' },
@@ -158,10 +158,11 @@ export const HUBS: Hub[] = [
     ],
     breakBefore: ['assigned'],
   },
-  { id: 'org', label: 'Org', icon: '◈', tools: ['company', 'health', 'limits', 'apps', 'audit', 'activity'] },
+  { id: 'org', label: 'Org', icon: '◈', tools: ['company', 'health', 'limits', 'apps', 'audit'] },
   { id: 'protect', label: 'Data protection', icon: '⛁', tools: ['backup', 'lifecycle'] },
   { id: 'between', label: 'Org to org', icon: '⇋', tools: ['migrate', 'orgdiff', 'orgaccess', 'orgapps'] },
-  { id: 'settings', label: 'Settings', icon: '⚙', tools: ['settings', 'settingsai', 'settingsproject'] },
+  // The app's own: your orgs, your AI, your project, and what you did with NomadSF (in every org)
+  { id: 'settings', label: 'Settings', icon: '⚙', tools: ['settings', 'settingsai', 'settingsproject', 'activity'] },
 ];
 
 /** Old page ids (links from the popup, VS Code, bookmarks) still open the right tool. */
