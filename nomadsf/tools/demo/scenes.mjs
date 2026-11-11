@@ -981,6 +981,32 @@ export const scenes = [
     },
   },
   {
+    name: 'eventlogs',
+    hash: 'eventlogs',
+    run: async (h) => {
+      // The demo org has no event log files (scratch orgs never do): the page says so; then CSV files of the same
+      // kind, made up for the demo (tools/demo/event-logs), as they come from an org with Event Monitoring
+      await h.settle();
+      await h.pause(2200);
+      await h.press(h.page.locator('button.tab', { hasText: 'Open CSV files' }));
+      await h.pause(800);
+      const files = (name) => fileURLToPath(new URL(`./event-logs/${name}`, import.meta.url));
+      await h.press(h.page.locator('label.file-button', { hasText: 'Choose CSV files' }));
+      await h.page.keyboard.press('Escape');
+      await h.page.locator('input[type=file]').setInputFiles(files('Login-2026-11-09_10.csv'));
+      await h.settle();
+      await h.pause(2200);
+      await h.press(h.page.locator('.table-tabs button, [role=tab]', { hasText: /^By user/ }).first());
+      await h.pause(1800);
+      await h.page.locator('input[type=file]').setInputFiles(files('ApexExecution-2026-11-10.csv'));
+      await h.settle();
+      await h.press(h.page.locator('.table-tabs button, [role=tab]', { hasText: /^By what was used/ }).first());
+      await h.pause(2200);
+      await h.press(h.page.locator('.table-tabs button, [role=tab]', { hasText: /^Every event/ }).first());
+      await h.pause(1800);
+    },
+  },
+  {
     name: 'search',
     hash: 'query',
     run: async (h) => {

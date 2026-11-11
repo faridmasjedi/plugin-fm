@@ -20,6 +20,7 @@
           <a href="./#download">Download</a>
           <a class="active" href="guide.html">Guide</a>
           <a class="hide-sm" href="cheatsheet.html">Cheat sheet</a>
+          <a class="hide-sm" href="releases.html">Releases</a>
           <a class="hide-xs" href="#scenarios">Scenarios</a>
           <a class="hide-sm" href="#safety">Safety</a>
           <a href="https://github.com/faridmasjedi/plugin-fm">GitHub</a>
@@ -175,7 +176,11 @@
               </tr>
               <tr>
                 <td><b>Org</b></td>
-                <td>Company · Org health · Limits · Connected apps · Logins &amp; audit</td>
+                <td>Company · Limits · Connected apps</td>
+              </tr>
+              <tr>
+                <td><b>Security</b></td>
+                <td>Event logs · Org health · Logins &amp; audit</td>
               </tr>
               <tr>
                 <td><b>Data protection</b></td>
@@ -1612,39 +1617,6 @@
               locale, time zone, currency, fiscal year and defaults — grouped, with only filled fields by default.
             </p>
           </section>
-          <section class="tool" data-title="Org health">
-            <h3 id="health">Org health</h3>
-            <p class="tool-lead">Risky access, unused things and licenses of the org at a glance.</p>
-            <p class="tool-meta"><span class="badge read">Reads only</span></p>
-            <div class="shot">
-              <video
-                src="media/health.mp4"
-                poster="media/health.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <ul>
-              <li>
-                <b>Security</b>: Salesforce's Health Check score and its risks; active users with Modify All Data, View
-                All Data, Manage Users, Author Apex, Customize Application or API Enabled, with what grants it; users
-                who have not logged in for 30–365 days; permission sets nobody has; OAuth tokens nobody uses; licenses
-                held by deactivated users.
-              </li>
-              <li>
-                <b>Licenses</b>: every user license and permission set license, used of total; click one for its users.
-              </li>
-            </ul>
-            <div class="good-to-know">
-              <h4>Good to know</h4>
-              <ul>
-                <li>Each number is a list: click it for the users, permission sets or tokens behind it.</li>
-              </ul>
-            </div>
-          </section>
           <section class="tool" data-title="Limits">
             <h3 id="limits">Limits</h3>
             <p class="tool-lead">The org’s limits and storage, and deleting old records by date.</p>
@@ -1703,6 +1675,93 @@
               <h4>Good to know</h4>
               <ul>
                 <li>Revoking a token signs that person out of the app; they sign in again to get a new one.</li>
+              </ul>
+            </div>
+          </section>
+        </section>
+
+        <section class="hub" id="hub-security" data-title="Security">
+          <h2 id="security">Security</h2>
+          <section class="tool" data-title="Event logs">
+            <h3 id="eventlogs">Event logs</h3>
+            <p class="tool-lead">
+              What happened in the org — logins, API calls, Apex, pages, reports — from its event log files.
+            </p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/eventlogs.mp4"
+                poster="media/eventlogs.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              Salesforce writes what happens in an org to <b>event log files</b>: CSV files per hour or per day, one
+              kind per file (Login, API Total Usage, Apex Execution, Lightning page views, Report export…). This page
+              reads them and puts several days together.
+            </p>
+            <ul class="parts">
+              <li>
+                <b>From the org</b>: choose a kind (with how many files the org keeps, and from when to when) and the
+                days, then <b>Read</b>. Nothing is read before.
+              </li>
+              <li>
+                <b>Open CSV files</b>: event log files you downloaded (from Salesforce's Event Log File Browser, or
+                another org) — the same summaries.
+              </li>
+              <li>
+                <b>Summaries</b>, from the columns each kind has: <i>Failed logins by IP</i>, <i>By user</i> (with
+                names), <i>By app or client</i>, <i>By what was used</i> (pages, Apex, reports — slowest first, with
+                average and max time), <i>By IP</i>, <i>By result</i>.
+              </li>
+              <li><b>Every event</b>: one table, newest first, to filter and export like any table.</li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Developer Edition and scratch orgs have no event log files. Other orgs get a few kinds (Login, Logout,
+                  API Total Usage…) kept one day; the Event Monitoring add-on (Salesforce Shield) gives every kind for
+                  30 days. You need the <i>View Event Log Files</i> permission.
+                </li>
+                <li>For who changed setup, see <a href="#audit">Logins &amp; audit</a>.</li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Org health">
+            <h3 id="health">Org health</h3>
+            <p class="tool-lead">Risky access, unused things and licenses of the org at a glance.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/health.mp4"
+                poster="media/health.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ul>
+              <li>
+                <b>Security</b>: Salesforce's Health Check score and its risks; active users with Modify All Data, View
+                All Data, Manage Users, Author Apex, Customize Application or API Enabled, with what grants it; users
+                who have not logged in for 30–365 days; permission sets nobody has; OAuth tokens nobody uses; licenses
+                held by deactivated users.
+              </li>
+              <li>
+                <b>Licenses</b>: every user license and permission set license, used of total; click one for its users.
+              </li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Each number is a list: click it for the users, permission sets or tokens behind it.</li>
               </ul>
             </div>
           </section>
@@ -2474,7 +2533,7 @@
       <div class="wrap">
         <span>NomadSF — an independent project, not affiliated with Salesforce.</span>
         <span
-          ><a href="./">Home</a> · <a href="https://github.com/faridmasjedi/plugin-fm/releases">Releases</a> ·
+          ><a href="./">Home</a> · <a href="releases.html">Releases</a> ·
           <a href="https://github.com/faridmasjedi/plugin-fm/issues">Issues</a></span
         >
       </div>
@@ -2598,5 +2657,6 @@
         });
       })();
     </script>
+    <script src="assets/shots.js"></script>
   </body>
 </html>

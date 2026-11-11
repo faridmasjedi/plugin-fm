@@ -199,7 +199,7 @@ export function GroupsPage() {
  * A member of a group and who is inside it, one level per click: a public group's members, a role's users, a role
  * and its subordinates' users. A group already open above on the branch is marked ↺ (groups can hold each other).
  */
-function MemberNode({ member, path, root }: { member: GroupMemberRow; path: string[]; root?: boolean }) {
+export function MemberNode({ member, path, root }: { member: GroupMemberRow; path: string[]; root?: boolean }) {
   const { client } = useStudio();
   const loop = path.includes(member.UserOrGroupId);
   const opens = opensMembers(member) && !loop;

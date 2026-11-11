@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { SecurityDashboardPage, SharingPage, TimelinePage, WhoCanSeePage } from './pages/SecurityPages';
+import { EventLogsPage } from './pages/EventLogsPage';
 import { getUserInfo, type SalesforceClient, type UserInfo } from '@nomadsf/core';
 import { detectHost, openInOrg, orgFacts, type OrgChoice, type OrgFacts } from './host';
 import { useBusy } from './busy';
@@ -328,6 +330,18 @@ export function App() {
               {tool === 'accessmap' && <AccessOverviewPage />}
               {tool === 'objectaccess' && <ObjectAccessPage />}
               {tool === 'audit' && <LoginsAuditPage />}
+              {tool === 'eventlogs' && <EventLogsPage />}
+              {tool === 'secdash' && (
+                <SecurityDashboardPage
+                  onOpen={(to, set) => {
+                    for (const [k, v] of Object.entries(set ?? {})) storage.set(k, v);
+                    if (isTool(to)) ws.reopen(to);
+                  }}
+                />
+              )}
+              {tool === 'timeline' && <TimelinePage />}
+              {tool === 'whocansee' && <WhoCanSeePage />}
+              {tool === 'sharing' && <SharingPage />}
               {tool === 'myaccess' && <MyAccessPage />}
               {tool === 'schema' && <SchemaPage />}
               {tool === 'apps' && <ConnectedAppsPage />}

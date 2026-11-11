@@ -17,7 +17,9 @@ const BASE = process.env.DEMO_URL ?? 'http://localhost:7171';
 // DEMO_SIZE=1080x1350 and DEMO_ZOOM=1.15: a portrait video for phones (LinkedIn), the Studio drawn bigger in it
 const [envW, envH] = (process.env.DEMO_SIZE ?? '').split('x').map(Number);
 const SIZE = envW && envH ? { width: envW, height: envH } : { width: 1920, height: 1080 };
-const ZOOM = Number(process.env.DEMO_ZOOM ?? 1) || 1;
+// The Studio drawn 1.5× bigger by default (laid out like a 1280 × 720 screen): readable where the site shows a video
+// small; DEMO_ZOOM=1 records it at its real size
+const ZOOM = Number(process.env.DEMO_ZOOM ?? 1.5) || 1;
 const SCALE = 1;
 const VIDEO = SIZE;
 const GIFS = ['hubs', 'query', 'migrate', 'search'];

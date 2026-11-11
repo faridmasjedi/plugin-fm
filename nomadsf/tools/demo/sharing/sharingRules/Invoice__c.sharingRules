@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SharingRules xmlns="http://soap.sforce.com/2006/04/metadata">
+    <sharingCriteriaRules>
+        <fullName>Overdue_to_Support_Managers</fullName>
+        <accessLevel>Edit</accessLevel>
+        <label>Overdue invoices to support managers</label>
+        <sharedTo>
+            <roleAndSubordinatesInternal>Support_Manager</roleAndSubordinatesInternal>
+        </sharedTo>
+        <criteriaItems>
+            <field>Status__c</field>
+            <operation>equals</operation>
+            <value>Overdue</value>
+        </criteriaItems>
+        <includeRecordsOwnedByAll>true</includeRecordsOwnedByAll>
+    </sharingCriteriaRules>
+    <sharingOwnerRules>
+        <fullName>Support_Lead_invoices_to_Sales_Leads</fullName>
+        <accessLevel>Read</accessLevel>
+        <label>Support lead invoices to sales leads</label>
+        <sharedTo>
+            <group>Sales_Leads</group>
+        </sharedTo>
+        <sharedFrom>
+            <role>Support_Lead</role>
+        </sharedFrom>
+    </sharingOwnerRules>
+</SharingRules>

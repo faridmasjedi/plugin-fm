@@ -57,6 +57,11 @@ export type ToolId =
   | 'accessmap'
   | 'objectaccess'
   | 'audit'
+  | 'eventlogs'
+  | 'secdash'
+  | 'timeline'
+  | 'whocansee'
+  | 'sharing'
   | 'myaccess'
   | 'orgapps'
   | 'settings'
@@ -107,6 +112,16 @@ export const TOOLS: Tool[] = [
   { id: 'accessmap', label: 'Overview', icon: '▦', hint: 'every user and what they have' },
   { id: 'objectaccess', label: 'Object access', icon: '⛉', hint: 'who can use an object or field' },
   { id: 'audit', label: 'Logins & audit', icon: '⌛', hint: 'login history, setup audit trail' },
+  { id: 'eventlogs', label: 'Event logs', icon: '≣', hint: 'event log files: logins, API, Apex, pages, reports' },
+  { id: 'secdash', label: 'Dashboard', icon: '▣', hint: 'security at a glance: health, failed logins, API, admins' },
+  {
+    id: 'timeline',
+    label: 'Timeline',
+    icon: '⧖',
+    hint: 'everything that happened: setup, logins, components, NomadSF',
+  },
+  { id: 'whocansee', label: 'Who can see', icon: '◉', hint: 'can this user read or edit this record, and why' },
+  { id: 'sharing', label: 'Sharing', icon: '⑂', hint: "an object's defaults and sharing rules, as a tree" },
   { id: 'myaccess', label: 'Your access', icon: '✓', hint: 'what your user may do here' },
   { id: 'apps', label: 'Connected apps', icon: '⚷', hint: 'connected apps, OAuth usage' },
   { id: 'health', label: 'Org health', icon: '♥', hint: 'security check, licenses' },
@@ -158,7 +173,14 @@ export const HUBS: Hub[] = [
     ],
     breakBefore: ['assigned'],
   },
-  { id: 'org', label: 'Org', icon: '◈', tools: ['company', 'health', 'limits', 'apps', 'audit'] },
+  { id: 'org', label: 'Org', icon: '◈', tools: ['company', 'limits', 'apps'] },
+  // What happened in the org and how safe it is
+  {
+    id: 'security',
+    label: 'Security',
+    icon: '⛨',
+    tools: ['secdash', 'timeline', 'eventlogs', 'whocansee', 'sharing', 'health', 'audit'],
+  },
   { id: 'protect', label: 'Data protection', icon: '⛁', tools: ['backup', 'lifecycle'] },
   { id: 'between', label: 'Org to org', icon: '⇋', tools: ['migrate', 'orgdiff', 'orgaccess', 'orgapps'] },
   // The app's own: your orgs, your AI, your project, and what you did with NomadSF (in every org)

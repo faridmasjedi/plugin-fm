@@ -207,6 +207,7 @@ pre {
   margin-top: 14px;
 }
 .shot {
+  position: relative;
   margin: 44px auto 0;
   border-radius: var(--radius);
   overflow: hidden;
@@ -283,7 +284,7 @@ section + section {
 /* Feature rows: text and a video side by side */
 .feature {
   display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
   gap: 40px;
   align-items: center;
   padding: 36px 0;
@@ -891,4 +892,56 @@ section.cheat-group {
 }
 .doc ul.parts li {
   margin: 4px 0;
+}
+.all-versions {
+  margin: 24px 0 0;
+}
+
+/* Enlarge a video: a button on it, and the video nearly full screen over the page */
+.shot-zoom {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color: var(--text);
+  font-size: 12.5px;
+  cursor: pointer;
+  opacity: 0.85;
+}
+.shot-zoom:hover {
+  opacity: 1;
+}
+.shot-big {
+  width: min(96vw, 1800px);
+  max-height: 94vh;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: #000;
+  overflow: hidden;
+}
+.shot-big::backdrop {
+  background: rgba(10, 14, 24, 0.82);
+}
+.shot-big video {
+  display: block;
+  width: 100%;
+  max-height: 94vh;
+}
+.shot-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(15, 23, 42, 0.78);
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
 }
