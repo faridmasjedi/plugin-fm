@@ -128,8 +128,10 @@ export function LifecyclePage({
 }) {
   const studio = useStudio();
   const [jobs, setJobs] = useState<LifecycleJob[]>(() => lifecycleJobs.list());
-  const [draft, setDraft] = useState<LifecycleJob>(() => jobs[0] ?? newLifecycleJob(studio.org.id));
-  const [saved, setSaved] = useState(() => JSON.stringify(jobs[0] ?? null));
+  // The first job, or a new one: an untouched new draft has nothing to lose (no "discard changes?")
+  const [first] = useState<LifecycleJob>(() => jobs[0] ?? newLifecycleJob(studio.org.id));
+  const [draft, setDraft] = useState<LifecycleJob>(first);
+  const [saved, setSaved] = useState(() => JSON.stringify(first));
   const [tab, setTabState] = useState<Tab>(() => storage.get<Tab>('lifecycle.tab', 'steps'));
   const [objects, setObjects] = useState<DataObject[]>([]);
   const [fieldsOf, setFieldsOf] = useState<Record<string, DataField[]>>({});
@@ -138,7 +140,9 @@ export function LifecyclePage({
   const [shown, setShown] = useState<LifecycleRun>();
   const [status, setStatus] = useState('');
   const live = useLifecycleRun();
+  // Changed since opened (asks before discarding), or new and never saved (Save is on)
   const dirty = JSON.stringify(draft) !== saved;
+  const unsaved = dirty || !jobs.some((j) => j.id === draft.id);
   const setTab = (t: Tab) => {
     setTabState(t);
     storage.set('lifecycle.tab', t);
@@ -431,8 +435,8 @@ export function LifecyclePage({
                 </select>
               </label>
               <span className="grow" />
-              <button disabled={!dirty} onClick={() => (save(), setStatus('✓ Saved.'))}>
-                {dirty ? 'Save' : 'Saved'}
+              <button disabled={!unsaved} onClick={() => (save(), setStatus('✓ Saved.'))}>
+                {unsaved ? 'Save' : 'Saved'}
               </button>
               {jobs.some((j) => j.id === draft.id) && (
                 <button
