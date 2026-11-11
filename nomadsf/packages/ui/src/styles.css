@@ -4292,6 +4292,18 @@ select.row-action {
   color: var(--muted);
   font-size: 13px;
 }
+/* A tile's lines wrap inside it (a button keeps text on one line otherwise) */
+.sec-tile {
+  min-width: 0;
+  white-space: normal;
+}
+.sec-tile > span {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  overflow: visible;
+}
 .sec-tile-value {
   font-size: 28px;
   line-height: 1.1;

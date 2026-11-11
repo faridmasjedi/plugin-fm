@@ -310,6 +310,12 @@ export function WhoCanSeePage() {
  * How an object's records are shared, as a tree: org-wide defaults, the role hierarchy, then each sharing rule —
  * which records, with whom, how — where a group or role opens to the people inside. Read when you press Show.
  */
+/** "Group Sales Leads", "Role and subordinates Support Manager", "All internal users". */
+const targetText = (t: SharingTarget): string =>
+  t.kind === 'allInternalUsers'
+    ? 'All internal users'
+    : `${t.member?.Kind ?? t.kind.replace(/([A-Z])/g, ' $1').toLowerCase()} ${t.name}`.trim();
+
 export function SharingPage() {
   const { client, org } = useStudio();
   const [objects, setObjects] = useState<SObjectSummary[]>([]);
@@ -317,6 +323,11 @@ export function SharingPage() {
   const [result, setResult] = useState<ObjectSharing | null>(null);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState<'tree' | 'table'>(() => storage.get<'tree' | 'table'>('sharing.view', 'tree'));
+  const pick = (v: 'tree' | 'table') => {
+    setView(v);
+    storage.set('sharing.view', v);
+  };
   useEffect(() => {
     describeGlobal(client)
       .then((list) => setObjects(list.sort((a, b) => a.name.localeCompare(b.name))))
@@ -352,7 +363,7 @@ export function SharingPage() {
     <div className="page">
       <div className="toolbar">
         <h2>Sharing</h2>
-        <span className="muted">How an object's records are shared in {org.label}, as a tree</span>
+        <span className="muted">How an object's records are shared in {org.label}, as a tree or a table</span>
       </div>
       <div className="form">
         <input
@@ -369,6 +380,45 @@ export function SharingPage() {
       </div>
       {status && <Status text={status} block />}
       {result && (
+        <div className="tabs">
+          {(
+            [
+              ['tree', 'Tree'],
+              ['table', 'Table'],
+            ] as Array<['tree' | 'table', string]>
+          ).map(([id, label]) => (
+            <button key={id} className={`tab ${view === id ? 'active' : ''}`} onClick={() => pick(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {result && view === 'table' && (
+        <div className="section">
+          <p>
+            <b>{result.object}</b> defaults: inside the company <b>{result.internal}</b> · outside (portals, Experience
+            Cloud) <b>{result.external}</b>
+          </p>
+          {result.rules.length === 0 ? (
+            <p className="muted small">{result.note ?? 'No sharing rules.'}</p>
+          ) : (
+            <DataTable
+              columns={['Rule', 'Kind', 'Which records', 'Shared with', 'Access']}
+              rows={result.rules.map((r) => ({
+                Rule: r.label,
+                Kind: r.kind,
+                'Which records': r.from ? `owned by ${targetText(r.from)}` : r.which,
+                'Shared with': targetText(r.to),
+                Access: r.access,
+              }))}
+              rowKey="Rule"
+              name={`sharing-${result.object}`}
+              note={<span>· open the Tree to see the people inside a group or role</span>}
+            />
+          )}
+        </div>
+      )}
+      {result && view === 'tree' && (
         <div className="card section sharing-tree">
           <div className="auto-node-row">
             <span className="pill">Default</span>
