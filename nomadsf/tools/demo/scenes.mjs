@@ -403,13 +403,30 @@ export const scenes = [
     name: 'logs',
     hash: 'logs',
     run: async (h) => {
-      await h.click('On 30 min');
-      await h.confirm('acme-uat').catch(() => {});
+      // Logging on (or already on), then something that writes a log, then the log itself
+      const on = h.page.locator('button', { hasText: 'On 30 min' });
+      if (await on.count()) {
+        await h.click('On 30 min');
+        await h.confirm('acme-uat').catch(() => {});
+        await h.settle();
+      }
+      await h.pause(1200);
+      await h.tab('Develop', 'Execute Apex');
+      await h.code(
+        "List<Account> gold = [SELECT Name FROM Account WHERE Customer_Tier__c = 'Gold' LIMIT 5];\nSystem.debug('Gold customers: ' + gold.size());"
+      );
+      await h.page.keyboard.press('Escape');
+      await h.click(/^Execute ⌘/);
+      await h.confirm('acme-uat');
       await h.settle();
-      await h.pause(1600);
+      await h.pause(800);
+      await h.tab('Develop', 'Debug logs');
       await h.click('Refresh');
       await h.settle();
-      await h.pause(1600);
+      await h.waiting(() => h.page.locator('.pane-body tbody tr:visible').first().waitFor({ timeout: 60000 }));
+      await h.press(h.page.locator('.pane-body tbody tr:visible').first());
+      await h.settle();
+      await h.pause(2500);
     },
   },
   {
@@ -423,7 +440,9 @@ export const scenes = [
       // Salesforce's own jobs: what the API can read, and Setup for the rest
       await h.click('Background jobs');
       await h.settle();
-      await h.pause(1600);
+      await h.select(h.page.locator('.pane-body select:visible').first(), '30');
+      await h.settle();
+      await h.pause(2000);
     },
   },
   {
@@ -801,8 +820,18 @@ export const scenes = [
     name: 'lifecycle',
     hash: 'lifecycle',
     run: async (h) => {
+      // A job from a template: its steps in order, then when it runs — shown, not run
       await h.settle();
-      await h.pause(1600);
+      await h.pause(1000);
+      await h.click('+ New');
+      await h.pause(700);
+      await h.press(h.page.locator('.menu [role=menuitem]', { hasText: 'Sandbox refresh' }).first());
+      await h.settle();
+      await h.pause(2200);
+      await h.press(h.page.locator('button.tab', { hasText: /^Settings$/ }).first());
+      await h.pause(1800);
+      await h.press(h.page.locator('button.tab', { hasText: /^Steps/ }).first());
+      await h.pause(1500);
     },
   },
   {
