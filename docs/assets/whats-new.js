@@ -3,7 +3,7 @@
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
   next: [
-    'Security hub: Event logs (event log files of the org, or CSV files: failed logins by IP, API calls by app, slowest Apex and pages, report exports), with Org health and Logins & audit',
+    'Security hub: a Dashboard of checks, a Timeline of everything that happened (setup, logins, components, NomadSF), Event logs (the org’s event log files or CSV files: failed logins by IP, API calls by app, slowest Apex and pages), Who can see a record and why, and Sharing as a tree; Org health and Logins & audit move here',
     'Guide and site videos drawn 1.5× bigger, and every video can be enlarged',
     'Website: a Releases page with every version; the home page shows the latest',
   ],
