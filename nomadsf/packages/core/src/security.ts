@@ -48,10 +48,11 @@ export const SECURITY_TILES: Tile[] = [
     tool: 'audit',
     set: { 'audit.tab': 'login' },
     read: async (client) => {
-      const n = await count(
-        client,
-        "SELECT Id FROM LoginHistory WHERE LoginTime = LAST_N_DAYS:1 AND Status != 'Success'"
-      );
+      // Status cannot be filtered in SOQL: the day's logins, counted here
+      const rows = (
+        await query(client, 'SELECT Status FROM LoginHistory WHERE LoginTime = LAST_N_DAYS:1', { maxRows: 2000 })
+      ).rows;
+      const n = rows.filter((r) => r.Status !== 'Success').length;
       return { value: String(n), detail: 'wrong password, locked, blocked…', level: level(n, 5, 20) };
     },
   },
@@ -419,6 +420,38 @@ export async function whoCanSee(client: SalesforceClient, userId: string, record
           : String(g.Type).startsWith('RoleAndSubordinates')
       )
         groups.add(String(g.Id).slice(0, 15));
+    // Who each share is to, by name: a user, a public group or queue, a role (and its subordinates)
+    const targets = shares.rows.map((r) => String(r.UserOrGroupId)).filter((id) => ID.test(id));
+    const label = new Map<string, string>();
+    const usersTo = targets.filter((id) => id.startsWith('005'));
+    const groupsTo = targets.filter((id) => id.startsWith('00G'));
+    const inList = (ids: string[]) => ids.map((id) => `'${id}'`).join(',');
+    if (usersTo.length)
+      for (const r of (await query(client, `SELECT Id, Name FROM User WHERE Id IN (${inList(usersTo)})`)).rows)
+        label.set(String(r.Id).slice(0, 15), `user ${String(r.Name)}`);
+    if (groupsTo.length) {
+      const gs = (await query(client, `SELECT Id, Name, Type, RelatedId FROM Group WHERE Id IN (${inList(groupsTo)})`))
+        .rows;
+      const roleIds = gs.map((g) => String(g.RelatedId ?? '')).filter((id) => id.startsWith('00E'));
+      const roleName = new Map(
+        roleIds.length
+          ? (await query(client, `SELECT Id, Name FROM UserRole WHERE Id IN (${inList(roleIds)})`)).rows.map((r) => [
+              String(r.Id),
+              String(r.Name),
+            ])
+          : []
+      );
+      for (const g of gs) {
+        const type = String(g.Type);
+        const role = roleName.get(String(g.RelatedId ?? ''));
+        label.set(
+          String(g.Id).slice(0, 15),
+          role
+            ? `${type.startsWith('RoleAndSubordinates') ? 'role and subordinates' : 'role'} ${role}`
+            : `${type === 'Queue' ? 'queue' : 'group'} ${String(g.Name ?? '')}`
+        );
+      }
+    }
     for (const s of shares.rows) {
       const to = String(s.UserOrGroupId);
       if (s.RowCause === 'Owner') continue;
@@ -427,8 +460,8 @@ export async function whoCanSee(client: SalesforceClient, userId: string, record
         area: 'Sharing',
         applies,
         text: `${String(s.RowCause)} share: ${SHARE_LEVEL[String(s[accessField])] ?? String(s[accessField])} to ${
-          to.startsWith('005') ? 'a user' : 'a group or role'
-        } (${to})${applies ? ` — reaches ${name}` : ''}`,
+          label.get(to.slice(0, 15)) ?? (to.startsWith('005') ? 'a user' : 'a group or role')
+        }${applies ? ` — reaches ${name}` : ''}`,
       });
     }
   } else

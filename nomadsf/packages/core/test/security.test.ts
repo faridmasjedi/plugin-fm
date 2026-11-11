@@ -17,7 +17,10 @@ function org(answers: Answer[]) {
 describe('security dashboard tiles', () => {
   it('each tile reads one thing and says how it looks', async () => {
     const c = org([
-      [/FROM LoginHistory/, [{}, {}, {}, {}, {}, {}]],
+      [
+        /FROM LoginHistory/,
+        [{ Status: 'Success' }, ...Array.from({ length: 6 }, () => ({ Status: 'Invalid Password' }))],
+      ],
       [/\/limits/, { DailyApiRequests: { Max: 1000, Remaining: 150 } }],
       [/FROM AsyncApexJob/, []],
     ]);

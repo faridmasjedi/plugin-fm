@@ -180,7 +180,7 @@
               </tr>
               <tr>
                 <td><b>Security</b></td>
-                <td>Event logs · Org health · Logins &amp; audit</td>
+                <td>Dashboard · Timeline · Event logs · Who can see · Sharing · Org health · Logins &amp; audit</td>
               </tr>
               <tr>
                 <td><b>Data protection</b></td>
@@ -1682,6 +1682,48 @@
 
         <section class="hub" id="hub-security" data-title="Security">
           <h2 id="security">Security</h2>
+          <section class="tool" data-title="Dashboard">
+            <h3 id="secdash">Dashboard</h3>
+            <p class="tool-lead">The org's security at a glance: a tile per check, each opening its tool.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <ul class="parts">
+              <li>
+                <b>Tiles</b>: Health Check score and high risks, failed logins in the last 24 hours, API calls used
+                today, setup changes this week, users with Modify All Data, active users with no login for 90 days, free
+                user licenses, failed Apex jobs this week. Green, amber or red by how it looks.
+              </li>
+              <li>
+                Each tile reads one small thing on its own; one that cannot be read (a permission) shows <b>?</b>.
+              </li>
+              <li><b>Click a tile</b> to open the tool behind it, on the right tab.</li>
+            </ul>
+          </section>
+          <section class="tool" data-title="Timeline">
+            <h3 id="timeline">Timeline</h3>
+            <p class="tool-lead">Everything that happened in the org, in one table.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <ul class="parts">
+              <li>
+                <b>What is in it</b>: setup changes (the setup audit trail), logins, components last changed (Apex,
+                flows, validation rules, fields, LWC, permission sets, profiles) and what was done with NomadSF.
+              </li>
+              <li><b>Choose</b> the days and the kinds, then <b>Show</b>; newest first.</li>
+              <li>
+                <b>Filters</b> find a person, a component or a kind — "what did Ann do this week", "who touched this
+                flow".
+              </li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>A part your user cannot read is named above the table; the rest still shows.</li>
+                <li>
+                  API calls, Apex and page views are in <a href="#eventlogs">Event logs</a> (orgs with Event
+                  Monitoring).
+                </li>
+              </ul>
+            </div>
+          </section>
           <section class="tool" data-title="Event logs">
             <h3 id="eventlogs">Event logs</h3>
             <p class="tool-lead">
@@ -1729,6 +1771,42 @@
                   30 days. You need the <i>View Event Log Files</i> permission.
                 </li>
                 <li>For who changed setup, see <a href="#audit">Logins &amp; audit</a>.</li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Who can see">
+            <h3 id="whocansee">Who can see this record?</h3>
+            <p class="tool-lead">A user and a record: whether they can read, edit, delete or transfer it — and why.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <ul class="parts">
+              <li>
+                <b>The answer</b> is Salesforce's own (Read, Edit, Delete, Transfer), for that user and that record.
+              </li>
+              <li>
+                <b>Why</b>, step by step: the object permission (from which profile or permission set), View/Modify All,
+                the owner and the role hierarchy (is the user's role above the owner's?), and the record's sharing
+                (rules, teams, manual shares) — the ones that reach the user stand out.
+              </li>
+              <li>When the user can read but not edit, it says what Edit would need.</li>
+            </ul>
+          </section>
+          <section class="tool" data-title="Sharing">
+            <h3 id="sharing">Sharing</h3>
+            <p class="tool-lead">How an object's records are shared, as a tree.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <ul class="parts">
+              <li><b>Defaults</b>: the org-wide default inside the company and outside (portals, Experience Cloud).</li>
+              <li><b>Roles</b>: users above a record's owner see it too.</li>
+              <li>
+                <b>Each sharing rule</b>: which records (owned by a role or group, or matching criteria such as
+                <i>Status equals Overdue</i>), with whom, and how (Read only, Read/Write).
+              </li>
+              <li><b>▸</b> on a group or role opens it to the people inside, one level per click.</li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Manual shares, teams and territories are per record: see <a href="#whocansee">Who can see</a>.</li>
               </ul>
             </div>
           </section>

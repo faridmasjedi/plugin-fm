@@ -19,6 +19,9 @@ sf apex run -o nomadsf-demo -f seed-more.apex                  # more accounts, 
 sf apex run -o nomadsf-demo -f seed-access.apex                # the newer permission sets and groups for the users
 sf apex run -o nomadsf-demo -f seed-groups.apex                # roles Support Manager › Support Lead for Dina, Chen, Bob
 sf apex run -o nomadsf-demo -f seed-groups-members.apex        # a group and roles inside Support Team and Tier 1 Support
+sf project deploy start -o nomadsf-demo --metadata-dir sharing-1-private  # Invoices private (starts a sharing recalculation)
+sf project deploy start -o nomadsf-demo --metadata-dir sharing-2-rules    # after it: two sharing rules on Invoices
+sf apex run -o nomadsf-demo -f seed-sharing-owners.apex        # Bob owns a few invoices (Security › Who can see, Sharing)
 ```
 
 The project holds an Invoice object, classes with their tests (a trigger, a batch, a selector, an LWC
