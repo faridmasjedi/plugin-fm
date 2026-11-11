@@ -3,6 +3,10 @@
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
   next: [
+    'Guide videos re-recorded in full HD on the current Studio (Search in the header, Activity under Settings)',
+    'Fixed: Data protection › Lifecycle asked to discard changes when starting from a template on a new, untouched job',
+  ],
+  '2.6.0': [
     'Projects: every metadata type the Salesforce CLI knows (almost 500, not only the common ones) is recognised in its folder, in sub-folders and outside type folders — bots, Agentforce (GenAI) metadata, Industries and Field Service types and the rest',
     'Fixed: reports, dashboards and email templates in nested folders kept their full folder path',
     'Activity (what you changed or exported with NomadSF) moved from Org to Settings: it is the app’s own record, across every org',
