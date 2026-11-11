@@ -63,3 +63,4 @@ export * from './projectRelease.js';
 export * from './nameFilter.js';
 export * from './automationTree.js';
 export * from './placeSearch.js';
+export * from './sourceRegistry.js';

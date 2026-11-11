@@ -762,7 +762,7 @@ export const scenes = [
       await h.until('Passed', 180000);
       await h.settle();
       await h.pause(1000);
-      await h.tab('Org', 'Activity');
+      await h.tab('Settings', 'Activity');
       await h.until('record update');
       await h.settle();
       await h.pause(2200);

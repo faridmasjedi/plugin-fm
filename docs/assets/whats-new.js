@@ -2,7 +2,11 @@
 // New changes go under "next"; the newest release without its own entry shows them.
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
-  next: [],
+  next: [
+    'Projects: every metadata type the Salesforce CLI knows (almost 500, not only the common ones) is recognised in its folder, in sub-folders and outside type folders — bots, Agentforce (GenAI) metadata, Industries and Field Service types and the rest',
+    'Fixed: reports, dashboards and email templates in nested folders kept their full folder path',
+    'Activity (what you changed or exported with NomadSF) moved from Org to Settings: it is the app’s own record, across every org',
+  ],
   '2.5.0': [
     'Release › Metadata and Develop › Apex tests: find what you want by name in a long list (a name, Invoice*, several with commas)',
     'Guide videos in full HD (1920 × 1080)',

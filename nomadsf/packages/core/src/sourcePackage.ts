@@ -6,8 +6,10 @@
  * version; labels are compared one by one; object fields and the like are their own types. Moved from NomadSF Release Hub.
  */
 
-/** Source folder → metadata type (the folder right under a package directory, e.g. force-app/main/default/classes). */
-export const SOURCE_TYPES: Record<string, string> = {
+import { REGISTRY_FOLDERS, REGISTRY_IN_FOLDER, REGISTRY_SUFFIXES } from './sourceRegistry.js';
+
+/** NomadSF's own folder → type names (where they differ from, or add to, the Salesforce CLI's registry). */
+const HAND_TYPES: Record<string, string> = {
   applications: 'CustomApplication',
   approvalProcesses: 'ApprovalProcess',
   assignmentRules: 'AssignmentRules',
@@ -87,6 +89,15 @@ export const SOURCE_TYPES: Record<string, string> = {
   workflows: 'Workflow',
 };
 
+/**
+ * Source folder → metadata type (the folder right under a package directory, e.g. force-app/main/default/classes):
+ * every type the Salesforce CLI knows (its registry, see sourceRegistry.ts), with NomadSF's own names on top.
+ */
+export const SOURCE_TYPES: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(REGISTRY_FOLDERS).map(([folder, [type]]) => [folder, type])),
+  ...HAND_TYPES,
+};
+
 /** Folders of an object (objects/Account/fields/…) → the child type deployed on its own. */
 export const OBJECT_CHILDREN: Record<string, string> = {
   businessProcesses: 'BusinessProcess',
@@ -101,12 +112,22 @@ export const OBJECT_CHILDREN: Record<string, string> = {
   webLinks: 'WebLink',
 };
 
-/** Components that are a folder with their -meta.xml inside it. */
-const META_INSIDE = new Set(['lwc', 'aura', 'digitalExperiences']);
-/** Components that are a folder with their -meta.xml next to it (experiences/Site1 + experiences/Site1.site-meta.xml). */
-const META_BESIDE = new Set(['experiences', 'staticresources']);
 /** Folder components with no -meta.xml: the folder itself is the component. */
 const NO_META = new Set(['waveTemplates', 'lightningTypes']);
+/** Components that are a folder with their -meta.xml next to it (experiences/Site1 + experiences/Site1.site-meta.xml). */
+const META_BESIDE = new Set(['experiences', 'staticresources']);
+/** Components that are a folder with their -meta.xml inside it: LWC, Aura, and every bundle or decomposed type (bots…). */
+const META_INSIDE = new Set([
+  'lwc',
+  'aura',
+  'digitalExperiences',
+  ...Object.entries(REGISTRY_FOLDERS)
+    .filter(([folder, [, kind]]) => (kind === 'bundle' || kind === 'decomposed') && !NO_META.has(folder))
+    .map(([folder]) => folder)
+    .filter((folder) => folder !== 'objects' && folder !== 'objectTranslations'),
+]);
+/** A file's ending: "Hello.cls-meta.xml" → cls, "Ops.permissionset-meta.xml" → permissionset, "logo.png" → png. */
+const endingOf = (file: string): string => /\.([^.]+)-meta\.xml$/.exec(file)?.[1] ?? /\.([^.]+)$/.exec(file)?.[1] ?? '';
 /** Types whose components sit in a folder of their own (reports/MyFolder/Report.report-meta.xml). */
 const FOLDERED = new Set(['reports', 'dashboards', 'documents', 'email']);
 
@@ -140,6 +161,17 @@ function resolveInner(path: string, packageDirs: string[]): SourceComponent | un
   const at = parts.findIndex((p) => SOURCE_TYPES[p]);
   if (at < 0) return codeOutsideTypeFolder(path);
   if (at === parts.length - 1) return undefined;
+  // A file whose own ending belongs to another type (a project folder named like a type folder, e.g. rules/Bill.cls):
+  // its ending decides, as the Salesforce CLI does
+  const ending = endingOf(parts[parts.length - 1]);
+  const foreign = REGISTRY_SUFFIXES[ending];
+  if (
+    foreign &&
+    foreign[1] !== parts[at] &&
+    !REGISTRY_IN_FOLDER[`${parts[at]}/${ending}`] &&
+    !['objects', 'objectTranslations'].includes(parts[at])
+  )
+    return codeOutsideTypeFolder(path);
   const typeFolder = parts[at];
   const type = SOURCE_TYPES[typeFolder];
   const base = `${dir}/${parts.slice(0, at + 1).join('/')}`;
@@ -196,23 +228,27 @@ function resolveInner(path: string, packageDirs: string[]): SourceComponent | un
 
   if (FOLDERED.has(typeFolder)) {
     // The folder itself (reports/Sales.reportFolder-meta.xml) or a component in it (reports/Sales/Pipeline.report-meta.xml)
-    const name = rest.length === 1 ? metaName(file) : `${rest[0]}/${metaName(file).replace(/\.[^.]+$/, '')}`;
+    // …also in nested folders (reports/Sales/EMEA/Pipeline.report-meta.xml is Sales/EMEA/Pipeline)
+    const name =
+      rest.length === 1 ? metaName(file) : `${rest.slice(0, -1).join('/')}/${metaName(file).replace(/\.[^.]+$/, '')}`;
     return { type, name, xml: file.endsWith('-meta.xml') ? path : `${path}-meta.xml` };
   }
 
   // One component per file (and its -meta.xml): classes/Hello.cls + Hello.cls-meta.xml, permissionsets/X.permissionset-meta.xml
   // — also in sub-folders the project keeps them in (classes/services/Hello.cls), as the Salesforce CLI allows
   const own = rest.length > 1 ? { typeFolder, base: `${base}/${rest.slice(0, -1).join('/')}` } : {};
+  // A folder several types share (wave, email…): the file's ending says which
+  const oneType = REGISTRY_IN_FOLDER[`${typeFolder}/${ending}`] ?? type;
   if (file.endsWith('-meta.xml'))
-    return { type, name: metaName(file).replace(/\.(cls|trigger|page|component)$/, ''), xml: path, ...own };
-  return { type, name: file.replace(/\.[^.]+$/, ''), xml: `${path}-meta.xml`, ...own };
+    return { type: oneType, name: metaName(file).replace(/\.(cls|trigger|page|component)$/, ''), xml: path, ...own };
+  return { type: oneType, name: file.replace(/\.[^.]+$/, ''), xml: `${path}-meta.xml`, ...own };
 }
 
 /**
  * File suffix → the type folder it goes into in a deploy: what the Salesforce CLI finds by suffix when a project keeps a
  * component outside its type folder (force-app/main/default/cases/CaseService.cls, …/cases/Case_Close.flow-meta.xml).
  */
-export const SUFFIX_FOLDERS: Record<string, string> = {
+const HAND_SUFFIXES: Record<string, string> = {
   cls: 'classes',
   trigger: 'triggers',
   page: 'pages',
@@ -250,6 +286,11 @@ export const SUFFIX_FOLDERS: Record<string, string> = {
   tab: 'tabs',
   workflow: 'workflows',
 };
+/** File ending → its type folder: every one-file type the CLI finds by its ending alone, and NomadSF's own. */
+export const SUFFIX_FOLDERS: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(REGISTRY_SUFFIXES).map(([ending, [, folder]]) => [ending, folder])),
+  ...HAND_SUFFIXES,
+};
 const CODE_SOURCE = new Set(['cls', 'trigger', 'page', 'component']);
 
 /** A one-file component kept outside its type folder: the CLI knows it by its suffix. */
@@ -258,9 +299,10 @@ function codeOutsideTypeFolder(path: string): SourceComponent | undefined {
   const file = path.slice(slash + 1);
   const m = /^(.+)\.(\w+)(-meta\.xml)$/.exec(file) ?? /^(.+)\.(\w+)()$/.exec(file);
   const typeFolder = m && SUFFIX_FOLDERS[m[2]];
-  const type = typeFolder && SOURCE_TYPES[typeFolder];
-  // Only Apex has a file beside its -meta.xml; other types are the -meta.xml alone
-  if (!m || !typeFolder || !type || (!m[3] && !CODE_SOURCE.has(m[2]))) return undefined;
+  const type = typeFolder && (REGISTRY_IN_FOLDER[`${typeFolder}/${m[2]}`] ?? SOURCE_TYPES[typeFolder]);
+  // A file beside its -meta.xml only for types with content (Apex, certificates…); others are the -meta.xml alone
+  const content = CODE_SOURCE.has(m?.[2] ?? '') || REGISTRY_SUFFIXES[m?.[2] ?? '']?.[2] === 'content';
+  if (!m || !typeFolder || !type || (!m[3] && !content)) return undefined;
   const xml = m[3] ? path : `${path}-meta.xml`;
   return { type, name: m[1], xml, typeFolder, base: path.slice(0, slash) };
 }
@@ -403,7 +445,7 @@ export async function buildPackage(options: {
     if (found) found.files.push(...value.files.filter((f) => !found.files.includes(f)));
     else components.set(key, value);
   };
-  // Aura bundles: the main file is whichever -meta.xml the folder has
+  // Folder components (Aura, bots…): the main file is whichever -meta.xml the folder has
   const auraXml = (folder: string, files: Map<string, string>): string | undefined =>
     [...files.keys()].find((p) => p.startsWith(`${folder}/`) && p.endsWith('-meta.xml'));
   const filesIn = (folder: string, files: Map<string, string>): string[] =>
@@ -457,8 +499,10 @@ export async function buildPackage(options: {
       continue;
     }
 
-    const xmlBefore = c.type === 'AuraDefinitionBundle' ? auraXml(c.folder ?? '', before) : c.xml;
-    const xmlAfter = c.type === 'AuraDefinitionBundle' ? auraXml(c.folder ?? '', after) : c.xml;
+    // A folder component whose main file is not known by name (Aura, bots, AI bundles…): any -meta.xml it has
+    const findXml = c.metaInside && !c.xml;
+    const xmlBefore = findXml ? auraXml(c.folder ?? '', before) : c.xml;
+    const xmlAfter = findXml ? auraXml(c.folder ?? '', after) : c.xml;
     const inBefore =
       c.folder && !xmlBefore ? false : (xmlBefore ? before.has(xmlBefore) : false) || folderWithoutMeta(c, before);
     const inAfter =

@@ -1,4 +1,5 @@
 import { labelBlocks, manifestXml, resolveComponent, type SourceComponent } from './sourcePackage.js';
+import { REGISTRY_FOLDERS } from './sourceRegistry.js';
 import { makeZip, type ZipEntry } from './zip.js';
 
 /**
@@ -145,6 +146,15 @@ export async function toMetadataFormat(input: ConvertInput): Promise<ConvertResu
     }
     if (NOT_CONVERTED.has(c.type)) {
       notConverted.push({ ...c, reason: `${c.type} is not converted yet` });
+      continue;
+    }
+    // Split into several files in source (a bot and its versions): it has to be put back together for a deploy
+    const folder = source.component.typeFolder ?? '';
+    if (REGISTRY_FOLDERS[folder]?.[1] === 'decomposed' && folder !== 'objects' && folder !== 'objectTranslations') {
+      notConverted.push({
+        ...c,
+        reason: `${c.type} is split into several files in source; deploy it with the Salesforce CLI`,
+      });
       continue;
     }
     const comp = source.component;
