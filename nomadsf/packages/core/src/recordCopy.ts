@@ -246,14 +246,63 @@ export function copySheets(bundle: {
   return sheets;
 }
 
+/** The sheets of Access › Users › Everything (workbook): a report of one user, not records to copy. */
+export const USER_REPORT_SHEETS = [
+  'Details',
+  'Permission set groups',
+  'Permission sets',
+  'System permissions',
+  'Groups & queues',
+  'Licenses',
+  'OAuth apps',
+  'Login history',
+];
+
+/** A value that is a Salesforce Id (a lookup kept as an Id: no use in another org). */
+const SF_ID = /^[a-zA-Z0-9]{15}([a-zA-Z0-9]{3})?$/;
+
+/**
+ * The user of an Everything workbook saved before it carried the NomadSF users sheet: their fields and access from
+ * the report's sheets. Lookups (profile, role, manager) were kept as Ids there, so they are not brought.
+ */
+export function userFromReport(tables: FileTable[]): UserCopy | undefined {
+  const sheet = (name: string) => tables.find((t) => t.name === name);
+  const details = sheet('Details');
+  if (!details || !details.columns.includes('API name') || !details.columns.includes('Value')) return undefined;
+  const value = (api: string) => details.rows.find((r) => r['API name'] === api)?.Value ?? '';
+  const username = value('Username');
+  if (!username) return undefined;
+  const lines: SnapshotLine[] = [{ Section: 'info', Name: 'user', Value: username }];
+  for (const r of details.rows) {
+    const name = r['API name'] ?? '';
+    if (!name || name === 'Id' || /Id$/.test(name) || SF_ID.test(r.Value ?? '')) continue;
+    lines.push({ Section: 'field', Name: name, Value: r.Value ?? '' });
+  }
+  const names = (sheetName: string, column: string) =>
+    (sheet(sheetName)?.rows ?? []).map((r) => r[column] ?? '').filter(Boolean);
+  for (const n of names('Permission sets', 'Name')) lines.push({ Section: 'permissionSet', Name: n, Value: '' });
+  for (const n of names('Permission set groups', 'Name'))
+    lines.push({ Section: 'permissionSetGroup', Name: n, Value: '' });
+  for (const n of names('Licenses', 'Name')) lines.push({ Section: 'license', Name: n, Value: '' });
+  for (const r of sheet('Groups & queues')?.rows ?? [])
+    if (r.DeveloperName && r.Member && (r.Kind === 'Queue' || r.Kind === 'Public group'))
+      lines.push({ Section: 'group', Name: r.DeveloperName, Value: r.Kind === 'Queue' ? 'Queue' : 'Public group' });
+  return { username, lines };
+}
+
 /** A saved copy back: the record tables, and the users and metadata sheets when there are. */
 export function fromCopySheets(tables: FileTable[]): {
   tables: FileTable[];
   users: UserCopy[];
   metadata: AccessFile[];
+  /** An Everything workbook from before it carried the user: profile, role and manager are not in it. */
+  olderReport?: boolean;
 } {
   const usersSheet = tables.find((t) => t.name === USERS_SHEET);
   const metaSheet = tables.find((t) => t.name === METADATA_SHEET);
+  // An Everything workbook: its report sheets are about the user, never records to copy
+  const report = userFromReport(tables);
+  if (report) tables = tables.filter((t) => !USER_REPORT_SHEETS.includes(t.name));
   const users: UserCopy[] = [];
   for (const r of usersSheet?.rows ?? []) {
     let u = users.find((x) => x.username === r.User);
@@ -271,7 +320,9 @@ export function fromCopySheets(tables: FileTable[]): {
         .map((k) => r[k])
         .join(''),
     }));
-  return { tables: tables.filter((t) => t !== usersSheet && t !== metaSheet), users, metadata };
+  const olderReport = Boolean(report && !users.length);
+  if (report && !users.length) users.push(report);
+  return { tables: tables.filter((t) => t !== usersSheet && t !== metaSheet), users, metadata, olderReport };
 }
 
 // ---------- into the target ----------
@@ -469,5 +520,52 @@ export async function copyUsers(
       out.failed.push({ item: u.username, error: (e as Error).message });
     }
   }
+  return out;
+}
+
+// ---------- several users, for a sandbox refresh ----------
+
+/**
+ * Several users with all they have (their snapshots) and the files of their permission sets and groups: saved before
+ * a sandbox refresh as a workbook (copySheets), and opened in the new sandbox to create or complete each user.
+ */
+export async function usersBundle(
+  client: SalesforceClient,
+  userIds: string[],
+  orgLabel: string,
+  onProgress?: (done: number, total: number) => void
+): Promise<{ users: UserCopy[]; metadata: AccessFile[] }> {
+  const users: UserCopy[] = [];
+  for (const [i, id] of userIds.entries()) {
+    onProgress?.(i, userIds.length);
+    // eslint-disable-next-line no-await-in-loop
+    const lines = await takeUserSnapshot(client, id, orgLabel);
+    users.push({ username: lines.find((l) => l.Section === 'info' && l.Name === 'user')?.Value ?? id, lines });
+  }
+  onProgress?.(userIds.length, userIds.length);
+  // Managed (namespace__Name) sets come with their package: no file needed
+  const names = accessNames(users);
+  const metadata = await accessFiles(client, {
+    permissionSets: names.permissionSets.filter((n) => !n.includes('__')),
+    groups: names.groups,
+  });
+  return { users: managersFirst(users), metadata };
+}
+
+/** Users ordered so a manager in the list comes before the people who report to them (created first). */
+export function managersFirst(users: UserCopy[]): UserCopy[] {
+  const byName = new Map(users.map((u) => [u.username.toLowerCase(), u]));
+  const out: UserCopy[] = [];
+  const placed = new Set<UserCopy>();
+  const place = (u: UserCopy, seen: Set<UserCopy>): void => {
+    if (placed.has(u) || seen.has(u)) return;
+    seen.add(u);
+    const manager = u.lines.find((l) => l.Section === 'lookup' && l.Name === 'ManagerId')?.Value.toLowerCase();
+    const m = manager ? byName.get(manager) : undefined;
+    if (m && m !== u) place(m, seen);
+    placed.add(u);
+    out.push(u);
+  };
+  for (const u of users) place(u, new Set());
   return out;
 }

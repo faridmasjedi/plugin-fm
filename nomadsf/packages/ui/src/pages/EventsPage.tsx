@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Select } from '../components/Select';
 import {
   CometdClient,
   cometdPost,
@@ -81,7 +82,7 @@ export function EventsPage() {
     <div className="page">
       <div className="toolbar">
         <h2>Events</h2>
-        <select
+        <Select
           value={channel}
           disabled={listening}
           onChange={(e) => setChannel(e.target.value)}
@@ -98,11 +99,11 @@ export function EventsPage() {
                 ))}
             </optgroup>
           ))}
-        </select>
-        <select value={replay} disabled={listening} onChange={(e) => setReplay(Number(e.target.value) as ReplayFrom)}>
+        </Select>
+        <Select value={replay} disabled={listening} onChange={(e) => setReplay(Number(e.target.value) as ReplayFrom)}>
           <option value={-1}>New events only</option>
           <option value={-2}>Replay retained (last 72 h)</option>
-        </select>
+        </Select>
         {listening ? (
           <button onClick={stop}>Stop</button>
         ) : (
@@ -117,11 +118,18 @@ export function EventsPage() {
       </div>
       {status && <Status text={status} block />}
       {channels.length === 0 && !status && <p className="muted">Finding channels…</p>}
-      <div className="split">
-        <div className="card">
-          {events.length === 0 ? (
-            <p className="muted">{listening ? 'Waiting for events…' : 'Choose a channel and Listen.'}</p>
-          ) : (
+      {events.length === 0 ? (
+        <div className="card section empty-state">
+          <b>{listening ? `Listening on ${channel}…` : 'No events yet.'}</b>
+          <span className="muted">
+            {listening
+              ? 'Events show here as they arrive. Publish one below, or make a change the channel watches.'
+              : 'Choose a channel and Listen — or Replay retained to see the last 72 hours.'}
+          </span>
+        </div>
+      ) : (
+        <div className={open ? 'split' : ''}>
+          <div className="card">
             <table className="record events">
               <thead>
                 <tr>
@@ -144,28 +152,32 @@ export function EventsPage() {
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
-        <div className="card section">
-          {open ? (
-            <pre className="rest-body">{JSON.stringify(open.payload, null, 2)}</pre>
-          ) : (
-            <p className="muted">Click an event to see its payload.</p>
-          )}
-          {eventName && (
-            <>
-              <h3>Publish {eventName}</h3>
-              <div className="editor-box small">
-                <CodeEditor language="json" value={payload} onChange={setPayload} />
-              </div>
+            {!open && <p className="muted small">Click an event to see what it carries.</p>}
+          </div>
+          {open && (
+            <div className="card section">
               <div className="form">
-                <button onClick={() => void publish()}>Publish</button>
-                <span className="muted">Asks for the org name; listed on Activity.</span>
+                <b>Payload</b>
+                <span className="grow" />
+                <button onClick={() => setOpen(null)}>Close</button>
               </div>
-            </>
+              <pre className="rest-body">{JSON.stringify(open.payload, null, 2)}</pre>
+            </div>
           )}
         </div>
-      </div>
+      )}
+      {eventName && (
+        <div className="card section">
+          <h3>Publish {eventName}</h3>
+          <div className="editor-box small">
+            <CodeEditor language="json" value={payload} onChange={setPayload} />
+          </div>
+          <div className="form">
+            <button onClick={() => void publish()}>Publish</button>
+            <span className="muted">Asks for the org name; listed on Activity.</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

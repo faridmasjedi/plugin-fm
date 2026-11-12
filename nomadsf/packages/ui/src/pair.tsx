@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
+import { Select } from './components/Select';
 import type { SalesforceClient } from '@nomadsf/core';
 import { useStudio } from './context';
 import { useAccessOf } from './access';
@@ -88,22 +89,22 @@ export function OrgPairBar({ labelA = 'A', labelB = 'B' }: { labelA?: string; la
       <div className="form">
         <label>
           {labelA}
-          <select
+          <Select
             value={pair.a}
             onChange={(e) => setPair({ a: e.target.value, b: pair.b === e.target.value ? '' : pair.b })}
           >
             {orgs.map(option)}
-          </select>
+          </Select>
         </label>
         <button className="swap" title="Swap A and B" disabled={!b} onClick={() => setPair({ a: pair.b, b: pair.a })}>
           ⇄
         </button>
         <label>
           {labelB}
-          <select value={b?.id ?? ''} onChange={(e) => setPair({ ...pair, b: e.target.value })}>
+          <Select value={b?.id ?? ''} onChange={(e) => setPair({ ...pair, b: e.target.value })}>
             <option value="">Choose the other org…</option>
             {orgs.filter((o) => o.id !== pair.a).map(option)}
-          </select>
+          </Select>
         </label>
       </div>
       {(accessA || accessB) && (

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { Select } from '../components/Select';
+import { ComboInput } from '../components/ComboInput';
 import {
   describeGlobal,
   fieldAccess,
@@ -12,7 +14,7 @@ import {
 } from '@nomadsf/core';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
-import { ObjectOptions } from '../components/ObjectOptions';
+import { objectChoices } from '../components/ObjectOptions';
 import { Status } from '../statusLog';
 
 /** How full each field is, and what references a custom field, before changing or deleting it. */
@@ -117,8 +119,8 @@ export function FieldUsagePage() {
     <div className="page">
       <div className="toolbar">
         <h2>Field usage</h2>
-        <input
-          list="field-usage-objects"
+        <ComboInput
+          options={objectChoices(objects)}
           value={typed}
           placeholder="Object, e.g. Account"
           onChange={(e) => {
@@ -139,7 +141,6 @@ export function FieldUsagePage() {
           }}
           style={{ minWidth: 240 }}
         />
-        <ObjectOptions id="field-usage-objects" objects={objects} typed={typed} />
         <label className="check">
           <input type="checkbox" checked={onlyCustom} onChange={(e) => setOnlyCustom(e.target.checked)} /> Custom fields
           only
@@ -277,12 +278,12 @@ export function FieldUsagePage() {
                     <div className="form">
                       <label>
                         Show
-                        <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+                        <Select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
                           <option value="all">Profiles, permission sets and groups</option>
                           <option value="Profile">Profiles</option>
                           <option value="Permission set">Permission sets</option>
                           <option value="Permission set group">Permission set groups</option>
-                        </select>
+                        </Select>
                       </label>
                     </div>
                     <DataTable

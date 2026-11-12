@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
+import { Select } from './Select';
 import {
   deployZip,
   quickDeploy,
@@ -246,25 +247,25 @@ export function ReleasePanel(props: ReleasePanelProps) {
           {props.targetId ? (
             <b className={production ? 'bad-text' : ''}>{target?.label ?? targetId}</b>
           ) : (
-            <select value={chosen} onChange={(e) => setChosen(e.target.value)}>
+            <Select value={chosen} onChange={(e) => setChosen(e.target.value)}>
               {studio.orgs.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.label}
                 </option>
               ))}
-            </select>
+            </Select>
           )}
           {orgKind && <span className={`pill ${production ? 'bad' : 'good'}`}>{orgKind}</span>}
         </div>
         <span className="release-label">Tests</span>
         <div className="release-row">
-          <select value={level} onChange={(e) => setLevel(e.target.value as TestLevel)}>
+          <Select value={level} onChange={(e) => setLevel(e.target.value as TestLevel)}>
             {LEVELS.map((l) => (
               <option key={l.id} value={l.id} disabled={l.id === 'NoTestRun' && production}>
                 {l.label}
               </option>
             ))}
-          </select>
+          </Select>
           {findTests && (
             <button
               disabled={busy}
@@ -292,10 +293,10 @@ export function ReleasePanel(props: ReleasePanelProps) {
           <>
             <span className="release-label">Deletions</span>
             <div className="release-row">
-              <select value={removeWhen} onChange={(e) => setRemoveWhen(e.target.value as 'pre' | 'post')}>
+              <Select value={removeWhen} onChange={(e) => setRemoveWhen(e.target.value as 'pre' | 'post')}>
                 <option value="post">after the deploy</option>
                 <option value="pre">before the deploy</option>
-              </select>
+              </Select>
             </div>
           </>
         )}

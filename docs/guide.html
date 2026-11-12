@@ -157,7 +157,7 @@
               </tr>
               <tr>
                 <td><b>Develop</b></td>
-                <td>Code · Execute Apex · Apex tests · Debug logs · Jobs · Automation · Events · REST Explorer</td>
+                <td>Code · Execute Apex · Apex tests · Debug logs · Jobs · Save order · Events · REST Explorer</td>
               </tr>
               <tr>
                 <td><b>Data</b></td>
@@ -169,10 +169,7 @@
               </tr>
               <tr>
                 <td><b>Access</b></td>
-                <td>
-                  Users · Permission sets · Permissions · Custom permissions · Groups &amp; queues — then, to review:
-                  Assigned users · Object access · Overview · Compare · Your access
-                </td>
+                <td>Users · Access sets · Groups &amp; queues — then, to review: Object access · Compare</td>
               </tr>
               <tr>
                 <td><b>Org</b></td>
@@ -506,8 +503,8 @@
               </ul>
             </div>
           </section>
-          <section class="tool" data-title="Automation">
-            <h3 id="automation">Automation</h3>
+          <section class="tool" data-title="Save order">
+            <h3 id="automation">Save order</h3>
             <p class="tool-lead">What runs when a record of an object is saved, in Salesforce’s order.</p>
             <p class="tool-meta"><span class="badge read">Reads only</span></p>
             <div class="shot">
@@ -635,7 +632,19 @@
             <ol class="steps">
               <li>
                 Write SOQL with autocomplete for objects and fields (type <code>Account.</code> for the fields of the
-                Account a record points to, as deep as you like), or ✦ ask in plain English.
+                Account a record points to, as deep as you like), or ✦ ask in plain English. After a field and an
+                operator it offers what fits: date literals for a date (<code>CreatedDate = N_DAYS_AGO:5</code>,
+                <code>LAST_N_DAYS:30</code>, <code>THIS_QUARTER</code>…), a picklist's values, <i>true</i> /
+                <i>false</i>.
+              </li>
+              <li>
+                <b>SOQL help</b> above the editor: <b>Dates</b>, <b>Filters</b> (<code>IN</code>, <code>INCLUDES</code>,
+                records with or without related ones), <b>Group &amp; count</b> (<code>GROUP BY</code>,
+                <code>HAVING</code>, <code>COUNT</code>, <code>SUM</code>, by year or month),
+                <b>Sort &amp; shape</b> (<code>NULLS LAST</code>, <code>FIELDS(ALL)</code>, child records,
+                <code>toLabel</code>) — hover a piece for what it means, click to put it in at the cursor.
+                <b>Examples</b> are whole queries (duplicates, records per month, accounts without contacts…);
+                <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Z</kbd> brings your query back.
               </li>
               <li>
                 Options: <b>Names for Ids</b> (adds a column with the name next to every Id),
@@ -712,7 +721,8 @@
               </li>
               <li>
                 <b>Save as Excel</b> keeps them; <b>Open a saved copy…</b> (next to New…) copies them into any org
-                later.
+                later. It opens a user's <b>Everything (workbook)</b> from Access › Users too: the user, every
+                permission set, group, license and queue ticked — untick what not to give, one by one or a whole kind.
               </li>
               <li>
                 <b>On a user</b>: the tree is their access — the ticked permission sets, groups and licenses go with
@@ -1039,7 +1049,9 @@
               <li>
                 <b>Compare with the org</b>: choose the metadata types (or <b>All</b>), then <b>Compare</b>. The tiles
                 count <i>in both</i>, <i>only in org</i> and <i>only in project</i> — click one to show just those.
-                <b>Compare content</b> checks the files of components in both (<i>same</i> / <i>different</i>).
+                <b>Compare content of all</b> checks the files of components in both (<i>same</i> / <i>different</i>);
+                to check only some, use <b>⇄</b> on a component, <b>⇄ Compare</b> on a type, or type in the filter and
+                <b>Compare the … shown</b>.
               </li>
               <li>
                 Choose per row or per type: <b>to package</b> deploys the project's version, <b>destructive</b> deletes
@@ -1258,19 +1270,26 @@
               <i>Find … by name</i> box: choose one and its Id is filled in.
             </p>
             <p>
-              <b>Snapshot</b>: <b>Save snapshot (CSV)</b> keeps everything about a user in one file — fields, profile,
-              role and manager (by name), permission sets and groups, licenses, public groups and queues, and the
-              connected apps they sign in to (those are to check only: the user connects an app themselves). In any org
-              (a new sandbox, say), <b>Compare … with a snapshot…</b> finds the same user (username, with or without a
-              sandbox suffix) and lists every difference; tick what to change and
-              <b>Make the user match the snapshot</b>. You can edit the CSV in Excel first. When the user is not in that
-              org, <b>Create the user…</b> makes them under a new username (usernames are unique across every org), with
-              the same fields, profile, role, manager and access; no welcome e-mail is sent.
+              <b>Snapshot (CSV)</b>, next to <b>Everything (workbook)</b>, keeps everything about a user in one file —
+              fields, profile, role and manager (by name), permission sets and groups, licenses, public groups and
+              queues, and the connected apps they sign in to (those are to check only: the user connects an app
+              themselves). In any org (a new sandbox, say), the <b>Restore from a snapshot</b> tab opens the file, finds
+              the same user (username, with or without a sandbox suffix) and lists every difference; tick what to change
+              and <b>Make the user match the snapshot</b>. You can edit the CSV in Excel first. When the user is not in
+              that org, <b>Create the user…</b> makes them under a new username (usernames are unique across every org),
+              with the same fields, profile, role, manager and access; no welcome e-mail is sent.
             </p>
             <p>
               <b>Everything (workbook)</b> next to a user saves every tab — details, permission sets and groups, system
               permissions, groups and queues, licenses, OAuth apps and login history — a sheet each (⤓ takes only the
-              tab on screen).
+              tab on screen). It also carries the user by names (profile, role, manager) and their permission sets'
+              files: open it in another org with <a href="#record">Data › Record › Open a saved copy</a>, untick what
+              the user should not get, and <b>Copy</b> — a user already there is completed, a missing one is created.
+            </p>
+            <p>
+              <b>Users of a role, license or group</b> (third tab): the users of a role, permission set license, public
+              group or queue; click one to remove them or move them to another role. Profiles, permission sets and
+              groups show their users in <a href="#permissions">Access sets</a>.
             </p>
             <div class="good-to-know">
               <h4>Good to know</h4>
@@ -1291,47 +1310,13 @@
               </ul>
             </div>
           </section>
-          <section class="tool" data-title="Permission sets">
-            <h3 id="permsets">Permission sets &amp; groups</h3>
+          <section class="tool" data-title="Access sets">
+            <h3 id="permissions">Access sets</h3>
+            <span id="permsets"></span><span id="assigned"></span><span id="custperms"></span>
             <p class="tool-lead">
-              Permission sets and permission set groups: who has one, assign or remove it, create one.
+              A profile, permission set or permission set group in one place: what it allows (and change it), who has
+              it, and assign it.
             </p>
-            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
-            <div class="shot">
-              <video
-                src="media/permsets.mp4"
-                poster="media/permsets.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              One table, with a box for <b>Permission set</b> and one for <b>Permission set group</b> (filter it, or
-              export it as CSV). Click a row: its <b>Assigned</b> tab lists who has it — tick users and
-              <b>Remove selected…</b> — and <b>Assign to users</b> finds users by name, username, profile, role or
-              public group, with an optional expiry. You type the org name first.
-            </p>
-            <p>
-              <b>+ New permission set or group</b>, in its own box at the top, creates one (label and API name), ready
-              for Permissions.
-            </p>
-            <div class="good-to-know">
-              <h4>Good to know</h4>
-              <ul>
-                <li>Assign by usernames, a profile, a role or a public group, with an expiry date if you like.</li>
-                <li>
-                  A permission set group’s permissions come from its permission sets: change them in
-                  <a href="#permissions">Permissions</a>.
-                </li>
-              </ul>
-            </div>
-          </section>
-          <section class="tool" data-title="Permissions">
-            <h3 id="permissions">Permissions</h3>
-            <p class="tool-lead">What a profile, permission set or group allows — and change it.</p>
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
@@ -1345,8 +1330,22 @@
               ></video>
             </div>
             <p>
-              What a profile, permission set or group allows — object access, field access, user &amp; system
-              permissions, or <b>All</b> together.
+              Choose <b>All</b>, <b>Profiles</b>, <b>Permission sets</b> or <b>Permission set groups</b>, then one of
+              them (the list opens with a search box). Its tabs: what it allows — <b>Object access</b>,
+              <b>Field access</b>, <b>User &amp; system permissions</b>, <b>Apps, classes &amp; more</b>, record types,
+              and for a profile its page layouts and login IP ranges — then <b>Assigned users</b> (click a user to
+              remove them, or move them to another profile) and <b>Assign to users</b> (find users by name, username,
+              profile, role or public group, with an optional expiry). Every change asks for the org name first.
+            </p>
+            <p>
+              <b>Custom permissions</b> (last on the switch): choose one — <b>Given by</b> lists the permission sets,
+              profiles and groups that give it (grant it to another, or take it away), <b>Users</b> the active users who
+              have it and through what.
+            </p>
+            <p>
+              <b>+ New permission set, group or custom permission</b>, in its own box at the top: a permission set or
+              group (label and API name), or a custom permission (Metadata API), granted at once to the permission sets
+              and profiles you tick.
             </p>
             <p id="permedit"><b>Changing permissions</b>:</p>
             <ol class="steps">
@@ -1396,16 +1395,6 @@
               </ul>
             </div>
           </section>
-          <section class="tool" data-title="Custom permissions">
-            <h3 id="custperms">Custom permissions</h3>
-            <p class="tool-lead">Custom permissions: who gives each one, grant it, create a new one.</p>
-            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
-            <p>
-              Every custom permission and the permission sets, profiles and groups that give it; grant it to another
-              permission set or profile, or remove a grant. <b>New custom permission…</b> creates one (Metadata API) and
-              grants it at once to the permission sets and profiles you tick.
-            </p>
-          </section>
           <section class="tool" data-title="Groups &amp; queues">
             <h3 id="groups">Groups &amp; queues</h3>
             <p class="tool-lead">Public groups and queues with their members; add or remove members.</p>
@@ -1437,27 +1426,6 @@
               </li>
             </ul>
           </section>
-          <section class="tool" data-title="Assigned users">
-            <h3 id="assigned">Assigned users</h3>
-            <p class="tool-lead">
-              The users of a permission set, group, license, profile, role, public group or queue.
-            </p>
-            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
-            <div class="shot">
-              <video src="media/who.mp4" poster="media/who.jpg" muted loop playsinline preload="none" controls></video>
-            </div>
-            <p>
-              Pick a permission set, permission set group, permission set license, profile, role, public group or queue
-              — and see its users (active only, or all). Click a user to <b>Remove</b> them from it, or, for a profile
-              or role, <b>Move</b> them to another one.
-            </p>
-            <div class="good-to-know">
-              <h4>Good to know</h4>
-              <ul>
-                <li>Move people from one profile or role to another here (it asks first).</li>
-              </ul>
-            </div>
-          </section>
           <section class="tool" data-title="Object access">
             <h3 id="objectaccess">Object access</h3>
             <p class="tool-lead">Who can use an object (or a field), and through what.</p>
@@ -1479,41 +1447,15 @@
               permission set, a group, or View All Data / Modify All Data. Which records each user sees also depends on
               sharing.
             </p>
-            <div class="good-to-know">
-              <h4>Good to know</h4>
-              <ul>
-                <li>This is access to the object; which records each user sees also depends on sharing.</li>
-              </ul>
-            </div>
-          </section>
-          <section class="tool" data-title="Overview">
-            <h3 id="accessmap">Overview (everyone’s access)</h3>
-            <p class="tool-lead">Every user and what they have, in one table with a ✓ per powerful permission.</p>
-            <p class="tool-meta"><span class="badge read">Reads only</span></p>
-            <div class="shot">
-              <video
-                src="media/accessmap.mp4"
-                poster="media/accessmap.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
             <p>
-              Every user (active only, or all) in one table: profile, role, license, permission sets, permission set
-              groups, permission set licenses, last login, and a ✓ for each powerful permission they get from any source
-              — Modify All Data, View All Data, Manage Users, Author Apex, Customize Application, API Enabled, Export
-              Reports. Filter a column with ✓ to see who has it; download it as CSV.
+              The tabs: <b>Users</b>, then <b>Profiles</b>, <b>Permission sets</b> and <b>Permission set groups</b> —
+              each one that gives access to the object (and the field), what it allows, and how many active users have
+              it.
             </p>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
-                <li>
-                  Filter a column with ✓ (for example Modify All Data) to see who has it; download it for an access
-                  review.
-                </li>
+                <li>This is access to the object; which records each user sees also depends on sharing.</li>
               </ul>
             </div>
           </section>
@@ -1552,38 +1494,6 @@
               <h4>Good to know</h4>
               <ul>
                 <li>To compare with another org, use <a href="#orgaccess">Org to org › Access</a>.</li>
-              </ul>
-            </div>
-          </section>
-          <section class="tool" data-title="Your access">
-            <h3 id="myaccess">Your access</h3>
-            <p class="tool-lead">What your own user may do here, tool by tool.</p>
-            <p class="tool-meta"><span class="badge read">Reads only</span></p>
-            <div class="shot">
-              <video
-                src="media/myaccess.mp4"
-                poster="media/myaccess.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              What your own user may do in this org: full, read only or limited access; every tool with ✓ or what is
-              missing to read it or change things in it; and every permission your user has (filter it).
-            </p>
-            <p>
-              The tools say it too: when your user lacks a permission a tool needs, the tool shows at the top what is
-              missing and which permission gives it — for example <i>View Setup and Configuration</i> to read code and
-              permissions, or <i>Author Apex</i> to save code. Salesforce still has the last word: anything else it
-              refuses is shown as it comes.
-            </p>
-            <div class="good-to-know">
-              <h4>Good to know</h4>
-              <ul>
-                <li>When a tool is empty or refused, look here first: it names the permission your user is missing.</li>
               </ul>
             </div>
           </section>
@@ -1962,7 +1872,8 @@
               ones), optionally <b>Names</b> (<i>Account*, Finance</i>) for only the components you want, and
               <b>Compare</b>. The tiles count what is <i>only in source</i>, <i>only in target</i> and <i>in both</i> —
               click one to show just those. <b>Compare content</b> of those in both splits them into
-              <i>different</i> and <i>same</i>.
+              <i>different</i> and <i>same</i> — or only some of them: <b>⇄</b> on a component, <b>⇄ Compare</b> on a
+              type, or the filter and <b>Compare the … shown</b>.
             </p>
             <ol class="steps">
               <li>
@@ -2166,11 +2077,11 @@
                 <b>Show who</b>. Each user is listed with what gives them access.
               </li>
               <li>
-                <a href="#accessmap">Access › Overview</a>: filter <i>View All Data</i> and <i>Modify All Data</i> —
-                those users see every field too.
+                <a href="#health">Org › Org health</a>: the users with <i>View All Data</i> or <i>Modify All Data</i> —
+                they see every field too.
               </li>
               <li>
-                Remove access where it should not be, in <a href="#permissions">Permissions</a> (Edit… › Field access).
+                Remove access where it should not be, in <a href="#permissions">Access sets</a> (Edit… › Field access).
               </li>
               <li>
                 <a href="#health">Org › Org health</a> lists everyone with powerful permissions, to review regularly.
@@ -2219,7 +2130,7 @@
             <p class="tool-lead">Users report “an error occurred” when they save a Case.</p>
             <ol class="steps">
               <li>
-                <a href="#automation">Develop › Automation</a>: choose Case — every validation rule, flow and trigger
+                <a href="#automation">Develop › Save order</a>: choose Case — every validation rule, flow and trigger
                 that runs on save, in order, with its message.
               </li>
               <li>
@@ -2253,7 +2164,9 @@
         <section class="hub" id="hub-setup" data-title="Settings">
           <section class="tool" data-title="Settings">
             <h2 id="settings">Settings</h2>
-            <p class="tool-lead">Three tools in the Settings sidebar: <b>Orgs</b>, <b>AI</b> and <b>Project</b>.</p>
+            <p class="tool-lead">
+              In the Settings sidebar: <b>Orgs</b>, <b>AI</b>, <b>Project</b>, <b>Your access</b> and <b>Activity</b>.
+            </p>
             <div class="shot">
               <video
                 src="media/settings.mp4"
@@ -2320,6 +2233,40 @@
               extension's own storage and goes only to the provider you chose.
             </div>
           </section>
+          <section class="tool" data-title="Your access">
+            <h3 id="myaccess">Your access</h3>
+            <p class="tool-lead">
+              Settings › Your access: what your own user may do in the org on screen, tool by tool.
+            </p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/myaccess.mp4"
+                poster="media/myaccess.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              What your own user may do in this org: full, read only or limited access; every tool with ✓ or what is
+              missing to read it or change things in it; and every permission your user has (filter it).
+            </p>
+            <p>
+              The tools say it too: when your user lacks a permission a tool needs, the tool shows at the top what is
+              missing and which permission gives it — for example <i>View Setup and Configuration</i> to read code and
+              permissions, or <i>Author Apex</i> to save code. Salesforce still has the last word: anything else it
+              refuses is shown as it comes.
+            </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>When a tool is empty or refused, look here first: it names the permission your user is missing.</li>
+              </ul>
+            </div>
+          </section>
           <section class="tool" data-title="Activity">
             <h3 id="activity">Activity</h3>
             <p class="tool-lead">What you changed or exported with NomadSF, in every org: the app's own record.</p>
@@ -2368,7 +2315,7 @@
               </li>
               <li>
                 <b>Only what your user may do</b>: NomadSF works with your own Salesforce permissions. Each tool says
-                what your user is missing there, and <a href="#myaccess">Access › Your access</a> lists it all.
+                what your user is missing there, and <a href="#myaccess">Settings › Your access</a> lists it all.
               </li>
               <li>
                 <b>Your data stays with you</b>: backups go to a folder you choose on your own computer, optionally

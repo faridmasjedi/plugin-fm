@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Select } from '../components/Select';
+import { ComboInput } from '../components/ComboInput';
 import { AutomationTree, describeGlobal, saveOrder, type SaveStep, type SObjectSummary } from '@nomadsf/core';
 import { AutomationTreeView } from '../components/AutomationTreeView';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
-import { ObjectOptions } from '../components/ObjectOptions';
+import { objectChoices } from '../components/ObjectOptions';
 import { TableTabs } from '../components/TableTabs';
 import { Status } from '../statusLog';
 
@@ -144,8 +146,8 @@ export function AutomationPage() {
         <span className="muted">What runs when a record is saved, in order, on {org.label}</span>
       </div>
       <div className="form">
-        <input
-          list="automation-objects"
+        <ComboInput
+          options={objectChoices(objects)}
           value={typed}
           placeholder="Object, e.g. Case"
           onChange={(e) => {
@@ -154,15 +156,14 @@ export function AutomationPage() {
           }}
           onKeyDown={(e) => e.key === 'Enter' && !pick(typed) && setStatus(`❌ No object called "${typed.trim()}".`)}
         />
-        <ObjectOptions id="automation-objects" objects={objects} typed={typed} />
-        <select value={kind} onChange={(e) => setKind(e.target.value)} title="Only one kind">
+        <Select value={kind} onChange={(e) => setKind(e.target.value)} title="Only one kind">
           <option value="">Every kind ({result?.steps.length ?? 0})</option>
           {kinds.map((k) => (
             <option key={k} value={k}>
               {k} ({(result?.steps ?? []).filter((s) => s.kind === k).length})
             </option>
           ))}
-        </select>
+        </Select>
         <input placeholder="Name contains…" value={named} onChange={(e) => setNamed(e.target.value)} />
         <label className="check">
           <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Active only

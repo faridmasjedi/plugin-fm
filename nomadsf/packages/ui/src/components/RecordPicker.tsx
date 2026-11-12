@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Select } from './Select';
 import { query, type SalesforceClient } from '@nomadsf/core';
 import { Status } from '../statusLog';
 
@@ -86,11 +87,11 @@ export function RecordPicker({
   return (
     <span className="record-picker">
       {objects.length > 1 && (
-        <select value={sobject} onChange={(e) => setSobject(e.target.value)}>
+        <Select value={sobject} onChange={(e) => setSobject(e.target.value)}>
           {objects.map((o) => (
             <option key={o}>{o}</option>
           ))}
-        </select>
+        </Select>
       )}
       <input
         placeholder={`Find ${sobject} by name`}
@@ -102,7 +103,7 @@ export function RecordPicker({
         List
       </button>
       {found.length > 0 && (
-        <select
+        <Select
           value=""
           onChange={(e) => {
             if (!e.target.value) return;
@@ -116,7 +117,7 @@ export function RecordPicker({
               {f.name}
             </option>
           ))}
-        </select>
+        </Select>
       )}
       {status && <Status text={status} />}
     </span>

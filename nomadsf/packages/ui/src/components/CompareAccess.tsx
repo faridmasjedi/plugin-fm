@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Select } from './Select';
 import {
   accessOverview,
   comparePermissionSets,
@@ -202,7 +203,7 @@ export function CompareAccess({ between }: { between?: OrgSides }) {
           ).map(([label, value, set, list]) => (
             <label key={label}>
               {label}
-              <select value={value} onChange={(e) => set(e.target.value)} style={{ minWidth: 300 }}>
+              <Select value={value} onChange={(e) => set(e.target.value)} style={{ minWidth: 300 }}>
                 <option value="">Choose ({matching(list).length})</option>
                 {/* The chosen one stays listed while the filter hides it */}
                 {[...matching(list), ...list.filter((h) => h.id === value && !matching(list).includes(h))].map((h) => (
@@ -210,7 +211,7 @@ export function CompareAccess({ between }: { between?: OrgSides }) {
                     {h.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           ))}
           {other && setA && holdersB.length > 0 && !setB && (
@@ -433,7 +434,7 @@ function UserPicker({
             (matches.length === 0 ? (
               <span className="muted">no user found</span>
             ) : (
-              <select value="" onChange={(e) => onChange(matches.find((m) => m.Id === e.target.value) ?? null)}>
+              <Select value="" onChange={(e) => onChange(matches.find((m) => m.Id === e.target.value) ?? null)}>
                 <option value="">
                   {matches.length} user{matches.length === 1 ? '' : 's'} — choose…
                 </option>
@@ -442,7 +443,7 @@ function UserPicker({
                     {m.Name} ({m.Username})
                   </option>
                 ))}
-              </select>
+              </Select>
             ))}
         </span>
       )}

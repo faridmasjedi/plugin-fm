@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Select } from '../components/Select';
 import {
   apexSourcesFromOrg,
   nameMatcher,
@@ -56,7 +57,6 @@ function base64ToBlob(base64: string, type: string): Blob {
 export function MetadataPage() {
   const { client, org, hostKind, logActivity } = useStudio();
   const [types, setTypes] = useState<MetadataType[]>([]);
-  const [typeFilter, setTypeFilter] = useState('');
   const [type, setType] = useState('');
   const [components, setComponents] = useState<MetadataComponent[]>([]);
   // Names to find in a long list (a type can have thousands): one, a pattern (Case*) or several
@@ -107,10 +107,7 @@ export function MetadataPage() {
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
   }, [client]);
 
-  const shownTypes = useMemo(
-    () => types.filter((t) => !typeFilter || t.xmlName.toLowerCase().includes(typeFilter.toLowerCase())),
-    [types, typeFilter]
-  );
+  const shownTypes = types;
   const current = types.find((t) => t.xmlName === type);
   const shownComponents = useMemo(() => {
     const wanted = nameMatcher(nameFilter);
@@ -217,13 +214,7 @@ export function MetadataPage() {
         <div className="card section">
           <h3>Browse</h3>
           <div className="form">
-            <input
-              placeholder={`Filter ${types.length} types…`}
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              style={{ width: 280 }}
-            />
-            <select value={type} onChange={(e) => e.target.value && void list(e.target.value)} style={{ width: 280 }}>
+            <Select value={type} onChange={(e) => e.target.value && void list(e.target.value)} style={{ width: 280 }}>
               <option value="">Choose a type…</option>
               {shownTypes.map((t) => (
                 <option key={t.xmlName} value={t.xmlName}>
@@ -231,7 +222,7 @@ export function MetadataPage() {
                   {t.inFolder ? ' (folders)' : ''}
                 </option>
               ))}
-            </select>
+            </Select>
             <button className="primary" disabled={selected.size === 0} onClick={addToPackage}>
               Add {selected.size || ''} to package
             </button>
@@ -298,7 +289,7 @@ export function MetadataPage() {
           </h3>
           {project.info && project.info.manifests.length > 0 && (
             <div className="form">
-              <select
+              <Select
                 value=""
                 onChange={async (e) => {
                   const path = e.target.value;
@@ -312,7 +303,7 @@ export function MetadataPage() {
                     {m.path} ({m.members})
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           )}
           {items.length === 0 && deletes.length === 0 ? (
@@ -377,13 +368,13 @@ export function MetadataPage() {
                   <div className="form">
                     <label>
                       File
-                      <select value={deleteFile} onChange={(e) => setDeleteFile(e.target.value as DeleteFile)}>
+                      <Select value={deleteFile} onChange={(e) => setDeleteFile(e.target.value as DeleteFile)}>
                         {DELETE_FILES.map(([file, hint]) => (
                           <option key={file} value={file}>
                             {file} — {hint}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                     <button onClick={() => save(deleteFile, new Blob([destructiveXml], { type: 'text/xml' }))}>
                       {deleteFile}

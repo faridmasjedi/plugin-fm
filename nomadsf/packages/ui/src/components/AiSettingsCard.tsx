@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Select } from './Select';
 import { AI_PRESETS, aiTest, type AiProvider, type AiSettings } from '@nomadsf/core';
 import { aiUsable, loadExtensionAi, openRouterSignIn, requestProviderAccess, saveExtensionAi } from '../extensionAi';
 import { Status } from '../statusLog';
@@ -96,7 +97,7 @@ export function AiSettingsCard() {
       <div className="form">
         <label>
           Provider
-          <select
+          <Select
             value={provider}
             onChange={(e) => {
               const next = e.target.value as AiProvider;
@@ -112,7 +113,7 @@ export function AiSettingsCard() {
                 {AI_PRESETS[p].label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label>
           Model

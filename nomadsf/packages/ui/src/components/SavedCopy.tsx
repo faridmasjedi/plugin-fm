@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fromCopySheets, readTableFile, type AccessFile, type FileTable, type UserCopy } from '@nomadsf/core';
+import {
+  ACCESS_SECTIONS,
+  fromCopySheets,
+  readTableFile,
+  type AccessFile,
+  type FileTable,
+  type UserCopy,
+} from '@nomadsf/core';
 import { CopyBar } from './CopyBar';
 
 const nameOf = (row: Record<string, string>): string =>
@@ -13,6 +20,7 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
   const [tables, setTables] = useState<FileTable[] | null>(null);
   const [users, setUsers] = useState<UserCopy[]>([]);
   const [metadata, setMetadata] = useState<AccessFile[]>([]);
+  const [olderReport, setOlderReport] = useState(false);
   const [off, setOff] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [error, setError] = useState('');
@@ -28,6 +36,7 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
         setTables(saved.tables);
         setUsers(saved.users);
         setMetadata(saved.metadata);
+        setOlderReport(Boolean(saved.olderReport));
       })
       .catch((e: Error) => !canceled && setError(e.message));
     return () => {
@@ -36,6 +45,7 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
   }, [file]);
 
   // Rows are ticked unless taken out; a sheet's key is its name, a row's is sheet:Id (or sheet:#n)
+  const accessKey = (user: string, section: string, name: string) => `access:${user}:${section}:${name}`;
   const rowKey = (t: FileTable, r: Record<string, string>, i: number) => `${t.name}:${r.Id || `#${i}`}`;
   const what = useMemo(
     () => ({
@@ -45,11 +55,24 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
           .filter((t) => !off.has(t.name))
           .map((t) => ({ ...t, rows: t.rows.filter((r, i) => !off.has(rowKey(t, r, i))) })),
       },
-      user: users[0] && !off.has(`user:${users[0].username}`) ? users[0] : undefined,
+      // Only the access still ticked goes with the user
+      user:
+        users[0] && !off.has(`user:${users[0].username}`)
+          ? {
+              ...users[0],
+              lines: users[0].lines.filter((l) => !off.has(accessKey(users[0].username, l.Section, l.Name))),
+            }
+          : undefined,
       metadata,
     }),
     [tables, users, metadata, off]
   );
+  const flip = (key: string) => {
+    const next = new Set(open);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setOpen(next);
+  };
   const toggle = (key: string, on: boolean) => {
     const next = new Set(off);
     if (on) next.delete(key);
@@ -70,9 +93,17 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
       ) : (
         <>
           <p className="muted help">
-            Each sheet is an object; untick what not to copy. Lookups between the sheets (an Account's Contacts…) point
-            to the new records.
+            {users.length && !tables.length
+              ? 'Everything is copied; untick what the user should not get. A user already there is completed, a missing one is created.'
+              : "Each sheet is an object; untick what not to copy. Lookups between the sheets (an Account's Contacts…) point to the new records."}
           </p>
+          {olderReport && (
+            <p className="warn-text small">
+              ⚠ This workbook was saved before it carried the user's profile, role and manager by name: the access below
+              is copied, but to create the user, save the workbook again (Access › Users › Everything) or use the
+              Snapshot (CSV).
+            </p>
+          )}
           <ul className="relation-tree root">
             {users.map((u) => (
               <li key={u.username}>
@@ -82,12 +113,107 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
                     checked={!off.has(`user:${u.username}`)}
                     onChange={(e) => toggle(`user:${u.username}`, e.target.checked)}
                   />{' '}
-                  <b>User {u.username}</b> with{' '}
-                  {u.lines
-                    .filter((l) => !['info', 'field', 'lookup'].includes(l.Section))
-                    .map((l) => l.Name)
-                    .join(', ') || 'no access'}
+                  <b>User {u.username}</b>
                 </label>
+                {/* Their access by kind, each kind a line that wraps (a user can have dozens) */}
+                <ul className="relation-tree saved-user-access">
+                  {(() => {
+                    const of = (section: string, name: string) =>
+                      u.lines.find((l) => l.Section === section && l.Name === name)?.Value ?? '';
+                    const details = [
+                      [of('field', 'FirstName'), of('field', 'LastName')].filter(Boolean).join(' '),
+                      of('field', 'Email'),
+                      of('field', 'Title'),
+                      of('lookup', 'ProfileId') && `profile ${of('lookup', 'ProfileId')}`,
+                      of('lookup', 'UserRoleId') && `role ${of('lookup', 'UserRoleId')}`,
+                      of('lookup', 'ManagerId') && `manager ${of('lookup', 'ManagerId')}`,
+                    ].filter(Boolean);
+                    const fields = u.lines.filter((l) => l.Section === 'field' && l.Value !== '').length;
+                    const fieldLines = u.lines.filter(
+                      (l) => (l.Section === 'field' || l.Section === 'lookup') && l.Value !== ''
+                    );
+                    const key = `details:${u.username}`;
+                    return (
+                      <li>
+                        <button className="link tree-toggle" onClick={() => flip(key)}>
+                          {open.has(key) ? '▾' : '▸'}
+                        </button>{' '}
+                        <span className="muted">Details ({fields} fields):</span> {details.join(' · ') || '—'}
+                        {open.has(key) && (
+                          // Every field kept, name and value (lookups by name)
+                          <ul className="relation-tree saved-details">
+                            {fieldLines.map((l) => (
+                              <li key={`${l.Section}:${l.Name}`}>
+                                <span className="muted mono">{l.Name}</span> {l.Value}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    );
+                  })()}
+                  {ACCESS_SECTIONS.map(({ section, label }) => {
+                    const names = u.lines.filter((l) => l.Section === section).map((l) => l.Name);
+                    if (!names.length) return null;
+                    const userOff = off.has(`user:${u.username}`);
+                    const keys = names.map((n) => accessKey(u.username, section, n));
+                    const on = keys.filter((k) => !off.has(k)).length;
+                    const openKey = `kind:${u.username}:${section}`;
+                    return (
+                      <li key={section}>
+                        {/* A kind: ▸ opens its items, one per line; its own tick takes all of it in or out */}
+                        <button className="link tree-toggle" onClick={() => flip(openKey)}>
+                          {open.has(openKey) ? '▾' : '▸'}
+                        </button>{' '}
+                        <label className="check">
+                          <input
+                            type="checkbox"
+                            disabled={userOff}
+                            checked={on === keys.length}
+                            ref={(el) => {
+                              if (el) el.indeterminate = on > 0 && on < keys.length;
+                            }}
+                            onChange={(e) => {
+                              const next = new Set(off);
+                              for (const k of keys) {
+                                if (e.target.checked) next.delete(k);
+                                else next.add(k);
+                              }
+                              setOff(next);
+                            }}
+                          />{' '}
+                          {label}{' '}
+                          <span className="muted">
+                            ({on === keys.length ? names.length : `${on} of ${names.length}`})
+                          </span>
+                        </label>
+                        {open.has(openKey) && (
+                          <ul className="relation-tree">
+                            {names.map((n) => {
+                              const k = accessKey(u.username, section, n);
+                              return (
+                                <li key={k}>
+                                  <label className="check">
+                                    <input
+                                      type="checkbox"
+                                      disabled={userOff}
+                                      checked={!off.has(k)}
+                                      onChange={(e) => toggle(k, e.target.checked)}
+                                    />{' '}
+                                    {n}
+                                  </label>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </li>
+                    );
+                  })}
+                  {!u.lines.some((l) => ACCESS_SECTIONS.some((a) => a.section === l.Section)) && (
+                    <li className="muted">no access</li>
+                  )}
+                </ul>
               </li>
             ))}
             {tables.map((t) => (

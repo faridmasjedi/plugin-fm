@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Select } from '../components/Select';
+import { ComboInput } from '../components/ComboInput';
 import {
   bulkIngest,
   checkColumns,
@@ -20,7 +22,7 @@ import { EditableGrid, type GridRow } from '../components/EditableGrid';
 import { IngestSummary } from '../components/IngestSummary';
 import { QueryEditTab } from '../components/QueryEditTab';
 import { storage, useStudio } from '../context';
-import { ObjectOptions } from '../components/ObjectOptions';
+import { objectChoices } from '../components/ObjectOptions';
 import { TableFileInput } from '../components/TableFileInput';
 import { Status } from '../statusLog';
 
@@ -257,7 +259,6 @@ export function DataPage() {
           </button>
         ))}
       </div>
-      <ObjectOptions id="objects" objects={summaries} typed={object} />
 
       <p className="muted" style={{ margin: 0 }}>
         To export records, use <b>Query</b>: Export CSV there uses the Bulk API for large results, including deleted
@@ -276,8 +277,8 @@ export function DataPage() {
             <div className="form">
               <label>
                 Object
-                <input
-                  list="objects"
+                <ComboInput
+                  options={objectChoices(summaries)}
                   value={object}
                   onChange={(e) => setObject(e.target.value)}
                   placeholder="Account"
@@ -285,18 +286,18 @@ export function DataPage() {
               </label>
               <label>
                 Operation
-                <select value={operation} onChange={(e) => setOperation(e.target.value as IngestOperation)}>
+                <Select value={operation} onChange={(e) => setOperation(e.target.value as IngestOperation)}>
                   {OPERATIONS.map(([op, label]) => (
                     <option key={op} value={op}>
                       {label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               {operation === 'upsert' && (
                 <label title="Upsert matches each row to an existing record by this field: a match is updated, no match is inserted. Only Id and fields marked External ID can be used.">
                   Match records by
-                  <select value={externalId} onChange={(e) => setExternalId(e.target.value)}>
+                  <Select value={externalId} onChange={(e) => setExternalId(e.target.value)}>
                     <option value="">{rules ? 'Choose a field…' : 'Choose the object first'}</option>
                     {(rules ?? [])
                       .filter((r) => r.name === 'Id' || r.externalId)
@@ -305,7 +306,7 @@ export function DataPage() {
                           {r.label} ({r.name})
                         </option>
                       ))}
-                  </select>
+                  </Select>
                   {rules && !rules.some((r) => r.externalId) && (
                     <span className="muted" style={{ fontWeight: 'normal' }}>
                       {knownObject} has no External ID field, so only Id can match. To match records copied from another

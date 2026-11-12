@@ -952,6 +952,8 @@ table.events tbody tr.selected {
 .field-checks > label {
   min-width: 0;
   align-items: flex-start;
+  /* A long name wraps in its own cell instead of running over the next one */
+  overflow-wrap: anywhere;
 }
 .field-check-text {
   display: flex;
@@ -1077,8 +1079,11 @@ button.metric.filter.active {
 }
 .column-list label {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding: 6px 10px;
   border: 1px solid var(--border);
   border-left: 3px solid var(--good);
@@ -2936,6 +2941,29 @@ input.bad-input {
 .relation-tree li {
   padding: 2px 0;
 }
+/* Long names (a saved user's access, a record's name) wrap inside the box */
+.relation-tree li,
+.relation-tree label.check {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.relation-tree label.check {
+  flex-wrap: wrap;
+}
+.saved-user-access {
+  font-size: 13px;
+}
+.saved-access-items {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+}
+.saved-access-items label.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
 .copy-bar {
   border-top: 1px solid var(--border);
   margin-top: 12px;
@@ -2959,6 +2987,9 @@ input.bad-input {
   gap: 6px;
   flex: none;
   margin-left: auto;
+}
+.dt-actions[hidden] {
+  display: none;
 }
 
 /* The browser's file button, drawn like ours */
@@ -3578,6 +3609,10 @@ select.row-action.delete {
 .grouped-actions .group-rows .group-action {
   width: 190px;
   text-align: right;
+}
+.grouped-actions .group-rows .group-compare {
+  width: 32px;
+  text-align: center;
 }
 .grouped-actions .group-rows tr.deploy td:first-child {
   box-shadow: inset 3px 0 0 var(--good);
@@ -4256,4 +4291,209 @@ select.row-action {
 }
 .member-tree > p {
   margin: 0 0 6px;
+}
+
+/* Query › SOQL help: tabs of clickable pieces above the editor */
+.soql-help {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 6px;
+}
+.soql-help-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+.soql-help-tabs .link.active {
+  font-weight: 600;
+  text-decoration: underline;
+}
+.soql-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.soql-chip {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+/* A text box with its own list (objects, types…): the whole list on click, narrowed by typing */
+.combo {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.combo.grow {
+  flex: 1;
+}
+.combo > input {
+  width: 100%;
+}
+.combo-list {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 50;
+  min-width: max(100%, 280px);
+  max-width: 520px;
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  font-weight: normal;
+  color: var(--text);
+}
+.combo-list li {
+  display: flex;
+  flex-direction: column;
+  padding: 5px 10px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.combo-list li.active {
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+}
+.combo-list li.combo-more {
+  cursor: default;
+}
+
+/* A long dropdown you can search: looks like a select, opens with a search box over the list */
+.search-select {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: middle;
+}
+.search-select-native {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+}
+.search-select-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 160px;
+  text-align: left;
+  background: var(--panel);
+  font-weight: normal;
+}
+.search-select-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-select-caret {
+  color: var(--muted);
+  font-size: 11px;
+}
+.search-select-pop {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: max(100%, 300px);
+  max-width: 560px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.search-select-pop input {
+  width: 100%;
+}
+.search-select-list {
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text);
+}
+.search-select-list li {
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.search-select-list li.active {
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+}
+.search-select-list li.chosen {
+  font-weight: 600;
+}
+.search-select-list li.disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* The row under the mouse stands out in every list of components (Project, Compare & package, Org compare…) */
+.grouped-actions .group-rows tr:hover td {
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
+}
+.grouped-actions .group-rows tr {
+  transition: background-color 80ms;
+}
+
+/* Nothing to show yet: one calm line saying how to get something, instead of an empty table */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 20px;
+}
+
+/* Access sets: who has it and assigning, set apart from what it allows */
+.tabs .tab.tab-break {
+  margin-left: 14px;
+  border-left: 1px solid var(--border);
+  padding-left: 14px;
+}
+
+/* Open a saved copy: ▸ opens a kind or the details; a long list of fields scrolls */
+.tree-toggle {
+  min-width: 18px;
+  padding: 0 2px;
+  font-size: 14px;
+  color: var(--text);
+}
+.saved-details {
+  max-height: 320px;
+  overflow: auto;
+}
+
+/* Access sets: the switch and the dropdown share a row while there is room, the dropdown goes under it when not */
+.holder-select {
+  flex: 1 1 320px;
+  min-width: 240px;
+  max-width: 560px;
+}
+/* A switch that wraps onto a second line in a narrow pane instead of being cut off */
+.segmented.wraps {
+  height: auto;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.segmented.wraps button {
+  height: var(--h);
 }

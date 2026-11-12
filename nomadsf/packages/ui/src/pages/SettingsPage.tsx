@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Select } from '../components/Select';
 import { GitHubCard } from '../components/GitHubCard';
 import { OrgSettings } from '../components/OrgSettings';
 import { AiSettingsCard } from '../components/AiSettingsCard';
@@ -108,14 +109,14 @@ export function SettingsPage({
                         Use the app's project
                       </button>
                       {project.recent.length > 0 && (
-                        <select value="" onChange={(e) => e.target.value && void project.switchLocal(e.target.value)}>
+                        <Select value="" onChange={(e) => e.target.value && void project.switchLocal(e.target.value)}>
                           <option value="">Switch to a recent project…</option>
                           {project.recent.map((r) => (
                             <option key={r.path} value={r.path}>
                               {r.name} — {r.path}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       )}
                     </div>
                     <div className="form">

@@ -48,13 +48,9 @@ export type ToolId =
   | 'rest'
   | 'activity'
   | 'orgaccess'
-  | 'permsets'
   | 'permissions'
-  | 'assigned'
   | 'groups'
-  | 'custperms'
   | 'compare'
-  | 'accessmap'
   | 'objectaccess'
   | 'audit'
   | 'myaccess'
@@ -70,7 +66,7 @@ export const TOOLS: Tool[] = [
   { id: 'code', label: 'Code', icon: '{}', hint: 'Apex, triggers, Visualforce, LWC, Aura' },
   { id: 'apextests', label: 'Apex tests', icon: '◎', hint: 'run tests, code coverage' },
   { id: 'logs', label: 'Debug logs', icon: '☰', hint: 'logs and trace flags' },
-  { id: 'automation', label: 'Automation', icon: '↯', hint: 'what runs when a record is saved' },
+  { id: 'automation', label: 'Save order', icon: '↯', hint: 'what runs, in order, when a record is saved' },
   { id: 'jobs', label: 'Jobs', icon: '⏲', hint: 'scheduled and background Apex' },
   { id: 'query', label: 'Query', icon: '⌕', hint: 'SOQL with a filterable table' },
   { id: 'record', label: 'Record', icon: 'ⓘ', hint: 'inspect and edit one record' },
@@ -94,17 +90,13 @@ export const TOOLS: Tool[] = [
   { id: 'deployments', label: 'Deployments', icon: '⇪', hint: 'deployment history, quick deploy' },
   { id: 'access', label: 'Users', icon: '☺', hint: 'a user and everything they have' },
   {
-    id: 'permsets',
-    label: 'Permission sets',
+    id: 'permissions',
+    label: 'Access sets',
     icon: '▣',
-    hint: 'permission sets and groups: who has one, assign, remove',
+    hint: 'profiles, permission sets, groups, custom permissions: what each allows, who has it, assign',
   },
-  { id: 'permissions', label: 'Permissions', icon: '⚿', hint: 'what a profile, set or group allows; edit' },
-  { id: 'assigned', label: 'Assigned users', icon: '☷', hint: 'users of a set, group, license, profile, role' },
   { id: 'groups', label: 'Groups & queues', icon: '◎', hint: 'public groups, queues and their members' },
-  { id: 'custperms', label: 'Custom permissions', icon: '✱', hint: 'who gives each one; grant it' },
   { id: 'compare', label: 'Compare', icon: '⇆', hint: 'two users, profiles or permission sets' },
-  { id: 'accessmap', label: 'Overview', icon: '▦', hint: 'every user and what they have' },
   { id: 'objectaccess', label: 'Object access', icon: '⛉', hint: 'who can use an object or field' },
   { id: 'audit', label: 'Logins & audit', icon: '⌛', hint: 'login history, setup audit trail' },
   { id: 'myaccess', label: 'Your access', icon: '✓', hint: 'what your user may do here' },
@@ -144,31 +136,34 @@ export const HUBS: Hub[] = [
     id: 'people',
     label: 'Access',
     icon: '⚿',
-    tools: [
-      'access',
-      'permsets',
-      'permissions',
-      'custperms',
-      'groups',
-      'assigned',
-      'objectaccess',
-      'accessmap',
-      'compare',
-      'myaccess',
-    ],
-    breakBefore: ['assigned'],
+    tools: ['access', 'permissions', 'groups', 'objectaccess', 'compare'],
+    breakBefore: ['objectaccess'],
   },
   { id: 'org', label: 'Org', icon: '◈', tools: ['company', 'health', 'limits', 'apps', 'audit'] },
   { id: 'protect', label: 'Data protection', icon: '⛁', tools: ['backup', 'lifecycle'] },
   { id: 'between', label: 'Org to org', icon: '⇋', tools: ['migrate', 'orgdiff', 'orgaccess', 'orgapps'] },
   // The app's own: your orgs, your AI, your project, and what you did with NomadSF (in every org)
-  { id: 'settings', label: 'Settings', icon: '⚙', tools: ['settings', 'settingsai', 'settingsproject', 'activity'] },
+  {
+    id: 'settings',
+    label: 'Settings',
+    icon: '⚙',
+    tools: ['settings', 'settingsai', 'settingsproject', 'myaccess', 'activity'],
+  },
 ];
 
 /** Old page ids (links from the popup, VS Code, bookmarks) still open the right tool. */
-const ALIASES: Record<string, ToolId> = { limits: 'limits' };
+const ALIASES: Record<string, ToolId> = {
+  limits: 'limits',
+  // Permission sets, Permissions and Assigned users are one tool now (Access sets); Overview went
+  permsets: 'permissions',
+  assigned: 'permissions',
+  custperms: 'permissions',
+  accessmap: 'access',
+};
 
-export const toolOf = (id: string): Tool | undefined => TOOLS.find((t) => t.id === (ALIASES[id] ?? id));
+/** A tool id as it is now (an old one from a link or a saved layout → the tool that took it over). */
+export const canonicalTool = (id: string): string => ALIASES[id] ?? id;
+export const toolOf = (id: string): Tool | undefined => TOOLS.find((t) => t.id === canonicalTool(id));
 
 /** The guide's section for a tool (the website, docs/guide.html). */
 const GUIDE = 'https://faridmasjedi.github.io/plugin-fm/guide.html';
@@ -200,7 +195,9 @@ export function useWorkspace(initial: ToolId) {
     // A link (#code, #query…) opens in the active pane
     const active = Math.min(base.active, base.panes.length - 1);
     const panes = base.panes.map((p, i) =>
-      i === active && initial !== p.tool && location.hash ? { ...p, tool: initial } : p
+      i === active && initial !== p.tool && location.hash
+        ? { ...p, tool: initial }
+        : { ...p, tool: canonicalTool(p.tool) as ToolId }
     );
     return { ...base, panes, active };
   });

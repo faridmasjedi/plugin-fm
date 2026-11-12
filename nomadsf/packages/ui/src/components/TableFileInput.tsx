@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Select } from './Select';
 import { readTableFile, type FileTable } from '@nomadsf/core';
 
 /**
@@ -49,7 +50,7 @@ export function TableFileInput({
       {file && file.tables.length > 1 && (
         <label>
           Sheet
-          <select
+          <Select
             value={sheet}
             onChange={(e) => {
               const t = file.tables.find((x) => x.name === e.target.value);
@@ -63,7 +64,7 @@ export function TableFileInput({
                 {t.name} ({t.rows.length})
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       )}
     </>

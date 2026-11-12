@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Select } from './Select';
 import { parseLog } from '@nomadsf/core';
 import { DataTable } from './DataTable';
 import { CodeEditor } from './CodeEditor';
@@ -76,12 +77,12 @@ export function LogViewer({ log, name = 'apex-log' }: { log: string; name?: stri
       )}
       {tab === 'events' && (
         <>
-          <select value={eventType} onChange={(e) => setEventType(e.target.value)}>
+          <Select value={eventType} onChange={(e) => setEventType(e.target.value)}>
             <option value="">All event types</option>
             {types.map((t) => (
               <option key={t}>{t}</option>
             ))}
-          </select>
+          </Select>
           <DataTable
             name={`${name}-events`}
             columns={['time', 'ms', 'type', 'line', 'details']}

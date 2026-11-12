@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Select } from '../components/Select';
 import {
   backupCandidates,
   MAX_UPLOAD_MB,
@@ -686,7 +687,7 @@ export function MigratePage({
             <>
               <label>
                 Backup
-                <select
+                <Select
                   value={source.jobId}
                   onChange={(e) => setSource({ kind: 'backup', jobId: e.target.value, folder: '' })}
                 >
@@ -695,23 +696,23 @@ export function MigratePage({
                       {j.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label>
                 As of run
-                <select value={source.folder} onChange={(e) => setSource({ ...source, folder: e.target.value })}>
+                <Select value={source.folder} onChange={(e) => setSource({ ...source, folder: e.target.value })}>
                   <option value="">Choose…</option>
                   {[...backupRuns].reverse().map((r) => (
                     <option key={r}>{r}</option>
                   ))}
-                </select>
+                </Select>
               </label>
             </>
           )}
           {source.kind !== 'org' && (
             <label>
               B — copy into
-              <select value={pair.b !== pair.a ? pair.b : ''} onChange={(e) => setPair({ ...pair, b: e.target.value })}>
+              <Select value={pair.b !== pair.a ? pair.b : ''} onChange={(e) => setPair({ ...pair, b: e.target.value })}>
                 <option value="">Choose the org…</option>
                 {orgs.map((o) => (
                   <option key={o.id} value={o.id}>
@@ -719,7 +720,7 @@ export function MigratePage({
                     {o.type ? ` — ${o.type}` : ''}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           )}
           {facts.target && (
@@ -830,7 +831,7 @@ export function MigratePage({
           renderActions={(o) =>
             isChosen(o.name) && (
               <>
-                <select
+                <Select
                   className="records-choice"
                   title="Which records of this object are copied"
                   value={
@@ -850,7 +851,7 @@ export function MigratePage({
                   <option value="all">All{source.kind === 'org' ? ' (or condition)' : ''}</option>
                   <option value="related">Related only</option>
                   <option value="referenced">Only those pointed to</option>
-                </select>
+                </Select>
                 <button
                   className="link"
                   onClick={() => setOpen(open === `children:${o.name}` ? '' : `children:${o.name}`)}
@@ -1116,7 +1117,7 @@ export function MigratePage({
                             <span className="muted">copy the objects it points to</span>
                           ) : (
                             <span className="link-fix">
-                              <select
+                              <Select
                                 value={matchRules[l.to] ?? 'none'}
                                 onChange={(e) => setMatchRules((x) => ({ ...x, [l.to]: e.target.value }))}
                               >
@@ -1127,7 +1128,7 @@ export function MigratePage({
                                     Same {field} in the target
                                   </option>
                                 ))}
-                              </select>
+                              </Select>
                               <button className="link" onClick={() => addReferenced(l.to)}>
                                 or copy these {l.to} records
                               </button>

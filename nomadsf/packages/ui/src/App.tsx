@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Select } from './components/Select';
 import { getUserInfo, type SalesforceClient, type UserInfo } from '@nomadsf/core';
 import { detectHost, openInOrg, orgFacts, type OrgChoice, type OrgFacts } from './host';
 import { useBusy } from './busy';
@@ -10,19 +11,12 @@ import { ExecutePage } from './pages/ExecutePage';
 import { LogsPage } from './pages/LogsPage';
 import { QueryPage } from './pages/QueryPage';
 import { DataPage } from './pages/DataPage';
-import {
-  AssignedUsersPage,
-  ComparePage,
-  LoginsAuditPage,
-  PermissionSetsPage,
-  PermissionsPage,
-  UsersPage,
-} from './pages/AccessPage';
-import { AccessOverviewPage, MyAccessPage, ObjectAccessPage } from './pages/AccessReportsPage';
+import { AccessSetsPage, ComparePage, LoginsAuditPage, UsersPage } from './pages/AccessPage';
+import { MyAccessPage, ObjectAccessPage } from './pages/AccessReportsPage';
 import { AccessNote } from './toolAccess';
 import { CompanyPage } from './pages/CompanyPage';
 import { CsvComparePage } from './pages/CsvComparePage';
-import { CustomPermissionsPage, GroupsPage } from './pages/AccessManagePages';
+import { GroupsPage } from './pages/AccessManagePages';
 import { SchemaPage } from './pages/SchemaPage';
 import { AutomationPage } from './pages/AutomationPage';
 import { DeploymentsPage } from './pages/DeploymentsPage';
@@ -53,7 +47,7 @@ import { ProjectStateContext, useProjectState } from './project';
 import { PairContext, type OrgPair } from './pair';
 import { OrgAccessPage } from './pages/OrgAccessPage';
 import { OrgAppsPage } from './pages/OrgAppsPage';
-import { HubNav, OPEN_JUMP, Panes, QuickJump, isTool, useWorkspace, type ToolId } from './workspace';
+import { HubNav, OPEN_JUMP, Panes, QuickJump, canonicalTool, isTool, useWorkspace, type ToolId } from './workspace';
 
 const host = detectHost();
 // Pages of the NomadSF CLI app (CLI orgs, AI settings) only make sense inside the extension
@@ -74,7 +68,7 @@ export function App() {
       if (fromHash === 'query' && value) storage.set('query.soql', decodeURIComponent(value));
       if (fromHash === 'record') return 'record';
       const stored = storage.get<string>('studio.page', 'apex');
-      return isTool(fromHash) ? fromHash : isTool(stored) ? stored : 'apex';
+      return (isTool(fromHash) ? canonicalTool(fromHash) : isTool(stored) ? canonicalTool(stored) : 'apex') as ToolId;
     })()
   );
   const page = ws.panes[ws.active]?.tool ?? 'apex';
@@ -319,13 +313,9 @@ export function App() {
               {tool === 'data' && <DataPage />}
               {tool === 'csvcompare' && <CsvComparePage />}
               {tool === 'access' && <UsersPage />}
-              {tool === 'permsets' && <PermissionSetsPage />}
-              {tool === 'permissions' && <PermissionsPage />}
-              {tool === 'assigned' && <AssignedUsersPage />}
+              {tool === 'permissions' && <AccessSetsPage />}
               {tool === 'groups' && <GroupsPage />}
-              {tool === 'custperms' && <CustomPermissionsPage />}
               {tool === 'compare' && <ComparePage />}
-              {tool === 'accessmap' && <AccessOverviewPage />}
               {tool === 'objectaccess' && <ObjectAccessPage />}
               {tool === 'audit' && <LoginsAuditPage />}
               {tool === 'myaccess' && <MyAccessPage />}
@@ -368,14 +358,14 @@ export function App() {
             NomadSF <span className="muted">Studio</span>
           </div>
           {orgs.length > 1 || host.kind !== 'extension' ? (
-            <select value={orgId} onChange={(e) => switchOrg(e.target.value)} title="Org (change it in Settings too)">
+            <Select value={orgId} onChange={(e) => switchOrg(e.target.value)} title="Org (change it in Settings too)">
               {orgs.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.label}
                   {o.type ? ` — ${o.type}` : ''}
                 </option>
               ))}
-            </select>
+            </Select>
           ) : (
             <span className="org-name">{org?.label}</span>
           )}

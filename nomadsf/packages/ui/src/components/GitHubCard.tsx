@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Select } from './Select';
 import {
   finishDeviceFlow,
   githubUser,
@@ -21,7 +22,6 @@ export function GitHubCard({ hostKind, embedded = false }: { hostKind: HostKind;
   const [connection, setConnection] = useState<GitHubConnection & { login: string }>();
   const [checking, setChecking] = useState(true);
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
-  const [filter, setFilter] = useState('');
   const [repo, setRepo] = useState(lastRepo.get()?.fullName ?? '');
   const [branches, setBranches] = useState<string[]>([]);
   const [ref, setRef] = useState(lastRepo.get()?.ref ?? '');
@@ -109,7 +109,7 @@ export function GitHubCard({ hostKind, embedded = false }: { hostKind: HostKind;
     await connect();
   };
 
-  const shown = repos.filter((r) => r.fullName.toLowerCase().includes(filter.toLowerCase())).slice(0, 200);
+  const shown = repos;
 
   return (
     <div className={embedded ? 'project-source' : 'card section'}>
@@ -131,12 +131,7 @@ export function GitHubCard({ hostKind, embedded = false }: { hostKind: HostKind;
             )}
           </p>
           <div className="form">
-            <input
-              placeholder={`Filter ${repos.length} repositories`}
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-            />
-            <select value={repo} onChange={(e) => setRepo(e.target.value)} style={{ maxWidth: 320 }}>
+            <Select value={repo} onChange={(e) => setRepo(e.target.value)} style={{ maxWidth: 320 }}>
               <option value="">Choose a repository…</option>
               {shown.map((r) => (
                 <option key={r.fullName} value={r.fullName}>
@@ -144,12 +139,12 @@ export function GitHubCard({ hostKind, embedded = false }: { hostKind: HostKind;
                   {r.private ? ' 🔒' : ''}
                 </option>
               ))}
-            </select>
-            <select value={ref} onChange={(e) => setRef(e.target.value)} disabled={!branches.length}>
+            </Select>
+            <Select value={ref} onChange={(e) => setRef(e.target.value)} disabled={!branches.length}>
               {branches.map((b) => (
                 <option key={b}>{b}</option>
               ))}
-            </select>
+            </Select>
             <button
               className={project.source?.kind === 'github' ? '' : 'primary'}
               disabled={!repo || !ref || project.loading}

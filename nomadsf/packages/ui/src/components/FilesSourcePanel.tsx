@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
+import { ComboInput } from './ComboInput';
 import {
   describeData,
   describeGlobal,
@@ -8,7 +9,7 @@ import {
   type FileTable,
   type SalesforceClient,
 } from '@nomadsf/core';
-import { ObjectOptions } from './ObjectOptions';
+import { objectChoices } from './ObjectOptions';
 import { Status } from '../statusLog';
 
 /**
@@ -187,14 +188,13 @@ export function FilesSourcePanel({
                       : `${picked(t).length.toLocaleString()} of ${t.rows.length.toLocaleString()}`}
                   </td>
                   <td>
-                    <input
-                      list={`files-objects-${t.name}`}
+                    <ComboInput
+                      options={objectChoices(objects)}
                       placeholder="skip"
                       value={match[t.name] ?? ''}
                       onChange={(e) => setMatch({ ...match, [t.name]: e.target.value })}
                       className={loaded && match[t.name] && !known(match[t.name]) ? 'bad-input' : ''}
                     />
-                    <ObjectOptions id={`files-objects-${t.name}`} objects={objects} typed={match[t.name] ?? ''} />
                   </td>
                   <td className="muted">
                     {t.columns.some((c) => c.toLowerCase() === 'id')

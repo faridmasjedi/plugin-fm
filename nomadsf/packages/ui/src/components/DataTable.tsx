@@ -1,4 +1,5 @@
 import { useContext, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Select } from './Select';
 import { InspectContext } from '../context';
 import { useRegisterTable } from '../pageTables';
 import { CopyId } from './CopyId';
@@ -50,6 +51,8 @@ export type DataTableProps = {
   renderCell?: (column: string, row: Row) => ReactNode | undefined;
   /** Rows of the same value of this column (a metadata type) under one line you open, like a dropdown. */
   groupBy?: string;
+  /** A list to choose from (test classes…): no Filters, Copy, CSV or JSON — the page has its own search. */
+  picker?: boolean;
 };
 
 /** A column's values offered in a filter's dropdown: at most this many (the box still takes anything typed). */
@@ -72,6 +75,7 @@ export function DataTable({
   selected,
   onSelectedChange,
   groupBy,
+  picker,
 }: DataTableProps) {
   const inspect = useContext(InspectContext);
   const listId = useId();
@@ -326,7 +330,7 @@ export function DataTable({
         <span className="muted dt-count">
           {visible.length.toLocaleString()} of {rows.length.toLocaleString()} rows {note}
         </span>
-        <span className="dt-actions">
+        <span className="dt-actions" hidden={picker}>
           <button
             className={`dt-filters-toggle ${panel || active ? 'active' : ''}`}
             title="Filter: choose a column, then type or choose a value"
@@ -372,14 +376,14 @@ export function DataTable({
             {conditions.map((c, i) => (
               <div key={i} className="dt-condition">
                 <div className="dt-condition-row">
-                  <select value={c.column} onChange={(e) => setCondition(i, { column: e.target.value, value: '' })}>
+                  <Select value={c.column} onChange={(e) => setCondition(i, { column: e.target.value, value: '' })}>
                     <option value="">Any column</option>
                     {columns.map((col, ci) => (
                       <option key={`${ci}:${col}`} value={col}>
                         {col}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                   <button
                     className="link"
                     title="Remove this filter"
@@ -409,11 +413,11 @@ export function DataTable({
             {selectable && (
               <label>
                 <span>Ticked</span>
-                <select value={ticked} onChange={(e) => setTicked(e.target.value as typeof ticked)}>
+                <Select value={ticked} onChange={(e) => setTicked(e.target.value as typeof ticked)}>
                   <option value="all">All rows</option>
                   <option value="ticked">Ticked only ({selected!.size})</option>
                   <option value="unticked">Not ticked</option>
-                </select>
+                </Select>
               </label>
             )}
             <p className="muted small">Plain text finds rows that contain it · =exact · !not · &gt;10 · &lt;5</p>

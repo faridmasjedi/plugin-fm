@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { Select } from './Select';
 import type { Row } from '@nomadsf/core';
 import { useStudio } from '../context';
 import { DataTable, EmptyHint } from './DataTable';
@@ -48,7 +49,6 @@ export function ManagedList({
 }) {
   const { org, confirmChange, logActivity } = useStudio();
   const [adding, setAdding] = useState('');
-  const [filter, setFilter] = useState('');
   const [kind, setKind] = useState(kinds?.[0] ?? '');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -69,10 +69,7 @@ export function ManagedList({
     }
   };
 
-  const needle = filter.trim().toLowerCase();
-  const shownChoices = (choices ?? []).filter(
-    (c) => (!kinds || c.kind === kind) && (!needle || `${c.label} ${c.detail ?? ''}`.toLowerCase().includes(needle))
-  );
+  const shownChoices = (choices ?? []).filter((c) => !kinds || c.kind === kind);
   // "an Apex class", "a user"
   const article = (w: string): string => (/^([aeio]|u(?!s))/i.test(w) ? 'an' : 'a');
   const adding_what = kinds ? kind.toLowerCase() : what;
@@ -112,7 +109,7 @@ export function ManagedList({
       {onAdd && (
         <div className="form">
           {kinds && (
-            <select
+            <Select
               value={kind}
               onChange={(e) => {
                 setKind(e.target.value);
@@ -123,15 +120,9 @@ export function ManagedList({
               {kinds.map((k) => (
                 <option key={k}>{k}</option>
               ))}
-            </select>
+            </Select>
           )}
-          <input
-            placeholder={`Filter ${shownChoices.length}`}
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            style={{ width: 140 }}
-          />
-          <select value={adding} onChange={(e) => setAdding(e.target.value)} style={{ minWidth: 300 }}>
+          <Select value={adding} onChange={(e) => setAdding(e.target.value)} style={{ minWidth: 300 }}>
             <option value="">
               {kinds ? `Choose ${article(adding_what)} ${adding_what}` : addLabel ?? `Add ${article(what)} ${what}`} (
               {shownChoices.length})…
@@ -142,7 +133,7 @@ export function ManagedList({
                 {c.detail ? ` — ${c.detail}` : ''}
               </option>
             ))}
-          </select>
+          </Select>
           <button
             disabled={!adding || busy}
             onClick={() => {

@@ -1,34 +1,15 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import {
-  assignAccess,
-  assignments,
-  auditTrail,
-  findUsers,
-  listPermissionSets,
-  loginHistory,
-  removeAccess,
-  type AccessTarget,
-  type QueryResult,
-  type Row,
-} from '@nomadsf/core';
-import { TableTabs } from '../components/TableTabs';
+import { useState, type ReactNode } from 'react';
+import { Select } from '../components/Select';
+import { auditTrail, loginHistory, type QueryResult } from '@nomadsf/core';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { PermissionsExplorer } from '../components/PermissionsExplorer';
+import { UserSnapshot } from '../components/UserSnapshot';
 import { UserEditor } from '../components/UserEditor';
 import { WhoHasIt } from '../components/WhoHasIt';
 import { CompareAccess } from '../components/CompareAccess';
 import { storage, useStudio } from '../context';
-import { NewPermissionSet } from './AccessManagePages';
+import { NewCustomPermissionBox, NewPermissionSet } from './AccessManagePages';
 import { Status } from '../statusLog';
-
-type By = 'names' | 'usernames' | 'profile' | 'role' | 'publicGroup';
-const BY_LABEL: Record<By, string> = {
-  names: 'Names (all or part of a name, comma or new line: Ann, Bob Ray)',
-  usernames: 'Usernames (comma or new line)',
-  profile: 'Profile name',
-  role: 'Role name',
-  publicGroup: 'Public group (API or label name)',
-};
 
 /** A tool of the Access hub: its title, what it is about, then the tool. */
 function AccessTool({ title, about, children }: { title: string; about: string; children: ReactNode }) {
@@ -46,29 +27,74 @@ function AccessTool({ title, about, children }: { title: string; about: string; 
   );
 }
 
-/** Access › Users: find a user, edit them, and everything they have. */
+type UsersTab = 'find' | 'snapshot' | 'holders';
+
+/** Access › Users: find a user, edit them and everything they have; or restore one from a snapshot file. */
 export function UsersPage() {
+  const [tab, setTab] = useState<UsersTab>(() => storage.get<UsersTab>('users.page', 'find'));
+  const pick = (t: UsersTab) => {
+    setTab(t);
+    storage.set('users.page', t);
+  };
   return (
     <AccessTool title="Users" about="a user and everything they have">
-      <UserEditor />
+      <div className="tabs" role="tablist">
+        {(
+          [
+            ['find', 'Find a user'],
+            ['snapshot', 'Restore from a snapshot'],
+            ['holders', 'Users of a role, license or group'],
+          ] as Array<[UsersTab, string]>
+        ).map(([id, label]) => (
+          <button key={id} role="tab" className={`tab ${tab === id ? 'active' : ''}`} onClick={() => pick(id)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === 'find' && <UserEditor />}
+      {tab === 'snapshot' && <UserSnapshot />}
+      {/* Profiles, permission sets and groups show their users in Access sets */}
+      {tab === 'holders' && <WhoHasIt kinds={['role', 'license', 'publicGroup', 'queue']} />}
     </AccessTool>
   );
 }
 
-/** Access › Permissions: what a profile, permission set or group allows (and editing it). */
-export function PermissionsPage() {
+/**
+ * Access › Access sets: a profile, permission set or permission set group in one place: what it allows (and editing
+ * it), who has it, and assigning it. Creating a permission set or group starts here too.
+ */
+export function AccessSetsPage() {
+  const [created, setCreated] = useState(0);
+  const [newKind, setNewKind] = useState<'set' | 'custom'>('set');
   return (
-    <AccessTool title="Permissions" about="what a profile, permission set or group allows">
-      <PermissionsExplorer />
-    </AccessTool>
-  );
-}
-
-/** Access › Assigned users. */
-export function AssignedUsersPage() {
-  return (
-    <AccessTool title="Assigned users" about="the users of a permission set, group, license, profile, role or queue">
-      <WhoHasIt />
+    <AccessTool
+      title="Access sets"
+      about="profiles, permission sets, groups and custom permissions: what each allows, who has it"
+    >
+      {/* Creating one is its own job: a box of its own, closed until you open it */}
+      <details className="card section create-box">
+        <summary>
+          <b>+ New permission set, group or custom permission</b>
+        </summary>
+        <div className="segmented" role="group" aria-label="New">
+          {(
+            [
+              ['set', 'Permission set or group'],
+              ['custom', 'Custom permission'],
+            ] as const
+          ).map(([id, label]) => (
+            <button key={id} className={newKind === id ? 'active' : ''} onClick={() => setNewKind(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {newKind === 'set' ? (
+          <NewPermissionSet onCreated={() => setCreated((n) => n + 1)} />
+        ) : (
+          <NewCustomPermissionBox onCreated={() => setCreated((n) => n + 1)} />
+        )}
+      </details>
+      <PermissionsExplorer reloadKey={created} />
     </AccessTool>
   );
 }
@@ -131,13 +157,13 @@ export function LoginsAuditPage() {
             <h3 style={{ margin: 0, width: '100%' }}>Login history</h3>
             <label>
               Last
-              <select value={loginDays} onChange={(e) => setLoginDays(Number(e.target.value))}>
+              <Select value={loginDays} onChange={(e) => setLoginDays(Number(e.target.value))}>
                 {[1, 7, 30, 90, 180].map((d) => (
                   <option key={d} value={d}>
                     {d} day(s)
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <button
               className="primary"
@@ -168,13 +194,13 @@ export function LoginsAuditPage() {
             <h3 style={{ margin: 0, width: '100%' }}>Setup audit trail</h3>
             <label>
               Last
-              <select value={auditDays} onChange={(e) => setAuditDays(Number(e.target.value))}>
+              <Select value={auditDays} onChange={(e) => setAuditDays(Number(e.target.value))}>
                 {[7, 30, 90, 180].map((d) => (
                   <option key={d} value={d}>
                     {d} days
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <button
               className="primary"
@@ -199,223 +225,6 @@ export function LoginsAuditPage() {
           )}
         </>
       )}
-    </AccessTool>
-  );
-}
-
-/** Access › Permission sets & groups: who has one, assign it to users, remove it. */
-export function PermissionSetsPage() {
-  const { client, org, confirmChange, logActivity } = useStudio();
-
-  // ---------- permission sets ----------
-  const [targets, setTargets] = useState<AccessTarget[]>([]);
-  const [targetId, setTargetId] = useState('');
-  const [assigned, setAssigned] = useState<QueryResult | null>(null);
-  const [assignedSel, setAssignedSel] = useState<Set<string>>(new Set());
-  const [by, setBy] = useState<By>('names');
-  const [value, setValue] = useState('');
-  const [expires, setExpires] = useState('');
-  const [users, setUsers] = useState<Row[]>([]);
-  const [userSel, setUserSel] = useState<Set<string>>(new Set());
-  const [status, setStatus] = useState('');
-
-  const reloadTargets = () =>
-    listPermissionSets(client)
-      .then(setTargets)
-      .catch((e: Error) => setStatus(`❌ ${e.message}`));
-  useEffect(() => {
-    void reloadTargets();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client]);
-  const target = targets.find((t) => t.id === targetId);
-
-  const loadAssigned = async (t = target) => {
-    if (!t) return;
-    try {
-      setAssigned(await assignments(client, t));
-      setAssignedSel(new Set());
-    } catch (e) {
-      setStatus(`❌ ${(e as Error).message}`);
-    }
-  };
-  // Reload the assignees whenever another permission set is chosen
-  useEffect(() => {
-    void loadAssigned();
-  }, [targetId]);
-
-  const find = async () => {
-    try {
-      const list = await findUsers(
-        client,
-        by === 'usernames'
-          ? { usernames: value.split(/[\s,;]+/).filter(Boolean) }
-          : by === 'names'
-          ? { names: value.split(/[,;\n]+/).filter((n) => n.trim()) }
-          : { [by]: value.trim() }
-      );
-      setUsers(list);
-      setUserSel(new Set(list.map((u) => String(u.Id))));
-      setStatus(`${list.length} active user(s) found.`);
-    } catch (e) {
-      setStatus(`❌ ${(e as Error).message}`);
-    }
-  };
-
-  const assign = async () => {
-    if (!target || userSel.size === 0) return;
-    if (!(await confirmChange(`Assign "${target.label}" to ${userSel.size} user(s) in ${org.label}.`))) return;
-    try {
-      const r = await assignAccess(client, target, [...userSel], expires || undefined);
-      setStatus(
-        `Assigned ${r.assigned}, already had it ${r.skipped}.${
-          r.errors.length ? ` Errors: ${r.errors.join('; ')}` : ''
-        }`
-      );
-      logActivity('assign-access', {
-        target: target.name,
-        kind: target.kind,
-        assigned: r.assigned,
-        skipped: r.skipped,
-        errors: r.errors.length,
-      });
-      await loadAssigned();
-    } catch (e) {
-      setStatus(`❌ ${(e as Error).message}`);
-    }
-  };
-
-  const remove = async () => {
-    if (!target || assignedSel.size === 0) return;
-    if (!(await confirmChange(`Remove "${target.label}" from ${assignedSel.size} user(s) in ${org.label}.`))) return;
-    try {
-      const r = await removeAccess(client, [...assignedSel]);
-      setStatus(`Removed ${r.removed}.${r.errors.length ? ` Errors: ${r.errors.join('; ')}` : ''}`);
-      logActivity('remove-access', {
-        target: target.name,
-        kind: target.kind,
-        removed: r.removed,
-        errors: r.errors.length,
-      });
-      await loadAssigned();
-    } catch (e) {
-      setStatus(`❌ ${(e as Error).message}`);
-    }
-  };
-
-  return (
-    <AccessTool title="Permission sets & groups" about="who has one, assign it, remove it">
-      {/* Creating one is its own job: a box of its own, closed until you open it */}
-      <details className="card section create-box">
-        <summary>
-          <b>+ New permission set or group</b>{' '}
-          <span className="muted">a permission set, or a group of permission sets</span>
-        </summary>
-        <NewPermissionSet onCreated={() => void reloadTargets()} />
-      </details>
-      <div className="card section">
-        <h3>Permission sets &amp; groups</h3>
-        <DataTable
-          columns={['label', 'name', 'kind']}
-          rows={targets.map((t) => ({
-            key: t.id,
-            label: t.label,
-            name: t.name,
-            kind: t.kind === 'group' ? 'Permission set group' : 'Permission set',
-          }))}
-          rowKey="key"
-          name={`${org.label}-permission-sets`}
-          groupBy="kind"
-          selectedKey={targetId}
-          onRowClick={(row) => setTargetId(String(row.key))}
-          note={<span>· click one to see who has it, or to assign it</span>}
-        />
-        <Status text={status} block />
-        {target && (
-          <TableTabs
-            key={target.id}
-            title={
-              <>
-                {target.kind === 'group' ? '▣ ' : ''}
-                {target.label} <span className="muted">({target.name})</span>
-              </>
-            }
-            tabs={[
-              {
-                id: 'assigned',
-                label: 'Assigned',
-                count: assigned?.rows.length ?? 0,
-                content: (
-                  <div className="section">
-                    {assigned && (
-                      <DataTable
-                        columns={[
-                          'Assignee.Name',
-                          'Assignee.Username',
-                          'Assignee.Profile.Name',
-                          'Assignee.IsActive',
-                          'ExpirationDate',
-                        ]}
-                        rows={assigned.rows}
-                        name={`${target.name}-assignments`}
-                        selected={assignedSel}
-                        onSelectedChange={setAssignedSel}
-                      />
-                    )}
-                    <div className="form">
-                      <button className="danger" disabled={assignedSel.size === 0} onClick={() => void remove()}>
-                        Remove {assignedSel.size || ''} selected…
-                      </button>
-                    </div>
-                  </div>
-                ),
-              },
-              {
-                id: 'assign',
-                label: 'Assign to users',
-                content: (
-                  <div className="section">
-                    <div className="form">
-                      <label>
-                        Find users by
-                        <select value={by} onChange={(e) => setBy(e.target.value as By)}>
-                          {(Object.keys(BY_LABEL) as By[]).map((b) => (
-                            <option key={b} value={b}>
-                              {BY_LABEL[b].split(' (')[0]}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        Expires (optional)
-                        <input type="date" value={expires} onChange={(e) => setExpires(e.target.value)} />
-                      </label>
-                    </div>
-                    <label className="muted" style={{ fontSize: 12.5 }}>
-                      {BY_LABEL[by]}
-                      <textarea rows={2} value={value} onChange={(e) => setValue(e.target.value)} />
-                    </label>
-                    <div className="form">
-                      <button onClick={() => void find()}>Find users</button>
-                      <button className="primary" disabled={userSel.size === 0} onClick={() => void assign()}>
-                        Assign to {userSel.size || ''} selected…
-                      </button>
-                    </div>
-                    {users.length > 0 && (
-                      <DataTable
-                        columns={['Name', 'Username', 'Profile.Name']}
-                        rows={users}
-                        name="users"
-                        selected={userSel}
-                        onSelectedChange={setUserSel}
-                      />
-                    )}
-                  </div>
-                ),
-              },
-            ]}
-          />
-        )}
-      </div>
     </AccessTool>
   );
 }

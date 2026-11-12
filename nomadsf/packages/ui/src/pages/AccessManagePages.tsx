@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Select } from '../components/Select';
 import {
   SETUP_KINDS,
   addGroupMembers,
@@ -9,6 +10,7 @@ import {
   createCustomPermission,
   createPermissionSet,
   customPermissionHolders,
+  customPermissionUsers,
   grantSetupAccess,
   listGroupMembers,
   opensMembers,
@@ -119,11 +121,11 @@ export function GroupsPage() {
         <h2>Groups &amp; queues</h2>
         <span className="muted">public groups and queues, and who is in them</span>
         <span className="grow" />
-        <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+        <Select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
           <option value="all">Groups and queues</option>
           <option value="Public group">Public groups</option>
           <option value="Queue">Queues</option>
-        </select>
+        </Select>
       </div>
       {status && <Status text={status} block />}
       {!groups ? (
@@ -245,95 +247,124 @@ function MemberNode({ member, path, root }: { member: GroupMemberRow; path: stri
 
 // ---------- Access › Custom permissions ----------
 
-/** Custom permissions: which permission sets, profiles and groups give each one; grant or remove it. */
-export function CustomPermissionsPage() {
+/**
+ * Access sets › Custom permissions: choose one, then who gives it (grant it to a permission set or profile, or take it
+ * away) and the users who have it.
+ */
+export function CustomPermissionPanel({ chosen }: { chosen: SetupEntity }) {
   const { client } = useStudio();
-  const [list, setList] = useState<SetupEntity[] | null>(null);
-  const [chosen, setChosen] = useState<SetupEntity | null>(null);
+  const chosenId = chosen.id;
   const [holders, setHolders] = useState<Row[] | null>(null);
+  const [users, setUsers] = useState<Row[] | null>(null);
   const [all, setAll] = useState<PermissionHolder[] | null>(null);
+  const [tab, setTab] = useState<'given' | 'users'>('given');
   const [status, setStatus] = useState('');
 
-  const loadList = () =>
-    setupEntities(client, 'CustomPermission')
-      .then(setList)
-      .catch((e: Error) => setStatus(`❌ ${e.message}`));
   useEffect(() => {
-    setList(null);
-    setChosen(null);
-    void loadList();
     permissionHolders(client)
       .then(setAll)
       .catch(() => undefined);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client]);
   const load = (id: string) => {
     setHolders(null);
+    setUsers(null);
     customPermissionHolders(client, id)
       .then(setHolders)
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
+    customPermissionUsers(client, id)
+      .then(setUsers)
+      .catch((e: Error) => setStatus(`❌ ${e.message}`));
   };
   useEffect(() => {
-    if (chosen) load(chosen.id);
+    if (chosenId) load(chosenId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, chosen]);
+  }, [client, chosenId]);
 
   return (
-    <div className="page">
-      <div className="toolbar">
-        <h2>Custom permissions</h2>
-        <span className="muted">who gives each one; grant it to a permission set or profile</span>
-      </div>
-      <NewCustomPermission holders={all ?? []} onCreated={() => void loadList()} />
+    <>
       {status && <Status text={status} block />}
-      {!list ? (
-        <p className="muted">Reading…</p>
-      ) : list.length === 0 ? (
-        <EmptyHint what="custom permissions" />
-      ) : (
-        <DataTable
-          columns={['label', 'name', 'namespace']}
-          rows={list}
-          rowKey="id"
-          name="custom-permissions"
-          selectedKey={chosen?.id}
-          onRowClick={(r) => setChosen(list.find((c) => c.id === r.id) ?? null)}
-          note={<span>· click one for who has it</span>}
-        />
-      )}
       {chosen && (
-        <div className="card section">
-          <h3>
-            {chosen.label} <span className="muted mono">{chosen.name}</span>
-          </h3>
-          {!holders ? (
-            <p className="muted">Reading…</p>
-          ) : (
-            <ManagedList
-              rows={holders}
-              columns={['Name', 'Kind']}
-              what="grant"
-              removeKey="AccessId"
-              onRemove={async (r) => fail(await revokeSetupAccess(client, [String(r.AccessId)]))}
-              choices={(all ?? [])
-                .filter((h) => h.kind !== 'Permission set group')
-                .filter((h) => !holders.some((x) => String(x.PermissionSetId).slice(0, 15) === h.id.slice(0, 15)))
-                .map((h) => ({ id: h.id, label: h.name, detail: h.kind }))}
-              addLabel="Grant to a permission set or profile"
-              onAdd={async (c) => fail(await grantSetupAccess(client, c.id, [chosen.id]))}
-              onChanged={() => load(chosen.id)}
-            />
-          )}
-        </div>
+        <>
+          <div className="holder-bar">
+            <b>{chosen.label}</b>
+            <span className="pill">Custom permission</span>
+            <span className="muted mono">{chosen.name}</span>
+          </div>
+          <div className="tabs">
+            {(
+              [
+                ['given', `Given by${holders ? ` (${holders.length})` : ''}`],
+                ['users', `Users${users ? ` (${users.length})` : ''}`],
+              ] as const
+            ).map(([id, label]) => (
+              <button key={id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {tab === 'given' &&
+            (!holders ? (
+              <p className="muted">Reading…</p>
+            ) : (
+              <ManagedList
+                rows={holders}
+                columns={['Name', 'Kind']}
+                what="grant"
+                removeKey="AccessId"
+                onRemove={async (r) => fail(await revokeSetupAccess(client, [String(r.AccessId)]))}
+                choices={(all ?? [])
+                  .filter((h) => h.kind !== 'Permission set group')
+                  .filter((h) => !holders.some((x) => String(x.PermissionSetId).slice(0, 15) === h.id.slice(0, 15)))
+                  .map((h) => ({ id: h.id, label: h.name, detail: h.kind }))}
+                addLabel="Grant to a permission set or profile"
+                onAdd={async (c) => fail(await grantSetupAccess(client, c.id, [chosen.id]))}
+                onChanged={() => load(chosen.id)}
+              />
+            ))}
+          {tab === 'users' &&
+            (!users ? (
+              <p className="muted">Reading…</p>
+            ) : users.length === 0 ? (
+              <EmptyHint what="active users with it" />
+            ) : (
+              <DataTable
+                columns={['Name', 'Username', 'Profile', 'Through']}
+                rows={users}
+                rowKey="Id"
+                name={`${chosen.name}-users`}
+                note={<span>· active users, and what gives it to them</span>}
+              />
+            ))}
+        </>
       )}
-    </div>
+    </>
   );
 }
 
+/** The new custom permission box, with the permission sets and profiles to grant it to. */
+export function NewCustomPermissionBox({ onCreated }: { onCreated: () => void }) {
+  const { client } = useStudio();
+  const [all, setAll] = useState<PermissionHolder[]>([]);
+  useEffect(() => {
+    permissionHolders(client)
+      .then(setAll)
+      .catch(() => undefined);
+  }, [client]);
+  return <NewCustomPermission holders={all} onCreated={onCreated} startOpen />;
+}
+
 /** A new custom permission (deployed with the Metadata API), granted at once to the sets and profiles ticked. */
-function NewCustomPermission({ holders, onCreated }: { holders: PermissionHolder[]; onCreated: () => void }) {
+function NewCustomPermission({
+  holders,
+  onCreated,
+  startOpen = false,
+}: {
+  holders: PermissionHolder[];
+  onCreated: () => void;
+  startOpen?: boolean;
+}) {
   const { client, org, confirmChange, logActivity } = useStudio();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [label, setLabel] = useState('');
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
@@ -389,7 +420,7 @@ function NewCustomPermission({ holders, onCreated }: { holders: PermissionHolder
     );
   return (
     <div className="card section">
-      <h3>New custom permission</h3>
+      {!startOpen && <h3>New custom permission</h3>}
       <div className="form">
         <input placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
         <input
@@ -434,7 +465,7 @@ function NewCustomPermission({ holders, onCreated }: { holders: PermissionHolder
         ))}
       </div>
       <div className="form">
-        <button onClick={() => setOpen(false)}>Close</button>
+        {!startOpen && <button onClick={() => setOpen(false)}>Close</button>}
         <button className="primary" disabled={!label.trim() || !apiName} onClick={() => void create()}>
           Create…
         </button>
@@ -586,14 +617,14 @@ export function TabSettingsPanel({ permissionSetId, editable }: { permissionSetI
                 <td className="muted mono">{t.tab}</td>
                 <td>
                   {editable ? (
-                    <select
+                    <Select
                       value={t.visibility}
                       onChange={(e) => void change(t, e.target.value as TabSetting['visibility'])}
                     >
                       <option>Visible</option>
                       <option>Available</option>
                       <option>Hidden</option>
-                    </select>
+                    </Select>
                   ) : (
                     t.visibility
                   )}
@@ -760,10 +791,10 @@ export function NewPermissionSet({ onCreated }: { onCreated: () => void }) {
   };
   return (
     <div className="form">
-      <select value={group ? 'group' : 'set'} onChange={(e) => setGroup(e.target.value === 'group')}>
+      <Select value={group ? 'group' : 'set'} onChange={(e) => setGroup(e.target.value === 'group')}>
         <option value="set">New permission set</option>
         <option value="group">New permission set group</option>
-      </select>
+      </Select>
       <input placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
       <input
         className="mono"
@@ -1026,7 +1057,7 @@ export function LayoutsPanel({ profileId, editable }: { profileId: string; edita
             if (!r || !options.length) return undefined;
             const value = draft.get(key(r)) ?? r.layout;
             return (
-              <select
+              <Select
                 className={value !== r.layout ? 'changed' : ''}
                 value={value}
                 onChange={(e) => setDraft(new Map(draft).set(key(r), e.target.value))}
@@ -1036,7 +1067,7 @@ export function LayoutsPanel({ profileId, editable }: { profileId: string; edita
                     {l.slice(l.indexOf('-') + 1)}
                   </option>
                 ))}
-              </select>
+              </Select>
             );
           }}
         />

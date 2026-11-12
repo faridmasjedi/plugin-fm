@@ -34,3 +34,7 @@ export function ObjectOptions({ id, objects, typed }: { id: string; objects: Nam
     </datalist>
   );
 }
+
+/** Objects as choices of a ComboInput (name, with the label under it). */
+export const objectChoices = (objects: Named[]): Array<{ value: string; label?: string }> =>
+  objects.map((o) => ({ value: o.name, label: o.label }));

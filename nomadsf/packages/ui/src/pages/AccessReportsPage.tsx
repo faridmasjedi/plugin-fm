@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { POWER_PERMISSIONS, usersAccessMap, whoCanAccess, type Row } from '@nomadsf/core';
+import { Select } from '../components/Select';
+import { whoCanAccess, type Row } from '@nomadsf/core';
 import { TableTabs } from '../components/TableTabs';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { useAccessOf } from '../access';
@@ -8,71 +9,6 @@ import { NEEDS, permissionLabel, toolAccess } from '../toolAccess';
 import { TOOLS, hubOf, type ToolId } from '../workspace';
 import { Status } from '../statusLog';
 
-/** Access › Access overview: every user with what they have; filter any column, export it. */
-export function AccessOverviewPage() {
-  const { client, org } = useStudio();
-  const [activeOnly, setActiveOnly] = useState(true);
-  const [rows, setRows] = useState<Row[] | null>(null);
-  const [status, setStatus] = useState('');
-  const load = async () => {
-    setRows(null);
-    setStatus('Reading every user, their permission sets, groups and licenses…');
-    try {
-      setRows(await usersAccessMap(client, { activeOnly }));
-      setStatus('');
-    } catch (e) {
-      setStatus(`❌ ${(e as Error).message}`);
-    }
-  };
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, activeOnly]);
-  return (
-    <div className="page">
-      <div className="toolbar">
-        <h2>Access overview</h2>
-        <span className="muted">every user and what they have, on {org.label}</span>
-        <span className="grow" />
-        <label className="check">
-          <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Active users
-          only
-        </label>
-        <button onClick={() => void load()}>Refresh</button>
-      </div>
-      {status && <Status text={status} block />}
-      {rows &&
-        (rows.length === 0 ? (
-          <EmptyHint what="users" />
-        ) : (
-          <DataTable
-            columns={[
-              'Name',
-              'Username',
-              'Profile',
-              'Role',
-              'License',
-              'PermissionSets',
-              'Groups',
-              'PermissionSetLicenses',
-              ...POWER_PERMISSIONS.map(([, label]) => label),
-              'LastLogin',
-            ]}
-            rows={rows}
-            rowKey="Id"
-            name={`${org.label}-access-overview`}
-            note={
-              <span>
-                · filter a column with ✓ (e.g. Modify All Data) to see who has it · powerful permissions from the
-                profile, permission sets and groups together
-              </span>
-            }
-          />
-        ))}
-    </div>
-  );
-}
-
 /** Access › Object access: who can read, create, edit, delete an object (and read / edit a field), and through what. */
 export function ObjectAccessPage() {
   const { client, org } = useStudio();
@@ -80,7 +16,7 @@ export function ObjectAccessPage() {
   const [object, setObject] = useState<string>(() => storage.get('objectaccess.object', 'Account'));
   const [field, setField] = useState('');
   const [fields, setFields] = useState<Array<{ name: string; label: string }>>([]);
-  const [result, setResult] = useState<{ rows: Row[]; notes: string[] } | null>(null);
+  const [result, setResult] = useState<{ rows: Row[]; holders: Row[]; notes: string[] } | null>(null);
   const [status, setStatus] = useState('');
 
   useEffect(() => {
@@ -111,6 +47,30 @@ export function ObjectAccessPage() {
     }
   };
 
+  const usersTable = !result ? null : result.rows.length === 0 ? (
+    <EmptyHint what="users with access" />
+  ) : (
+    <DataTable
+      columns={[
+        'Name',
+        'Username',
+        'Profile',
+        'Read',
+        'Create',
+        'Edit',
+        'Delete',
+        'ViewAll',
+        'ModifyAll',
+        ...(field ? ['FieldRead', 'FieldEdit'] : []),
+        'Through',
+      ]}
+      rows={result.rows}
+      rowKey="Id"
+      name={`${org.label}-${object}${field ? `-${field}` : ''}-access`}
+      note={<span>· active users · {result.notes.join(' ')}</span>}
+    />
+  );
+
   return (
     <div className="page">
       <div className="toolbar">
@@ -120,60 +80,86 @@ export function ObjectAccessPage() {
       <div className="card form">
         <label>
           Object
-          <select value={object} onChange={(e) => setObject(e.target.value)} style={{ width: 320 }}>
+          <Select value={object} onChange={(e) => setObject(e.target.value)} style={{ width: 320 }}>
             {!objects.some((o) => o.name === object) && <option value={object}>{object}</option>}
             {objects.map((o) => (
               <option key={o.name} value={o.name}>
                 {o.label} ({o.name})
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label>
           Field (optional)
-          <select value={field} onChange={(e) => setField(e.target.value)} style={{ width: 320 }}>
+          <Select value={field} onChange={(e) => setField(e.target.value)} style={{ width: 320 }}>
             <option value="">—</option>
             {fields.map((f) => (
               <option key={f.name} value={f.name}>
                 {f.label} ({f.name})
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <button className="primary" onClick={() => void check()}>
           Show who
         </button>
         <Status text={status} />
       </div>
-      {result &&
-        (result.rows.length === 0 ? (
-          <EmptyHint what="users with access" />
-        ) : (
-          <DataTable
-            columns={[
-              'Name',
-              'Username',
-              'Profile',
-              'Read',
-              'Create',
-              'Edit',
-              'Delete',
-              'ViewAll',
-              'ModifyAll',
-              ...(field ? ['FieldRead', 'FieldEdit'] : []),
-              'Through',
-            ]}
-            rows={result.rows}
-            rowKey="Id"
-            name={`${org.label}-${object}${field ? `-${field}` : ''}-access`}
-            note={<span>· active users · {result.notes.join(' ')}</span>}
-          />
-        ))}
+      {result && (
+        // Who can use it: the users, then what gives it (each profile, permission set or group)
+        <TableTabs
+          title={
+            <>
+              {object}
+              {field ? `.${field}` : ''}
+            </>
+          }
+          tabs={[
+            { id: 'users', label: 'Users', count: result.rows.length, content: usersTable },
+            ...(
+              [
+                ['profiles', 'Profiles', 'Profile'],
+                ['sets', 'Permission sets', 'Permission set'],
+                ['groups', 'Permission set groups', 'Permission set group'],
+              ] as const
+            ).map(([id, label, kind]) => {
+              const rows = result.holders.filter((h) => h.Kind === kind);
+              return {
+                id,
+                label,
+                count: rows.length,
+                content: rows.length ? (
+                  <DataTable
+                    columns={[
+                      'Name',
+                      'Read',
+                      'Create',
+                      'Edit',
+                      'Delete',
+                      'ViewAll',
+                      'ModifyAll',
+                      ...(field ? ['FieldRead', 'FieldEdit'] : []),
+                      'Through',
+                      'Users',
+                    ]}
+                    rows={rows}
+                    rowKey="Id"
+                    name={`${org.label}-${object}-${id}`}
+                    note={<span>· {label.toLowerCase()} giving access to it (Users = active users who have it)</span>}
+                  />
+                ) : (
+                  <EmptyHint what={label.toLowerCase()} />
+                ),
+              };
+            }),
+          ]}
+        />
+      )}
     </div>
   );
 }
 
-/** Access › Your access: what your own user may do here, tool by tool, and every permission you have. */
+/** Settings › Your access: what your own user may do here, tool by tool, and every permission you have. */
 export function MyAccessPage() {
   const { client, org } = useStudio();
   const access = useAccessOf(client);

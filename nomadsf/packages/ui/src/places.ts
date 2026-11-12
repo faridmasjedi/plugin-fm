@@ -141,10 +141,10 @@ export const PLACES: StudioPlace[] = [
     'user.tab': 'system',
   }),
   P('access', "see a user's login history", 'when did a user log in', 'Login history', { 'user.tab': 'logins' }),
-  P('permsets', 'assign a permission set', 'give add permission set users'),
-  P('permsets', 'remove a permission set from users', 'unassign take away'),
-  P('permsets', 'who has a permission set', 'assignees assigned users'),
-  P('permsets', 'create a permission set or group', 'new permission set group'),
+  P('permissions', 'assign a permission set', 'give add permission set users'),
+  P('permissions', 'remove a permission set from users', 'unassign take away'),
+  P('permissions', 'who has a permission set', 'assignees assigned users'),
+  P('permissions', 'create a permission set or group', 'new permission set group'),
   P('permissions', 'what does a profile allow', 'profile object field system permissions'),
   P(
     'permissions',
@@ -176,17 +176,34 @@ export const PLACES: StudioPlace[] = [
       'perms.tab': 'setup',
     }
   ),
-  P('custperms', 'who has a custom permission', 'custom permission grant'),
+  P('permissions', 'who has a custom permission', 'custom permission grant users', 'Custom permissions', {
+    'perms.kind': 'custom',
+  }),
   P('groups', 'add users to a public group or queue', 'group queue members add remove'),
   P(
     'groups',
     'who is in a role or group inside a group or queue',
     'members of role subordinates nested group queue who is in'
   ),
-  P('assigned', 'list users of a profile, role or license', 'assigned users members profile role license group queue'),
+  P(
+    'access',
+    'list users of a role, license, public group or queue',
+    'assigned users members role license group queue',
+    'Users of a role, license or group',
+    { 'users.page': 'holders' }
+  ),
+  P(
+    'permissions',
+    'list users of a profile, permission set or group',
+    'assigned users members profile',
+    'Assigned users',
+    {
+      'perms.tab': 'assigned',
+    }
+  ),
   P('objectaccess', 'who can edit an object', 'why cant user edit read create delete object records access users'),
   P('objectaccess', 'who can see a field on an object', 'field visibility users'),
-  P('accessmap', 'overview of every user and their access', 'all users matrix permission sets profiles'),
+
   P('compare', 'compare two users', 'why can user a and not user b access difference', 'Two users', {
     'access.compare.mode': 'users',
   }),

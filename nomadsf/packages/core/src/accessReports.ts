@@ -105,7 +105,7 @@ export async function whoCanAccess(
   client: SalesforceClient,
   sobject: string,
   field?: string
-): Promise<{ rows: Row[]; notes: string[] }> {
+): Promise<{ rows: Row[]; holders: Row[]; notes: string[] }> {
   if (!/^\w+$/.test(sobject)) throw new Error('Invalid object.');
   if (field && !/^\w+$/.test(field)) throw new Error('Invalid field.');
   const notes: string[] = [];
@@ -141,8 +141,18 @@ export async function whoCanAccess(
       : r[`${prefix}Type`] === 'Group'
       ? `Group: ${text(r[`${prefix}PermissionSetGroup.MasterLabel`] ?? r[`${prefix}Label`])}`
       : `Permission set: ${text(r[`${prefix}Label`])}`;
+  const kindOf = (r: Row, prefix: string): string =>
+    r[`${prefix}IsOwnedByProfile`] === true
+      ? 'Profile'
+      : r[`${prefix}Type`] === 'Group'
+      ? 'Permission set group'
+      : 'Permission set';
+  const labelOf = (r: Row, prefix: string): string => nameOf(r, prefix).replace(/^[^:]+: /, '');
   type Grant = {
     source: string;
+    kind: string;
+    label: string;
+    allData?: string;
     read: boolean;
     create: boolean;
     edit: boolean;
@@ -151,9 +161,13 @@ export async function whoCanAccess(
     modifyAll: boolean;
   };
   const grants = new Map<string, Grant>();
-  for (const r of objects.rows)
+  // Only permission sets (profiles' and groups' too): licenses (0PL…, 100…) hold object permissions as limits, not grants
+  const isPermissionSet = (id: unknown): boolean => String(id ?? '').startsWith('0PS');
+  for (const r of objects.rows.filter((x) => isPermissionSet(x.ParentId)))
     grants.set(String(r.ParentId), {
       source: nameOf(r, 'Parent.'),
+      kind: kindOf(r, 'Parent.'),
+      label: labelOf(r, 'Parent.'),
       read: r.PermissionsRead === true,
       create: r.PermissionsCreate === true,
       edit: r.PermissionsEdit === true,
@@ -166,6 +180,9 @@ export async function whoCanAccess(
     const known = grants.get(String(r.Id));
     const all: Grant = {
       source: `${nameOf(r, '')} (${modify ? 'Modify All Data' : 'View All Data'})`,
+      kind: kindOf(r, ''),
+      label: labelOf(r, ''),
+      allData: modify ? 'Modify All Data' : 'View All Data',
       read: true,
       create: modify || Boolean(known?.create),
       edit: modify || Boolean(known?.edit),
@@ -175,16 +192,43 @@ export async function whoCanAccess(
     };
     grants.set(String(r.Id), all);
   }
+  // Salesforce leaves the parent out for some of its own permission sets: read those by Id
+  const nameless = [...grants.entries()].filter(([, g]) => !g.label).map(([id]) => id);
+  if (nameless.length) {
+    const found = await query(
+      client,
+      `SELECT Id, Label, Name, IsOwnedByProfile, Profile.Name, Type, PermissionSetGroup.MasterLabel FROM PermissionSet WHERE Id IN (${quoted(
+        nameless
+      )})`,
+      { maxRows: 10_000 }
+    ).catch(() => ({ rows: [] as Row[] }));
+    for (const r of found.rows) {
+      const g = grants.get(String(r.Id));
+      if (!g) continue;
+      g.kind = kindOf(r, '');
+      g.label = labelOf(r, '') || text(r.Name);
+      g.source = `${
+        g.kind === 'Profile' ? 'Profile' : g.kind === 'Permission set group' ? 'Group' : 'Permission set'
+      }: ${g.label}${g.allData ? ` (${g.allData})` : ''}`;
+    }
+  }
   const fieldGrant = new Map(
-    fieldRows.rows.map((r) => [
-      String(r.ParentId),
-      { read: r.PermissionsRead === true, edit: r.PermissionsEdit === true },
-    ])
+    fieldRows.rows
+      .filter((r) => isPermissionSet(r.ParentId))
+      .map((r) => [String(r.ParentId), { read: r.PermissionsRead === true, edit: r.PermissionsEdit === true }])
   );
   const parents = [...new Set([...grants.keys(), ...fieldGrant.keys()])];
   // Their users (assignments), in pages of 200 holders
-  type UserAccessSum = { user: Row; sources: string[]; g: Omit<Grant, 'source'>; fr: boolean; fe: boolean };
+  type UserAccessSum = {
+    user: Row;
+    sources: string[];
+    g: Omit<Grant, 'source' | 'kind' | 'label' | 'allData'>;
+    fr: boolean;
+    fe: boolean;
+  };
   const byUser = new Map<string, UserAccessSum>();
+  // Active users per profile, permission set or group
+  const usersOf = new Map<string, number>();
   for (let i = 0; i < parents.length; i += 200) {
     // eslint-disable-next-line no-await-in-loop
     const page = await query(
@@ -196,6 +240,7 @@ export async function whoCanAccess(
     );
     for (const a of page.rows) {
       const id = String(a.AssigneeId);
+      usersOf.set(String(a.PermissionSetId), (usersOf.get(String(a.PermissionSetId)) ?? 0) + 1);
       const g = grants.get(String(a.PermissionSetId));
       const f = fieldGrant.get(String(a.PermissionSetId));
       const u =
@@ -252,6 +297,32 @@ export async function whoCanAccess(
       Through: [...new Set(u.sources)].join('; '),
     }))
     .sort((a, b) => String(a.Name).localeCompare(String(b.Name)));
+  // Who gives it: each profile, permission set or group with any access to the object
+  const holders = [...grants.entries()]
+    .filter(([, g]) => g.read || g.edit || g.viewAll)
+    .map(([id, g]) => {
+      const f = fieldGrant.get(id);
+      return {
+        Id: id,
+        Kind: g.kind,
+        Name: g.label,
+        Read: yes(g.read),
+        Create: yes(g.create),
+        Edit: yes(g.edit),
+        Delete: yes(g.del),
+        ViewAll: yes(g.viewAll),
+        ModifyAll: yes(g.modifyAll),
+        ...(field
+          ? {
+              FieldRead: yes(Boolean(g.allData) || Boolean(f?.read || f?.edit)),
+              FieldEdit: yes(g.allData === 'Modify All Data' || Boolean(f?.edit)),
+            }
+          : {}),
+        Through: g.allData ?? '',
+        Users: usersOf.get(id) ?? 0,
+      };
+    })
+    .sort((a, b) => a.Name.localeCompare(b.Name));
   notes.push('Object and field permissions only: which records each user sees also depends on sharing.');
-  return { rows, notes };
+  return { rows, holders, notes };
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   apexSourcesFromOrg,
+  type CompareProblem,
   buildDiffPackage,
   compareContent,
   compareOrgs,
@@ -24,6 +25,7 @@ import { ReleasePanel } from '../components/ReleasePanel';
 import { GroupedActions } from '../components/GroupedActions';
 import { withAction, type RowAction } from '../components/RowActions';
 import { Status } from '../statusLog';
+import { CompareProblems } from '../components/CompareProblems';
 import { TypePicker } from '../components/TypePicker';
 
 const COMMON = [
@@ -71,6 +73,7 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
   const [actions, setActions] = useState<Map<string, RowAction>>(new Map());
   const [pkg, setPkg] = useState<DiffPackage | null>(null);
   const [status, setStatus] = useState('');
+  const [problems, setProblems] = useState<CompareProblem[]>([]);
   // Where the message belongs: at the top (connect, compare), or by Build package
   const [statusAt, setStatusAt] = useState<'top' | 'package'>('top');
   const [busy, setBusy] = useState(false);
@@ -153,14 +156,27 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
       );
     });
 
-  const checkContent = () =>
+  /** Every row in both orgs, or only the ones asked for (one, a type's, the filtered ones). */
+  const checkContent = (only?: OrgDiffRow[]) =>
     run('Comparing content…', async () => {
       if (!rows || !clients.source || !clients.target) return;
-      const content = await compareContent(clients.source, clients.target, rows, (done, total) =>
-        setStatus(`Retrieving and comparing (${done.toLocaleString()} of ${total.toLocaleString()})…`)
+      const keys = only ? new Set(only.map((r) => r.key)) : undefined;
+      const notCompared: CompareProblem[] = [];
+      setProblems([]);
+      const content = await compareContent(
+        clients.source,
+        clients.target,
+        keys ? rows.filter((r) => keys.has(r.key)) : rows,
+        (done, total) => setStatus(`Retrieving and comparing (${done.toLocaleString()} of ${total.toLocaleString()})…`),
+        notCompared
       );
       setRows(rows.map((r) => (content.has(r.key) ? { ...r, status: content.get(r.key)! } : r)));
-      setStatus(`Content compared: ${[...content.values()].filter((v) => v === 'different').length} different.`);
+      setProblems(notCompared);
+      setStatus(
+        `Content compared: ${[...content.values()].filter((v) => v === 'different').length} different.${
+          notCompared.length ? ` ${notCompared.length} could not be compared (see below).` : ''
+        }`
+      );
     });
 
   const makePackage = () =>
@@ -248,6 +264,7 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
       </div>
 
       {status && statusAt === 'top' && <Status text={status} block />}
+      <CompareProblems problems={problems} />
 
       {rows && (
         <div className="card section">
@@ -290,6 +307,11 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
             onActions={setActions}
             allowed={allowed}
             tone={(st) => (st === 'same' ? 'good' : st === 'in both' ? '' : st === 'different' ? 'warn' : 'bad')}
+            compare={{
+              can: (r) => r.status === 'in both' || r.status === 'same' || r.status === 'different',
+              run: (list) => void checkContent(list),
+              busy,
+            }}
           />
           {(toDeploy.length > 0 || toDelete.length > 0) && (
             <div className="compare-actions">

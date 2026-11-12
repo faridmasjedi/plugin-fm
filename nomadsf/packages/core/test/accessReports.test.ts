@@ -82,6 +82,10 @@ describe('who can use an object', () => {
         [
           /FROM ObjectPermissions/,
           [
+            // A license's object permissions (a limit, no name): left out
+            { ParentId: '0PL000000000001AAA', Parent: null, PermissionsRead: true },
+            // A permission set Salesforce gives no parent for: read by its Id
+            { ParentId: '0PS000000000009AAA', Parent: null, PermissionsRead: true },
             {
               ParentId: '0PS000000000001AAA',
               Parent: { IsOwnedByProfile: true, Profile: { Name: 'Sales' } },
@@ -96,6 +100,7 @@ describe('who can use an object', () => {
             },
           ],
         ],
+        [/FROM PermissionSet WHERE Id IN/, [{ Id: '0PS000000000009AAA', Label: 'Order Routing', Type: 'Session' }]],
         [/FROM FieldPermissions/, [{ ParentId: '0PS000000000001AAA', PermissionsRead: true, PermissionsEdit: false }]],
         [
           /FROM PermissionSet WHERE PermissionsViewAllData = true/,
@@ -124,7 +129,13 @@ describe('who can use an object', () => {
       ],
       ['PermissionsViewAllData', 'PermissionsModifyAllData']
     );
-    const { rows } = await whoCanAccess(client, 'Account', 'Phone');
+    const { rows, holders } = await whoCanAccess(client, 'Account', 'Phone');
+    expect(holders.map((h) => [h.Kind, h.Name, h.Read, h.Delete, h.FieldRead, h.Through, h.Users])).toEqual([
+      ['Permission set', 'Auditor', '✓', '', '✓', 'View All Data', 1],
+      ['Permission set', 'Deleters', '✓', '✓', '', '', 1],
+      ['Permission set', 'Order Routing', '✓', '', '', '', 0],
+      ['Profile', 'Sales', '✓', '', '✓', '', 1],
+    ]);
     expect(rows.map((r) => [r.Name, r.Read, r.Edit, r.Delete, r.ViewAll, r.FieldRead, r.FieldEdit, r.Through])).toEqual(
       [
         ['Ann', '✓', '✓', '✓', '', '✓', '', 'Profile: Sales; Permission set: Deleters'],

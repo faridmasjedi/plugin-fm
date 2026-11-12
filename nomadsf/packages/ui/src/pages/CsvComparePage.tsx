@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Select } from '../components/Select';
+import { ComboInput } from '../components/ComboInput';
 import {
   applyCsv,
   compareCsv,
@@ -12,7 +14,7 @@ import {
 import { useStudio } from '../context';
 import { DataTable } from '../components/DataTable';
 import { EditableGrid, type GridRow } from '../components/EditableGrid';
-import { ObjectOptions } from '../components/ObjectOptions';
+import { objectChoices } from '../components/ObjectOptions';
 import { TableFileInput } from '../components/TableFileInput';
 import { Status } from '../statusLog';
 
@@ -157,23 +159,22 @@ export function CsvComparePage() {
           <TableFileInput label="CSV or Excel file" onTable={open} onError={(m) => setStatus(`❌ ${m}`)} />
           <label>
             Object
-            <input
-              list="csv-compare-objects"
+            <ComboInput
+              options={objectChoices(objects)}
               value={object}
               placeholder="e.g. Contact"
               onChange={(e) => setObject(e.target.value)}
             />
           </label>
-          <ObjectOptions id="csv-compare-objects" objects={objects} typed={object} />
           <label title="How a CSV row finds its record in this org: a unique field (Email, an External ID…). Ids from another org do not match.">
             Match records by
-            <select value={key} onChange={(e) => setKey(e.target.value)}>
+            <Select value={key} onChange={(e) => setKey(e.target.value)}>
               <option value="">{plan ? 'Choose a field…' : 'Choose the file and object'}</option>
               {keyOptions.map((k) => (
                 <option key={k}>{k}</option>
               ))}
               {file?.columns.includes('Id') && <option value="Id">Id (same org only)</option>}
-            </select>
+            </Select>
           </label>
           <button className="primary" disabled={!known || !file || !key || busy} onClick={() => void compare()}>
             Compare

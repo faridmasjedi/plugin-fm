@@ -1,4 +1,5 @@
 import { useContext, useState } from 'react';
+import { Select } from './Select';
 import { parseCsvMapping, type FieldRule } from '@nomadsf/core';
 import { StudioContext } from '../context';
 import { useProject } from '../project';
@@ -81,7 +82,7 @@ export function AiCsvMapping({
                 <tr key={column}>
                   <td className="mono">{column}</td>
                   <td>
-                    <select
+                    <Select
                       value={mapping[column] ?? ''}
                       onChange={(e) => setMapping({ ...mapping, [column]: e.target.value })}
                     >
@@ -91,7 +92,7 @@ export function AiCsvMapping({
                           {r.label} ({r.name})
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </td>
                 </tr>
               ))}

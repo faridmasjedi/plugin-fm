@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Select } from '../components/Select';
+import { ComboInput } from '../components/ComboInput';
 import {
   describeGlobal,
   distinctValues,
@@ -17,7 +19,7 @@ import {
 import { DataTable } from '../components/DataTable';
 import { useStudio } from '../context';
 import { askConfirm } from '../components/Dialogs';
-import { ObjectOptions } from '../components/ObjectOptions';
+import { objectChoices } from '../components/ObjectOptions';
 import { Status } from '../statusLog';
 
 /** Field types a file value can be matched on (text-like, Ids and numbers). */
@@ -186,11 +188,11 @@ export function LookupPage() {
           <div className="form">
             <label>
               2. Column to look up
-              <select value={column} onChange={(e) => setColumn(e.target.value)}>
+              <Select value={column} onChange={(e) => setColumn(e.target.value)}>
                 {table.columns.map((c) => (
                   <option key={c}>{c}</option>
                 ))}
-              </select>
+              </Select>
             </label>
             <span className="muted">
               {values.length.toLocaleString()} different value(s)
@@ -206,18 +208,18 @@ export function LookupPage() {
             {idOf ? (
               <label>
                 3. Ids of
-                <select value={sobject} onChange={(e) => setSobject(e.target.value)}>
+                <Select value={sobject} onChange={(e) => setSobject(e.target.value)}>
                   {idOf.map((o) => (
                     <option key={o}>{o}</option>
                   ))}
-                </select>
+                </Select>
               </label>
             ) : (
               <>
                 <label>
                   3. Object
-                  <input
-                    list="lookup-objects"
+                  <ComboInput
+                    options={objectChoices(objects)}
                     value={sobject}
                     placeholder="e.g. User"
                     onChange={(e) => {
@@ -226,10 +228,9 @@ export function LookupPage() {
                     }}
                   />
                 </label>
-                <ObjectOptions id="lookup-objects" objects={objects} typed={sobject} />
                 <label>
                   matched on
-                  <select
+                  <Select
                     value={matchField}
                     onChange={(e) => setMatchField(e.target.value)}
                     disabled={!matchable.length}
@@ -240,7 +241,7 @@ export function LookupPage() {
                         {f.label} ({f.name})
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               </>
             )}
@@ -263,9 +264,9 @@ export function LookupPage() {
               <button onClick={() => setChosen(new Set())}>None</button>
               <span className="muted">{chosen.size} chosen</span>
             </div>
-            <div className="field-checks">
+            <div className="field-checks two-lines">
               {shownFields.map((f) => (
-                <label key={f.name} className="check" title={`${f.name} · ${f.type}`}>
+                <label key={f.name} className="check" title={`${f.label} · ${f.name} · ${f.type}`}>
                   <input
                     type="checkbox"
                     checked={chosen.has(f.name)}
@@ -277,7 +278,10 @@ export function LookupPage() {
                       setChosen(next);
                     }}
                   />{' '}
-                  {f.label}
+                  <span className="field-check-text">
+                    <span>{f.label}</span>
+                    <span className="muted mono">{f.name}</span>
+                  </span>
                 </label>
               ))}
             </div>

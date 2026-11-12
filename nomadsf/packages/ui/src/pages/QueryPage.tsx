@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Select } from '../components/Select';
 import type { OnMount } from '@monaco-editor/react';
 import {
   addToSelect,
+  DATE_LITERALS,
+  SOQL_KEYWORDS,
+  valueContext,
   describeGlobal,
   explainQuery,
   type QueryPlan,
@@ -25,6 +29,8 @@ import {
 } from '@nomadsf/core';
 import { askAi } from '../components/AiHelp';
 import { CodeEditor } from '../components/CodeEditor';
+import { SoqlHelp } from '../components/SoqlHelp';
+import { insertSnippet } from '../components/insertSnippet';
 import { DataTable, EmptyHint, download } from '../components/DataTable';
 import { QueryExport } from '../components/QueryExport';
 import { RelatedFields } from '../components/RelatedFields';
@@ -228,7 +234,7 @@ export function QueryPage() {
   // Autocomplete: objects after FROM, fields of the FROM object elsewhere
   useEffect(() => {
     const provider = monaco.languages.registerCompletionItemProvider('soql', {
-      triggerCharacters: [' ', ',', '.'],
+      triggerCharacters: [' ', ',', '.', "'", '('],
       provideCompletionItems: async (model, position) => {
         const text = model.getValue();
         const before = model.getValueInRange({
@@ -280,9 +286,68 @@ export function QueryPage() {
           if (!link) return { suggestions: [] };
           sobject = link.referenceTo[0];
         }
+        // After `Field = ` (or IN (…): what that field can be compared with
+        const context = valueContext(before);
+        if (context) {
+          let owner = from;
+          const steps = context.path.split('.');
+          for (const step of steps.slice(0, -1)) {
+            // eslint-disable-next-line no-await-in-loop
+            const link = (await fieldsOf(owner)).find(
+              (f) => f.relationshipName?.toLowerCase() === step.toLowerCase() && f.referenceTo.length
+            );
+            if (!link) return { suggestions: [] };
+            owner = link.referenceTo[0];
+          }
+          const field = (await fieldsOf(owner)).find((f) => f.name.toLowerCase() === steps.at(-1)!.toLowerCase());
+          if (!field) return { suggestions: [] };
+          const quoted = /'[\w-]*$/.test(before);
+          if (field.type === 'date' || field.type === 'datetime')
+            return {
+              suggestions: DATE_LITERALS.map((d, i) => ({
+                label: d.label,
+                detail: d.hint,
+                kind: monaco.languages.CompletionItemKind.Constant,
+                insertText: d.insert,
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                sortText: String(i).padStart(3, '0'),
+                range,
+              })),
+            };
+          if (field.type === 'boolean')
+            return {
+              suggestions: ['true', 'false'].map((v) => ({
+                label: v,
+                kind: monaco.languages.CompletionItemKind.Constant,
+                insertText: v,
+                range,
+              })),
+            };
+          if (field.picklistValues?.length)
+            return {
+              suggestions: field.picklistValues.map((v, i) => ({
+                label: v,
+                detail: `${field.label} value`,
+                kind: monaco.languages.CompletionItemKind.EnumMember,
+                // In quotes already: just the value (and the closing quote)
+                insertText: quoted ? `${v}'` : `'${v}'`,
+                sortText: String(i).padStart(4, '0'),
+                range,
+              })),
+            };
+          if (field.type !== 'reference' && field.type !== 'id') return { suggestions: [] };
+        }
         const list = await fieldsOf(sobject);
         return {
           suggestions: [
+            // The words of SOQL, after the fields
+            ...SOQL_KEYWORDS.map((k) => ({
+              label: k,
+              kind: monaco.languages.CompletionItemKind.Keyword,
+              insertText: k,
+              sortText: `~${k}`,
+              range,
+            })),
             ...list.map((f) => ({
               label: f.name,
               detail: `${f.type}${f.referenceTo.length ? ` → ${f.referenceTo.join(', ')}` : ''} · ${f.label}`,
@@ -415,6 +480,8 @@ export function QueryPage() {
     [client, soql, tooling, includeDeleted, history, loadRest]
   );
 
+  const insertSoql = (snippet: string, replaceAll = false) => insertSnippet(editorRef.current, snippet, replaceAll);
+
   const allFields = async () => {
     const from = mainSObject(soql);
     if (!from) {
@@ -467,7 +534,7 @@ export function QueryPage() {
         setName={setSavedName}
         pickers={
           <>
-            <select
+            <Select
               className="menu-select"
               value=""
               title="Saved queries"
@@ -486,8 +553,8 @@ export function QueryPage() {
                   {q.tooling ? ' · Tooling' : ''}
                 </option>
               ))}
-            </select>
-            <select
+            </Select>
+            <Select
               className="menu-select"
               value=""
               onChange={(e) => e.target.value && setSoql(history[Number(e.target.value)])}
@@ -498,7 +565,7 @@ export function QueryPage() {
                   {h.replace(/\s+/g, ' ').slice(0, 70)}
                 </option>
               ))}
-            </select>
+            </Select>
           </>
         }
       />
@@ -560,6 +627,7 @@ export function QueryPage() {
           </button>
         </div>
       )}
+      <SoqlHelp onInsert={(p) => insertSoql(p)} onExample={(q) => insertSoql(q, true)} />
       <div className="editor-box small">
         <CodeEditor language="soql" value={soql} onChange={setSoql} onMount={onMount} />
       </div>

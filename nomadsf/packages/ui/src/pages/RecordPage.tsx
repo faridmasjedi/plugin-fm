@@ -1,4 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Select } from '../components/Select';
 import {
   coerceFieldValue,
   inspectRecord,
@@ -185,12 +186,12 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
     if (editing && f.updateable && !f.calculated) {
       if (f.type === 'picklist' && f.picklistValues.length) {
         return (
-          <select value={current} onChange={(e) => setEdits({ ...edits, [f.name]: e.target.value })}>
+          <Select value={current} onChange={(e) => setEdits({ ...edits, [f.name]: e.target.value })}>
             <option value="">—</option>
             {f.picklistValues.map((p) => (
               <option key={p}>{p}</option>
             ))}
-          </select>
+          </Select>
         );
       }
       if (f.type === 'boolean') {
@@ -290,14 +291,14 @@ export function RecordPage({ initialId, embedded = false }: { initialId?: string
             />
           </label>
           {recent.length > 0 && (
-            <select className="menu-select" value="" onChange={(e) => e.target.value && void open(e.target.value)}>
+            <Select className="menu-select" value="" onChange={(e) => e.target.value && void open(e.target.value)}>
               <option value="">Recent…</option>
               {recent.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.label}
                 </option>
               ))}
-            </select>
+            </Select>
           )}
         </div>
       )}

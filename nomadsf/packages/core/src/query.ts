@@ -177,6 +177,8 @@ export type FieldSummary = {
   type: string;
   referenceTo: string[];
   relationshipName?: string | null;
+  /** Active values of a picklist (offered after `Field = `). */
+  picklistValues?: string[];
 };
 
 export async function describeGlobal(client: SalesforceClient, tooling = false): Promise<SObjectSummary[]> {
@@ -194,7 +196,13 @@ export async function describeSObject(
 ): Promise<{ name: string; label: string; fields: FieldSummary[] }> {
   if (!/^\w+$/.test(name)) throw new Error('Invalid object name.');
   const path = `/sobjects/${name}/describe`;
-  type Describe = { name: string; label: string; fields: FieldSummary[] };
+  type Describe = {
+    name: string;
+    label: string;
+    fields: Array<
+      Omit<FieldSummary, 'picklistValues'> & { picklistValues?: Array<{ value: string; active: boolean }> }
+    >;
+  };
   const result = tooling ? await client.tooling<Describe>('GET', path) : await client.rest<Describe>('GET', path);
   return {
     name: result.name,
@@ -205,6 +213,9 @@ export async function describeSObject(
       type: f.type,
       referenceTo: f.referenceTo ?? [],
       relationshipName: f.relationshipName,
+      ...(f.picklistValues?.length
+        ? { picklistValues: f.picklistValues.filter((v) => v.active).map((v) => v.value) }
+        : {}),
     })),
   };
 }

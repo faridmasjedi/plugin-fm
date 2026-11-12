@@ -9,7 +9,7 @@ import { retrieveZip } from './metadata.js';
 import { pairCodeFiles, pairsSame } from './projectCode.js';
 import { fromBase64, readZip } from './zip.js';
 import { FOLDER_TYPES, type ProjectFs, type ProjectInfo } from './project.js';
-import { CHILD_ELEMENTS, toMetadataFormat, type ConvertResult } from './sourceConvert.js';
+import { CHILD_ELEMENTS, eachLimit, toMetadataFormat, type ConvertResult } from './sourceConvert.js';
 import { labelBlocks, resolveComponent } from './sourcePackage.js';
 
 /**
@@ -29,19 +29,21 @@ export async function projectFiles(fs: ProjectFs, info: ProjectInfo): Promise<st
     } catch {
       return;
     }
+    // The folders of a folder listed together (a big project has thousands)
+    const dirs: string[] = [];
     for (const entry of entries) {
       if (SKIPPED.has(entry.name)) continue;
       const path = `${dir}/${entry.name}`;
-      // eslint-disable-next-line no-await-in-loop
-      if (entry.kind === 'dir') await walk(path);
+      if (entry.kind === 'dir') dirs.push(path);
       else out.push(path);
     }
+    await eachLimit(dirs, 8, walk);
   };
   for (const dir of info.packageDirectories) {
     // eslint-disable-next-line no-await-in-loop
     await walk(dir.path);
   }
-  return out;
+  return out.sort();
 }
 
 /**
@@ -272,7 +274,16 @@ export type OrgCheck = {
   status: 'same' | 'different' | 'not in org' | 'only in org' | 'in neither';
   org: CodeFile[];
   repo: CodeFile[];
+  /** Why a side has nothing: Salesforce's message, or the project's (not converted…). */
+  problem?: string;
 };
+
+/** A component that could not be compared, and why (for a list the person can read). */
+export type CompareProblem = { type: string; name: string; problem: string };
+
+/** What to say when the org listed a component but sent nothing back for it, and gave no reason. */
+export const NOT_SENT =
+  "Salesforce listed it but sent nothing back: your user may not be allowed to read it (View Setup, Modify Metadata, or the type's own permission), or it belongs to a managed package.";
 
 /** XML lines indented by nesting, so one block reads the same wherever it came from. */
 function reindentXml(xml: string): string {
@@ -320,7 +331,9 @@ function comparable(c: { type: string; name: string }, files: CodeFile[]): CodeF
 export async function orgComponentFiles(
   client: SalesforceClient,
   components: Array<{ type: string; name: string }>,
-  onProgress?: (status: string) => void
+  onProgress?: (status: string) => void,
+  /** Filled with why the org gave nothing for a component (Salesforce's message), keyed type:name. */
+  problems?: Map<string, string>
 ): Promise<Map<string, CodeFile[]>> {
   const result = new Map<string, CodeFile[]>();
   if (!components.length) return result;
@@ -339,12 +352,27 @@ export async function orgComponentFiles(
     const own = bundle ? path.slice(0, path.indexOf(`/${bundle}/`) + bundle.length + 1) : path;
     if (!pathsOf.get(key)?.includes(own)) pathsOf.set(key, [...(pathsOf.get(key) ?? []), own]);
   }
+  // By path (thousands of components: no search through every file for each one)
+  const byPath = new Map(files.map((f) => [f.path, f]));
+  const byFolder = new Map<string, CodeFile[]>();
+  for (const f of files)
+    for (let i = f.path.indexOf('/'); i > 0; i = f.path.indexOf('/', i + 1)) {
+      const dir = f.path.slice(0, i);
+      byFolder.set(dir, [...(byFolder.get(dir) ?? []), f]);
+    }
   for (const c of components) {
     const paths = pathsOf.get(`${c.type}:${c.name}`) ?? [];
-    const own = files.filter((f) =>
-      paths.some((p) => f.path === p || f.path === `${p}-meta.xml` || f.path.startsWith(`${p}/`))
-    );
-    result.set(`${c.type}:${c.name}`, comparable(c, own));
+    const own = new Set<CodeFile>();
+    for (const p of paths)
+      for (const f of [byPath.get(p), byPath.get(`${p}-meta.xml`), ...(byFolder.get(p) ?? [])]) if (f) own.add(f);
+    result.set(`${c.type}:${c.name}`, comparable(c, [...own]));
+    if (!own.size && problems) {
+      // "Entity of type 'PermissionSet' named 'X' cannot be found", "insufficient access"…
+      const said = retrieved.messages.find(
+        (m) => m.problem.includes(`'${c.name}'`) || m.fileName.includes(`/${c.name}.`)
+      );
+      if (said) problems.set(`${c.type}:${c.name}`, said.problem);
+    }
   }
   return result;
 }
@@ -353,14 +381,36 @@ export async function orgComponentFiles(
 export async function projectSideFiles(
   project: ProjectSide,
   components: Array<{ type: string; name: string }>,
-  apiVersion: string
+  apiVersion: string,
+  /** Filled with why a component of the project could not be read (its files, the converter), keyed type:name. */
+  problems?: Map<string, string>
 ): Promise<Map<string, CodeFile[]>> {
   const result = new Map<string, CodeFile[]>();
   const all = await projectFiles(project.fs, project.info);
-  for (const c of components) {
+  // Labels one by one (each needs the labels file with only itself); everything else converted in one go
+  const labels = components.filter((c) => c.type === 'CustomLabel');
+  for (const c of labels) {
     // eslint-disable-next-line no-await-in-loop
-    const files = (await projectComponentFiles(project, c, apiVersion, all)).files;
+    const { files, problem } = await projectComponentFiles(project, c, apiVersion, all);
     result.set(`${c.type}:${c.name}`, comparable(c, files));
+    if (problem) problems?.set(`${c.type}:${c.name}`, problem);
+  }
+  const rest = components.filter((c) => c.type !== 'CustomLabel');
+  if (!rest.length) return result;
+  const built = await projectMetadataZip({ ...project, deploy: rest, apiVersion, allFiles: all });
+  const files = await zipCodeFiles(built.zip);
+  const byPath = new Map(files.map((f) => [f.path, f]));
+  const failed = new Set(built.notConverted.map((c) => `${c.type}:${c.name}`));
+  for (const c of built.notConverted) problems?.set(`${c.type}:${c.name}`, c.reason);
+  for (const c of rest) {
+    const key = `${c.type}:${c.name}`;
+    const own = failed.has(key)
+      ? []
+      : (built.pathsOf.get(key) ?? []).flatMap((p) => {
+          const f = byPath.get(p);
+          return f ? [f] : [];
+        });
+    result.set(key, comparable(c, own));
   }
   return result;
 }
@@ -384,14 +434,17 @@ export async function checkComponentsWithOrg(
 ): Promise<Map<string, OrgCheck>> {
   const result = new Map<string, OrgCheck>();
   if (!components.length) return result;
-  const org = await orgComponentFiles(client, components, onProgress);
+  const orgProblems = new Map<string, string>();
+  const repoProblems = new Map<string, string>();
+  const org = await orgComponentFiles(client, components, onProgress, orgProblems);
   onProgress?.(`Comparing ${components.length} component(s) with the org…`);
-  const repo = await projectSideFiles(project, components, await client.version());
+  const repo = await projectSideFiles(project, components, await client.version(), repoProblems);
   for (const c of components) {
     const key = `${c.type}:${c.name}`;
     const o = org.get(key) ?? [];
     const r = repo.get(key) ?? [];
-    result.set(key, { status: checkStatus(o, r), org: o, repo: r });
+    const problem = (!o.length && orgProblems.get(key)) || (!r.length && repoProblems.get(key)) || undefined;
+    result.set(key, { status: checkStatus(o, r), org: o, repo: r, ...(problem ? { problem } : {}) });
   }
   return result;
 }
@@ -402,7 +455,9 @@ export async function compareTypeWithProject(
   project: ProjectSide,
   type: string,
   names: string[],
-  onProgress?: (status: string) => void
+  onProgress?: (status: string) => void,
+  /** Filled with the ones (in both places) that could not be compared, and why. */
+  problems?: CompareProblem[]
 ): Promise<Map<string, 'same' | 'different'>> {
   const checked = await checkComponentsWithOrg(
     client,
@@ -411,8 +466,16 @@ export async function compareTypeWithProject(
     onProgress
   );
   const result = new Map<string, 'same' | 'different'>();
-  for (const [key, c] of checked)
-    if (c.status === 'same' || c.status === 'different') result.set(key.slice(type.length + 1), c.status);
+  for (const [key, c] of checked) {
+    const name = key.slice(type.length + 1);
+    if (c.status === 'same' || c.status === 'different') result.set(name, c.status);
+    else
+      problems?.push({
+        type,
+        name,
+        problem: c.problem ?? (!c.org.length ? NOT_SENT : 'The project has no files for it that could be read.'),
+      });
+  }
   return result;
 }
 
@@ -507,8 +570,9 @@ function referencesTo(c: { type: string; name: string }): string[] {
   return (forms[type] ?? [name]).filter((t) => t.length >= 3);
 }
 
+// A quick look for the name before the exact (whole word) check: most files do not have it
 const mentions = (text: string, token: string): boolean =>
-  new RegExp(`(?<![\\w])${token.replace(/[.*+?^${}()|[\]\\$]/g, '\\$&')}(?![\\w])`).test(text);
+  text.includes(token) && new RegExp(`(?<![\\w])${token.replace(/[.*+?^${}()|[\]\\$]/g, '\\$&')}(?![\\w])`).test(text);
 
 /**
  * What a component of the project uses and what uses it, read from the project's own files (for components the org
@@ -522,11 +586,17 @@ export async function projectDependencies(
   const dirs = info.packageDirectories.map((d) => d.path);
   // Every component with the text of its files (each label its own block); static resources are not read
   const texts = new Map<string, { type: string; name: string; text: string }>();
-  for (const path of await projectFiles(fs, info)) {
+  const wanted = (await projectFiles(fs, info)).flatMap((path) => {
     const c = resolveComponent(path, dirs);
-    if (!c || c.type === 'StaticResource') continue;
-    // eslint-disable-next-line no-await-in-loop
-    const raw = (await fs.readText(path)) ?? '';
+    return c && c.type !== 'StaticResource' ? [{ path, c }] : [];
+  });
+  // Read many at a time, then put together in the files' order
+  const raws = new Map<string, string>();
+  await eachLimit(wanted, 16, async ({ path }) => {
+    raws.set(path, (await fs.readText(path).catch(() => undefined)) ?? '');
+  });
+  for (const { path, c } of wanted) {
+    const raw = raws.get(path) ?? '';
     // A file's <fullName> is its own name (or its parts'), never a reference to something else
     const text = c.labels ? raw : raw.replace(/<fullName>[^<]*<\/fullName>/g, '');
     if (c.labels) {

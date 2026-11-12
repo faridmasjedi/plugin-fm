@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Select } from '../components/Select';
 import type { OnMount } from '@monaco-editor/react';
 import {
+  APEX_EXAMPLES,
+  APEX_HELP,
   DEFAULT_LOG_LEVELS,
   executeAnonymous,
   extractCode,
@@ -9,6 +12,8 @@ import {
 } from '@nomadsf/core';
 import { AiAsk, AiExplain } from '../components/AiHelp';
 import { CodeEditor } from '../components/CodeEditor';
+import { SoqlHelp } from '../components/SoqlHelp';
+import { insertSnippet } from '../components/insertSnippet';
 import { LogViewer } from '../components/LogViewer';
 import { storage, useStudio } from '../context';
 import { monaco } from '../monaco';
@@ -125,15 +130,15 @@ export function ExecutePage() {
         <span className="grow" />
         <label>
           Log levels{' '}
-          <select value={preset} onChange={(e) => setPreset(e.target.value)}>
+          <Select value={preset} onChange={(e) => setPreset(e.target.value)}>
             {Object.entries(PRESETS).map(([id, p]) => (
               <option key={id} value={id}>
                 {p.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
-        <select
+        <Select
           className="menu-select"
           value=""
           onChange={(e) => e.target.value && setCode(history[Number(e.target.value)])}
@@ -144,7 +149,7 @@ export function ExecutePage() {
               {h.replace(/\s+/g, ' ').slice(0, 70)}
             </option>
           ))}
-        </select>
+        </Select>
         <button onClick={() => void run(true)} disabled={running} title="Ctrl/Cmd + Shift + Enter">
           Run selection
         </button>
@@ -169,6 +174,14 @@ export function ExecutePage() {
             }). Read it before you run it: nothing runs until you press Execute.\n${extractCode(answer.text)}\n`
           )
         }
+      />
+      <SoqlHelp
+        title="Apex help"
+        storageKey="apex.help"
+        groups={APEX_HELP}
+        examples={APEX_EXAMPLES}
+        onInsert={(p) => insertSnippet(editorRef.current, p)}
+        onExample={(p) => insertSnippet(editorRef.current, p, true)}
       />
       <div className="editor-box">
         <CodeEditor language="apex" value={code} onChange={setCode} onMount={onMount} />
