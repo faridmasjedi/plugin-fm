@@ -82,6 +82,8 @@ describe('who can use an object', () => {
         [
           /FROM ObjectPermissions/,
           [
+            // A license's object permissions (a limit, no name): left out
+            { ParentId: '0PL000000000001AAA', Parent: null, PermissionsRead: true },
             {
               ParentId: '0PS000000000001AAA',
               Parent: { IsOwnedByProfile: true, Profile: { Name: 'Sales' } },

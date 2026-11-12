@@ -5,11 +5,13 @@ import {
   objectAccessOf,
   permissionHolders,
   permissionSetInfo,
+  setupEntities,
   systemPermissionsOf,
   type FieldAccessRow,
   type ObjectAccessRow,
   type PermissionHolder,
   type PermissionSetInfo,
+  type SetupEntity,
   type SystemPermission,
 } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
@@ -22,7 +24,7 @@ import {
   RecordTypesPanel,
   SetupAccessPanel,
   TabSettingsPanel,
-  CustomPermissionPicker,
+  CustomPermissionPanel,
 } from '../pages/AccessManagePages';
 import { cannotChangePermissions, useAccessOf } from '../access';
 import { WhoHasIt } from './WhoHasIt';
@@ -66,6 +68,17 @@ export function PermissionsExplorer({ reloadKey = 0 }: { reloadKey?: number } = 
   const [holders, setHolders] = useState<PermissionHolder[]>([]);
   const [kindShown, setKindShown] = useState<Shown>(() => storage.get('perms.kind', 'all'));
   const [holderId, setHolderId] = useState('');
+  // Custom permissions: read when that kind is shown
+  const [customs, setCustoms] = useState<SetupEntity[] | null>(null);
+  const [customId, setCustomId] = useState('');
+  const custom = customs?.find((c) => c.id === customId);
+  useEffect(() => {
+    if (kindShown !== 'custom') return;
+    setCustoms(null);
+    setupEntities(client, 'CustomPermission')
+      .then(setCustoms)
+      .catch((e: Error) => setStatus(`❌ ${e.message}`));
+  }, [client, kindShown, reloadKey]);
   // One table per tab (the old "All" tab stacked them; a saved "all" opens Object access)
   const chosenByKind = useRef<Partial<Record<Shown, string>>>({});
   const [tab, setTab] = useState<Tab>(() => {
@@ -152,7 +165,7 @@ export function PermissionsExplorer({ reloadKey = 0 }: { reloadKey?: number } = 
     <div className="card section">
       <h3>Choose a profile, permission set, group or custom permission</h3>
       <div className="form">
-        <div className="segmented" role="group" aria-label="Show">
+        <div className="segmented wraps" role="group" aria-label="Show">
           {(['all', ...kinds, 'custom'] as Shown[]).map((k) => (
             <button
               key={k}
@@ -172,8 +185,19 @@ export function PermissionsExplorer({ reloadKey = 0 }: { reloadKey?: number } = 
             </button>
           ))}
         </div>
+        {kindShown === 'custom' && (
+          <Select value={customId} onChange={(e) => setCustomId(e.target.value)} className="holder-select">
+            <option value="">{customs ? `Choose (${customs.length})` : 'Reading…'}</option>
+            {(customs ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label} ({c.namespace ? `${c.namespace}__` : ''}
+                {c.name})
+              </option>
+            ))}
+          </Select>
+        )}
         {kindShown !== 'custom' && (
-          <Select value={holderId} onChange={(e) => setHolderId(e.target.value)} style={{ minWidth: 380 }}>
+          <Select value={holderId} onChange={(e) => setHolderId(e.target.value)} className="holder-select">
             <option value="">Choose ({shownHolders.length})</option>
             {kinds
               .filter((k) => kindShown === 'all' || k === kindShown)
@@ -192,7 +216,8 @@ export function PermissionsExplorer({ reloadKey = 0 }: { reloadKey?: number } = 
         )}
         <Status text={status} />
       </div>
-      {kindShown === 'custom' && <CustomPermissionPicker reloadKey={reloadKey} />}
+      {kindShown === 'custom' && customs?.length === 0 && <EmptyHint what="custom permissions" />}
+      {kindShown === 'custom' && custom && <CustomPermissionPanel key={custom.id} chosen={custom} />}
       {holder && kindShown !== 'custom' && (
         // The one chosen: its name and kind, then what can be done with it
         <div className="holder-bar">

@@ -251,26 +251,20 @@ function MemberNode({ member, path, root }: { member: GroupMemberRow; path: stri
  * Access sets › Custom permissions: choose one, then who gives it (grant it to a permission set or profile, or take it
  * away) and the users who have it.
  */
-export function CustomPermissionPicker({ reloadKey = 0 }: { reloadKey?: number }) {
+export function CustomPermissionPanel({ chosen }: { chosen: SetupEntity }) {
   const { client } = useStudio();
-  const [list, setList] = useState<SetupEntity[] | null>(null);
-  const [chosenId, setChosenId] = useState('');
+  const chosenId = chosen.id;
   const [holders, setHolders] = useState<Row[] | null>(null);
   const [users, setUsers] = useState<Row[] | null>(null);
   const [all, setAll] = useState<PermissionHolder[] | null>(null);
   const [tab, setTab] = useState<'given' | 'users'>('given');
   const [status, setStatus] = useState('');
-  const chosen = list?.find((c) => c.id === chosenId);
 
   useEffect(() => {
-    setList(null);
-    setupEntities(client, 'CustomPermission')
-      .then(setList)
-      .catch((e: Error) => setStatus(`❌ ${e.message}`));
     permissionHolders(client)
       .then(setAll)
       .catch(() => undefined);
-  }, [client, reloadKey]);
+  }, [client]);
   const load = (id: string) => {
     setHolders(null);
     setUsers(null);
@@ -288,19 +282,7 @@ export function CustomPermissionPicker({ reloadKey = 0 }: { reloadKey?: number }
 
   return (
     <>
-      <div className="form">
-        <Select value={chosenId} onChange={(e) => setChosenId(e.target.value)} style={{ minWidth: 380 }}>
-          <option value="">{list ? `Choose (${list.length})` : 'Reading…'}</option>
-          {(list ?? []).map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.label} ({c.namespace ? `${c.namespace}__` : ''}
-              {c.name})
-            </option>
-          ))}
-        </Select>
-        <Status text={status} />
-      </div>
-      {list && list.length === 0 && <EmptyHint what="custom permissions" />}
+      {status && <Status text={status} block />}
       {chosen && (
         <>
           <div className="holder-bar">

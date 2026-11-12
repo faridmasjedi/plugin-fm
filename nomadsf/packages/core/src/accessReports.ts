@@ -161,7 +161,9 @@ export async function whoCanAccess(
     modifyAll: boolean;
   };
   const grants = new Map<string, Grant>();
-  for (const r of objects.rows)
+  // Only permission sets (profiles' and groups' too): licenses (0PL…, 100…) hold object permissions as limits, not grants
+  const isPermissionSet = (id: unknown): boolean => String(id ?? '').startsWith('0PS');
+  for (const r of objects.rows.filter((x) => isPermissionSet(x.ParentId)))
     grants.set(String(r.ParentId), {
       source: nameOf(r, 'Parent.'),
       kind: kindOf(r, 'Parent.'),
@@ -191,10 +193,9 @@ export async function whoCanAccess(
     grants.set(String(r.Id), all);
   }
   const fieldGrant = new Map(
-    fieldRows.rows.map((r) => [
-      String(r.ParentId),
-      { read: r.PermissionsRead === true, edit: r.PermissionsEdit === true },
-    ])
+    fieldRows.rows
+      .filter((r) => isPermissionSet(r.ParentId))
+      .map((r) => [String(r.ParentId), { read: r.PermissionsRead === true, edit: r.PermissionsEdit === true }])
   );
   const parents = [...new Set([...grants.keys(), ...fieldGrant.keys()])];
   // Their users (assignments), in pages of 200 holders

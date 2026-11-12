@@ -4481,3 +4481,19 @@ select.row-action {
   max-height: 320px;
   overflow: auto;
 }
+
+/* Access sets: the switch and the dropdown share a row while there is room, the dropdown goes under it when not */
+.holder-select {
+  flex: 1 1 320px;
+  min-width: 240px;
+  max-width: 560px;
+}
+/* A switch that wraps onto a second line in a narrow pane instead of being cut off */
+.segmented.wraps {
+  height: auto;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.segmented.wraps button {
+  height: var(--h);
+}
