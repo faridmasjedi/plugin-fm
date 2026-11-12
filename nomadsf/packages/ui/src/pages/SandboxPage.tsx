@@ -13,6 +13,8 @@ import {
   fromCopySheets,
   invalidEmails,
   fixEmails,
+  parseSnapshot,
+  type UserCopy,
   searchUsers,
   query,
   soqlText,
@@ -322,6 +324,22 @@ function After() {
   const [edits, setEdits] = useState<Record<string, string>>({});
   // The last Put back's errors, by item
   const [failed, setFailed] = useState<Map<string, string>>(new Map());
+  // More users, from a file of their own (a users workbook, an Everything workbook, a snapshot CSV)
+  const [more, setMore] = useState<{ name: string; users: UserCopy[]; metadata: AccessFile[] } | null>(null);
+  const openUsers = async (f: File) => {
+    try {
+      let read: { users: UserCopy[]; metadata: AccessFile[] };
+      if (/\.csv$/i.test(f.name)) {
+        const lines = parseSnapshot(await f.text());
+        const username = lines.find((l) => l.Section === 'info' && l.Name === 'user')?.Value ?? f.name;
+        read = { users: [{ username, lines }], metadata: [] };
+      } else read = fromCopySheets(await readTableFile(f.name, new Uint8Array(await f.arrayBuffer())));
+      if (!read.users.length) throw new Error(`No users in ${f.name}.`);
+      setMore({ name: f.name, ...read });
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    }
+  };
   // Kept users whose e-mail the refresh ended with ".invalid"
   const [emails, setEmails] = useState<Row[] | null>(null);
 
@@ -426,8 +444,14 @@ function After() {
   // The users kept in the workbook, with the files of their permission sets and groups
   const kept = useMemo(() => (tables ? fromCopySheets(tables.filter((t) => t.columns.length)) : null), [tables]);
   // The items shown, by section, in the order of the workbook
+  // Standard objects this org lacks (a feature or license): nothing can be done here, so they wait in one closed list
+  const notHere = (i: SandboxItem) => !i.restorable && (i.how ?? '').startsWith('not in this org');
+  const unavailable = useMemo(() => (items ?? []).filter(notHere), [items]);
+  const [showUnavailable, setShowUnavailable] = useState(false);
   const sections = useMemo(() => {
-    const shown = (items ?? []).filter((i) => !onlyChanged || i.state !== 'same' || ticked.has(keyOf(i)));
+    const shown = (items ?? []).filter(
+      (i) => !notHere(i) && (!onlyChanged || i.state !== 'same' || ticked.has(keyOf(i)))
+    );
     return (Object.keys(SANDBOX_LABELS) as SandboxSection[])
       .map((section) => ({ section, list: shown.filter((i) => i.section === section) }))
       .filter((g) => g.list.length);
@@ -475,6 +499,18 @@ function After() {
             <input type="checkbox" checked={onlyChanged} onChange={(e) => setOnlyChanged(e.target.checked)} /> Only what
             changed ({items.filter((i) => i.state !== 'same').length} of {items.length})
           </label>
+          {/* What is left to do, in one line */}
+          {(() => {
+            const todo = (items ?? []).filter((i) => i.restorable && i.state !== 'same').length;
+            const byHand = (items ?? []).filter((i) => !i.restorable && !notHere(i) && i.state !== 'same').length;
+            return (
+              <p className="muted">
+                {todo ? `${todo} to put back` : 'Nothing left to put back'}
+                {byHand ? ` · ${byHand} by hand in Setup` : ''}
+                {unavailable.length ? ` · ${unavailable.length} not in this org (left out)` : ''}.
+              </p>
+            );
+          })()}
           {sections.length ? (
             sections.map(({ section, list }) => {
               const can = list.filter((i) => i.restorable);
@@ -580,6 +616,24 @@ function After() {
             forWhat="these settings and jobs"
             onChanged={() => tables && void sandboxAfter(client, tables).then(setItems)}
           />
+          {unavailable.length > 0 && (
+            <div className="after-group">
+              <h4>
+                <button className="link tree-toggle" onClick={() => setShowUnavailable(!showUnavailable)}>
+                  {showUnavailable ? '▾' : '▸'}
+                </button>{' '}
+                Not in this org <span className="muted">({unavailable.length})</span>
+                <span className="muted small">
+                  — standard objects {org.label} does not have (a feature or license it lacks); nothing to put back
+                </span>
+              </h4>
+              {showUnavailable && (
+                <p className="muted small unavailable-list">
+                  {unavailable.map((i) => `${i.label} (${SANDBOX_LABELS[i.section].toLowerCase()})`).join(' · ')}
+                </p>
+              )}
+            </div>
+          )}
           <div className="form">
             {(() => {
               const bad = [...ticked].filter((k) => failed.has(k));
@@ -621,10 +675,38 @@ function After() {
           </div>
         </div>
       )}
-      {kept && kept.users.length > 0 && (
+      {file && kept && (
         <div className="section">
-          <h3>Users ({kept.users.length})</h3>
-          <UsersFromWorkbook key={file?.name} users={kept.users} metadata={kept.metadata} source={file?.name ?? ''} />
+          <h3>Users ({kept.users.length + (more?.users.length ?? 0)})</h3>
+          {kept.users.length === 0 && !more && (
+            <div className="card section">
+              <p className="muted" style={{ marginTop: 0 }}>
+                This workbook was saved without users (add them in <b>Before the refresh</b> next time). Users can still
+                come from a file: a users workbook, a user&apos;s <b>Everything (workbook)</b> or <b>Snapshot (CSV)</b>{' '}
+                — saved before the refresh, or from another org.
+              </p>
+            </div>
+          )}
+          {kept.users.length > 0 && (
+            <UsersFromWorkbook key={file.name} users={kept.users} metadata={kept.metadata} source={file.name} />
+          )}
+          {more && <UsersFromWorkbook key={more.name} users={more.users} metadata={more.metadata} source={more.name} />}
+          <div className="form">
+            <label className="file-button">
+              {more ? 'Open other users…' : 'Open users from a file…'}
+              <input
+                type="file"
+                accept=".xlsx,.csv"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (f) void openUsers(f);
+                }}
+              />
+            </label>
+            <span className="muted small">a users workbook, an Everything workbook or a Snapshot CSV</span>
+          </div>
         </div>
       )}
     </>

@@ -9,6 +9,7 @@ window.NOMADSF_WHATS_NEW = {
     'Sandbox refresh: users by name, by a query or from a CSV file; sharing defaults and rules kept too; after it, tick exactly what to put back and change a value first; every user done in one go; the .invalid e-mails set back',
     'What the org needs first: when permission sets or settings need objects, fields or classes the org lacks, they are listed per permission set (and what those use in turn), ticked, and deployed right there from another org or the project — or downloaded as package.xml',
     'Compare & package › From a manifest: no extra labels when the package.xml names none',
+    'Sandbox refresh › After: a line says what is left to do; standard objects the org lacks wait in one closed group; the Users section always shows — with no users in the workbook, open them from a users workbook, an Everything workbook or a snapshot CSV',
     'What the org needs first: a collapsible group per kind (roles, groups and queues, objects, fields, classes) with what needs each; standard objects the org lacks are named, not offered; a deploy’s errors stay on their rows, and Untick the failed; Put back keeps each error on its row too',
     'Access sets: with nothing chosen, every profile, permission set, group or custom permission as a table (filter, CSV)',
     'Org health: the tiles are gone (the tabs show each count); the Health Check score sits beside the period',
