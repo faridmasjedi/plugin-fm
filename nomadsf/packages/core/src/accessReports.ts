@@ -192,6 +192,26 @@ export async function whoCanAccess(
     };
     grants.set(String(r.Id), all);
   }
+  // Salesforce leaves the parent out for some of its own permission sets: read those by Id
+  const nameless = [...grants.entries()].filter(([, g]) => !g.label).map(([id]) => id);
+  if (nameless.length) {
+    const found = await query(
+      client,
+      `SELECT Id, Label, Name, IsOwnedByProfile, Profile.Name, Type, PermissionSetGroup.MasterLabel FROM PermissionSet WHERE Id IN (${quoted(
+        nameless
+      )})`,
+      { maxRows: 10_000 }
+    ).catch(() => ({ rows: [] as Row[] }));
+    for (const r of found.rows) {
+      const g = grants.get(String(r.Id));
+      if (!g) continue;
+      g.kind = kindOf(r, '');
+      g.label = labelOf(r, '') || text(r.Name);
+      g.source = `${
+        g.kind === 'Profile' ? 'Profile' : g.kind === 'Permission set group' ? 'Group' : 'Permission set'
+      }: ${g.label}${g.allData ? ` (${g.allData})` : ''}`;
+    }
+  }
   const fieldGrant = new Map(
     fieldRows.rows
       .filter((r) => isPermissionSet(r.ParentId))
