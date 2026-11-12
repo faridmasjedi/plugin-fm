@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Select } from '../components/Select';
 import type { OnMount } from '@monaco-editor/react';
 import {
+  APEX_EXAMPLES,
+  APEX_HELP,
   DEFAULT_LOG_LEVELS,
   executeAnonymous,
   extractCode,
@@ -10,6 +12,8 @@ import {
 } from '@nomadsf/core';
 import { AiAsk, AiExplain } from '../components/AiHelp';
 import { CodeEditor } from '../components/CodeEditor';
+import { SoqlHelp } from '../components/SoqlHelp';
+import { insertSnippet } from '../components/insertSnippet';
 import { LogViewer } from '../components/LogViewer';
 import { storage, useStudio } from '../context';
 import { monaco } from '../monaco';
@@ -170,6 +174,14 @@ export function ExecutePage() {
             }). Read it before you run it: nothing runs until you press Execute.\n${extractCode(answer.text)}\n`
           )
         }
+      />
+      <SoqlHelp
+        title="Apex help"
+        storageKey="apex.help"
+        groups={APEX_HELP}
+        examples={APEX_EXAMPLES}
+        onInsert={(p) => insertSnippet(editorRef.current, p)}
+        onExample={(p) => insertSnippet(editorRef.current, p, true)}
       />
       <div className="editor-box">
         <CodeEditor language="apex" value={code} onChange={setCode} onMount={onMount} />

@@ -182,6 +182,7 @@ export function ApexTestsPage() {
                 rows={shownClasses.map((c) => ({ ...c }))}
                 rowKey="id"
                 name="test-classes"
+                picker
                 selected={selected}
                 onSelectedChange={setSelected}
                 note={<span>· test classes</span>}

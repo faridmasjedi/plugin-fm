@@ -93,6 +93,24 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
                 </label>
                 {/* Their access by kind, each kind a line that wraps (a user can have dozens) */}
                 <ul className="relation-tree saved-user-access">
+                  {(() => {
+                    const of = (section: string, name: string) =>
+                      u.lines.find((l) => l.Section === section && l.Name === name)?.Value ?? '';
+                    const details = [
+                      [of('field', 'FirstName'), of('field', 'LastName')].filter(Boolean).join(' '),
+                      of('field', 'Email'),
+                      of('field', 'Title'),
+                      of('lookup', 'ProfileId') && `profile ${of('lookup', 'ProfileId')}`,
+                      of('lookup', 'UserRoleId') && `role ${of('lookup', 'UserRoleId')}`,
+                      of('lookup', 'ManagerId') && `manager ${of('lookup', 'ManagerId')}`,
+                    ].filter(Boolean);
+                    const fields = u.lines.filter((l) => l.Section === 'field' && l.Value !== '').length;
+                    return (
+                      <li>
+                        <span className="muted">Details ({fields} fields):</span> {details.join(' · ') || '—'}
+                      </li>
+                    );
+                  })()}
                   {ACCESS_SECTIONS.map(({ section, label }) => {
                     const names = u.lines.filter((l) => l.Section === section).map((l) => l.Name);
                     return names.length ? (

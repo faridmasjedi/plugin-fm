@@ -246,3 +246,158 @@ export function valueContext(before: string): { path: string; operator: string }
     /([A-Za-z_][\w.]*)\s+(NOT\s+IN|IN|INCLUDES|EXCLUDES)\s*\(\s*(?:'[^']*'\s*,\s*)*'?[\w-]*$/i.exec(before);
   return m ? { path: m[1], operator: m[2].toUpperCase().replace(/\s+/, ' ') } : undefined;
 }
+
+/** Execute Apex: the pieces people look up — queries (with the same date literals), records, dates, debug, jobs. */
+export const APEX_HELP: SoqlHelpGroup[] = [
+  { id: 'dates', title: 'SOQL dates', pieces: DATE_LITERALS },
+  {
+    id: 'queries',
+    title: 'Queries',
+    pieces: [
+      {
+        label: '[SELECT …]',
+        insert:
+          'List<${1:Account}> records = [SELECT Id, Name FROM ${1:Account} WHERE ${2:CreatedDate = LAST_N_DAYS:30} LIMIT ${3:200}];',
+        hint: 'records into a list (inline SOQL)',
+      },
+      { label: 'bind :variable', insert: ':${1:ids}', hint: 'use an Apex variable in a query: WHERE Id IN :ids' },
+      {
+        label: 'for (… : [SELECT])',
+        insert:
+          'for (${1:Account} r : [SELECT Id, Name FROM ${1:Account} LIMIT ${2:200}]) {\n    ${3:System.debug(r.Name);}\n}',
+        hint: 'go through records (a SOQL for loop: 200 at a time, light on memory)',
+      },
+      {
+        label: 'Database.query',
+        insert: "List<SObject> rows = Database.query('SELECT Id FROM ${1:Account} LIMIT ${2:10}');",
+        hint: 'a query built as text (dynamic SOQL)',
+      },
+      {
+        label: 'COUNT()',
+        insert: 'Integer n = [SELECT COUNT() FROM ${1:Account} WHERE ${2:CreatedDate = THIS_YEAR}];',
+        hint: 'just how many',
+      },
+      {
+        label: 'Map by Id',
+        insert:
+          'Map<Id, ${1:Account}> byId = new Map<Id, ${1:Account}>([SELECT Id, Name FROM ${1:Account} LIMIT ${2:200}]);',
+        hint: 'records by their Id, in one line',
+      },
+    ],
+  },
+  {
+    id: 'records',
+    title: 'Records',
+    pieces: [
+      { label: 'insert', insert: 'insert ${1:records};', hint: 'create (all or nothing)' },
+      { label: 'update', insert: 'update ${1:records};', hint: 'save changes (all or nothing)' },
+      { label: 'delete', insert: 'delete ${1:records};', hint: 'delete (they go to the Recycle Bin)' },
+      {
+        label: 'Database.update(…, false)',
+        insert:
+          "for (Database.SaveResult r : Database.update(${1:records}, false)) {\n    if (!r.isSuccess()) System.debug(r.getId() + ': ' + r.getErrors()[0].getMessage());\n}",
+        hint: 'save what can be saved, and list the ones that failed',
+      },
+      {
+        label: 'Savepoint / rollback',
+        insert: 'Savepoint sp = Database.setSavepoint();\n${1:// changes}\nDatabase.rollback(sp);',
+        hint: 'try changes and undo them (nothing is kept)',
+      },
+    ],
+  },
+  {
+    id: 'apexdates',
+    title: 'Dates in Apex',
+    pieces: [
+      { label: 'Date.today()', insert: 'Date.today()', hint: 'today (the user’s time zone)' },
+      { label: '.addDays(-n)', insert: '.addDays(-${1:5})', hint: 'n days before (also addMonths, addYears)' },
+      { label: 'System.now()', insert: 'System.now()', hint: 'now, as a Datetime' },
+      { label: '.addHours(-n)', insert: '.addHours(-${1:1})', hint: 'n hours before (also addMinutes)' },
+      {
+        label: 'Date.newInstance',
+        insert: 'Date.newInstance(${1:2026}, ${2:1}, ${3:31})',
+        hint: 'a date from year, month, day',
+      },
+      { label: 'daysBetween', insert: '${1:d1}.daysBetween(${2:d2})', hint: 'days from one date to another' },
+    ],
+  },
+  {
+    id: 'debug',
+    title: 'Debug & limits',
+    pieces: [
+      {
+        label: 'System.debug',
+        insert: 'System.debug(${1:value});',
+        hint: 'write to the log (the Debug only view shows these)',
+      },
+      {
+        label: 'debug as JSON',
+        insert: 'System.debug(JSON.serializePretty(${1:records}));',
+        hint: 'records or maps, readable',
+      },
+      {
+        label: 'Limits',
+        insert:
+          "System.debug('Queries ' + Limits.getQueries() + '/' + Limits.getLimitQueries() + ', DML ' + Limits.getDmlStatements() + '/' + Limits.getLimitDmlStatements());",
+        hint: 'how much of the governor limits this used',
+      },
+      { label: 'UserInfo', insert: 'UserInfo.getUserId()', hint: 'who runs it (also getUserName, getProfileId)' },
+    ],
+  },
+  {
+    id: 'jobs',
+    title: 'Jobs',
+    pieces: [
+      {
+        label: 'executeBatch',
+        insert: 'Database.executeBatch(new ${1:MyBatch}(), ${2:200});',
+        hint: 'start a batch class now',
+      },
+      { label: 'enqueueJob', insert: 'System.enqueueJob(new ${1:MyQueueable}());', hint: 'start a queueable class' },
+      {
+        label: 'System.schedule',
+        insert: "System.schedule('${1:Nightly job}', '${2:0 0 2 * * ?}', new ${3:MySchedulable}());",
+        hint: 'run a schedulable class on a cron (here: every night at 2:00)',
+      },
+      {
+        label: 'abort a job',
+        insert:
+          "for (CronTrigger t : [SELECT Id FROM CronTrigger WHERE CronJobDetail.Name = '${1:Nightly job}']) System.abortJob(t.Id);",
+        hint: 'stop a scheduled job by its name',
+      },
+    ],
+  },
+];
+
+export const APEX_EXAMPLES: SoqlPiece[] = [
+  {
+    label: 'Update in bulk, report failures',
+    insert:
+      "List<Account> rows = [SELECT Id, Rating FROM Account WHERE Rating = null LIMIT 200];\nfor (Account a : rows) a.Rating = 'Warm';\nInteger ok = 0;\nfor (Database.SaveResult r : Database.update(rows, false)) {\n    if (r.isSuccess()) ok++;\n    else System.debug(r.getErrors()[0].getMessage());\n}\nSystem.debug(ok + ' of ' + rows.size() + ' saved');",
+    hint: 'change many records, save what can be saved, see why the rest failed',
+  },
+  {
+    label: 'Try without keeping',
+    insert:
+      "Savepoint sp = Database.setSavepoint();\nAccount a = new Account(Name = 'Test only');\ninsert a;\nSystem.debug([SELECT Id, Name, CreatedDate FROM Account WHERE Id = :a.Id]);\nDatabase.rollback(sp);",
+    hint: 'see what a change does (triggers, flows), then undo it',
+  },
+  {
+    label: 'Records from 5 days ago',
+    insert:
+      "List<Case> cases = [SELECT Id, CaseNumber, Status FROM Case WHERE CreatedDate = N_DAYS_AGO:5];\nSystem.debug(cases.size() + ' case(s)');\nSystem.debug(JSON.serializePretty(cases));",
+    hint: 'a date literal in inline SOQL',
+  },
+  {
+    label: 'Count by a field',
+    insert:
+      "for (AggregateResult r : [SELECT StageName s, COUNT(Id) n FROM Opportunity GROUP BY StageName]) {\n    System.debug(r.get('s') + ': ' + r.get('n'));\n}",
+    hint: 'GROUP BY in Apex: AggregateResult',
+  },
+  {
+    label: 'Who has a permission set',
+    insert:
+      "for (PermissionSetAssignment a : [SELECT Assignee.Name FROM PermissionSetAssignment WHERE PermissionSet.Name = '${1:Sales_Ops}']) {\n    System.debug(a.Assignee.Name);\n}",
+    hint: 'users with one permission set',
+  },
+];

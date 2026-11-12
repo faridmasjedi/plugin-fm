@@ -51,6 +51,8 @@ export type DataTableProps = {
   renderCell?: (column: string, row: Row) => ReactNode | undefined;
   /** Rows of the same value of this column (a metadata type) under one line you open, like a dropdown. */
   groupBy?: string;
+  /** A list to choose from (test classes…): no Filters, Copy, CSV or JSON — the page has its own search. */
+  picker?: boolean;
 };
 
 /** A column's values offered in a filter's dropdown: at most this many (the box still takes anything typed). */
@@ -73,6 +75,7 @@ export function DataTable({
   selected,
   onSelectedChange,
   groupBy,
+  picker,
 }: DataTableProps) {
   const inspect = useContext(InspectContext);
   const listId = useId();
@@ -327,7 +330,7 @@ export function DataTable({
         <span className="muted dt-count">
           {visible.length.toLocaleString()} of {rows.length.toLocaleString()} rows {note}
         </span>
-        <span className="dt-actions">
+        <span className="dt-actions" hidden={picker}>
           <button
             className={`dt-filters-toggle ${panel || active ? 'active' : ''}`}
             title="Filter: choose a column, then type or choose a value"

@@ -38,7 +38,6 @@ export function PermissionsExplorer() {
   // Changing permissions needs Manage Profiles and Permission Sets (checked once per org)
   const blocked = cannotChangePermissions(useAccessOf(client), org.label);
   const [holders, setHolders] = useState<PermissionHolder[]>([]);
-  const [filter, setFilter] = useState('');
   const [kindShown, setKindShown] = useState<'all' | PermissionHolder['kind']>(() => storage.get('perms.kind', 'all'));
   const [holderId, setHolderId] = useState('');
   // One table per tab (the old "All" tab stacked them; a saved "all" opens Object access)
@@ -67,14 +66,10 @@ export function PermissionsExplorer() {
   }, [client]);
 
   const holder = holders.find((h) => h.id === holderId);
-  const shownHolders = useMemo(() => {
-    const needle = filter.trim().toLowerCase();
-    return holders.filter(
-      (h) =>
-        (kindShown === 'all' || h.kind === kindShown) &&
-        (!needle || `${h.kind} ${h.name}`.toLowerCase().includes(needle))
-    );
-  }, [holders, filter, kindShown]);
+  const shownHolders = useMemo(
+    () => holders.filter((h) => kindShown === 'all' || h.kind === kindShown),
+    [holders, kindShown]
+  );
 
   // Load what the current tab needs for the chosen holder
   useEffect(() => {
@@ -151,7 +146,6 @@ export function PermissionsExplorer() {
             </button>
           ))}
         </div>
-        <input placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} />
         <Select value={holderId} onChange={(e) => setHolderId(e.target.value)} style={{ minWidth: 380 }}>
           <option value="">Choose ({shownHolders.length})</option>
           {kinds

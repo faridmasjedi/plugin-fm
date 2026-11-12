@@ -101,6 +101,7 @@ export function LogsPage() {
         <button
           className="danger"
           disabled={busy || logs.length === 0}
+          hidden={logs.length === 0}
           onClick={async () =>
             (await askConfirm(`Delete ${logs.length} log(s)?`, { ok: 'Delete', danger: true })) &&
             void act(() =>
@@ -145,28 +146,38 @@ export function LogsPage() {
       </div>
       <Status text={error} kind="problem" block />
 
-      <div className="split">
-        <div className="card">
-          <DataTable
-            name="apex-logs"
-            columns={['StartTime', 'LogUser.Name', 'Operation', 'Status', 'DurationMilliseconds', 'LogLength']}
-            rows={logs.map((l) => ({ ...l, StartTime: fmtTime(l.StartTime) }))}
-            onRowClick={(row) => void open(String(row.Id))}
-            selectedKey={selected}
-          />
+      {logs.length === 0 ? (
+        <div className="card section empty-state">
+          <b>No debug logs{mine ? ' of yours' : ''} yet.</b>
+          <span className="muted">
+            {flag
+              ? 'Logging is on: do something in the org (save a record, run Apex), then Refresh — or tick Auto-refresh.'
+              : 'Turn logging on above, do something in the org, then Refresh — or tick Auto-refresh.'}
+          </span>
         </div>
-        <div className="card">
-          {selected ? (
-            body ? (
-              <LogViewer log={body} name={selected} />
-            ) : (
-              <p className="muted">Loading log…</p>
-            )
-          ) : (
-            <p className="muted">Select a log.</p>
+      ) : (
+        <div className={selected ? 'split' : ''}>
+          <div className="card">
+            <DataTable
+              name="apex-logs"
+              columns={['StartTime', 'LogUser.Name', 'Operation', 'Status', 'DurationMilliseconds', 'LogLength']}
+              rows={logs.map((l) => ({ ...l, StartTime: fmtTime(l.StartTime) }))}
+              onRowClick={(row) => void open(String(row.Id))}
+              selectedKey={selected}
+              note={selected ? undefined : <span>· click a log to read it</span>}
+            />
+          </div>
+          {selected && (
+            <div className="card">
+              <div className="form">
+                <span className="grow" />
+                <button onClick={() => setSelected('')}>Close</button>
+              </div>
+              {body ? <LogViewer log={body} name={selected} /> : <p className="muted">Loading log…</p>}
+            </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

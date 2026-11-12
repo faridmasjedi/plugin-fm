@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Select } from './Select';
 import {
   HOLDER_KINDS,
@@ -29,7 +29,6 @@ export function WhoHasIt({ between }: { between?: OrgSides }) {
   const [holdersB, setHoldersB] = useState<Holder[] | null>(null);
   const [kind, setKind] = useState<HolderKind>(() => storage.get('who.kind', 'permset'));
   const [holders, setHolders] = useState<Holder[] | null>(null);
-  const [filter, setFilter] = useState('');
   const [holderId, setHolderId] = useState('');
   const [users, setUsers] = useState<Row[] | null>(null);
   const [activeOnly, setActiveOnly] = useState(true);
@@ -74,13 +73,7 @@ export function WhoHasIt({ between }: { between?: OrgSides }) {
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
   }, [client, clientB, holder, holderB, holdersB, isBetween, reloads]);
 
-  const shown = useMemo(
-    () =>
-      (holders ?? []).filter(
-        (h) => !filter || `${h.label} ${h.detail ?? ''}`.toLowerCase().includes(filter.trim().toLowerCase())
-      ),
-    [holders, filter]
-  );
+  const shown = holders ?? [];
   const both = Boolean(clientB);
   const rows = (users ?? []).filter((u) =>
     !activeOnly ? true : both ? u.activeA === true || u.activeB === true : u.IsActive !== false
@@ -147,7 +140,6 @@ export function WhoHasIt({ between }: { between?: OrgSides }) {
             ))}
           </Select>
         </label>
-        <input placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} />
         <Select value={holderId} onChange={(e) => setHolderId(e.target.value)} style={{ minWidth: 320 }}>
           <option value="">{holders ? `Choose a ${kindLabel.toLowerCase()} (${shown.length})` : 'Loading…'}</option>
           {shown.map((h) => (

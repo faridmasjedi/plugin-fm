@@ -30,6 +30,7 @@ import {
 import { askAi } from '../components/AiHelp';
 import { CodeEditor } from '../components/CodeEditor';
 import { SoqlHelp } from '../components/SoqlHelp';
+import { insertSnippet } from '../components/insertSnippet';
 import { DataTable, EmptyHint, download } from '../components/DataTable';
 import { QueryExport } from '../components/QueryExport';
 import { RelatedFields } from '../components/RelatedFields';
@@ -479,20 +480,7 @@ export function QueryPage() {
     [client, soql, tooling, includeDeleted, history, loadRest]
   );
 
-  /** A piece of SOQL help at the cursor (its ${1:n} selected to type over), or a whole example: undoable. */
-  const insertSoql = (snippet: string, replaceAll = false) => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    editor.focus();
-    const model = editor.getModel();
-    if (replaceAll && model) editor.setSelection(model.getFullModelRange());
-    const snippets = editor.getContribution('snippetController2') as { insert(text: string): void } | null;
-    if (snippets) snippets.insert(snippet);
-    else
-      editor.executeEdits('soql-help', [
-        { range: editor.getSelection()!, text: snippet.replace(/\$\{\d+:([^}]*)\}/g, '$1'), forceMoveMarkers: true },
-      ]);
-  };
+  const insertSoql = (snippet: string, replaceAll = false) => insertSnippet(editorRef.current, snippet, replaceAll);
 
   const allFields = async () => {
     const from = mainSObject(soql);

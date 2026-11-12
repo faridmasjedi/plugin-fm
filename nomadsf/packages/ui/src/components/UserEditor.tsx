@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
-import { searchUsers, setActive, setFrozen, userLogin, writeWorkbook, type UserMatch } from '@nomadsf/core';
+import {
+  searchUsers,
+  setActive,
+  setFrozen,
+  snapshotCsv,
+  takeUserSnapshot,
+  userLogin,
+  writeWorkbook,
+  type UserMatch,
+} from '@nomadsf/core';
 import { useStudio } from '../context';
 import { RecordPage } from '../pages/RecordPage';
 import { DataTable, download } from './DataTable';
 import { UserAccessPanel, userWorkbook } from './UserAccessPanel';
-import { UserSnapshot } from './UserSnapshot';
 import { Status } from '../statusLog';
 
 /** Find a user by name, username, email or Id, then edit any field (the Record editor) or freeze / deactivate. */
@@ -54,13 +62,29 @@ export function UserEditor() {
     }
   };
 
+  const snapshot = async () => {
+    if (!chosen) return;
+    setStatus('Reading the user…');
+    try {
+      const lines = await takeUserSnapshot(client, chosen.Id, org.label);
+      download(
+        `${chosen.Username}-snapshot-${new Date().toLocaleDateString('en-CA')}.csv`,
+        snapshotCsv(lines),
+        'text/csv'
+      );
+      setStatus(`✓ Snapshot of ${chosen.Name} saved (${lines.length} lines).`);
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    }
+  };
+
   const workbook = async () => {
     if (!chosen) return;
     setStatus('Reading every tab of the user…');
     try {
       download(
         `${chosen.Username}-${new Date().toLocaleDateString('en-CA')}.xlsx`,
-        writeWorkbook(await userWorkbook(client, chosen.Id, org.label)),
+        writeWorkbook(await userWorkbook(client, chosen.Id)),
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       );
       setStatus(`✓ Workbook of ${chosen.Name}: a sheet per tab.`);
@@ -71,8 +95,6 @@ export function UserEditor() {
 
   return (
     <div className="card section">
-      {/* Snapshot first: save the chosen user, or compare a file with this org */}
-      <UserSnapshot key={chosen?.Id ?? 'none'} userId={chosen?.Id} username={chosen?.Username} />
       <h3>Find and update a user</h3>
       <div className="form">
         <input
@@ -115,6 +137,12 @@ export function UserEditor() {
               onClick={() => void workbook()}
             >
               Everything (workbook)
+            </button>
+            <button
+              title="The user in one CSV (fields, profile, role, manager, access, groups) — restore them in any org from Restore from a snapshot"
+              onClick={() => void snapshot()}
+            >
+              Snapshot (CSV)
             </button>
             {login && (
               <button

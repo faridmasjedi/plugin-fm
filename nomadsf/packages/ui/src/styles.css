@@ -4353,17 +4353,98 @@ select.row-action {
 .combo-list li.combo-more {
   cursor: default;
 }
-/* A long list: a small filter box in front of it */
-.select-filter {
+
+/* A long dropdown you can search: looks like a select, opens with a search box over the list */
+.search-select {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: middle;
+}
+.search-select-native {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+}
+.search-select-button {
   display: inline-flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 160px;
+  text-align: left;
+  background: var(--panel);
+  font-weight: normal;
+}
+.search-select-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-select-caret {
+  color: var(--muted);
+  font-size: 11px;
+}
+.search-select-pop {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
   gap: 4px;
-  min-width: 0;
+  min-width: max(100%, 300px);
+  max-width: 560px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
-.select-filter-input {
-  width: 74px;
-  min-width: 0;
+.search-select-pop input {
+  width: 100%;
 }
-.select-filter-input:focus {
-  width: 160px;
+.search-select-list {
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text);
+}
+.search-select-list li {
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.search-select-list li.active {
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+}
+.search-select-list li.chosen {
+  font-weight: 600;
+}
+.search-select-list li.disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* The row under the mouse stands out in every list of components (Project, Compare & package, Org compare…) */
+.grouped-actions .group-rows tr:hover td {
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
+}
+.grouped-actions .group-rows tr {
+  transition: background-color 80ms;
+}
+
+/* Nothing to show yet: one calm line saying how to get something, instead of an empty table */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 20px;
 }

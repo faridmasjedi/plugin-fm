@@ -22,7 +22,6 @@ export function GitHubCard({ hostKind, embedded = false }: { hostKind: HostKind;
   const [connection, setConnection] = useState<GitHubConnection & { login: string }>();
   const [checking, setChecking] = useState(true);
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
-  const [filter, setFilter] = useState('');
   const [repo, setRepo] = useState(lastRepo.get()?.fullName ?? '');
   const [branches, setBranches] = useState<string[]>([]);
   const [ref, setRef] = useState(lastRepo.get()?.ref ?? '');
@@ -110,7 +109,7 @@ export function GitHubCard({ hostKind, embedded = false }: { hostKind: HostKind;
     await connect();
   };
 
-  const shown = repos.filter((r) => r.fullName.toLowerCase().includes(filter.toLowerCase())).slice(0, 200);
+  const shown = repos;
 
   return (
     <div className={embedded ? 'project-source' : 'card section'}>
@@ -132,11 +131,6 @@ export function GitHubCard({ hostKind, embedded = false }: { hostKind: HostKind;
             )}
           </p>
           <div className="form">
-            <input
-              placeholder={`Filter ${repos.length} repositories`}
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-            />
             <Select value={repo} onChange={(e) => setRepo(e.target.value)} style={{ maxWidth: 320 }}>
               <option value="">Choose a repository…</option>
               {shown.map((r) => (

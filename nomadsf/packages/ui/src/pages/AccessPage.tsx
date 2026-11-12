@@ -15,7 +15,7 @@ import {
 import { TableTabs } from '../components/TableTabs';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { PermissionsExplorer } from '../components/PermissionsExplorer';
-import { UsersWorkbook } from '../components/UsersWorkbook';
+import { UserSnapshot } from '../components/UserSnapshot';
 import { UserEditor } from '../components/UserEditor';
 import { WhoHasIt } from '../components/WhoHasIt';
 import { CompareAccess } from '../components/CompareAccess';
@@ -48,12 +48,30 @@ function AccessTool({ title, about, children }: { title: string; about: string; 
   );
 }
 
-/** Access › Users: find a user, edit them, and everything they have. */
+type UsersTab = 'find' | 'snapshot';
+
+/** Access › Users: find a user, edit them and everything they have; or restore one from a snapshot file. */
 export function UsersPage() {
+  const [tab, setTab] = useState<UsersTab>(() => storage.get<UsersTab>('users.page', 'find'));
+  const pick = (t: UsersTab) => {
+    setTab(t);
+    storage.set('users.page', t);
+  };
   return (
     <AccessTool title="Users" about="a user and everything they have">
-      <UserEditor />
-      <UsersWorkbook />
+      <div className="tabs" role="tablist">
+        {(
+          [
+            ['find', 'Find a user'],
+            ['snapshot', 'Restore from a snapshot'],
+          ] as Array<[UsersTab, string]>
+        ).map(([id, label]) => (
+          <button key={id} role="tab" className={`tab ${tab === id ? 'active' : ''}`} onClick={() => pick(id)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === 'find' ? <UserEditor /> : <UserSnapshot />}
     </AccessTool>
   );
 }

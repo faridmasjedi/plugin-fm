@@ -138,11 +138,12 @@ export function PackagePage() {
 
   const hasFolder = Boolean(project.source && handle && engine);
   const modeSwitch = (
-    <div className="segmented" role="group" aria-label="What to compare">
+    <div className="tabs" role="tablist" aria-label="What to compare">
       {MODES.map((m) => (
         <button
           key={m.id}
-          className={mode === m.id ? 'active' : ''}
+          role="tab"
+          className={`tab ${mode === m.id ? 'active' : ''}`}
           disabled={m.needsFolder && !hasFolder}
           title={m.needsFolder && !hasFolder ? 'Open the project folder first' : undefined}
           onClick={() => chooseMode(m.id)}
@@ -165,11 +166,8 @@ export function PackagePage() {
             : 'what a branch brings into another, as package.xml and destructiveChanges.xml'}
         </span>
       </div>
-      <div className="card section">
-        <h3>1 · Compare</h3>
-        {modeSwitch}
-        {error && <Status text={error} block />}
-      </div>
+      {modeSwitch}
+      {error && <Status text={error} block />}
       {!hasFolder && mode !== 'org-org' && (
         <div className="card section">
           <p>
@@ -743,7 +741,7 @@ function PackageCard(props: {
   return (
     <div className="card section">
       <div className="form">
-        <h3 className="grow">2 · Package</h3>
+        <h3 className="grow">Package</h3>
         <span className="muted">
           {pkg.target === 'manifest'
             ? `from a manifest · files of ${pkg.source} (${pkg.refB.slice(0, 7)})`

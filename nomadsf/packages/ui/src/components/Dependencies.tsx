@@ -83,20 +83,21 @@ export function Dependencies({
   }, [client, id, lookOrg, fs, info, type, name, org.label]);
 
   const choice = both && (
-    <div className="form">
-      <span className="muted">Look in</span>
-      {(
-        [
-          ['org', org.label],
-          ['project', 'Project'],
-          ['both', 'Both'],
-        ] as Array<[From, string]>
-      ).map(([f, label]) => (
-        <label key={f}>
-          <input type="radio" name={`deps-from-${name}`} checked={from === f} onChange={() => pick(f)} /> {label}
-        </label>
-      ))}
-      <span className="muted small">the project's files take longer in a big project</span>
+    <div className="form deps-from">
+      <span className="muted small">Look in</span>
+      <div className="segmented" role="group" aria-label="Look in">
+        {(
+          [
+            ['org', org.label, `Salesforce's dependency tracking in ${org.label}: quick`],
+            ['project', 'Project', "The project's files: takes longer in a big project"],
+            ['both', 'Both', 'The org and the project together'],
+          ] as Array<[From, string, string]>
+        ).map(([f, label, hint]) => (
+          <button key={f} className={from === f ? 'active' : ''} title={hint} onClick={() => pick(f)}>
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
   );
   if (!id && !project.source)
