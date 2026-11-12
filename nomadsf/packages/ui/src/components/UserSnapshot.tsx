@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   accessFiles,
   applySnapshot,
@@ -24,7 +24,16 @@ import { Status } from '../statusLog';
  * groups, licenses, public groups and queues), and, in any org, the differences with that file —
  * then make the user the same again. The CSV can be edited in Excel first.
  */
-export function UserSnapshot({ userId, username }: { userId?: string; username?: string }) {
+export function UserSnapshot({
+  userId,
+  username,
+  initialFile,
+}: {
+  userId?: string;
+  username?: string;
+  /** A snapshot already chosen (Compare & move › Open a file): compared at once. */
+  initialFile?: File;
+}) {
   const { client, org, orgs, clientFor, confirmChange, logActivity } = useStudio();
   const [kept, setKept] = useState<{ name: string; lines: SnapshotLine[] } | null>(null);
   const [target, setTarget] = useState<string | null>(null);
@@ -83,6 +92,17 @@ export function UserSnapshot({ userId, username }: { userId?: string; username?:
       setStatus(`❌ ${(e as Error).message}`);
     }
   };
+  useEffect(() => {
+    if (!initialFile) return;
+    void initialFile.text().then((text) => {
+      try {
+        void compareWith(parseSnapshot(text), initialFile.name);
+      } catch (err) {
+        setStatus(`❌ ${(err as Error).message}`);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFile]);
 
   const create = async () => {
     if (!kept || !missing) return;
@@ -205,26 +225,28 @@ export function UserSnapshot({ userId, username }: { userId?: string; username?:
             Save snapshot (CSV)
           </button>
         )}
-        <label className="file-button">
-          {userId ? 'Compare this user with a snapshot…' : 'Compare a snapshot with this org…'}
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              e.target.value = '';
-              if (!f) return;
-              void f.text().then((text) => {
-                try {
-                  void compareWith(parseSnapshot(text), f.name);
-                } catch (err) {
-                  setStatus(`❌ ${(err as Error).message}`);
-                }
-              });
-            }}
-          />
-        </label>
+        {!initialFile && (
+          <label className="file-button">
+            {userId ? 'Compare this user with a snapshot…' : 'Compare a snapshot with this org…'}
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (!f) return;
+                void f.text().then((text) => {
+                  try {
+                    void compareWith(parseSnapshot(text), f.name);
+                  } catch (err) {
+                    setStatus(`❌ ${(err as Error).message}`);
+                  }
+                });
+              }}
+            />
+          </label>
+        )}
         <Status text={status} />
       </div>
       {missing && kept && (

@@ -1,29 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Select } from '../components/Select';
-import {
-  licenseReport,
-  licenseUsers,
-  securityReport,
-  type LicenseRow,
-  type Row,
-  type SecurityReport,
-} from '@nomadsf/core';
+import { securityReport, type Row, type SecurityReport } from '@nomadsf/core';
 import { TableTabs, type TableTab } from '../components/TableTabs';
-import { DataTable, EmptyHint } from '../components/DataTable';
-import { storage, useStudio } from '../context';
+import { DataTable } from '../components/DataTable';
+import { useStudio } from '../context';
 import { Status } from '../statusLog';
 
-type Tab = 'security' | 'licenses';
-
-/** Org health: risky access in one report, and license usage with the users behind each license. */
+/** Org health: risky access in one report (license usage is in Org › Licenses). */
 export function OrgHealthPage() {
   const { client, org } = useStudio();
-  const [tab, setTab] = useState<Tab>(() => storage.get('health.tab', 'security'));
   const [days, setDays] = useState(90);
   const [report, setReport] = useState<SecurityReport | null>(null);
-  const [licenses, setLicenses] = useState<LicenseRow[] | null>(null);
-  const [license, setLicense] = useState<LicenseRow | null>(null);
-  const [licensed, setLicensed] = useState<Row[] | null>(null);
   const [status, setStatus] = useState('');
 
   const loadSecurity = async (d = days) => {
@@ -35,39 +22,16 @@ export function OrgHealthPage() {
       setStatus(`❌ ${(e as Error).message}`);
     }
   };
-  const loadLicenses = async () => {
-    setStatus('Reading licenses…');
-    try {
-      setLicenses(await licenseReport(client));
-      setStatus('');
-    } catch (e) {
-      setStatus(`❌ ${(e as Error).message}`);
-    }
-  };
   useEffect(() => {
     setReport(null);
-    setLicenses(null);
-    setLicense(null);
   }, [client]);
   useEffect(() => {
-    if (tab === 'security' && !report) void loadSecurity();
-    if (tab === 'licenses' && !licenses) void loadLicenses();
+    if (!report) void loadSecurity();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, client, report, licenses]);
-  useEffect(() => {
-    setLicensed(null);
-    if (!license) return;
-    licenseUsers(client, license)
-      .then(setLicensed)
-      .catch((e: Error) => setStatus(`❌ ${e.message}`));
-  }, [client, license]);
+  }, [client, report]);
 
   // The check shown below: a tile or a tab chooses it
   const [check, setCheck] = useState('powerful-permissions');
-  const choose = (next: Tab) => {
-    setTab(next);
-    storage.set('health.tab', next);
-  };
   /** One check of the security report: a tab with its count, its hint and its table. */
   const section = (title: string, hint: string, rows: Row[], columns: string[], name: string): TableTab => ({
     id: name,
@@ -91,25 +55,13 @@ export function OrgHealthPage() {
     <div className="page">
       <div className="toolbar">
         <h2>Org health</h2>
-        <span className="muted">Risky access and license usage on {org.label} (read-only)</span>
+        <span className="muted">Risky access on {org.label} (read-only); license usage is in Org › Licenses</span>
         <span className="grow" />
-        <button onClick={() => void (tab === 'security' ? loadSecurity() : loadLicenses())}>Refresh</button>
-      </div>
-      <div className="tabs">
-        {(
-          [
-            ['security', 'Security'],
-            ['licenses', 'Licenses'],
-          ] as Array<[Tab, string]>
-        ).map(([id, text]) => (
-          <button key={id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => choose(id)}>
-            {text}
-          </button>
-        ))}
+        <button onClick={() => void loadSecurity()}>Refresh</button>
       </div>
       {status && <Status text={status} block />}
 
-      {tab === 'security' && report && (
+      {report && (
         <>
           <div className="form">
             <label>
@@ -206,51 +158,6 @@ export function OrgHealthPage() {
           />
         </>
       )}
-
-      {tab === 'licenses' &&
-        licenses &&
-        (licenses.length === 0 ? (
-          <EmptyHint what="licenses" />
-        ) : (
-          <>
-            <DataTable
-              columns={['kind', 'name', 'status', 'used', 'total', 'percent', 'expires']}
-              rows={licenses.map((l) => ({ ...l, key: `${l.kind}:${l.id}` }))}
-              rowKey="key"
-              name={`${org.label}-licenses`}
-              selectedKey={license ? `${license.kind}:${license.id}` : undefined}
-              onRowClick={(row) => setLicense(licenses.find((l) => `${l.kind}:${l.id}` === row.key) ?? null)}
-              note={<span>· click a license to see who uses it</span>}
-            />
-            {license && (
-              <div className="section">
-                <h3>
-                  {license.name} · {license.used} of {license.total} used
-                </h3>
-                {licensed === null ? (
-                  <p className="muted">Reading users…</p>
-                ) : licensed.length === 0 ? (
-                  <EmptyHint what="users" />
-                ) : (
-                  <DataTable
-                    columns={['Name', 'Username', 'Profile.Name', 'UserRole.Name', 'LastLoginDate']}
-                    rows={licensed}
-                    rowKey="Id"
-                    name={`${org.label}-${license.name}-users`}
-                    note={
-                      <span>
-                        ·{' '}
-                        {license.kind === 'User license'
-                          ? 'active users whose profile uses this license'
-                          : 'users assigned this license'}
-                      </span>
-                    }
-                  />
-                )}
-              </div>
-            )}
-          </>
-        ))}
     </div>
   );
 }

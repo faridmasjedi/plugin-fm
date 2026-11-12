@@ -37,6 +37,8 @@ if [ "$variant" = b ]; then
     "$d"/permissionsetgroups/*.permissionsetgroup-meta.xml
   # An older AccountService: Gold from 20M (later raised to 10M)
   perl -pi -e 's/10000000/20000000/' "$d"/classes/AccountService.cls
+  # Its own billing system (Sandbox refresh compares remote sites and settings)
+  perl -pi -e 's/billing-uat/billing-dev/' "$d"/remoteSiteSettings/Billing_API.remoteSite-meta.xml
 fi
 deploy() { # the errors only, when it fails
   sf project deploy start -o "$alias" -w 60 --json "$@" > "$work/deploy.json" 2>/dev/null || {
@@ -56,6 +58,9 @@ if [ "$variant" = b ]; then apex "$here/seed-b.apex"; else apex "$here/seed.apex
 sed "s/DOMAIN/$domain/" "$here/users.apex" > "$work/users.apex"
 apex "$work/users.apex"
 for f in seed-more seed-access seed-groups seed-groups-members seed-jobs; do apex "$here/$f.apex"; done
+billing=billing-uat; [ "$variant" = b ] && billing=billing-dev
+sed "s#ENDPOINT#https://$billing.example.com/v2#" "$here/seed-integration.apex" > "$work/integration.apex"
+apex "$work/integration.apex"
 
 if [ -n "${SHARING_DIR:-}" ] && [ -d "$SHARING_DIR/sharing-1-private" ]; then
   step "sharing: Invoices private, then two rules"

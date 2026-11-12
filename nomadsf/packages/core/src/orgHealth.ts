@@ -460,3 +460,50 @@ export async function licenseUsers(client: SalesforceClient, license: Pick<Licen
     )
   ).rows;
 }
+
+/**
+ * Who holds a license without using it: active users who have not logged in for `days` (or never), active users who
+ * are frozen (they still count against a license), and permission set licenses still assigned to deactivated users.
+ */
+export async function idleLicenses(
+  client: SalesforceClient,
+  days: number
+): Promise<{ notLoggingIn: Row[]; frozen: Row[]; heldByInactive: Row[] }> {
+  if (!Number.isInteger(days) || days < 1 || days > 3650) throw new Error('Days: a whole number from 1 to 3650.');
+  const [notLoggingIn, frozenLogins, heldByInactive] = await Promise.all([
+    query(
+      client,
+      `SELECT Id, Name, Username, Profile.Name, Profile.UserLicense.Name, LastLoginDate, CreatedDate FROM User WHERE IsActive = true AND UserType = 'Standard' AND (LastLoginDate < LAST_N_DAYS:${days} OR LastLoginDate = null) ORDER BY LastLoginDate NULLS FIRST`,
+      { maxRows: 50_000 }
+    ),
+    query(client, 'SELECT Id, UserId FROM UserLogin WHERE IsFrozen = true', { maxRows: 50_000 }).catch(() => ({
+      rows: [] as Row[],
+    })),
+    query(
+      client,
+      'SELECT Id, Assignee.Name, Assignee.Username, PermissionSetLicense.MasterLabel FROM PermissionSetLicenseAssign WHERE Assignee.IsActive = false ORDER BY Assignee.Name',
+      { maxRows: 50_000 }
+    ).catch(() => ({ rows: [] as Row[] })),
+  ]);
+  // Frozen logins of active users (a frozen user who was deactivated holds nothing)
+  const loginOf = new Map(frozenLogins.rows.map((r) => [String(r.UserId), String(r.Id)]));
+  const ids = [...loginOf.keys()];
+  const frozen: Row[] = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    // eslint-disable-next-line no-await-in-loop
+    const page = await query(
+      client,
+      `SELECT Id, Name, Username, Profile.Name, Profile.UserLicense.Name, LastLoginDate FROM User WHERE IsActive = true AND Id IN (${ids
+        .slice(i, i + 200)
+        .map((x) => `'${x}'`)
+        .join(', ')}) ORDER BY Name`,
+      { maxRows: 50_000 }
+    );
+    frozen.push(...page.rows.map((r) => ({ ...r, UserLoginId: loginOf.get(String(r.Id)) })));
+  }
+  return {
+    notLoggingIn: notLoggingIn.rows.map((r) => ({ ...r, LastLoginDate: r.LastLoginDate ?? 'never' })),
+    frozen,
+    heldByInactive: heldByInactive.rows,
+  };
+}

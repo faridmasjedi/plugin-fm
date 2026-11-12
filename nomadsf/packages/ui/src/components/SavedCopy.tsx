@@ -16,7 +16,16 @@ const nameOf = (row: Record<string, string>): string =>
  * Record › Open a saved copy: a workbook saved from Record › Related (or any workbook with a sheet
  * per object), as a tree to tick, then Copy into any org — the links between its records kept.
  */
-export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }) {
+export function SavedCopy({
+  file,
+  onClose,
+  usersOnly = false,
+}: {
+  file: File;
+  onClose: () => void;
+  /** Only the users of the workbook (Sandbox refresh: its other sheets are not records). */
+  usersOnly?: boolean;
+}) {
   const [tables, setTables] = useState<FileTable[] | null>(null);
   const [users, setUsers] = useState<UserCopy[]>([]);
   const [metadata, setMetadata] = useState<AccessFile[]>([]);
@@ -33,7 +42,7 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
       .then((read) => {
         if (canceled) return;
         const saved = fromCopySheets(read.filter((t) => t.columns.length));
-        setTables(saved.tables);
+        setTables(usersOnly ? [] : saved.tables);
         setUsers(saved.users);
         setMetadata(saved.metadata);
         setOlderReport(Boolean(saved.olderReport));

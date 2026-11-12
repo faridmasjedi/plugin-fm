@@ -3,6 +3,12 @@
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
   next: [
+    'New layout: 7 hubs — Develop, Data, Access, Security, Org, Compare & move, Settings. Release, Org to org and Data protection are gone: their tools moved (old links still open them)',
+    'Compare & move: everything between two places, grouped by pair — Org ↔ Org, Org ↔ Project, Branch ↔ Branch, Org ↔ File, Sandbox',
+    'Sandbox refresh: before it, save remote sites, credentials, certificates, custom settings, scheduled Apex and the users you choose in one workbook; after it, compare, put back what the API allows, and a Setup checklist',
+    'Open a file: a user snapshot, an Everything workbook, saved records, a CSV or a package.xml — NomadSF says what it is and opens the tool that uses it',
+    'Org › Licenses: usage, and who holds a license without using it (no login for N days, frozen but active, inactive with a permission set license): freeze, deactivate or free it',
+    'Develop › Flows: old flow versions (delete), active flows on an old API version, waiting interviews (delete), failed runs',
     'Security hub: a Dashboard of checks, a Timeline of everything that happened (setup, logins, components, NomadSF), Event logs (the org’s event log files or CSV files: failed logins by IP, API calls by app, slowest Apex and pages), Who can see a record and why, and Sharing as a tree; Org health and Logins & audit move here',
     'Guide and site videos drawn 1.5× bigger, and every video can be enlarged',
     'Website: a Releases page with every version; the home page shows the latest',

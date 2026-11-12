@@ -4575,3 +4575,38 @@ select.row-action {
 .sharing-tree .sharing-rule {
   margin: 8px 0;
 }
+
+/* Compare & move: a small heading where a group of tabs starts (Org ↔ Org, Org ↔ Project…) */
+.pane-nav-section {
+  display: block;
+  margin: 12px 10px 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pane-nav-section:first-child {
+  margin-top: 2px;
+}
+
+/* Sandbox refresh: users picked (a chip each); the Setup checklist */
+button.chip {
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+}
+button.chip.on {
+  background: var(--accent-soft, #e3ecfc);
+  border-color: transparent;
+}
+.checklist,
+.file-kinds {
+  margin: 8px 0;
+  padding-left: 20px;
+  line-height: 1.7;
+}
+.checklist {
+  list-style: none;
+  padding-left: 0;
+}

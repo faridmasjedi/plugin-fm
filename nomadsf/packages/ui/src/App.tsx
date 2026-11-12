@@ -2,6 +2,10 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Select } from './components/Select';
 import { SecurityDashboardPage, SharingPage, TimelinePage, WhoCanSeePage } from './pages/SecurityPages';
 import { EventLogsPage } from './pages/EventLogsPage';
+import { LicensesPage } from './pages/LicensesPage';
+import { FlowsPage } from './pages/FlowsPage';
+import { FilesPage } from './pages/FilesPage';
+import { SandboxPage } from './pages/SandboxPage';
 import { getUserInfo, type SalesforceClient, type UserInfo } from '@nomadsf/core';
 import { detectHost, openInOrg, orgFacts, type OrgChoice, type OrgFacts } from './host';
 import { useBusy } from './busy';
@@ -356,6 +360,10 @@ export function App() {
               {tool === 'apextests' && <ApexTestsPage />}
               {tool === 'orgaccess' && <OrgAccessPage />}
               {tool === 'orgapps' && <OrgAppsPage />}
+              {tool === 'licenses' && <LicensesPage />}
+              {tool === 'flows' && <FlowsPage />}
+              {tool === 'files' && <FilesPage />}
+              {tool === 'sandbox' && <SandboxPage />}
             </GoContext.Provider>
           </InspectContext.Provider>
         </PairContext.Provider>

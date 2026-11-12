@@ -7,6 +7,7 @@ import {
   describeGlobal,
   type FileTable,
   planCsv,
+  readTableFile,
   type CsvPlan,
   type CsvRowResult,
   type CsvTable,
@@ -22,7 +23,7 @@ import { Status } from '../statusLog';
  * Data › Compare with CSV: a CSV of records (from an old org, a backup, a spreadsheet) next to this
  * org — what is the same, what differs field by field, what is missing — then make the org match it.
  */
-export function CsvComparePage() {
+export function CsvComparePage({ initialFile }: { initialFile?: File } = {}) {
   const { client, org, confirmChange, logActivity } = useStudio();
   const [objects, setObjects] = useState<Array<{ name: string; label: string }>>([]);
   const [object, setObject] = useState('');
@@ -81,6 +82,20 @@ export function CsvComparePage() {
     if (guess && (!object || object === guessed.current)) setObject(guess.name);
     guessed.current = guess?.name;
   };
+  // A file already chosen (Compare & move › Open a file): its first table is opened
+  useEffect(() => {
+    if (!initialFile) return;
+    void initialFile
+      .arrayBuffer()
+      .then((b) => readTableFile(initialFile.name, new Uint8Array(b)))
+      .then((tables) => {
+        const first = tables.find((t) => t.columns.length);
+        if (first) open(first, initialFile.name);
+        else setStatus(`❌ No table in ${initialFile.name}.`);
+      })
+      .catch((e: Error) => setStatus(`❌ ${e.message}`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFile]);
 
   const compare = async () => {
     if (!known || !file || !table) return;

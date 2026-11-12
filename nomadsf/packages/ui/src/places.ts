@@ -215,11 +215,39 @@ export const PLACES: StudioPlace[] = [
 
   // ---------- Org ----------
   P('company', 'see the org Id and edition', 'company information org id edition locale currency fiscal year'),
-  P('health', 'check org security', 'security health check risks password policies session', 'Security', {
+  P('licenses', 'how many licenses are used', 'license usage seats user license permission set license'),
+  P('licenses', 'users who do not log in', 'inactive dormant no login never logged in freeze deactivate', 'No login', {
+    'licenses.tab': 'idle',
+  }),
+  P('licenses', 'frozen users still using a license', 'frozen active license', 'Frozen but active', {
+    'licenses.tab': 'frozen',
+  }),
+  P('flows', 'delete old flow versions', 'obsolete inactive flow versions clean up', 'Old versions', {
+    'flows.tab': 'versions',
+  }),
+  P('flows', 'flows on an old API version', 'flow api version upgrade', 'Old API versions', { 'flows.tab': 'api' }),
+  P('flows', 'paused flow interviews', 'waiting paused interviews delete', 'Waiting interviews', {
+    'flows.tab': 'paused',
+  }),
+  P('flows', 'failed flow runs', 'flow errors failed interviews', 'Failed runs', { 'flows.tab': 'failed' }),
+  P('files', 'open a snapshot, workbook or CSV', 'file restore user copy records csv excel package.xml'),
+  P(
+    'sandbox',
+    'before a sandbox refresh',
+    'sandbox refresh save keep remote sites credentials custom settings',
+    'Before',
+    {
+      'sandbox.tab': 'before',
+    }
+  ),
+  P('sandbox', 'after a sandbox refresh', 'sandbox refresh restore put back compare', 'After', {
+    'sandbox.tab': 'after',
+  }),
+  P('health', 'check org security', 'security health check risks password policies session', 'Health check', {
     'health.tab': 'security',
   }),
-  P('health', 'see licenses in use', 'user licenses permission set licenses used available', 'Licenses', {
-    'health.tab': 'licenses',
+  P('licenses', 'see licenses in use', 'user licenses permission set licenses used available', 'Usage', {
+    'licenses.tab': 'usage',
   }),
   P('limits', 'see org limits', 'api calls daily limits remaining', 'Limits', { 'limits.tab': 'limits' }),
   P('limits', 'see data and file storage', 'storage usage space full', 'Storage', { 'limits.tab': 'storage' }),
@@ -262,7 +290,7 @@ export const PLACES: StudioPlace[] = [
   }),
   P('lifecycle', 'delete records in steps', 'purge cleanup hard delete'),
 
-  // ---------- Org to org ----------
+  // ---------- Compare & move: two orgs ----------
   P('migrate', 'copy records to another org', 'seed sandbox copy data migrate related records'),
   P('orgdiff', 'compare metadata of two orgs', 'sandbox vs production difference deploy package between'),
   P('orgdiff', 'deploy from one org to another', 'move metadata between orgs'),
