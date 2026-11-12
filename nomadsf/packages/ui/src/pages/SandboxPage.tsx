@@ -78,6 +78,17 @@ function Before() {
   const [where, setWhere] = useState("Profile.Name LIKE '%Integration%'");
   const [found, setFound] = useState<UserMatch[]>([]);
   const [users, setUsers] = useState<UserMatch[]>([]);
+  // The kinds that go into the workbook (all, until unticked)
+  const [skip, setSkip] = useState<Set<SandboxSection>>(
+    () => new Set(storage.get<SandboxSection[]>('sandbox.skip', []))
+  );
+  const flipKind = (k: SandboxSection) => {
+    const next = new Set(skip);
+    if (next.has(k)) next.delete(k);
+    else next.add(k);
+    setSkip(next);
+    storage.set('sandbox.skip', [...next]);
+  };
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -140,7 +151,11 @@ function Before() {
     setBusy(true);
     setStatus('Reading remote sites, credentials, certificates, custom settings, scheduled Apex and the users…');
     try {
-      const sheets = await sandboxBefore(client, { userIds: users.map((u) => u.Id), orgLabel: org.label });
+      const sheets = await sandboxBefore(client, {
+        userIds: users.map((u) => u.Id),
+        orgLabel: org.label,
+        skip: [...skip],
+      });
       download(
         `${org.label}-before-refresh-${new Date().toLocaleDateString('en-CA')}.xlsx`,
         writeWorkbook(sheets),
@@ -168,6 +183,14 @@ function Before() {
         scheduled Apex — and the users you add below with their profile, role, permission sets and groups (integration
         users, testers…). Secrets are never readable: the checklist covers them.
       </p>
+      <h3>What goes into the workbook</h3>
+      <div className="sandbox-kinds">
+        {(Object.keys(SANDBOX_LABELS) as SandboxSection[]).map((k) => (
+          <label key={k} className="check">
+            <input type="checkbox" checked={!skip.has(k)} onChange={() => flipKind(k)} /> {SANDBOX_LABELS[k]}
+          </label>
+        ))}
+      </div>
       <h3>Users to keep</h3>
       <div className="form">
         <div className="segmented" role="group" aria-label="Find users by">
@@ -423,11 +446,13 @@ function After() {
               return (
                 <div key={section} className="after-group">
                   <h4>
-                    {can.length > 0 && (
+                    {
                       <input
                         type="checkbox"
                         aria-label={`All ${SANDBOX_LABELS[section]}`}
-                        checked={on === can.length}
+                        disabled={!can.length}
+                        title={can.length ? '' : 'Only by hand in Setup'}
+                        checked={can.length > 0 && on === can.length}
                         ref={(el) => {
                           if (el) el.indeterminate = on > 0 && on < can.length;
                         }}
@@ -440,8 +465,9 @@ function After() {
                           setTicked(next);
                         }}
                       />
-                    )}{' '}
+                    }{' '}
                     {SANDBOX_LABELS[section]} <span className="muted">({list.length})</span>
+                    {!can.length && <span className="muted small">— by hand in Setup</span>}
                   </h4>
                   <div className="table-scroll">
                     <table className="after-table">
@@ -461,14 +487,15 @@ function After() {
                           return (
                             <tr key={k} className={ticked.has(k) ? 'picked' : ''}>
                               <td>
-                                {i.restorable && (
-                                  <input
-                                    type="checkbox"
-                                    aria-label={`Put back ${i.label}`}
-                                    checked={ticked.has(k)}
-                                    onChange={(e) => tick(k, e.target.checked)}
-                                  />
-                                )}
+                                {/* Every row has its tick; what only Setup can do says so instead */}
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Put back ${i.label}`}
+                                  disabled={!i.restorable}
+                                  title={i.restorable ? '' : `By hand: ${i.how ?? 'Setup'}`}
+                                  checked={i.restorable && ticked.has(k)}
+                                  onChange={(e) => tick(k, e.target.checked)}
+                                />
                               </td>
                               <td className="name">{i.label}</td>
                               <td>{i.before}</td>

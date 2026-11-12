@@ -626,3 +626,42 @@ export async function missingSchema(
     classes: plainClasses.filter((c) => !haveClasses.has(c.toLowerCase())).sort(),
   };
 }
+
+/** What one permission set or group needs that the target lacks. */
+export type SchemaNeed = {
+  type: AccessFile['type'];
+  name: string;
+  objects: string[];
+  fields: string[];
+  classes: string[];
+};
+
+/**
+ * The missing pieces in the order to deploy them: per permission set or group what it needs (objects with their
+ * fields, fields of objects that are there, Apex classes), and the components to deploy before it — a missing
+ * object is deployed whole (its fields come with it).
+ */
+export async function schemaPlan(
+  target: SalesforceClient,
+  files: AccessFile[]
+): Promise<{ needs: SchemaNeed[]; components: Array<{ type: string; name: string }> }> {
+  const missing = await missingSchema(target, files);
+  const mentions = (xml: string, tag: string, value: string) => xml.includes(`<${tag}>${value}</${tag}>`);
+  const needs = files
+    .map((f) => ({
+      type: f.type,
+      name: f.name,
+      objects: missing.objects.filter((o) => mentions(f.xml, 'object', o) || new RegExp(`<field>${o}\\.`).test(f.xml)),
+      fields: missing.fields.filter((x) => mentions(f.xml, 'field', x)),
+      classes: missing.classes.filter((c) => mentions(f.xml, 'apexClass', c)),
+    }))
+    .filter((n) => n.objects.length + n.fields.length + n.classes.length > 0);
+  return {
+    needs,
+    components: [
+      ...missing.objects.map((name) => ({ type: 'CustomObject', name })),
+      ...missing.fields.map((name) => ({ type: 'CustomField', name })),
+      ...missing.classes.map((name) => ({ type: 'ApexClass', name })),
+    ],
+  };
+}

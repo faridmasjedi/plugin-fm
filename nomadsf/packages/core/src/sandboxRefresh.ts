@@ -184,25 +184,34 @@ const sameXml = (a: string, b: string): boolean => a.replace(/\s+/g, '') === b.r
 /** Everything a refresh replaces, as workbook sheets (the users' sheets read back by Data › Record › Open a saved copy too). */
 export async function sandboxBefore(
   client: SalesforceClient,
-  options: { userIds: string[]; orgLabel: string }
+  options: { userIds: string[]; orgLabel: string; skip?: SandboxSection[] }
 ): Promise<Sheet[]> {
   const tooling = (soql: string) => optional(query(client, soql, { tooling: true, maxRows: 10_000 }));
+  // A kind left out is not read at all (sharing rules and custom settings take the longest)
+  const want = (s: SandboxSection, read: () => Promise<Row[]>): Promise<Row[]> =>
+    options.skip?.includes(s) ? Promise.resolve([]) : read();
   const [users, remoteSites, named, external, certificates, settings, jobs, defaults, rules] = await Promise.all([
     options.userIds.length ? usersBundle(client, options.userIds, options.orgLabel) : { users: [], metadata: [] },
-    tooling('SELECT SiteName, EndpointUrl, IsActive, Description FROM RemoteProxy'),
-    optional(query(client, 'SELECT DeveloperName, MasterLabel, Endpoint, PrincipalType FROM NamedCredential')),
-    tooling('SELECT DeveloperName, MasterLabel, AuthenticationProtocol FROM ExternalCredential'),
-    tooling('SELECT DeveloperName, MasterLabel, ExpirationDate, KeySize FROM Certificate'),
-    customSettingLines(client).catch(() => [] as Row[]),
-    scheduledApex(client),
-    optional(
-      query(
-        client,
-        'SELECT QualifiedApiName, InternalSharingModel, ExternalSharingModel FROM EntityDefinition WHERE IsCustomizable = true AND InternalSharingModel != null',
-        { maxRows: 5000 }
+    want('remoteSites', () => tooling('SELECT SiteName, EndpointUrl, IsActive, Description FROM RemoteProxy')),
+    want('namedCredentials', () =>
+      optional(query(client, 'SELECT DeveloperName, MasterLabel, Endpoint, PrincipalType FROM NamedCredential'))
+    ),
+    want('externalCredentials', () =>
+      tooling('SELECT DeveloperName, MasterLabel, AuthenticationProtocol FROM ExternalCredential')
+    ),
+    want('certificates', () => tooling('SELECT DeveloperName, MasterLabel, ExpirationDate, KeySize FROM Certificate')),
+    want('customSettings', () => customSettingLines(client).catch(() => [] as Row[])),
+    want('scheduledJobs', () => scheduledApex(client)),
+    want('sharingDefaults', () =>
+      optional(
+        query(
+          client,
+          'SELECT QualifiedApiName, InternalSharingModel, ExternalSharingModel FROM EntityDefinition WHERE IsCustomizable = true AND InternalSharingModel != null',
+          { maxRows: 5000 }
+        )
       )
     ),
-    sharingRules(client).catch(() => [] as Row[]),
+    want('sharingRules', () => sharingRules(client).catch(() => [] as Row[])),
   ]);
   const sheet = (section: SandboxSection, columns: string[], rows: Row[]): Sheet => ({
     name: SANDBOX_SHEETS[section],
@@ -351,8 +360,7 @@ export async function sandboxAfter(client: SalesforceClient, tables: FileTable[]
     'sharingDefaults',
     (r) => text(r.Object),
     (r) => `${text(r.Internal)} / external ${text(r.External)}`,
-    false,
-    'Setup › Sharing Settings'
+    true
   );
   {
     const current = new Map(now('sharingRules').map((r) => [text(r.Object), r]));
@@ -375,6 +383,7 @@ export async function sandboxAfter(client: SalesforceClient, tables: FileTable[]
     if (i.section === 'customSettings') i.edit = { field: 'Value', label: 'value' };
     if (i.section === 'remoteSites') i.edit = { field: 'EndpointUrl', label: 'URL' };
     if (i.section === 'scheduledJobs') i.edit = { field: 'CronExpression', label: 'schedule' };
+    if (i.section === 'sharingDefaults') i.edit = { field: 'Internal', label: 'internal default' };
   }
   // A scheduled job without its class cannot be scheduled again here
   for (const i of items)
@@ -473,6 +482,46 @@ export async function sandboxRestore(
       out.done.push(`${setting} · ${key} (${list.length} value(s))`);
     } catch (e) {
       out.failed.push({ item: `${setting} · ${key}`, error: (e as Error).message });
+    }
+  }
+
+  // Sharing defaults: each object as it is in this org, with only its sharing model changed, deployed back
+  const defaults = picked.filter((i) => i.section === 'sharingDefaults');
+  if (defaults.length) {
+    try {
+      const retrieved = await retrieveZip(
+        client,
+        defaults.map((i) => ({ type: 'CustomObject', fullName: i.key }))
+      );
+      const files = retrieved.zipFile ? await readZip(fromBase64(retrieved.zipFile)) : new Map<string, Uint8Array>();
+      const patched: Array<{ fullName: string; xml: string }> = [];
+      for (const i of defaults) {
+        const file = files.get(`objects/${i.key}.object`);
+        if (!file) {
+          out.failed.push({ item: `sharing default of ${i.key}`, error: 'the object could not be read' });
+          continue;
+        }
+        const set = (xml: string, tag: string, value: string) =>
+          !value
+            ? xml
+            : xml.includes(`<${tag}>`)
+            ? xml.replace(new RegExp(`<${tag}>[^<]*</${tag}>`), `<${tag}>${value}</${tag}>`)
+            : xml.replace('</CustomObject>', `    <${tag}>${value}</${tag}>\n</CustomObject>`);
+        let xml = new TextDecoder().decode(file);
+        xml = set(xml, 'sharingModel', text(i.row.Internal));
+        xml = set(xml, 'externalSharingModel', text(i.row.External));
+        patched.push({ fullName: i.key, xml });
+      }
+      if (patched.length) {
+        const r = await deployFiles(client, 'CustomObject', patched);
+        if (r.success) out.done.push(...patched.map((p) => `sharing default of ${p.fullName}`));
+        else
+          out.failed.push(
+            ...patched.map((p) => ({ item: `sharing default of ${p.fullName}`, error: r.problems.join('; ') }))
+          );
+      }
+    } catch (e) {
+      out.failed.push({ item: 'sharing defaults', error: (e as Error).message });
     }
   }
 

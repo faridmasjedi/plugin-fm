@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Select } from './Select';
 import {
   accessFiles,
@@ -10,7 +10,6 @@ import {
   explainError,
   filesAsSource,
   planUsers,
-  missingSchema,
   prepareCopy,
   readPicked,
   runCopy,
@@ -24,7 +23,8 @@ import {
   type SalesforceClient,
   type UserCopy,
 } from '@nomadsf/core';
-import { GoContext, useStudio } from '../context';
+import { useStudio } from '../context';
+import { SchemaGaps } from './SchemaGaps';
 import { askTyped } from './Dialogs';
 import { download } from './DataTable';
 import { Status } from '../statusLog';
@@ -53,8 +53,8 @@ export function CopyBar({ what }: { what: CopyWhat }) {
   const [mask, setMask] = useState(() => (facts ? !facts.isSandbox : true));
   const [userPlan, setUserPlan] = useState<AccessPlan | null>(null);
   // What the permission sets to create mention that the target lacks (objects, fields, classes)
-  const [gaps, setGaps] = useState<{ objects: string[]; fields: string[]; classes: string[] } | null>(null);
-  const go = useContext(GoContext);
+  const [toCreate, setToCreate] = useState<AccessFile[]>([]);
+  const [targetClient, setTargetClient] = useState<SalesforceClient | null>(null);
   const [username, setUsername] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -82,7 +82,7 @@ export function CopyBar({ what }: { what: CopyWhat }) {
       .then((p) => {
         if (canceled) return;
         setUserPlan(p);
-        setGaps(null);
+        setToCreate([]);
         if (!p.create.length) return;
         // The files of what will be created: from the workbook, or read from the org the user is copied from
         const files = what.metadata?.length
@@ -95,8 +95,10 @@ export function CopyBar({ what }: { what: CopyWhat }) {
           : Promise.resolve([]);
         void files
           .then(async (all) => {
-            const toCreate = all.filter((m) => p.create.some((c) => c.type === m.type && c.name === m.name));
-            if (toCreate.length) setGaps(await missingSchema(await clientFor(target.id), toCreate));
+            const list = all.filter((m) => p.create.some((c) => c.type === m.type && c.name === m.name));
+            if (!list.length || canceled) return;
+            setTargetClient(await clientFor(target.id));
+            setToCreate(list);
           })
           .catch(() => undefined);
         setUsername((now) => now || (p.users[0]?.suggested ?? ''));
@@ -291,35 +293,8 @@ export function CopyBar({ what }: { what: CopyWhat }) {
           {userPlan.noLicense.length > 0 && ` ${target.label} has no ${userPlan.noLicense.join(', ')} license.`}
         </p>
       )}
-      {target && gaps && gaps.objects.length + gaps.fields.length + gaps.classes.length > 0 && (
-        <div className="note warn-box">
-          <b>
-            {target.label} lacks what these permission sets give access to — deploy it first, or that access is left
-            out:
-          </b>
-          <ul>
-            {gaps.objects.length > 0 && (
-              <li>
-                Objects ({gaps.objects.length}): {gaps.objects.join(', ')}
-              </li>
-            )}
-            {gaps.fields.length > 0 && (
-              <li>
-                Fields ({gaps.fields.length}): {gaps.fields.join(', ')}
-              </li>
-            )}
-            {gaps.classes.length > 0 && (
-              <li>
-                Apex classes ({gaps.classes.length}): {gaps.classes.join(', ')}
-              </li>
-            )}
-          </ul>
-          <div className="form">
-            <button onClick={() => go?.('orgdiff')}>Compare metadata with another org…</button>
-            <button onClick={() => go?.('project')}>Deploy from the project…</button>
-            <span className="muted">then come back and copy the user.</span>
-          </div>
-        </div>
+      {target && targetClient && toCreate.length > 0 && (
+        <SchemaGaps target={{ id: target.id, label: target.label, client: targetClient }} files={toCreate} />
       )}
       {status && <Status text={status} block />}
     </div>

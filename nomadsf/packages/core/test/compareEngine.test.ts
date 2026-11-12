@@ -347,6 +347,15 @@ describe('compare & package on a folder', () => {
     expect(found.uncovered).toEqual(expect.arrayContaining(['Hello', 'Newer']));
   });
 
+  it('adds no labels to a manifest that names none', async () => {
+    const pkg = await engine.fromManifest({
+      ref: 'feature',
+      packageXml: manifestXml([{ type: 'ApexClass', name: 'Newer' }], '61.0'),
+    });
+    expect(pkg.components.map((c) => `${c.type}:${c.name}`)).toEqual(['ApexClass:Newer']);
+    expect(pkg.optional).toEqual([]);
+  });
+
   it('takes a package from a manifest and the files of a branch', async () => {
     const pkg = await engine.fromManifest({
       ref: 'feature',

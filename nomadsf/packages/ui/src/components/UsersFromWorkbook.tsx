@@ -1,15 +1,15 @@
-import { useContext, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   copyUsers,
   managersFirst,
-  missingSchema,
   planUsers,
   type AccessFile,
   type AccessPlan,
   type ApplyOutcome,
   type UserCopy,
 } from '@nomadsf/core';
-import { GoContext, useStudio } from '../context';
+import { useStudio } from '../context';
+import { SchemaGaps } from './SchemaGaps';
 import { DataTable } from './DataTable';
 import { Status } from '../statusLog';
 
@@ -29,12 +29,11 @@ export function UsersFromWorkbook({
   source: string;
 }) {
   const { client, org, confirmChange, logActivity } = useStudio();
-  const go = useContext(GoContext);
   const users = useMemo(() => managersFirst(given), [given]);
   const [plan, setPlan] = useState<AccessPlan | null>(null);
   const [usernames, setUsernames] = useState<Record<string, string>>({});
   const [ticked, setTicked] = useState<Set<string>>(() => new Set(given.map((u) => u.username)));
-  const [gaps, setGaps] = useState<{ objects: string[]; fields: string[]; classes: string[] } | null>(null);
+  const [toCreate, setToCreate] = useState<AccessFile[]>([]);
   const [outcome, setOutcome] = useState<ApplyOutcome | null>(null);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -49,8 +48,7 @@ export function UsersFromWorkbook({
         ...now,
       }));
       setStatus('');
-      const toCreate = metadata.filter((m) => p.create.some((c) => c.type === m.type && c.name === m.name));
-      setGaps(toCreate.length ? await missingSchema(client, toCreate) : null);
+      setToCreate(metadata.filter((m) => p.create.some((c) => c.type === m.type && c.name === m.name)));
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
     }
@@ -142,35 +140,12 @@ export function UsersFromWorkbook({
               )}
             </p>
           )}
-          {gaps && gaps.objects.length + gaps.fields.length + gaps.classes.length > 0 && (
-            <div className="note warn-box">
-              <b>
-                {org.label} lacks what these permission sets give access to — deploy it first, or that access is left
-                out:
-              </b>
-              <ul>
-                {gaps.objects.length > 0 && (
-                  <li>
-                    Objects ({gaps.objects.length}): {gaps.objects.join(', ')}
-                  </li>
-                )}
-                {gaps.fields.length > 0 && (
-                  <li>
-                    Fields ({gaps.fields.length}): {gaps.fields.join(', ')}
-                  </li>
-                )}
-                {gaps.classes.length > 0 && (
-                  <li>
-                    Apex classes ({gaps.classes.length}): {gaps.classes.join(', ')}
-                  </li>
-                )}
-              </ul>
-              <div className="form">
-                <button onClick={() => go?.('orgdiff')}>Compare metadata with another org…</button>
-                <button onClick={() => go?.('project')}>Deploy from the project…</button>
-              </div>
-            </div>
-          )}
+          {/* What the org needs before the permission sets go in: deploy it from here */}
+          <SchemaGaps
+            target={{ id: org.id, label: org.label, client }}
+            files={toCreate}
+            onChanged={() => void load()}
+          />
           <div className="form">
             <button className="primary" disabled={busy || !ticked.size} onClick={() => void apply()}>
               Create or complete {ticked.size} user(s)…

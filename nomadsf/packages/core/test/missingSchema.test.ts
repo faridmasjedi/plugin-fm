@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { missingSchema, type SalesforceClient } from '../src/index.js';
+import { missingSchema, schemaPlan, type SalesforceClient } from '../src/index.js';
 
 const client = {
   rest: async (_m: string, path: string) =>
@@ -19,5 +19,25 @@ describe('what a permission set mentions that the target lacks', () => {
     const r = await missingSchema(client, [{ type: 'PermissionSet', name: 'A', xml }]);
     expect(r.objects).toEqual(['Bulk_Item_01__c', 'Gone__c']);
     expect(r.fields).toEqual(['Invoice__c.Code__c']);
+  });
+  it('says what each permission set needs, and what to deploy first', async () => {
+    const a =
+      '<objectPermissions><object>Gone__c</object></objectPermissions><fieldPermissions><field>Gone__c.X__c</field></fieldPermissions>';
+    const b =
+      '<fieldPermissions><field>Invoice__c.Code__c</field></fieldPermissions><classAccesses><apexClass>Nope</apexClass></classAccesses>';
+    const plan = await schemaPlan(client, [
+      { type: 'PermissionSet', name: 'A', xml: a },
+      { type: 'PermissionSet', name: 'B', xml: b },
+      { type: 'PermissionSet', name: 'C', xml: '<objectPermissions><object>Account</object></objectPermissions>' },
+    ]);
+    expect(plan.needs.map((n) => [n.name, n.objects, n.fields])).toEqual([
+      ['A', ['Gone__c'], []],
+      ['B', [], ['Invoice__c.Code__c']],
+    ]);
+    expect(plan.components.map((c) => `${c.type}:${c.name}`)).toEqual([
+      'CustomObject:Gone__c',
+      'CustomField:Invoice__c.Code__c',
+      'ApexClass:Nope',
+    ]);
   });
 });
