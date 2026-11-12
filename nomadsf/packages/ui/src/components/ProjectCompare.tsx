@@ -169,20 +169,22 @@ export function ProjectCompare({
   };
 
   /** Code in both places: same or different (other types need the source format converter). */
-  const checkContent = async () => {
+  const checkContent = async (only?: CompareRow[]) => {
     if (!rows || !fs) return;
+    // Every row in both, or only the ones asked for (one, a type's, the filtered ones)
+    const keys = only ? new Set(only.map((r) => r.key)) : undefined;
+    const wanted = rows.filter((r) => inBoth(r.where) && (!keys || keys.has(r.key)));
     setBusy(true);
     setProblems([]);
     try {
       const result = new Map<string, 'same' | 'different'>();
       const notCompared: CompareProblem[] = [];
-      const kinds = [...new Set(rows.filter((r) => inBoth(r.where)).map((r) => r.type))]
-        .map((t) => codeKindOf(t))
-        .filter((k) => k !== undefined);
+      const kinds = [...new Set(wanted.map((r) => r.type))].map((t) => codeKindOf(t)).filter((k) => k !== undefined);
       for (const kind of kinds) {
         setStatus(`Comparing ${kind} with the project…`);
         /* eslint-disable no-await-in-loop */
-        const items = await listCode(studio.client, kind);
+        const names = new Set(wanted.filter((r) => codeKindOf(r.type) === kind).map((r) => r.name));
+        const items = (await listCode(studio.client, kind)).filter((i) => names.has(i.name));
         const checked = await checkCodeContent(studio.client, fs, kind, items, projectCodeIndex(info, kind), (d, t) =>
           setStatus(`Comparing ${kind} with the project… ${d}/${t}`)
         );
@@ -190,9 +192,9 @@ export function ProjectCompare({
         for (const [name, v] of checked) result.set(`${CODE_TYPE[kind]}:${name}`, v);
       }
       // Every other type: retrieved from the org in one go per type, each component converted from the project
-      const others = [...new Set(rows.filter((r) => inBoth(r.where) && !codeKindOf(r.type)).map((r) => r.type))];
+      const others = [...new Set(wanted.filter((r) => !codeKindOf(r.type)).map((r) => r.type))];
       for (const type of others) {
-        const names = rows.filter((r) => r.type === type && inBoth(r.where)).map((r) => r.name);
+        const names = wanted.filter((r) => r.type === type).map((r) => r.name);
         /* eslint-disable-next-line no-await-in-loop */
         const checked = await compareTypeWithProject(
           studio.client,
@@ -384,7 +386,7 @@ export function ProjectCompare({
               title="Compare the content of every component in both: retrieved from the org, converted from the project"
               onClick={() => void checkContent()}
             >
-              Compare content
+              Compare content of all
             </button>
             <button
               disabled={busy || !rows.some((r) => r.where === 'only in project' || r.where === 'different')}
@@ -410,6 +412,7 @@ export function ProjectCompare({
             onActions={setActions}
             allowed={(r, a) => (a === 'deploy' ? canDeploy(r) : canDelete(r))}
             tone={(st) => (st === 'same' ? 'good' : st === 'in both' ? '' : st === 'different' ? 'warn' : 'bad')}
+            compare={{ can: (r) => inBoth(r.where), run: (list) => void checkContent(list), busy }}
             renderName={(r) =>
               onOpenCode && codeKindOf(r.type) && r.where !== 'only in org' ? (
                 <button className="link" title="Open in Code" onClick={() => openInCode(r)}>

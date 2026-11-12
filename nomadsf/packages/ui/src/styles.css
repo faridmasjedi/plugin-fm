@@ -2941,6 +2941,18 @@ input.bad-input {
 .relation-tree li {
   padding: 2px 0;
 }
+/* Long names (a saved user's access, a record's name) wrap inside the box */
+.relation-tree li,
+.relation-tree label.check {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.relation-tree label.check {
+  flex-wrap: wrap;
+}
+.saved-user-access {
+  font-size: 13px;
+}
 .copy-bar {
   border-top: 1px solid var(--border);
   margin-top: 12px;
@@ -3583,6 +3595,10 @@ select.row-action.delete {
 .grouped-actions .group-rows .group-action {
   width: 190px;
   text-align: right;
+}
+.grouped-actions .group-rows .group-compare {
+  width: 32px;
+  text-align: center;
 }
 .grouped-actions .group-rows tr.deploy td:first-child {
   box-shadow: inset 3px 0 0 var(--good);
@@ -4261,4 +4277,33 @@ select.row-action {
 }
 .member-tree > p {
   margin: 0 0 6px;
+}
+
+/* Query › SOQL help: tabs of clickable pieces above the editor */
+.soql-help {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 6px;
+}
+.soql-help-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+.soql-help-tabs .link.active {
+  font-weight: 600;
+  text-decoration: underline;
+}
+.soql-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.soql-chip {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 999px;
 }

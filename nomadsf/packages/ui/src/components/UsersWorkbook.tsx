@@ -5,6 +5,7 @@ import {
   findUsers,
   fromCopySheets,
   managersFirst,
+  parseSnapshot,
   planUsers,
   readTableFile,
   usersBundle,
@@ -97,8 +98,18 @@ export function UsersWorkbook() {
     setPlan(null);
     setOutcome(null);
     try {
-      const read = fromCopySheets(await readTableFile(file.name, new Uint8Array(await file.arrayBuffer())));
-      if (!read.users.length) throw new Error('No users in this file: save one with "Save workbook" first.');
+      // A users workbook, a user's Everything workbook, or one user's snapshot CSV
+      let read: { users: UserCopy[]; metadata: AccessFile[] };
+      if (/\.csv$/i.test(file.name)) {
+        // A snapshot holds no permission set files: those the org lacks have to be deployed first
+        const lines = parseSnapshot(await file.text());
+        const username = lines.find((l) => l.Section === 'info' && l.Name === 'user')?.Value ?? file.name;
+        read = { users: [{ username, lines }], metadata: [] };
+      } else read = fromCopySheets(await readTableFile(file.name, new Uint8Array(await file.arrayBuffer())));
+      if (!read.users.length)
+        throw new Error(
+          'No users in this file: save one with Save workbook, Everything (workbook) or Save snapshot (CSV) first.'
+        );
       const users = managersFirst(read.users);
       setOpened({ name: file.name, users, metadata: read.metadata });
       setStatus(`Finding the ${users.length} user(s) in ${org.label}…`);
@@ -152,7 +163,9 @@ export function UsersWorkbook() {
       <p className="muted small">
         Before the refresh, save the users in one workbook: their fields, profile, role, manager, permission sets and
         groups, licenses, public groups and queues, with the permission sets and groups themselves. After it, open the
-        workbook in the new sandbox: missing users are created, the others get back what they lack.
+        workbook in the new sandbox: missing users are created, the others get back what they lack. It also opens a
+        user's <b>Everything (workbook)</b> or <b>Snapshot</b> CSV (a snapshot has no permission set files: those the
+        org lacks are deployed first).
       </p>
       <div className="form">
         <textarea
@@ -171,10 +184,10 @@ export function UsersWorkbook() {
           </button>
         )}
         <label className="file-button">
-          Open a users workbook…
+          Open users (workbook or snapshot)…
           <input
             type="file"
-            accept=".xlsx"
+            accept=".xlsx,.csv"
             hidden
             onChange={(e) => {
               const f = e.target.files?.[0];

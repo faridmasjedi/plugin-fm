@@ -19,6 +19,7 @@ export function GroupedActions<R extends GroupRow>({
   extra,
   hideFilter,
   groupExtra,
+  compare,
 }: {
   rows: R[];
   actions: Map<string, RowAction>;
@@ -35,6 +36,8 @@ export function GroupedActions<R extends GroupRow>({
   hideFilter?: boolean;
   /** One more button in a type's line (Open in Metadata…). */
   groupExtra?: (type: string, rows: R[]) => ReactNode;
+  /** Compare the content of just some rows: one, a type's, or the ones the filter shows. */
+  compare?: { can: (row: R) => boolean; run: (rows: R[]) => void; busy?: boolean };
 }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState('');
@@ -64,6 +67,15 @@ export function GroupedActions<R extends GroupRow>({
           />
         )}
         {hideFilter && <span className="grow" />}
+        {compare && needle && shown.some(compare.can) && (
+          <button
+            disabled={compare.busy}
+            title="Compare the content of the components the filter shows (in both places)"
+            onClick={() => compare.run(shown.filter(compare.can))}
+          >
+            ⇄ Compare the {shown.filter(compare.can).length} shown
+          </button>
+        )}
         <button onClick={() => setOpen(new Set(groups.keys()))}>Open all</button>
         <button onClick={() => setOpen(new Set())}>Close all</button>
       </div>
@@ -119,6 +131,15 @@ export function GroupedActions<R extends GroupRow>({
                 <button disabled={!deploying && !deleting} onClick={() => set(list, undefined)}>
                   Clear
                 </button>
+                {compare && list.some(compare.can) && (
+                  <button
+                    disabled={compare.busy}
+                    title={`Compare the content of the ${type} shown that are in both places`}
+                    onClick={() => compare.run(list.filter(compare.can))}
+                  >
+                    ⇄ Compare ({list.filter(compare.can).length})
+                  </button>
+                )}
                 {groupExtra?.(type, list)}
               </span>
             </div>
@@ -130,6 +151,20 @@ export function GroupedActions<R extends GroupRow>({
                       <td>{renderName ? renderName(r) : r.name}</td>
                       <td>{r.status && <span className={`pill ${tone(r.status)}`}>{r.status}</span>}</td>
                       {extra && <td>{extra(r)}</td>}
+                      {compare && (
+                        <td className="group-compare">
+                          {compare.can(r) && (
+                            <button
+                              className="link"
+                              disabled={compare.busy}
+                              title="Compare the content of this one"
+                              onClick={() => compare.run([r])}
+                            >
+                              ⇄
+                            </button>
+                          )}
+                        </td>
+                      )}
                       <td className="group-action">
                         <RowActionSelect
                           value={actions.get(r.key)}

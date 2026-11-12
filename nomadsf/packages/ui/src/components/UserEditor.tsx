@@ -60,7 +60,7 @@ export function UserEditor() {
     try {
       download(
         `${chosen.Username}-${new Date().toLocaleDateString('en-CA')}.xlsx`,
-        writeWorkbook(await userWorkbook(client, chosen.Id)),
+        writeWorkbook(await userWorkbook(client, chosen.Id, org.label)),
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       );
       setStatus(`✓ Workbook of ${chosen.Name}: a sheet per tab.`);

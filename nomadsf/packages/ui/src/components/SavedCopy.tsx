@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fromCopySheets, readTableFile, type AccessFile, type FileTable, type UserCopy } from '@nomadsf/core';
+import {
+  ACCESS_SECTIONS,
+  fromCopySheets,
+  readTableFile,
+  type AccessFile,
+  type FileTable,
+  type UserCopy,
+} from '@nomadsf/core';
 import { CopyBar } from './CopyBar';
 
 const nameOf = (row: Record<string, string>): string =>
@@ -82,12 +89,25 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
                     checked={!off.has(`user:${u.username}`)}
                     onChange={(e) => toggle(`user:${u.username}`, e.target.checked)}
                   />{' '}
-                  <b>User {u.username}</b> with{' '}
-                  {u.lines
-                    .filter((l) => !['info', 'field', 'lookup'].includes(l.Section))
-                    .map((l) => l.Name)
-                    .join(', ') || 'no access'}
+                  <b>User {u.username}</b>
                 </label>
+                {/* Their access by kind, each kind a line that wraps (a user can have dozens) */}
+                <ul className="relation-tree saved-user-access">
+                  {ACCESS_SECTIONS.map(({ section, label }) => {
+                    const names = u.lines.filter((l) => l.Section === section).map((l) => l.Name);
+                    return names.length ? (
+                      <li key={section}>
+                        <span className="muted">
+                          {label} ({names.length}):
+                        </span>{' '}
+                        {names.join(', ')}
+                      </li>
+                    ) : null;
+                  })}
+                  {!u.lines.some((l) => ACCESS_SECTIONS.some((a) => a.section === l.Section)) && (
+                    <li className="muted">no access</li>
+                  )}
+                </ul>
               </li>
             ))}
             {tables.map((t) => (

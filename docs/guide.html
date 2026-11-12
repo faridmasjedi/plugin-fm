@@ -635,7 +635,19 @@
             <ol class="steps">
               <li>
                 Write SOQL with autocomplete for objects and fields (type <code>Account.</code> for the fields of the
-                Account a record points to, as deep as you like), or ✦ ask in plain English.
+                Account a record points to, as deep as you like), or ✦ ask in plain English. After a field and an
+                operator it offers what fits: date literals for a date (<code>CreatedDate = N_DAYS_AGO:5</code>,
+                <code>LAST_N_DAYS:30</code>, <code>THIS_QUARTER</code>…), a picklist's values, <i>true</i> /
+                <i>false</i>.
+              </li>
+              <li>
+                <b>SOQL help</b> above the editor: <b>Dates</b>, <b>Filters</b> (<code>IN</code>, <code>INCLUDES</code>,
+                records with or without related ones), <b>Group &amp; count</b> (<code>GROUP BY</code>,
+                <code>HAVING</code>, <code>COUNT</code>, <code>SUM</code>, by year or month),
+                <b>Sort &amp; shape</b> (<code>NULLS LAST</code>, <code>FIELDS(ALL)</code>, child records,
+                <code>toLabel</code>) — hover a piece for what it means, click to put it in at the cursor.
+                <b>Examples</b> are whole queries (duplicates, records per month, accounts without contacts…);
+                <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Z</kbd> brings your query back.
               </li>
               <li>
                 Options: <b>Names for Ids</b> (adds a column with the name next to every Id),
@@ -1039,7 +1051,9 @@
               <li>
                 <b>Compare with the org</b>: choose the metadata types (or <b>All</b>), then <b>Compare</b>. The tiles
                 count <i>in both</i>, <i>only in org</i> and <i>only in project</i> — click one to show just those.
-                <b>Compare content</b> checks the files of components in both (<i>same</i> / <i>different</i>).
+                <b>Compare content of all</b> checks the files of components in both (<i>same</i> / <i>different</i>);
+                to check only some, use <b>⇄</b> on a component, <b>⇄ Compare</b> on a type, or type in the filter and
+                <b>Compare the … shown</b>.
               </li>
               <li>
                 Choose per row or per type: <b>to package</b> deploys the project's version, <b>destructive</b> deletes
@@ -1276,10 +1290,10 @@
               <b>Several users, for a sandbox refresh</b>: before a refresh, type the names or usernames,
               <b>Find</b> and <b>Save workbook</b> — each user with all of the above, plus the permission sets and
               groups themselves, in one .xlsx. After the refresh the old sandbox is gone, but the workbook is enough: in
-              the new sandbox, <b>Open a users workbook…</b> shows who is found (they get back the access they lack) and
-              who is created (under a username you can change), and which permission sets and groups are made from the
-              file. <b>Create and assign…</b> does it all after you type the org name; managers are created before the
-              people who report to them.
+              the new sandbox, <b>Open users (workbook or snapshot)…</b> shows who is found (they get back the access
+              they lack) and who is created (under a username you can change), and which permission sets and groups are
+              made from the file. <b>Create and assign…</b> does it all after you type the org name; managers are
+              created before the people who report to them.
             </p>
             <div class="good-to-know">
               <h4>Good to know</h4>
@@ -1971,7 +1985,8 @@
               ones), optionally <b>Names</b> (<i>Account*, Finance</i>) for only the components you want, and
               <b>Compare</b>. The tiles count what is <i>only in source</i>, <i>only in target</i> and <i>in both</i> —
               click one to show just those. <b>Compare content</b> of those in both splits them into
-              <i>different</i> and <i>same</i>.
+              <i>different</i> and <i>same</i> — or only some of them: <b>⇄</b> on a component, <b>⇄ Compare</b> on a
+              type, or the filter and <b>Compare the … shown</b>.
             </p>
             <ol class="steps">
               <li>

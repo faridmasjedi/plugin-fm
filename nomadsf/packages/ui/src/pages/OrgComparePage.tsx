@@ -156,15 +156,17 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
       );
     });
 
-  const checkContent = () =>
+  /** Every row in both orgs, or only the ones asked for (one, a type's, the filtered ones). */
+  const checkContent = (only?: OrgDiffRow[]) =>
     run('Comparing content…', async () => {
       if (!rows || !clients.source || !clients.target) return;
+      const keys = only ? new Set(only.map((r) => r.key)) : undefined;
       const notCompared: CompareProblem[] = [];
       setProblems([]);
       const content = await compareContent(
         clients.source,
         clients.target,
-        rows,
+        keys ? rows.filter((r) => keys.has(r.key)) : rows,
         (done, total) => setStatus(`Retrieving and comparing (${done.toLocaleString()} of ${total.toLocaleString()})…`),
         notCompared
       );
@@ -305,6 +307,11 @@ export function OrgComparePage({ orgs, embedded }: { orgs: OrgChoice[]; embedded
             onActions={setActions}
             allowed={allowed}
             tone={(st) => (st === 'same' ? 'good' : st === 'in both' ? '' : st === 'different' ? 'warn' : 'bad')}
+            compare={{
+              can: (r) => r.status === 'in both' || r.status === 'same' || r.status === 'different',
+              run: (list) => void checkContent(list),
+              busy,
+            }}
           />
           {(toDeploy.length > 0 || toDelete.length > 0) && (
             <div className="compare-actions">

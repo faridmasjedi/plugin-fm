@@ -9,6 +9,10 @@ window.NOMADSF_WHATS_NEW = {
     'Compare with a project much faster in big projects (thousands of permission sets compared in seconds, not minutes)',
     'Dependencies (Develop › Code, Release › Metadata): choose where to look — the org, the project, or both',
     'Compare content (with a project or between orgs): components that could not be compared are listed with why (Salesforce’s message, often your user’s permissions or a managed package)',
+    'Query: SOQL help above the editor — date literals (N_DAYS_AGO:n, LAST_N_DAYS:n, THIS_QUARTER…), filters, GROUP BY and HAVING, sorting, and whole example queries, explained on hover; autocomplete offers date literals, picklist values and true/false after a field',
+    'Compare with a project and Org compare: compare the content of just one component, one type, or the ones the filter shows',
+    'Access › Users: one place to restore users — Open users takes a users workbook, a user’s Everything workbook (which now holds what is needed to restore them) or a snapshot CSV',
+    'Fixed: Record › Open a saved copy showed a user’s access on one long line out of the box',
     'Fixed: Data › Lookup field names ran over each other in the list of fields; long column names in Data › Import / Update / Delete stay in their box',
   ],
   '2.6.1': [
