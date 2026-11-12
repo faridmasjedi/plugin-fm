@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   apexSourcesFromOrg,
+  type CompareProblem,
   compareTypeWithProject,
   describeGlobal,
   describeMetadata,
@@ -33,6 +34,7 @@ import { Dependencies } from './Dependencies';
 import { ProjectCodeView } from './ProjectCodeView';
 import { ReleasePanel } from './ReleasePanel';
 import { Status } from '../statusLog';
+import { CompareProblems } from './CompareProblems';
 import { soqlSchema } from './AiSoql';
 
 type View = 'org' | 'project' | 'compare' | 'deps';
@@ -111,6 +113,7 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
   // The project's version of the open component (undefined: not read yet)
   const [inProject, setInProject] = useState<{ files: CodeFile[]; problem?: string }>();
   const [checked, setChecked] = useState<Record<string, 'same' | 'different'>>({});
+  const [problems, setProblems] = useState<CompareProblem[]>([]);
   // Validate / deploy: your edits (the org's files) or the project's version
   const [release, setRelease] = useState<'edits' | 'project' | null>(null);
   const [status, setStatus] = useState('');
@@ -262,11 +265,18 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
     if (!side) return;
     const both = (members ?? []).map((m) => m.fullName).filter((n) => projectNames.has(n));
     setBusy(true);
+    setProblems([]);
     try {
-      const result = await compareTypeWithProject(client, side, type, both, (s) => setStatus(s));
+      const notCompared: CompareProblem[] = [];
+      const result = await compareTypeWithProject(client, side, type, both, (s) => setStatus(s), notCompared);
       setChecked(Object.fromEntries(result));
+      setProblems(notCompared);
       const different = [...result.values()].filter((v) => v === 'different').length;
-      setStatus(`✓ ${result.size} ${type} compared: ${different} different.`);
+      setStatus(
+        `✓ ${result.size} ${type} compared: ${different} different.${
+          notCompared.length ? ` ${notCompared.length} could not be compared (see below).` : ''
+        }`
+      );
       if (different) setShow('different');
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
@@ -331,6 +341,7 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
         </label>
       </div>
       {status && <Status text={status} block />}
+      <CompareProblems problems={problems} />
       <AiAsk
         key={`new:${type}`}
         task="write-metadata"

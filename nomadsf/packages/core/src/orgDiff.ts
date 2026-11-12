@@ -88,7 +88,9 @@ export async function compareContent(
   source: SalesforceClient,
   target: SalesforceClient,
   rows: OrgDiffRow[],
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number) => void,
+  /** Filled with the ones in both orgs that could not be compared, and why (Salesforce's message when it gave one). */
+  problems?: Array<{ type: string; name: string; problem: string }>
 ): Promise<Map<string, 'different' | 'same'>> {
   const result = new Map<string, 'different' | 'same'>();
   const both = rows.filter((r) => r.status === 'in both' || r.status === 'different' || r.status === 'same');
@@ -113,6 +115,23 @@ export async function compareContent(
       const paths = new Set([...filesA.keys(), ...filesB.keys()]);
       const same = [...paths].every((p) => sameContent(filesA.get(p), filesB.get(p)));
       result.set(key, same ? 'same' : 'different');
+    }
+    // Listed in both orgs, but one of them sent nothing back: say which and why
+    for (const c of chunk) {
+      const key = `${c.type}:${c.fullName}`;
+      if (result.has(key) || !problems) continue;
+      const missing = [propsA.has(key) ? '' : 'source', propsB.has(key) ? '' : 'target'].filter(Boolean);
+      const said = [...a.messages, ...b.messages].find(
+        (m) => m.problem.includes(`'${c.fullName}'`) || m.fileName.includes(`/${c.fullName}.`)
+      );
+      problems.push({
+        type: c.type,
+        name: c.fullName,
+        problem: `${missing.length ? `Nothing sent back by the ${missing.join(' and ')} org. ` : ''}${
+          said?.problem ??
+          "Your user may not be allowed to read it there (View Setup, Modify Metadata, or the type's own permission), or it belongs to a managed package."
+        }`,
+      });
     }
   }
   onProgress?.(both.length, both.length);

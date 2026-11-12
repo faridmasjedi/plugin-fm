@@ -51,7 +51,22 @@ export type ConvertResult = {
   notConverted: Array<{ type: string; name: string; reason: string }>;
   /** What went into package.xml. */
   deployed: Array<{ type: string; name: string }>;
+  /** Each deployed component's files in the zip, keyed type:name (an object's child: the object's file). */
+  pathsOf: Map<string, string[]>;
 };
+
+/** Runs fn on every item, at most `limit` at a time (reading thousands of files one by one is slow). */
+export async function eachLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const item = items[next++];
+      // eslint-disable-next-line no-await-in-loop
+      await fn(item);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
 
 const text = (bytes: Uint8Array): string => new TextDecoder().decode(bytes);
 /** Files the CLI never sends: Jest tests, editor and lint settings in bundles, macOS folder files. */
@@ -81,7 +96,7 @@ export function labelsFile(xml: string, names: Set<string>): string {
 
 /** Turns a package of source components into a Metadata API zip. */
 export async function toMetadataFormat(input: ConvertInput): Promise<ConvertResult> {
-  const { deploy, remove = [], removeWhen = 'post', files, read, packageDirs, apiVersion } = input;
+  const { deploy, remove = [], removeWhen = 'post', files, packageDirs, apiVersion } = input;
   // Every file of the source, by the component it belongs to
   const byKey = new Map<string, { component: SourceComponent; files: string[] }>();
   for (const path of files) {
@@ -94,11 +109,32 @@ export async function toMetadataFormat(input: ConvertInput): Promise<ConvertResu
     else byKey.set(key, { component: c, files: [path] });
   }
   const wanted = new Set(deploy.map(keyOf));
+  // The files of the package read together first (many at a time), then taken from here
+  const cache = new Map<string, Promise<Uint8Array>>();
+  const read = (path: string): Promise<Uint8Array> => {
+    let found = cache.get(path);
+    if (!found) {
+      found = input.read(path);
+      cache.set(path, found);
+    }
+    return found;
+  };
+  const needed = deploy.flatMap((c) => (c.type === 'CustomLabel' ? [] : byKey.get(keyOf(c))?.files ?? []));
+  await eachLimit(needed, 16, async (f) => {
+    await read(f).catch(() => undefined);
+  });
   const entries: ZipEntry[] = [];
+  const inEntries = new Set<string>();
   const notConverted: ConvertResult['notConverted'] = [];
   const deployed: ConvertResult['deployed'] = [];
+  const pathsOf = new Map<string, string[]>();
+  /** The component being converted: the files added are its. */
+  let current = '';
   const add = (path: string, content: string | Uint8Array): void => {
-    if (!entries.some((e) => e.path === path)) entries.push({ path, content });
+    if (current) pathsOf.set(current, [...(pathsOf.get(current) ?? []), path]);
+    if (inEntries.has(path)) return;
+    inEntries.add(path);
+    entries.push({ path, content });
   };
   /** The path inside the zip: the type folder and what follows it (classes/Hello.cls). */
   const inZip = (path: string, comp: SourceComponent): string =>
@@ -139,6 +175,7 @@ export async function toMetadataFormat(input: ConvertInput): Promise<ConvertResu
 
   for (const c of deploy) {
     if (c.type === 'CustomLabel') continue;
+    current = keyOf(c);
     const source = byKey.get(keyOf(c));
     if (!source) {
       notConverted.push({ ...c, reason: 'no source file for it' });
@@ -163,12 +200,14 @@ export async function toMetadataFormat(input: ConvertInput): Promise<ConvertResu
       // eslint-disable-next-line no-await-in-loop
       const xml = text(await read(source.files[0]));
       objectOf(comp.object).children.push(`    <${childElement}>\n        ${innerXml(xml)}\n    </${childElement}>`);
+      pathsOf.set(current, [`objects/${comp.object}.object`]);
       deployed.push(c);
       continue;
     }
     if (c.type === 'CustomObject') {
       // eslint-disable-next-line no-await-in-loop
       objectOf(c.name).own = text(await read(source.files[0]));
+      pathsOf.set(current, [`objects/${c.name}.object`]);
       deployed.push(c);
       continue;
     }
@@ -212,6 +251,7 @@ export async function toMetadataFormat(input: ConvertInput): Promise<ConvertResu
     deployed.push(c);
   }
 
+  current = '';
   for (const [name, { own, children }] of objects) {
     const base = own ? innerXml(own) : '';
     add(
@@ -229,5 +269,5 @@ export async function toMetadataFormat(input: ConvertInput): Promise<ConvertResu
       path: removeWhen === 'pre' ? 'destructiveChangesPre.xml' : 'destructiveChangesPost.xml',
       content: manifestXml(removing, apiVersion),
     });
-  return { zip: makeZip(entries), notConverted, deployed };
+  return { zip: makeZip(entries), notConverted, deployed, pathsOf };
 }

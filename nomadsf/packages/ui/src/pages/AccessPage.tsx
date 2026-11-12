@@ -14,6 +14,7 @@ import {
 import { TableTabs } from '../components/TableTabs';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { PermissionsExplorer } from '../components/PermissionsExplorer';
+import { UsersWorkbook } from '../components/UsersWorkbook';
 import { UserEditor } from '../components/UserEditor';
 import { WhoHasIt } from '../components/WhoHasIt';
 import { CompareAccess } from '../components/CompareAccess';
@@ -51,6 +52,7 @@ export function UsersPage() {
   return (
     <AccessTool title="Users" about="a user and everything they have">
       <UserEditor />
+      <UsersWorkbook />
     </AccessTool>
   );
 }

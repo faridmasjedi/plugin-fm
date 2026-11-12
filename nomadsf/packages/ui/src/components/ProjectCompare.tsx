@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   checkCodeContent,
+  type CompareProblem,
   checkComponentsWithOrg,
   componentFilePaths,
   compareTypeWithProject,
@@ -28,6 +29,7 @@ import { localAppBase, useProject } from '../project';
 import { RetrieveIntoProject } from './RetrieveIntoProject';
 import { TypePicker } from './TypePicker';
 import { Status } from '../statusLog';
+import { CompareProblems } from './CompareProblems';
 
 type Where = 'only in org' | 'only in project' | 'both' | 'different' | 'same';
 type CompareRow = { key: string; type: string; name: string; where: Where };
@@ -110,6 +112,7 @@ export function ProjectCompare({
   // Which rows the table shows: all, or one of the three groups (the tiles above it)
   const [show, setShow] = useState<'all' | Where>('all');
   const [status, setStatus] = useState('');
+  const [problems, setProblems] = useState<CompareProblem[]>([]);
   const [busy, setBusy] = useState(false);
   const [intoProject, setIntoProject] = useState(false);
   const [actions, setActions] = useState<Map<string, Action>>(new Map());
@@ -169,8 +172,10 @@ export function ProjectCompare({
   const checkContent = async () => {
     if (!rows || !fs) return;
     setBusy(true);
+    setProblems([]);
     try {
       const result = new Map<string, 'same' | 'different'>();
+      const notCompared: CompareProblem[] = [];
       const kinds = [...new Set(rows.filter((r) => inBoth(r.where)).map((r) => r.type))]
         .map((t) => codeKindOf(t))
         .filter((k) => k !== undefined);
@@ -189,12 +194,24 @@ export function ProjectCompare({
       for (const type of others) {
         const names = rows.filter((r) => r.type === type && inBoth(r.where)).map((r) => r.name);
         /* eslint-disable-next-line no-await-in-loop */
-        const checked = await compareTypeWithProject(studio.client, { fs, info, readBytes }, type, names, setStatus);
+        const checked = await compareTypeWithProject(
+          studio.client,
+          { fs, info, readBytes },
+          type,
+          names,
+          setStatus,
+          notCompared
+        );
         for (const [name, v] of checked) result.set(`${type}:${name}`, v);
       }
       setRows(rows.map((r) => (result.has(r.key) && inBoth(r.where) ? { ...r, where: result.get(r.key)! } : r)));
+      setProblems(notCompared);
       const different = [...result.values()].filter((v) => v === 'different').length;
-      setStatus(`✓ ${result.size} component(s) compared: ${different} different.`);
+      setStatus(
+        `✓ ${result.size} component(s) compared: ${different} different.${
+          notCompared.length ? ` ${notCompared.length} could not be compared (see below).` : ''
+        }`
+      );
       if (different) setShow('different');
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
@@ -332,6 +349,7 @@ export function ProjectCompare({
         }
       />
       {status && <Status text={status} block />}
+      <CompareProblems problems={problems} />
 
       {rows && (
         <>

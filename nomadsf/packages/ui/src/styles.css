@@ -952,6 +952,8 @@ table.events tbody tr.selected {
 .field-checks > label {
   min-width: 0;
   align-items: flex-start;
+  /* A long name wraps in its own cell instead of running over the next one */
+  overflow-wrap: anywhere;
 }
 .field-check-text {
   display: flex;
@@ -1077,8 +1079,11 @@ button.metric.filter.active {
 }
 .column-list label {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding: 6px 10px;
   border: 1px solid var(--border);
   border-left: 3px solid var(--good);

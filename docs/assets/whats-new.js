@@ -5,6 +5,11 @@ window.NOMADSF_WHATS_NEW = {
   next: [
     'Guide and site videos drawn 1.5× bigger, and every video can be enlarged',
     'Website: a Releases page with every version; the home page shows the latest',
+    'Access › Users: several users in one workbook for a sandbox refresh — save them before (with their profile, role, manager, permission sets and groups, licenses, groups and queues, and the permission sets themselves), open it in the new sandbox to create the missing users and give the others back what they lack',
+    'Compare with a project much faster in big projects (thousands of permission sets compared in seconds, not minutes)',
+    'Dependencies (Develop › Code, Release › Metadata): choose where to look — the org, the project, or both',
+    'Compare content (with a project or between orgs): components that could not be compared are listed with why (Salesforce’s message, often your user’s permissions or a managed package)',
+    'Fixed: Data › Lookup field names ran over each other in the list of fields; long column names in Data › Import / Update / Delete stay in their box',
   ],
   '2.6.1': [
     'Guide videos re-recorded in full HD on the current Studio (Search in the header, Activity under Settings)',

@@ -47,10 +47,20 @@ type DirHandle = FileSystemDirectoryHandle & {
 const SKIPPED = new Set(['node_modules', '.sf', '.sfdx', '.fm']);
 
 export function browserProjectFs(root: DirHandle): ProjectFs {
-  const dirAt = async (path: string): Promise<DirHandle> => {
-    let dir = root;
-    for (const part of path.split('/').filter(Boolean)) dir = (await dir.getDirectoryHandle(part)) as DirHandle;
-    return dir;
+  // Each folder found once (reading thousands of files walked from the root for every one)
+  const dirs = new Map<string, Promise<DirHandle>>([['', Promise.resolve(root)]]);
+  const dirAt = (path: string): Promise<DirHandle> => {
+    const key = path.split('/').filter(Boolean).join('/');
+    let found = dirs.get(key);
+    if (!found) {
+      const cut = key.lastIndexOf('/');
+      const parent = cut < 0 ? '' : key.slice(0, cut);
+      found = dirAt(parent).then(async (d) => (await d.getDirectoryHandle(key.slice(cut + 1))) as DirHandle);
+      // A folder that is not there now may be later
+      found.catch(() => dirs.delete(key));
+      dirs.set(key, found);
+    }
+    return found;
   };
   return {
     name: root.name,

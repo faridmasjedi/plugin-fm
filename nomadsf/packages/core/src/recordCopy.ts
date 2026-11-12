@@ -471,3 +471,50 @@ export async function copyUsers(
   }
   return out;
 }
+
+// ---------- several users, for a sandbox refresh ----------
+
+/**
+ * Several users with all they have (their snapshots) and the files of their permission sets and groups: saved before
+ * a sandbox refresh as a workbook (copySheets), and opened in the new sandbox to create or complete each user.
+ */
+export async function usersBundle(
+  client: SalesforceClient,
+  userIds: string[],
+  orgLabel: string,
+  onProgress?: (done: number, total: number) => void
+): Promise<{ users: UserCopy[]; metadata: AccessFile[] }> {
+  const users: UserCopy[] = [];
+  for (const [i, id] of userIds.entries()) {
+    onProgress?.(i, userIds.length);
+    // eslint-disable-next-line no-await-in-loop
+    const lines = await takeUserSnapshot(client, id, orgLabel);
+    users.push({ username: lines.find((l) => l.Section === 'info' && l.Name === 'user')?.Value ?? id, lines });
+  }
+  onProgress?.(userIds.length, userIds.length);
+  // Managed (namespace__Name) sets come with their package: no file needed
+  const names = accessNames(users);
+  const metadata = await accessFiles(client, {
+    permissionSets: names.permissionSets.filter((n) => !n.includes('__')),
+    groups: names.groups,
+  });
+  return { users: managersFirst(users), metadata };
+}
+
+/** Users ordered so a manager in the list comes before the people who report to them (created first). */
+export function managersFirst(users: UserCopy[]): UserCopy[] {
+  const byName = new Map(users.map((u) => [u.username.toLowerCase(), u]));
+  const out: UserCopy[] = [];
+  const placed = new Set<UserCopy>();
+  const place = (u: UserCopy, seen: Set<UserCopy>): void => {
+    if (placed.has(u) || seen.has(u)) return;
+    seen.add(u);
+    const manager = u.lines.find((l) => l.Section === 'lookup' && l.Name === 'ManagerId')?.Value.toLowerCase();
+    const m = manager ? byName.get(manager) : undefined;
+    if (m && m !== u) place(m, seen);
+    placed.add(u);
+    out.push(u);
+  };
+  for (const u of users) place(u, new Set());
+  return out;
+}

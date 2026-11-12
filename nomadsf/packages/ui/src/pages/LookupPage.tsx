@@ -263,9 +263,9 @@ export function LookupPage() {
               <button onClick={() => setChosen(new Set())}>None</button>
               <span className="muted">{chosen.size} chosen</span>
             </div>
-            <div className="field-checks">
+            <div className="field-checks two-lines">
               {shownFields.map((f) => (
-                <label key={f.name} className="check" title={`${f.name} · ${f.type}`}>
+                <label key={f.name} className="check" title={`${f.label} · ${f.name} · ${f.type}`}>
                   <input
                     type="checkbox"
                     checked={chosen.has(f.name)}
@@ -277,7 +277,10 @@ export function LookupPage() {
                       setChosen(next);
                     }}
                   />{' '}
-                  {f.label}
+                  <span className="field-check-text">
+                    <span>{f.label}</span>
+                    <span className="muted mono">{f.name}</span>
+                  </span>
                 </label>
               ))}
             </div>
