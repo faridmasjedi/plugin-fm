@@ -599,3 +599,19 @@ export async function fixEmails(client: SalesforceClient, rows: Row[]): Promise<
   }
   return out;
 }
+
+/** The public groups, queues and roles a sharing rules row of the workbook names (they must exist to deploy it). */
+export function sharingRuleTargets(row: Row): { groups: string[]; roles: string[] } {
+  const xml = Object.keys(row)
+    .filter((k) => /^Xml\d+$/.test(k))
+    .sort((a, b) => Number(a.slice(3)) - Number(b.slice(3)))
+    .map((k) => text(row[k]))
+    .join('');
+  const all = (tags: string[]) => [
+    ...new Set(tags.flatMap((t) => [...xml.matchAll(new RegExp(`<${t}>([^<]+)</${t}>`, 'g'))].map((m) => m[1]))),
+  ];
+  return {
+    groups: all(['group', 'queue']),
+    roles: all(['role', 'roleAndSubordinates', 'roleAndSubordinatesInternal']),
+  };
+}

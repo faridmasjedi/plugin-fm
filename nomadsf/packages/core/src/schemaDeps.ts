@@ -1,6 +1,8 @@
 import type { SalesforceClient } from './client.js';
 import { query, soqlText, type Row } from './query.js';
 import { missingSchema } from './recordCopy.js';
+import { packageXml, retrieveZip } from './metadata.js';
+import { fromBase64, makeZip, readZip } from './zip.js';
 
 /**
  * What components need besides themselves before a deploy can succeed: Salesforce's own record of what uses what
@@ -165,4 +167,131 @@ export async function neededToo(
     frontier = next;
   }
   return added;
+}
+
+/** A role's parents in the source org (by DeveloperName), nearest first: a role is deployed under its parent. */
+async function parentRoles(source: SalesforceClient, roles: string[]): Promise<Array<{ name: string; child: string }>> {
+  if (!roles.length) return [];
+  const all = await query(source, 'SELECT Id, DeveloperName, ParentRoleId FROM UserRole', { maxRows: 50_000 }).catch(
+    () => ({ rows: [] as Row[] })
+  );
+  const byId = new Map(all.rows.map((r) => [text(r.Id), r]));
+  const byName = new Map(all.rows.flatMap((r) => [[text(r.Name), r] as const, [text(r.DeveloperName), r] as const]));
+  const out: Array<{ name: string; child: string }> = [];
+  for (const role of roles) {
+    let r = byName.get(role);
+    while (r && r.ParentRoleId) {
+      const parent = byId.get(text(r.ParentRoleId));
+      if (!parent) break;
+      out.push({ name: text(parent.DeveloperName), child: text(r.DeveloperName) });
+      r = parent;
+    }
+  }
+  return out;
+}
+
+/** The roles' parents the target lacks too, to deploy with them. */
+export async function rolesToo(
+  source: SalesforceClient,
+  target: SalesforceClient,
+  roles: string[]
+): Promise<AddedPiece[]> {
+  const parents = await parentRoles(source, roles);
+  if (!parents.length) return [];
+  const missing = await missingSchema(target, [], { roles: parents.map((p) => p.name) });
+  const seen = new Set(roles);
+  return parents
+    .filter((p) => missing.roles.includes(p.name) && !seen.has(p.name) && (seen.add(p.name), true))
+    .map((p) => ({ type: 'Role', name: p.name, neededBy: p.child }));
+}
+
+/**
+ * A deployable zip of the pieces, retrieved from the source org: classes, objects (whole), fields (each in a copy of
+ * its object's file that holds only the fields asked for — a field is not a file of its own), roles, groups.
+ */
+export async function piecesZip(source: SalesforceClient, pieces: Piece[]): Promise<Uint8Array> {
+  const version = await source.version();
+  // A role named by its name ("Support Manager") is deployed by its API name
+  if (pieces.some((p) => p.type === 'Role')) {
+    const roles = (await query(source, 'SELECT DeveloperName, Name FROM UserRole', { maxRows: 50_000 })).rows;
+    const api = new Map(
+      roles.flatMap((r) => [
+        [text(r.Name), text(r.DeveloperName)] as const,
+        [text(r.DeveloperName), text(r.DeveloperName)] as const,
+      ])
+    );
+    pieces = pieces.map((p) => (p.type === 'Role' ? { ...p, name: api.get(p.name) ?? p.name } : p));
+  }
+  // A queue is its own metadata type (a public group is a Group)
+  const groupNames = pieces.filter((p) => p.type === 'Group').map((p) => p.name);
+  if (groupNames.length) {
+    const kinds = (
+      await query(source, `SELECT DeveloperName, Type FROM Group WHERE DeveloperName IN (${quoted(groupNames)})`, {
+        maxRows: 5000,
+      })
+    ).rows;
+    const queues = new Set(kinds.filter((r) => r.Type === 'Queue').map((r) => text(r.DeveloperName)));
+    pieces = pieces.map((p) => (p.type === 'Group' && queues.has(p.name) ? { ...p, type: 'Queue' } : p));
+  }
+  // Fields are retrieved through their object (the object's file holds them)
+  const fieldObjects = [...new Set(pieces.filter((p) => p.type === 'CustomField').map((p) => p.name.split('.')[0]))];
+  const wholeObjects = new Set(pieces.filter((p) => p.type === 'CustomObject').map((p) => p.name));
+  const retrieve = [
+    ...pieces.filter((p) => p.type !== 'CustomField').map((p) => ({ type: p.type, fullName: p.name })),
+    ...fieldObjects.filter((o) => !wholeObjects.has(o)).map((o) => ({ type: 'CustomObject', fullName: o })),
+  ];
+  const retrieved = await retrieveZip(source, retrieve);
+  if (!retrieved.zipFile) throw new Error(retrieved.errorMessage ?? 'The source org returned no files.');
+  const zip = await readZip(fromBase64(retrieved.zipFile));
+  const out = new Map<string, Uint8Array>();
+  const take = (path: string) => {
+    const f = zip.get(path);
+    if (!f) return;
+    // A queue's members are users of the source org: left out (the users join it when they are created)
+    out.set(
+      path,
+      path.endsWith('.queue')
+        ? new TextEncoder().encode(new TextDecoder().decode(f).replace(/\s*<users>[\s\S]*?<\/users>/g, ''))
+        : f
+    );
+  };
+  for (const p of pieces) {
+    if (p.type === 'ApexClass') {
+      take(`classes/${p.name}.cls`);
+      take(`classes/${p.name}.cls-meta.xml`);
+    } else if (p.type === 'CustomObject') take(`objects/${p.name}.object`);
+    else if (p.type === 'Role') take(`roles/${p.name}.role`);
+    else if (p.type === 'Group') take(`groups/${p.name}.group`);
+    else if (p.type === 'Queue') take(`queues/${p.name}.queue`);
+  }
+  // An object's file cut down to the fields asked for
+  for (const object of fieldObjects.filter((o) => !wholeObjects.has(o))) {
+    const file = zip.get(`objects/${object}.object`);
+    if (!file) continue;
+    const xml = new TextDecoder().decode(file);
+    const wanted = new Set(
+      pieces.filter((p) => p.type === 'CustomField' && p.name.startsWith(`${object}.`)).map((p) => p.name.split('.')[1])
+    );
+    const blocks = [...xml.matchAll(/<fields>[\s\S]*?<\/fields>/g)]
+      .map((m) => m[0])
+      .filter((b) => wanted.has(/<fullName>([^<]+)<\/fullName>/.exec(b)?.[1] ?? ''));
+    out.set(
+      `objects/${object}.object`,
+      new TextEncoder().encode(
+        `<?xml version="1.0" encoding="UTF-8"?>\n<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">\n    ${blocks.join(
+          '\n    '
+        )}\n</CustomObject>\n`
+      )
+    );
+  }
+  out.set(
+    'package.xml',
+    new TextEncoder().encode(
+      packageXml(
+        pieces.map((p) => ({ type: p.type, fullName: p.name })),
+        version
+      )
+    )
+  );
+  return makeZip([...out].map(([path, content]) => ({ path, content })));
 }

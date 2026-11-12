@@ -34,6 +34,15 @@ export function UsersFromWorkbook({
   const [usernames, setUsernames] = useState<Record<string, string>>({});
   const [ticked, setTicked] = useState<Set<string>>(() => new Set(given.map((u) => u.username)));
   const [toCreate, setToCreate] = useState<AccessFile[]>([]);
+  // The roles, public groups and queues of the ticked users: they must exist for the users to get them
+  const peopleNeeds = useMemo(() => {
+    const lines = users.filter((u) => ticked.has(u.username)).flatMap((u) => u.lines);
+    const roles = [
+      ...new Set(lines.filter((l) => l.Section === 'lookup' && l.Name === 'UserRoleId' && l.Value).map((l) => l.Value)),
+    ];
+    const groups = [...new Set(lines.filter((l) => l.Section === 'group').map((l) => l.Name))];
+    return roles.length + groups.length ? [{ name: 'The users’ roles, groups and queues', roles, groups }] : [];
+  }, [users, ticked]);
   const [outcome, setOutcome] = useState<ApplyOutcome | null>(null);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -80,8 +89,10 @@ export function UsersFromWorkbook({
       const r = await copyUsers(client, chosen, chosenPlan, { usernames, metadata, targetLabel: org.label });
       setOutcome(r);
       logActivity('users from workbook', { file: source, done: r.done.length, failed: r.failed.length });
-      setStatus(`✓ ${r.done.length} done${r.failed.length ? `, ❌ ${r.failed.length} failed (see below)` : ''}.`);
+      const done = `✓ ${r.done.length} done${r.failed.length ? `, ❌ ${r.failed.length} failed (see below)` : ''}.`;
+      // Read the users again (now found), then say what was done: the re-reading must not hide it
       await load();
+      setStatus(done);
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
     } finally {
@@ -144,6 +155,8 @@ export function UsersFromWorkbook({
           <SchemaGaps
             target={{ id: org.id, label: org.label, client }}
             files={toCreate}
+            extra={peopleNeeds}
+            forWhat="these users and permission sets"
             onChanged={() => void load()}
           />
           <div className="form">

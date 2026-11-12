@@ -502,9 +502,13 @@ export async function copyUsers(
       if (p?.found) {
         /* eslint-disable no-await-in-loop */
         const now = await takeUserSnapshot(target, p.found, options.targetLabel);
-        // Only what was picked and is missing: fields and other access stay as they are
+        // Only what was picked and is missing: fields and other access stay as they are; an empty role, manager or
+        // other lookup is filled (after a refresh a found user often has none), one that is set is kept
         const add = diffSnapshot(u.lines, now).filter(
-          (d) => !['field', 'lookup'].includes(d.section) && !d.extra && !d.checkOnly
+          (d) =>
+            !d.extra &&
+            !d.checkOnly &&
+            (!['field', 'lookup'].includes(d.section) || (d.section === 'lookup' && !d.org && Boolean(d.snapshot)))
         );
         const r = add.length ? await applySnapshot(target, p.found, add) : { done: [], failed: [] };
         out.done.push(`${u.username}: found, ${r.done.length} added`);
@@ -570,38 +574,64 @@ export function managersFirst(users: UserCopy[]): UserCopy[] {
   return out;
 }
 
+/** What permission sets, groups and settings need (by name): objects, fields (Object.Field), classes, groups, roles. */
+export type SchemaWant = {
+  objects?: string[];
+  fields?: string[];
+  classes?: string[];
+  groups?: string[];
+  roles?: string[];
+};
+export type SchemaMissing = {
+  objects: string[];
+  fields: string[];
+  classes: string[];
+  groups: string[];
+  roles: string[];
+};
+
 /**
- * What permission set and group files mention that the target org does not have: objects, fields and Apex classes.
- * Creating them still works (those entries are left out), but the access to them is lost: deploy these first
- * (Compare & move › Compare metadata, or your project) to keep it.
+ * What permission set and group files (and `extra`) mention that the target org does not have: objects, fields, Apex
+ * classes, public groups and queues, roles. Read from Salesforce's own lists (EntityDefinition, FieldDefinition…), so
+ * a field the user cannot see (no field access yet, as right after a deploy) still counts as there.
  */
 export async function missingSchema(
   target: SalesforceClient,
   files: AccessFile[],
-  /** More that is needed besides the files (settings: a custom setting's object, a job's class). */
-  extra: { objects?: string[]; fields?: string[]; classes?: string[] } = {}
-): Promise<{ objects: string[]; fields: string[]; classes: string[] }> {
+  extra: SchemaWant = {}
+): Promise<SchemaMissing> {
   const all = (tag: string) => [
     ...new Set(files.flatMap((f) => [...f.xml.matchAll(new RegExp(`<${tag}>([^<]+)</${tag}>`, 'g'))].map((m) => m[1]))),
   ];
-  const objects = [...new Set([...all('object'), ...(extra.objects ?? [])])];
-  const fields = [...new Set([...all('field'), ...(extra.fields ?? [])])];
-  const classes = [...new Set([...all('apexClass'), ...(extra.classes ?? [])])];
-  if (!objects.length && !fields.length && !classes.length) return { objects: [], fields: [], classes: [] };
-  const global = await target.rest<{ sobjects: Array<{ name: string }> }>('GET', '/sobjects');
-  const have = new Set(global.sobjects.map((o) => o.name.toLowerCase()));
-  const missingObjects = [...new Set([...objects, ...fields.map((f) => f.split('.')[0])])].filter(
-    (o) => !have.has(o.toLowerCase())
-  );
-  // Fields of objects that are there: one describe per object
+  const uniq = (list: string[]) => [...new Set(list.filter(Boolean))];
+  const objects = uniq([...all('object'), ...(extra.objects ?? [])]);
+  const fields = uniq([...all('field'), ...(extra.fields ?? [])]);
+  const classes = uniq([...all('apexClass'), ...(extra.classes ?? [])]);
+  const groups = uniq(extra.groups ?? []);
+  const roles = uniq(extra.roles ?? []);
+  const none: SchemaMissing = { objects: [], fields: [], classes: [], groups: [], roles: [] };
+  if (!objects.length && !fields.length && !classes.length && !groups.length && !roles.length) return none;
+  const read = async (soql: string): Promise<Row[]> =>
+    (await query(target, soql, { maxRows: 50_000 }).catch(() => ({ rows: [] as Row[] }))).rows;
+  const inList = (list: string[]) => list.map((v) => `'${soqlText(v)}'`).join(', ');
+  const lower = (rows: Row[], field: string) => new Set(rows.map((r) => String(r[field] ?? '').toLowerCase()));
+
+  const objectNames = uniq([...objects, ...fields.map((f) => f.split('.')[0])]);
+  const haveObjects = objectNames.length
+    ? lower(
+        await read(`SELECT QualifiedApiName FROM EntityDefinition WHERE QualifiedApiName IN (${inList(objectNames)})`),
+        'QualifiedApiName'
+      )
+    : new Set<string>();
+  const missingObjects = objectNames.filter((o) => !haveObjects.has(o.toLowerCase()));
+  // Fields of objects that are there: Salesforce's field list per object
   const fieldsOf = new Map<string, Set<string>>();
-  const byObject = [...new Set(fields.map((f) => f.split('.')[0]))].filter((o) => have.has(o.toLowerCase()));
-  for (const o of byObject) {
+  for (const o of uniq(fields.map((f) => f.split('.')[0])).filter((x) => haveObjects.has(x.toLowerCase()))) {
     // eslint-disable-next-line no-await-in-loop
-    const d = await target
-      .rest<{ fields: Array<{ name: string }> }>('GET', `/sobjects/${o}/describe`)
-      .catch(() => ({ fields: [] }));
-    fieldsOf.set(o.toLowerCase(), new Set(d.fields.map((x) => x.name.toLowerCase())));
+    const rows = await read(
+      `SELECT QualifiedApiName FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName = '${soqlText(o)}'`
+    );
+    fieldsOf.set(o.toLowerCase(), lower(rows, 'QualifiedApiName'));
   }
   const missingFields = fields.filter((f) => {
     const [o, name] = f.split('.');
@@ -610,22 +640,29 @@ export async function missingSchema(
   });
   const plainClasses = classes.filter((c) => !c.includes('__'));
   const haveClasses = plainClasses.length
-    ? new Set(
-        (
-          await query(
-            target,
-            `SELECT Name FROM ApexClass WHERE NamespacePrefix = null AND Name IN (${plainClasses
-              .map((c) => `'${soqlText(c)}'`)
-              .join(', ')})`,
-            { maxRows: 50_000 }
-          ).catch(() => ({ rows: [] as Row[] }))
-        ).rows.map((r) => String(r.Name).toLowerCase())
+    ? lower(
+        await read(`SELECT Name FROM ApexClass WHERE NamespacePrefix = null AND Name IN (${inList(plainClasses)})`),
+        'Name'
       )
     : new Set<string>();
+  const haveGroups = groups.length
+    ? lower(await read(`SELECT DeveloperName FROM Group WHERE DeveloperName IN (${inList(groups)})`), 'DeveloperName')
+    : new Set<string>();
+  // A role by its API name or by its name (a user's role is kept by name)
+  const roleRows = roles.length
+    ? await read(
+        `SELECT DeveloperName, Name FROM UserRole WHERE DeveloperName IN (${inList(roles)}) OR Name IN (${inList(
+          roles
+        )})`
+      )
+    : [];
+  const haveRoles = new Set([...lower(roleRows, 'DeveloperName'), ...lower(roleRows, 'Name')]);
   return {
     objects: missingObjects.sort(),
     fields: missingFields.sort(),
     classes: plainClasses.filter((c) => !haveClasses.has(c.toLowerCase())).sort(),
+    groups: groups.filter((g) => !haveGroups.has(g.toLowerCase())).sort(),
+    roles: roles.filter((r) => !haveRoles.has(r.toLowerCase())).sort(),
   };
 }
 
@@ -637,6 +674,8 @@ export type SchemaNeed = {
   objects: string[];
   fields: string[];
   classes: string[];
+  groups: string[];
+  roles: string[];
 };
 
 /**
@@ -647,13 +686,16 @@ export type SchemaNeed = {
 export async function schemaPlan(
   target: SalesforceClient,
   files: AccessFile[],
-  /** Other needs, each with a name (the settings and jobs to put back after a refresh). */
-  extra: Array<{ name: string; objects?: string[]; fields?: string[]; classes?: string[] }> = []
+  /** Other needs, each with a name (the settings and jobs to put back, the users' roles and groups). */
+  extra: Array<{ name: string } & SchemaWant> = []
 ): Promise<{ needs: SchemaNeed[]; components: Array<{ type: string; name: string }> }> {
+  const pick = (k: keyof SchemaWant) => extra.flatMap((e) => e[k] ?? []);
   const missing = await missingSchema(target, files, {
-    objects: extra.flatMap((e) => e.objects ?? []),
-    fields: extra.flatMap((e) => e.fields ?? []),
-    classes: extra.flatMap((e) => e.classes ?? []),
+    objects: pick('objects'),
+    fields: pick('fields'),
+    classes: pick('classes'),
+    groups: pick('groups'),
+    roles: pick('roles'),
   });
   const mentions = (xml: string, tag: string, value: string) => xml.includes(`<${tag}>${value}</${tag}>`);
   const needs = files
@@ -666,6 +708,8 @@ export async function schemaPlan(
         ),
         fields: missing.fields.filter((x) => mentions(f.xml, 'field', x)),
         classes: missing.classes.filter((c) => mentions(f.xml, 'apexClass', c)),
+        groups: [],
+        roles: [],
       })
     )
     .concat(
@@ -675,12 +719,16 @@ export async function schemaPlan(
         objects: missing.objects.filter((o) => e.objects?.includes(o)),
         fields: missing.fields.filter((x) => e.fields?.includes(x)),
         classes: missing.classes.filter((c) => e.classes?.includes(c)),
+        groups: missing.groups.filter((g) => e.groups?.includes(g)),
+        roles: missing.roles.filter((r) => e.roles?.includes(r)),
       }))
     )
-    .filter((n) => n.objects.length + n.fields.length + n.classes.length > 0);
+    .filter((n) => n.objects.length + n.fields.length + n.classes.length + n.groups.length + n.roles.length > 0);
   return {
     needs,
     components: [
+      ...missing.roles.map((name) => ({ type: 'Role', name })),
+      ...missing.groups.map((name) => ({ type: 'Group', name })),
       ...missing.objects.map((name) => ({ type: 'CustomObject', name })),
       ...missing.fields.map((name) => ({ type: 'CustomField', name })),
       ...missing.classes.map((name) => ({ type: 'ApexClass', name })),

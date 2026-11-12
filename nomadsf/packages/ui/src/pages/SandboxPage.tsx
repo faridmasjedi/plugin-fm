@@ -9,6 +9,7 @@ import {
   sandboxAfter,
   sandboxBefore,
   sandboxRestore,
+  sharingRuleTargets,
   fromCopySheets,
   invalidEmails,
   fixEmails,
@@ -400,6 +401,9 @@ function After() {
       {
         name: 'Sharing defaults and rules',
         objects: [...of('sharingDefaults'), ...of('sharingRules')].map((i) => i.key),
+        // The groups, queues and roles the rules share with or from
+        groups: [...new Set(of('sharingRules').flatMap((i) => sharingRuleTargets(i.row).groups))],
+        roles: [...new Set(of('sharingRules').flatMap((i) => sharingRuleTargets(i.row).roles))],
       },
       {
         name: 'Scheduled Apex',
@@ -407,7 +411,9 @@ function After() {
           .map((i) => String(i.row.ApexClass))
           .filter(Boolean),
       },
-    ].filter((n) => (n.objects?.length ?? 0) + (n.classes?.length ?? 0) > 0);
+    ].filter(
+      (n) => (n.objects?.length ?? 0) + (n.classes?.length ?? 0) + (n.groups?.length ?? 0) + (n.roles?.length ?? 0) > 0
+    );
   }, [items, ticked]);
   // The users kept in the workbook, with the files of their permission sets and groups
   const kept = useMemo(() => (tables ? fromCopySheets(tables.filter((t) => t.columns.length)) : null), [tables]);

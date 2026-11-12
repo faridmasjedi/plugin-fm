@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
 import {
-  buildDiffPackage,
   folderBytes,
-  fromBase64,
   packageXml,
   projectMetadataZip,
   neededToo,
+  piecesZip,
+  rolesToo,
   schemaPlan,
   type AddedPiece,
   type AccessFile,
   type SalesforceClient,
   type SchemaNeed,
+  type SchemaWant,
 } from '@nomadsf/core';
 import { useStudio } from '../context';
 import { useProject } from '../project';
@@ -21,7 +22,13 @@ import { Select } from './Select';
 type Component = { type: string; name: string };
 const keyOf = (c: Component) => `${c.type}:${c.name}`;
 const NONE: Array<{ name: string }> = [];
-const KIND: Record<string, string> = { CustomObject: 'Object', CustomField: 'Field', ApexClass: 'Apex class' };
+const KIND: Record<string, string> = {
+  CustomObject: 'Object',
+  CustomField: 'Field',
+  ApexClass: 'Apex class',
+  Role: 'Role',
+  Group: 'Public group or queue',
+};
 
 /**
  * What an org needs before permission sets and groups can be made there with all their access: per permission set,
@@ -43,7 +50,7 @@ export function SchemaGaps({
   /** After a deploy: check again. */
   onChanged?: () => void;
   /** Other needs, each named (the settings and jobs to put back after a refresh). */
-  extra?: Array<{ name: string; objects?: string[]; fields?: string[]; classes?: string[] }>;
+  extra?: Array<{ name: string } & SchemaWant>;
   /** What the pieces are for, in the heading ("these permission sets", "these settings"). */
   forWhat?: string;
 }) {
@@ -88,7 +95,14 @@ export function SchemaGaps({
     setAlso(null);
     void studio
       .clientFor(from)
-      .then((source) => neededToo(source, target.client, plan.components))
+      .then(async (source) => [
+        ...(await rolesToo(
+          source,
+          target.client,
+          plan.components.filter((c) => c.type === 'Role').map((c) => c.name)
+        )),
+        ...(await neededToo(source, target.client, plan.components)),
+      ])
       .then((found) => {
         if (canceled) return;
         setAlso(found);
@@ -138,8 +152,7 @@ export function SchemaGaps({
     }
     if (!sourceOrg) throw new Error('Choose where they come from.');
     const source = await studio.clientFor(sourceOrg.id);
-    const pkg = await buildDiffPackage(source, chosen);
-    return { zip: fromBase64(pkg.zipBase64) };
+    return { zip: await piecesZip(source, chosen) };
   };
 
   return (
@@ -161,7 +174,9 @@ export function SchemaGaps({
                   (c) =>
                     (c.type === 'CustomObject' && n.objects.includes(c.name)) ||
                     (c.type === 'CustomField' && n.fields.includes(c.name)) ||
-                    (c.type === 'ApexClass' && n.classes.includes(c.name))
+                    (c.type === 'ApexClass' && n.classes.includes(c.name)) ||
+                    (c.type === 'Role' && n.roles.includes(c.name)) ||
+                    (c.type === 'Group' && n.groups.includes(c.name))
                 )
                 .map(tickbox)}
             </div>
