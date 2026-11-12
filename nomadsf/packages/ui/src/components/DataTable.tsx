@@ -1,4 +1,5 @@
 import { useContext, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Select } from './Select';
 import { InspectContext } from '../context';
 import { useRegisterTable } from '../pageTables';
 import { CopyId } from './CopyId';
@@ -372,14 +373,14 @@ export function DataTable({
             {conditions.map((c, i) => (
               <div key={i} className="dt-condition">
                 <div className="dt-condition-row">
-                  <select value={c.column} onChange={(e) => setCondition(i, { column: e.target.value, value: '' })}>
+                  <Select value={c.column} onChange={(e) => setCondition(i, { column: e.target.value, value: '' })}>
                     <option value="">Any column</option>
                     {columns.map((col, ci) => (
                       <option key={`${ci}:${col}`} value={col}>
                         {col}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                   <button
                     className="link"
                     title="Remove this filter"
@@ -409,11 +410,11 @@ export function DataTable({
             {selectable && (
               <label>
                 <span>Ticked</span>
-                <select value={ticked} onChange={(e) => setTicked(e.target.value as typeof ticked)}>
+                <Select value={ticked} onChange={(e) => setTicked(e.target.value as typeof ticked)}>
                   <option value="all">All rows</option>
                   <option value="ticked">Ticked only ({selected!.size})</option>
                   <option value="unticked">Not ticked</option>
-                </select>
+                </Select>
               </label>
             )}
             <p className="muted small">Plain text finds rows that contain it · =exact · !not · &gt;10 · &lt;5</p>

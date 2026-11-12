@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Select } from '../components/Select';
 import {
   CometdClient,
   cometdPost,
@@ -81,7 +82,7 @@ export function EventsPage() {
     <div className="page">
       <div className="toolbar">
         <h2>Events</h2>
-        <select
+        <Select
           value={channel}
           disabled={listening}
           onChange={(e) => setChannel(e.target.value)}
@@ -98,11 +99,11 @@ export function EventsPage() {
                 ))}
             </optgroup>
           ))}
-        </select>
-        <select value={replay} disabled={listening} onChange={(e) => setReplay(Number(e.target.value) as ReplayFrom)}>
+        </Select>
+        <Select value={replay} disabled={listening} onChange={(e) => setReplay(Number(e.target.value) as ReplayFrom)}>
           <option value={-1}>New events only</option>
           <option value={-2}>Replay retained (last 72 h)</option>
-        </select>
+        </Select>
         {listening ? (
           <button onClick={stop}>Stop</button>
         ) : (

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Select } from './Select';
+import { ComboInput } from './ComboInput';
 import {
   NO_ACCESS,
   addToGroup,
@@ -18,7 +20,7 @@ import {
   type SystemPermission,
 } from '@nomadsf/core';
 import { useStudio } from '../context';
-import { ObjectOptions } from './ObjectOptions';
+import { objectChoices } from './ObjectOptions';
 import { Status } from '../statusLog';
 
 type EditableField = { name: string; label: string; type: string; editable: boolean };
@@ -241,13 +243,12 @@ export function AccessEditor({
         </tbody>
       </table>
       <div className="form">
-        <input
-          list="editor-objects"
+        <ComboInput
+          options={objectChoices(allObjects)}
           placeholder="Add an object"
           value={newObject}
           onChange={(e) => setNewObject(e.target.value)}
         />
-        <ObjectOptions id="editor-objects" objects={allObjects} typed={newObject} />
         <button
           disabled={!/^\w+$/.test(newObject.trim())}
           onClick={() => {
@@ -261,8 +262,8 @@ export function AccessEditor({
 
       <h4>Field access</h4>
       <div className="form">
-        <input
-          list="editor-field-objects"
+        <ComboInput
+          options={objectChoices(allObjects)}
           placeholder="Choose an object"
           value={typedFieldObject}
           onChange={(e) => {
@@ -271,7 +272,6 @@ export function AccessEditor({
             if (match) setFieldObject(match.name);
           }}
         />
-        <ObjectOptions id="editor-field-objects" objects={allObjects} typed={typedFieldObject} />
         {objectFields && (
           <>
             <input placeholder="Filter fields" value={fieldFilter} onChange={(e) => setFieldFilter(e.target.value)} />
@@ -435,14 +435,14 @@ export function GroupEditor({
         </table>
       )}
       <div className="form">
-        <select value={adding} onChange={(e) => setAdding(e.target.value)} style={{ minWidth: 300 }}>
+        <Select value={adding} onChange={(e) => setAdding(e.target.value)} style={{ minWidth: 300 }}>
           <option value="">Add a permission set ({addable.length})…</option>
           {addable.map((h) => (
             <option key={h.id} value={h.id}>
               {h.name}
             </option>
           ))}
-        </select>
+        </Select>
         <button
           disabled={!adding || Boolean(blocked)}
           title={blocked}

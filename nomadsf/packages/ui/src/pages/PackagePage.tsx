@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Select } from '../components/Select';
 import {
   CompareEngine,
   analyzeProject,
@@ -377,7 +378,7 @@ function ModePanel({
   const refSelect = (value: string, set: (v: string) => void, label: string) => (
     <label>
       <span>{label}</span>
-      <select value={value} onChange={(e) => set(e.target.value)}>
+      <Select value={value} onChange={(e) => set(e.target.value)}>
         <option value="">Choose…</option>
         {refs &&
           (
@@ -397,7 +398,7 @@ function ModePanel({
                 ))}
               </optgroup>
             ))}
-      </select>
+      </Select>
     </label>
   );
 
@@ -430,14 +431,14 @@ function ModePanel({
             {refSelect(sourceRef, setSourceRef, 'The files come from')}
             <label>
               <span>Check against</span>
-              <select value={checkOrgId} onChange={(e) => setCheckOrgId(e.target.value)}>
+              <Select value={checkOrgId} onChange={(e) => setCheckOrgId(e.target.value)}>
                 <option value="">Don't check an org</option>
                 {studio.orgs.map((o) => (
                   <option key={o.id} value={o.id}>
                     {o.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
         ) : (

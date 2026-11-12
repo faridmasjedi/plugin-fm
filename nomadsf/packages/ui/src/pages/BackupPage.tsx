@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Select } from '../components/Select';
 import {
   backupCandidates,
   describeData,
@@ -360,7 +361,7 @@ export function BackupPage({
               </label>
               <label>
                 Org
-                <select value={draft.org} onChange={(e) => update({ org: e.target.value, objects: [], exclude: [] })}>
+                <Select value={draft.org} onChange={(e) => update({ org: e.target.value, objects: [], exclude: [] })}>
                   {!orgs.some((o) => o.id === draft.org) && <option value={draft.org}>{draft.org}</option>}
                   {orgs.map((o) => (
                     <option key={o.id} value={o.id}>
@@ -368,7 +369,7 @@ export function BackupPage({
                       {o.type ? ` — ${o.type}` : ''}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <span className="grow" />
               <button disabled={!unsaved} onClick={() => void act('', async () => (save(), setStatus('✓ Saved.')))}>
@@ -906,11 +907,11 @@ export function ObjectSettings({
               value={filter}
               onChange={(e) => onFilter(e.target.value)}
             />
-            <select value={names} onChange={(e) => showNames(e.target.value as typeof names)} title="Show fields by">
+            <Select value={names} onChange={(e) => showNames(e.target.value as typeof names)} title="Show fields by">
               <option value="label">Labels</option>
               <option value="name">API names</option>
               <option value="both">Labels and API names</option>
-            </select>
+            </Select>
             <span className="muted">
               {listed.length} ticked · Id and SystemModstamp are always kept; address and file-body fields cannot be
               backed up by the bulk API
@@ -962,7 +963,7 @@ export function ScheduleEditor({
     <div className="form">
       <label>
         Repeat
-        <select
+        <Select
           value={schedule.every}
           onChange={(e) => {
             const every = e.target.value as BackupSchedule['every'];
@@ -981,7 +982,7 @@ export function ScheduleEditor({
           <option value="daily">Daily</option>
           <option value="weekly">Weekly</option>
           <option value="interval">Every…</option>
-        </select>
+        </Select>
       </label>
       {schedule.every === 'interval' && (
         <>
@@ -1000,19 +1001,19 @@ export function ScheduleEditor({
           </label>
           <label>
             unit
-            <select value={unit} onChange={(e) => onChange({ ...schedule, unit: e.target.value as ScheduleUnit })}>
+            <Select value={unit} onChange={(e) => onChange({ ...schedule, unit: e.target.value as ScheduleUnit })}>
               <option value="hours">hours</option>
               <option value="days">days</option>
               <option value="weeks">weeks</option>
               <option value="months">months</option>
-            </select>
+            </Select>
           </label>
         </>
       )}
       {schedule.every === 'weekly' && (
         <label>
           on
-          <select
+          <Select
             value={weekday}
             onChange={(e) => onChange({ every: 'weekly', time, weekday: Number(e.target.value) })}
           >
@@ -1021,7 +1022,7 @@ export function ScheduleEditor({
                 {d}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       )}
       {schedule.every !== 'off' && !(schedule.every === 'interval' && schedule.unit === 'hours') && (

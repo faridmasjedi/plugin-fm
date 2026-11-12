@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Select } from '../components/Select';
 import {
   SETUP_KINDS,
   addGroupMembers,
@@ -119,11 +120,11 @@ export function GroupsPage() {
         <h2>Groups &amp; queues</h2>
         <span className="muted">public groups and queues, and who is in them</span>
         <span className="grow" />
-        <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+        <Select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
           <option value="all">Groups and queues</option>
           <option value="Public group">Public groups</option>
           <option value="Queue">Queues</option>
-        </select>
+        </Select>
       </div>
       {status && <Status text={status} block />}
       {!groups ? (
@@ -586,14 +587,14 @@ export function TabSettingsPanel({ permissionSetId, editable }: { permissionSetI
                 <td className="muted mono">{t.tab}</td>
                 <td>
                   {editable ? (
-                    <select
+                    <Select
                       value={t.visibility}
                       onChange={(e) => void change(t, e.target.value as TabSetting['visibility'])}
                     >
                       <option>Visible</option>
                       <option>Available</option>
                       <option>Hidden</option>
-                    </select>
+                    </Select>
                   ) : (
                     t.visibility
                   )}
@@ -760,10 +761,10 @@ export function NewPermissionSet({ onCreated }: { onCreated: () => void }) {
   };
   return (
     <div className="form">
-      <select value={group ? 'group' : 'set'} onChange={(e) => setGroup(e.target.value === 'group')}>
+      <Select value={group ? 'group' : 'set'} onChange={(e) => setGroup(e.target.value === 'group')}>
         <option value="set">New permission set</option>
         <option value="group">New permission set group</option>
-      </select>
+      </Select>
       <input placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
       <input
         className="mono"
@@ -1026,7 +1027,7 @@ export function LayoutsPanel({ profileId, editable }: { profileId: string; edita
             if (!r || !options.length) return undefined;
             const value = draft.get(key(r)) ?? r.layout;
             return (
-              <select
+              <Select
                 className={value !== r.layout ? 'changed' : ''}
                 value={value}
                 onChange={(e) => setDraft(new Map(draft).set(key(r), e.target.value))}
@@ -1036,7 +1037,7 @@ export function LayoutsPanel({ profileId, editable }: { profileId: string; edita
                     {l.slice(l.indexOf('-') + 1)}
                   </option>
                 ))}
-              </select>
+              </Select>
             );
           }}
         />

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Select } from './Select';
+import { ComboInput } from './ComboInput';
 import {
   apexSourcesFromOrg,
   type CompareProblem,
@@ -314,8 +316,8 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
       <div className="form">
         <label title="Type a few letters, or choose from the list">
           Type
-          <input
-            list="metadata-types"
+          <ComboInput
+            options={typeList.map((t) => ({ value: t }))}
             value={typedType}
             placeholder="FlexiPage, Flow, Layout…"
             onChange={(e) => {
@@ -333,11 +335,6 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
             onBlur={() => setTypedType(type)}
             style={{ minWidth: 260 }}
           />
-          <datalist id="metadata-types">
-            {typeList.map((t) => (
-              <option key={t} value={t} />
-            ))}
-          </datalist>
         </label>
       </div>
       {status && <Status text={status} block />}
@@ -395,13 +392,13 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
                 vs project <b>{project.source?.name}</b>
               </span>
               <div className="form">
-                <select value={show} onChange={(e) => setShow(e.target.value as Show)}>
+                <Select value={show} onChange={(e) => setShow(e.target.value as Show)}>
                   {SHOW.map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.label} ({counts.get(o.id) ?? 0})
                     </option>
                   ))}
-                </select>
+                </Select>
                 <button
                   disabled={busy || !members || !(members ?? []).some((m) => projectNames.has(m.fullName))}
                   title={`Compare the content of every ${type} in both the org and the project`}

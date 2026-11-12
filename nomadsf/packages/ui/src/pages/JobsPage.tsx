@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Select } from '../components/Select';
 import { abortJob, asyncJobs, backgroundJobs, scheduledJobs, type Row } from '@nomadsf/core';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
@@ -118,7 +119,7 @@ export function JobsPage() {
         {tab !== 'scheduled' && (
           <label>
             Last
-            <select
+            <Select
               value={days}
               onChange={(e) => {
                 setDays(Number(e.target.value));
@@ -130,7 +131,7 @@ export function JobsPage() {
                   {d} day(s)
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
         {tab !== 'background' && (

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Select } from '../components/Select';
 import {
   licenseReport,
   licenseUsers,
@@ -113,7 +114,7 @@ export function OrgHealthPage() {
           <div className="form">
             <label>
               Not used for
-              <select
+              <Select
                 value={days}
                 onChange={(e) => {
                   setDays(Number(e.target.value));
@@ -125,7 +126,7 @@ export function OrgHealthPage() {
                     {d} days
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             {report.notes.length > 0 && <span className="muted">Not available: {report.notes.join(' · ')}</span>}
           </div>

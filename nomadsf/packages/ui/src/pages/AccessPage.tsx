@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { Select } from '../components/Select';
 import {
   assignAccess,
   assignments,
@@ -133,13 +134,13 @@ export function LoginsAuditPage() {
             <h3 style={{ margin: 0, width: '100%' }}>Login history</h3>
             <label>
               Last
-              <select value={loginDays} onChange={(e) => setLoginDays(Number(e.target.value))}>
+              <Select value={loginDays} onChange={(e) => setLoginDays(Number(e.target.value))}>
                 {[1, 7, 30, 90, 180].map((d) => (
                   <option key={d} value={d}>
                     {d} day(s)
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <button
               className="primary"
@@ -170,13 +171,13 @@ export function LoginsAuditPage() {
             <h3 style={{ margin: 0, width: '100%' }}>Setup audit trail</h3>
             <label>
               Last
-              <select value={auditDays} onChange={(e) => setAuditDays(Number(e.target.value))}>
+              <Select value={auditDays} onChange={(e) => setAuditDays(Number(e.target.value))}>
                 {[7, 30, 90, 180].map((d) => (
                   <option key={d} value={d}>
                     {d} days
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <button
               className="primary"
@@ -379,13 +380,13 @@ export function PermissionSetsPage() {
                     <div className="form">
                       <label>
                         Find users by
-                        <select value={by} onChange={(e) => setBy(e.target.value as By)}>
+                        <Select value={by} onChange={(e) => setBy(e.target.value as By)}>
                           {(Object.keys(BY_LABEL) as By[]).map((b) => (
                             <option key={b} value={b}>
                               {BY_LABEL[b].split(' (')[0]}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </label>
                       <label>
                         Expires (optional)

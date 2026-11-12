@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Select } from '../components/Select';
 import type { OnMount } from '@monaco-editor/react';
 import {
   DEFAULT_LOG_LEVELS,
@@ -125,15 +126,15 @@ export function ExecutePage() {
         <span className="grow" />
         <label>
           Log levels{' '}
-          <select value={preset} onChange={(e) => setPreset(e.target.value)}>
+          <Select value={preset} onChange={(e) => setPreset(e.target.value)}>
             {Object.entries(PRESETS).map(([id, p]) => (
               <option key={id} value={id}>
                 {p.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
-        <select
+        <Select
           className="menu-select"
           value=""
           onChange={(e) => e.target.value && setCode(history[Number(e.target.value)])}
@@ -144,7 +145,7 @@ export function ExecutePage() {
               {h.replace(/\s+/g, ' ').slice(0, 70)}
             </option>
           ))}
-        </select>
+        </Select>
         <button onClick={() => void run(true)} disabled={running} title="Ctrl/Cmd + Shift + Enter">
           Run selection
         </button>

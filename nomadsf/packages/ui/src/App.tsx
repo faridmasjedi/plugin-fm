@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Select } from './components/Select';
 import { getUserInfo, type SalesforceClient, type UserInfo } from '@nomadsf/core';
 import { detectHost, openInOrg, orgFacts, type OrgChoice, type OrgFacts } from './host';
 import { useBusy } from './busy';
@@ -368,14 +369,14 @@ export function App() {
             NomadSF <span className="muted">Studio</span>
           </div>
           {orgs.length > 1 || host.kind !== 'extension' ? (
-            <select value={orgId} onChange={(e) => switchOrg(e.target.value)} title="Org (change it in Settings too)">
+            <Select value={orgId} onChange={(e) => switchOrg(e.target.value)} title="Org (change it in Settings too)">
               {orgs.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.label}
                   {o.type ? ` — ${o.type}` : ''}
                 </option>
               ))}
-            </select>
+            </Select>
           ) : (
             <span className="org-name">{org?.label}</span>
           )}

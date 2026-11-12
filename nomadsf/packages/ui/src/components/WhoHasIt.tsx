@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Select } from './Select';
 import {
   HOLDER_KINDS,
   deleteByIds,
@@ -132,7 +133,7 @@ export function WhoHasIt({ between }: { between?: OrgSides }) {
       <div className="form">
         <label>
           Kind
-          <select
+          <Select
             value={kind}
             onChange={(e) => {
               setKind(e.target.value as HolderKind);
@@ -144,10 +145,10 @@ export function WhoHasIt({ between }: { between?: OrgSides }) {
                 {label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <input placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} />
-        <select value={holderId} onChange={(e) => setHolderId(e.target.value)} style={{ minWidth: 320 }}>
+        <Select value={holderId} onChange={(e) => setHolderId(e.target.value)} style={{ minWidth: 320 }}>
           <option value="">{holders ? `Choose a ${kindLabel.toLowerCase()} (${shown.length})` : 'Loading…'}</option>
           {shown.map((h) => (
             <option key={h.id} value={h.id}>
@@ -155,7 +156,7 @@ export function WhoHasIt({ between }: { between?: OrgSides }) {
               {h.detail ? ` (${h.detail})` : ''}
             </option>
           ))}
-        </select>
+        </Select>
         <label className="check">
           <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Active users
           only
@@ -210,7 +211,7 @@ export function WhoHasIt({ between }: { between?: OrgSides }) {
             </button>
           ) : kind === 'profile' || kind === 'role' ? (
             <>
-              <select value={moveTo} onChange={(e) => setMoveTo(e.target.value)} style={{ minWidth: 260 }}>
+              <Select value={moveTo} onChange={(e) => setMoveTo(e.target.value)} style={{ minWidth: 260 }}>
                 <option value="">Move to another {kindLabel.toLowerCase()}…</option>
                 {(holders ?? [])
                   .filter((h) => h.id !== holder.id)
@@ -219,7 +220,7 @@ export function WhoHasIt({ between }: { between?: OrgSides }) {
                       {h.label}
                     </option>
                   ))}
-              </select>
+              </Select>
               <button disabled={!moveTo} onClick={() => move(picked)}>
                 Move…
               </button>

@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Select } from '../components/Select';
+import { ComboInput } from '../components/ComboInput';
 import { describeGlobal, parseRestRequest, restExplorer, type RestAnswer, type RestCall } from '@nomadsf/core';
 import { AiAsk, AiExplain } from '../components/AiHelp';
 import { CodeEditor } from '../components/CodeEditor';
@@ -50,23 +52,18 @@ export function RestPage() {
     <div className="page">
       <div className="toolbar">
         <h2>REST Explorer</h2>
-        <select value={method} onChange={(e) => setMethod(e.target.value as RestCall['method'])}>
+        <Select value={method} onChange={(e) => setMethod(e.target.value as RestCall['method'])}>
           {METHODS.map((m) => (
             <option key={m}>{m}</option>
           ))}
-        </select>
-        <input
+        </Select>
+        <ComboInput
           className="mono grow"
-          list="rest-examples"
+          options={EXAMPLES.map((e) => ({ value: e }))}
           value={path}
           onChange={(e) => setPath(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && void send()}
         />
-        <datalist id="rest-examples">
-          {EXAMPLES.map((e) => (
-            <option key={e} value={e} />
-          ))}
-        </datalist>
         <button
           className={`primary ${running ? 'working' : ''}`}
           disabled={running || !path.trim()}

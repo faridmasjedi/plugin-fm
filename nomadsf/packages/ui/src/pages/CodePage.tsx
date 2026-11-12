@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Select } from '../components/Select';
 import type { OnMount } from '@monaco-editor/react';
 import {
   CODE_LAYOUT,
@@ -505,13 +506,13 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
                 vs project <b>{projectLabel}</b>
               </span>
               <div className="form">
-                <select value={show} onChange={(e) => setShow(e.target.value as Show)}>
+                <Select value={show} onChange={(e) => setShow(e.target.value as Show)}>
                   {SHOW.map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.label} ({counts.get(o.id) ?? 0})
                     </option>
                   ))}
-                </select>
+                </Select>
                 <button
                   disabled={busy || !items || !index.size}
                   title="Compare the content of every component in both the org and the project"

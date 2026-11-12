@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Select } from './Select';
 import { describeSObject, type FieldSummary, type SalesforceClient } from '@nomadsf/core';
 
 type Describe = { label: string; fields: FieldSummary[] };
@@ -88,22 +89,22 @@ export function RelatedFields({
       <div className="form">
         <label>
           Id column
-          <select value={column} onChange={(e) => setColumn(e.target.value)}>
+          <Select value={column} onChange={(e) => setColumn(e.target.value)}>
             {columns.map((c) => (
               <option key={c} value={c}>
                 {c} → {objects[c].join(' / ')}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         {targets.length > 1 && (
           <label>
             Object
-            <select value={sobject} onChange={(e) => setSobject(e.target.value)}>
+            <Select value={sobject} onChange={(e) => setSobject(e.target.value)}>
               {targets.map((o) => (
                 <option key={o}>{o}</option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
         <input placeholder={`Filter ${sobject} fields`} value={filter} onChange={(e) => setFilter(e.target.value)} />

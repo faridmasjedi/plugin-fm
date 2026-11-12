@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Select } from './Select';
 import { bulkCompatible, bulkQuery, toCsvFiles, type QueryCursor } from '@nomadsf/core';
 import { storage, useStudio } from '../context';
 import { download } from './DataTable';
@@ -69,7 +70,7 @@ export function QueryExport({
     <div className="form query-export">
       <label className="check">
         Rows per file
-        <select
+        <Select
           value={perFile}
           onChange={(e) => {
             setPerFile(Number(e.target.value));
@@ -81,7 +82,7 @@ export function QueryExport({
               {n.toLocaleString()}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <button disabled={busy} onClick={() => (viaBulk ? void exportBulk() : exportLoaded())}>
         {viaBulk ? `Export all ${cursor.totalSize.toLocaleString()} rows to CSV` : 'Export CSV'}

@@ -4307,3 +4307,63 @@ select.row-action {
   padding: 3px 8px;
   border-radius: 999px;
 }
+
+/* A text box with its own list (objects, types…): the whole list on click, narrowed by typing */
+.combo {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.combo.grow {
+  flex: 1;
+}
+.combo > input {
+  width: 100%;
+}
+.combo-list {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 50;
+  min-width: max(100%, 280px);
+  max-width: 520px;
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  font-weight: normal;
+  color: var(--text);
+}
+.combo-list li {
+  display: flex;
+  flex-direction: column;
+  padding: 5px 10px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.combo-list li.active {
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+}
+.combo-list li.combo-more {
+  cursor: default;
+}
+/* A long list: a small filter box in front of it */
+.select-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.select-filter-input {
+  width: 74px;
+  min-width: 0;
+}
+.select-filter-input:focus {
+  width: 160px;
+}

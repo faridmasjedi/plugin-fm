@@ -1,3 +1,4 @@
+import { Select } from './Select';
 /**
  * What a row does in a package: deploy it (package.xml), delete it from the org (destructiveChanges.xml), or nothing.
  * The same select and the same "ticked rows" buttons wherever a list builds a package (Project, Org compare).
@@ -17,7 +18,7 @@ export function RowActionSelect({
   onChange: (action: RowAction | undefined) => void;
 }) {
   return (
-    <select
+    <Select
       className={`row-action ${value ?? ''}`}
       value={value ?? ''}
       onClick={(e) => e.stopPropagation()}
@@ -26,7 +27,7 @@ export function RowActionSelect({
       <option value="">–</option>
       {canDeploy && <option value="deploy">Add to package</option>}
       {canDelete && <option value="delete">Destructive change</option>}
-    </select>
+    </Select>
   );
 }
 

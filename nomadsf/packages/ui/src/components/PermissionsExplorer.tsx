@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Select } from './Select';
 import {
   fieldAccessOf,
   objectAccessOf,
@@ -151,7 +152,7 @@ export function PermissionsExplorer() {
           ))}
         </div>
         <input placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} />
-        <select value={holderId} onChange={(e) => setHolderId(e.target.value)} style={{ minWidth: 380 }}>
+        <Select value={holderId} onChange={(e) => setHolderId(e.target.value)} style={{ minWidth: 380 }}>
           <option value="">Choose ({shownHolders.length})</option>
           {kinds
             .filter((k) => kindShown === 'all' || k === kindShown)
@@ -166,7 +167,7 @@ export function PermissionsExplorer() {
                   ))}
               </optgroup>
             ))}
-        </select>
+        </Select>
         <Status text={status} />
       </div>
       {holder && (

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Select } from '../components/Select';
 import { POWER_PERMISSIONS, usersAccessMap, whoCanAccess, type Row } from '@nomadsf/core';
 import { TableTabs } from '../components/TableTabs';
 import { DataTable, EmptyHint } from '../components/DataTable';
@@ -120,25 +121,25 @@ export function ObjectAccessPage() {
       <div className="card form">
         <label>
           Object
-          <select value={object} onChange={(e) => setObject(e.target.value)} style={{ width: 320 }}>
+          <Select value={object} onChange={(e) => setObject(e.target.value)} style={{ width: 320 }}>
             {!objects.some((o) => o.name === object) && <option value={object}>{object}</option>}
             {objects.map((o) => (
               <option key={o.name} value={o.name}>
                 {o.label} ({o.name})
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label>
           Field (optional)
-          <select value={field} onChange={(e) => setField(e.target.value)} style={{ width: 320 }}>
+          <Select value={field} onChange={(e) => setField(e.target.value)} style={{ width: 320 }}>
             <option value="">—</option>
             {fields.map((f) => (
               <option key={f.name} value={f.name}>
                 {f.label} ({f.name})
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <button className="primary" onClick={() => void check()}>
           Show who

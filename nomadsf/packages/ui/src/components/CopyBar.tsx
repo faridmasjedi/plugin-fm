@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Select } from './Select';
 import {
   accessFiles,
   accessNames,
@@ -220,7 +221,7 @@ export function CopyBar({ what }: { what: CopyWhat }) {
     <div className="copy-bar">
       <div className="form">
         <b>Copy into</b>
-        <select value={targetId} onChange={(e) => setTargetId(e.target.value)}>
+        <Select value={targetId} onChange={(e) => setTargetId(e.target.value)}>
           <option value="">Choose an org…</option>
           {orgs
             .filter((o) => o.id !== org.id || what.records.kind === 'file')
@@ -229,7 +230,7 @@ export function CopyBar({ what }: { what: CopyWhat }) {
                 {o.label}
               </option>
             ))}
-        </select>
+        </Select>
         {records > 0 && (
           <label className="check" title="E-mails, phones, people's names and streets become fake values">
             <input type="checkbox" checked={mask} onChange={(e) => setMask(e.target.checked)} /> Mask personal data

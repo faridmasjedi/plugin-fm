@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { ComboInput } from '../components/ComboInput';
 import { describeGlobal, objectSchema, type SchemaField, type SchemaInfo, type SObjectSummary } from '@nomadsf/core';
 import { TableTabs } from '../components/TableTabs';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { storage, useStudio } from '../context';
-import { ObjectOptions } from '../components/ObjectOptions';
+import { objectChoices } from '../components/ObjectOptions';
 import { Status } from '../statusLog';
 
 type Tab = 'fields' | 'relationships' | 'recordTypes';
@@ -82,8 +83,8 @@ export function SchemaPage() {
         <span className="muted">Fields, relationships and record types on {org.label}</span>
       </div>
       <div className="form">
-        <input
-          list="schema-objects"
+        <ComboInput
+          options={objectChoices(objects)}
           value={typed}
           placeholder="Object, e.g. Account"
           onChange={(e) => {
@@ -98,7 +99,6 @@ export function SchemaPage() {
             else setStatus(`❌ No object called "${typed.trim()}" in this org.`);
           }}
         />
-        <ObjectOptions id="schema-objects" objects={objects} typed={typed} />
         {schema && (
           <span className="muted">
             {`${schema.label} (${schema.labelPlural}) · prefix ${schema.keyPrefix || '—'} · ${

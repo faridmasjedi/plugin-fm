@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Select } from './Select';
 import {
   finishDeviceFlow,
   githubUser,
@@ -136,7 +137,7 @@ export function GitHubCard({ hostKind, embedded = false }: { hostKind: HostKind;
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
             />
-            <select value={repo} onChange={(e) => setRepo(e.target.value)} style={{ maxWidth: 320 }}>
+            <Select value={repo} onChange={(e) => setRepo(e.target.value)} style={{ maxWidth: 320 }}>
               <option value="">Choose a repository…</option>
               {shown.map((r) => (
                 <option key={r.fullName} value={r.fullName}>
@@ -144,12 +145,12 @@ export function GitHubCard({ hostKind, embedded = false }: { hostKind: HostKind;
                   {r.private ? ' 🔒' : ''}
                 </option>
               ))}
-            </select>
-            <select value={ref} onChange={(e) => setRef(e.target.value)} disabled={!branches.length}>
+            </Select>
+            <Select value={ref} onChange={(e) => setRef(e.target.value)} disabled={!branches.length}>
               {branches.map((b) => (
                 <option key={b}>{b}</option>
               ))}
-            </select>
+            </Select>
             <button
               className={project.source?.kind === 'github' ? '' : 'primary'}
               disabled={!repo || !ref || project.loading}

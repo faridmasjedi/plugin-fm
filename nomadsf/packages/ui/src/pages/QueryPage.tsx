@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Select } from '../components/Select';
 import type { OnMount } from '@monaco-editor/react';
 import {
   addToSelect,
@@ -545,7 +546,7 @@ export function QueryPage() {
         setName={setSavedName}
         pickers={
           <>
-            <select
+            <Select
               className="menu-select"
               value=""
               title="Saved queries"
@@ -564,8 +565,8 @@ export function QueryPage() {
                   {q.tooling ? ' · Tooling' : ''}
                 </option>
               ))}
-            </select>
-            <select
+            </Select>
+            <Select
               className="menu-select"
               value=""
               onChange={(e) => e.target.value && setSoql(history[Number(e.target.value)])}
@@ -576,7 +577,7 @@ export function QueryPage() {
                   {h.replace(/\s+/g, ' ').slice(0, 70)}
                 </option>
               ))}
-            </select>
+            </Select>
           </>
         }
       />

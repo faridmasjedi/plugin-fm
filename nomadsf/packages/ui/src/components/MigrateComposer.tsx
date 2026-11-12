@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Select } from './Select';
 import type { DataField, MigrateObject } from '@nomadsf/core';
 
 type Node = { o: MigrateObject; depth: number; via?: string };
@@ -104,7 +105,7 @@ export function MigrateComposer({
               {n.depth > 0 && <span className="muted">↳ </span>}
               <b>{o.name}</b>
               {o.relatedOnly && links.length > 0 ? (
-                <select
+                <Select
                   className="composer-via"
                   title="Which lookup ties these records to the ones above: only records linked through it are copied"
                   value={o.via?.length === 1 ? o.via[0] : o.via?.length ? '*several' : ''}
@@ -121,14 +122,14 @@ export function MigrateComposer({
                   ))}
                   {o.via && o.via.length > 1 && <option value="*several">via {o.via.join(' or ')}</option>}
                   <option value="">via any lookup to the objects above</option>
-                </select>
+                </Select>
               ) : (
                 n.via && <span className="muted"> via {n.via}</span>
               )}
             </span>
           </td>
           <td>
-            <select
+            <Select
               value={o.onlyReferenced ? 'referenced' : o.relatedOnly ? 'related' : 'all'}
               title="Which records of this object are copied"
               onChange={(e) =>
@@ -141,7 +142,7 @@ export function MigrateComposer({
               <option value="all">{backup ? 'All' : 'All (or the condition)'}</option>
               <option value="related">Related to the ones above</option>
               <option value="referenced">Only those pointed to</option>
-            </select>
+            </Select>
           </td>
           <td>
             <input
@@ -181,7 +182,7 @@ export function MigrateComposer({
               </button>
             )}
             {parents.length > 0 && (
-              <select
+              <Select
                 value=""
                 title="Also copy the records this object's lookups point to"
                 onChange={(e) => e.target.value && addParent(e.target.value)}
@@ -192,7 +193,7 @@ export function MigrateComposer({
                     {p.object} (via {p.via})
                   </option>
                 ))}
-              </select>
+              </Select>
             )}
             <button className="link danger" onClick={() => remove(o.name)}>
               Remove

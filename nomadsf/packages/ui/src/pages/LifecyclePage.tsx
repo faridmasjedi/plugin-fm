@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Select } from '../components/Select';
 import {
   CHANGES_DATA,
   backupCandidates,
@@ -258,7 +259,7 @@ export function LifecyclePage({
   const objectSelect = (step: Extract<LifecycleStep, { object: string }>) => (
     <label>
       Object
-      <select
+      <Select
         value={step.object}
         onChange={(e) => {
           setStep(step.id, {
@@ -275,7 +276,7 @@ export function LifecyclePage({
             {o.label !== o.name ? ` (${o.name})` : ''}
           </option>
         ))}
-      </select>
+      </Select>
     </label>
   );
   const whereInput = (step: Extract<LifecycleStep, { object: string }>) => (
@@ -292,7 +293,7 @@ export function LifecyclePage({
   const backupSelect = (step: Extract<LifecycleStep, { backupJobId: string }>, label: string) => (
     <label>
       {label}
-      <select
+      <Select
         value={step.backupJobId}
         onChange={(e) => setStep(step.id, { backupJobId: e.target.value } as Partial<LifecycleStep>)}
       >
@@ -303,7 +304,7 @@ export function LifecyclePage({
             {b.encryption ? ' 🔒' : ''}
           </option>
         ))}
-      </select>
+      </Select>
     </label>
   );
 
@@ -336,7 +337,7 @@ export function LifecyclePage({
             />{' '}
             {f.label}
             {rules[f.name] && (
-              <select
+              <Select
                 value={rules[f.name]}
                 onChange={(e) =>
                   setStep(step.id, {
@@ -347,7 +348,7 @@ export function LifecyclePage({
                 {RULES.map((r) => (
                   <option key={r}>{r}</option>
                 ))}
-              </select>
+              </Select>
             )}
           </label>
         ))}
@@ -424,7 +425,7 @@ export function LifecyclePage({
               </label>
               <label>
                 Org
-                <select value={draft.org} onChange={(e) => update({ org: e.target.value })}>
+                <Select value={draft.org} onChange={(e) => update({ org: e.target.value })}>
                   {!orgs.some((o) => o.id === draft.org) && <option value={draft.org}>{draft.org}</option>}
                   {orgs.map((o) => (
                     <option key={o.id} value={o.id}>
@@ -432,7 +433,7 @@ export function LifecyclePage({
                       {o.type ? ` — ${o.type}` : ''}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <span className="grow" />
               <button disabled={!unsaved} onClick={() => (save(), setStatus('✓ Saved.'))}>
@@ -544,7 +545,7 @@ export function LifecyclePage({
                   <li key={step.id} className={`step-card ${CHANGES_DATA.has(step.type) ? 'changes' : ''}`}>
                     <div className="step-head">
                       <span className="step">{i + 1}</span>
-                      <select
+                      <Select
                         value={step.type}
                         onChange={(e) =>
                           setDraft((d) => ({
@@ -560,7 +561,7 @@ export function LifecyclePage({
                             {t.label}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                       <span className="muted">{STEP_TYPES.find((t) => t.id === step.type)?.hint}</span>
                       <span className="grow" />
                       <button className="link" disabled={i === 0} onClick={() => move(i, -1)} title="Up">
@@ -629,7 +630,7 @@ export function LifecyclePage({
                 ))}
               </ol>
               <div className="form">
-                <select
+                <Select
                   value=""
                   onChange={(e) => {
                     const t = e.target.value as LifecycleStep['type'];
@@ -642,7 +643,7 @@ export function LifecyclePage({
                       {t.label} — {t.hint}
                     </option>
                   ))}
-                </select>
+                </Select>
                 {!backups.length && draft.steps.some((s) => s.type === 'backup' || s.type === 'archive') && (
                   <span className="muted">
                     Back up and Archive use a backup job of this org: create one on the Backup page.

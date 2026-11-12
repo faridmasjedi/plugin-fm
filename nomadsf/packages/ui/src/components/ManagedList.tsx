@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { Select } from './Select';
 import type { Row } from '@nomadsf/core';
 import { useStudio } from '../context';
 import { DataTable, EmptyHint } from './DataTable';
@@ -112,7 +113,7 @@ export function ManagedList({
       {onAdd && (
         <div className="form">
           {kinds && (
-            <select
+            <Select
               value={kind}
               onChange={(e) => {
                 setKind(e.target.value);
@@ -123,7 +124,7 @@ export function ManagedList({
               {kinds.map((k) => (
                 <option key={k}>{k}</option>
               ))}
-            </select>
+            </Select>
           )}
           <input
             placeholder={`Filter ${shownChoices.length}`}
@@ -131,7 +132,7 @@ export function ManagedList({
             onChange={(e) => setFilter(e.target.value)}
             style={{ width: 140 }}
           />
-          <select value={adding} onChange={(e) => setAdding(e.target.value)} style={{ minWidth: 300 }}>
+          <Select value={adding} onChange={(e) => setAdding(e.target.value)} style={{ minWidth: 300 }}>
             <option value="">
               {kinds ? `Choose ${article(adding_what)} ${adding_what}` : addLabel ?? `Add ${article(what)} ${what}`} (
               {shownChoices.length})…
@@ -142,7 +143,7 @@ export function ManagedList({
                 {c.detail ? ` — ${c.detail}` : ''}
               </option>
             ))}
-          </select>
+          </Select>
           <button
             disabled={!adding || busy}
             onClick={() => {

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Select } from './Select';
+import { ComboInput } from './ComboInput';
 import { coerceFieldValue, createRecord, describeGlobal } from '@nomadsf/core';
 import { useStudio } from '../context';
-import { ObjectOptions } from './ObjectOptions';
+import { objectChoices } from './ObjectOptions';
 import { RecordPicker } from './RecordPicker';
 import { Status } from '../statusLog';
 
@@ -144,14 +146,14 @@ export function NewRecord({ onCreated, onClose }: { onCreated: (id: string) => v
       return <input type="checkbox" checked={value === 'true'} onChange={(e) => set(String(e.target.checked))} />;
     if ((f.type === 'picklist' || f.type === 'multipicklist') && f.picklist.length)
       return (
-        <select value={value} onChange={(e) => set(e.target.value)}>
+        <Select value={value} onChange={(e) => set(e.target.value)}>
           <option value="">—</option>
           {f.picklist.map((p) => (
             <option key={p.value} value={p.value}>
               {p.label}
             </option>
           ))}
-        </select>
+        </Select>
       );
     if (f.referenceTo.length)
       return (
@@ -170,8 +172,8 @@ export function NewRecord({ onCreated, onClose }: { onCreated: (id: string) => v
     <div className="card section">
       <div className="form">
         <h3 style={{ margin: 0 }}>New record</h3>
-        <input
-          list="new-record-objects"
+        <ComboInput
+          options={objectChoices(objects)}
           placeholder="Object, e.g. Case"
           value={typed}
           onChange={(e) => {
@@ -180,7 +182,6 @@ export function NewRecord({ onCreated, onClose }: { onCreated: (id: string) => v
             if (match) setSobject(match.name);
           }}
         />
-        <ObjectOptions id="new-record-objects" objects={objects} typed={typed} />
         {fields && (
           <>
             <input placeholder="Filter fields" value={filter} onChange={(e) => setFilter(e.target.value)} />
