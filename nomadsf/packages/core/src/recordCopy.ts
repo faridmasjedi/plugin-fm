@@ -688,7 +688,12 @@ export async function schemaPlan(
   files: AccessFile[],
   /** Other needs, each with a name (the settings and jobs to put back, the users' roles and groups). */
   extra: Array<{ name: string } & SchemaWant> = []
-): Promise<{ needs: SchemaNeed[]; components: Array<{ type: string; name: string }> }> {
+): Promise<{
+  needs: SchemaNeed[];
+  components: Array<{ type: string; name: string }>;
+  /** Standard objects the target lacks (a feature or license it does not have): they cannot be deployed. */
+  unavailable: string[];
+}> {
   const pick = (k: keyof SchemaWant) => extra.flatMap((e) => e[k] ?? []);
   const missing = await missingSchema(target, files, {
     objects: pick('objects'),
@@ -724,13 +729,19 @@ export async function schemaPlan(
       }))
     )
     .filter((n) => n.objects.length + n.fields.length + n.classes.length + n.groups.length + n.roles.length > 0);
+  // Standard objects (no __c…) are the org's own: one it lacks cannot be deployed, nor can its fields
+  const custom = (o: string) => /__(c|mdt|e|b|x)$/.test(o);
+  const unavailable = missing.objects.filter((o) => !custom(o));
   return {
     needs,
+    unavailable,
     components: [
       ...missing.roles.map((name) => ({ type: 'Role', name })),
       ...missing.groups.map((name) => ({ type: 'Group', name })),
-      ...missing.objects.map((name) => ({ type: 'CustomObject', name })),
-      ...missing.fields.map((name) => ({ type: 'CustomField', name })),
+      ...missing.objects.filter(custom).map((name) => ({ type: 'CustomObject', name })),
+      ...missing.fields
+        .filter((f) => !unavailable.includes(f.split('.')[0]))
+        .map((name) => ({ type: 'CustomField', name })),
       ...missing.classes.map((name) => ({ type: 'ApexClass', name })),
     ],
   };

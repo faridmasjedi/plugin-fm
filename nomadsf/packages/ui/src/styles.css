@@ -4703,3 +4703,62 @@ button.chip.on {
   gap: 4px 18px;
   margin-bottom: 10px;
 }
+
+/* What an org needs first: a collapsible group per kind (as in Compare & package), a row per piece */
+.gap-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+}
+.gap-group {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  min-width: 0;
+}
+.gap-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 10px;
+}
+.gap-title {
+  color: var(--text);
+}
+.gap-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0 10px 8px 36px;
+  max-height: 340px;
+  overflow: auto;
+}
+.gap-rows li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+  min-width: 0;
+}
+.gap-rows li .mono {
+  overflow-wrap: anywhere;
+}
+.gap-rows li.failed {
+  background: var(--bad-soft);
+}
+.gap-error {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+.schema-gaps {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.gap-head button.gap-title {
+  color: var(--text);
+  text-decoration: none;
+}

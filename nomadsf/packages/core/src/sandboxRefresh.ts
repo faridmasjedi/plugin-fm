@@ -378,6 +378,16 @@ export async function sandboxAfter(client: SalesforceClient, tables: FileTable[]
       });
     }
   }
+  // A standard object the org lacks (a feature or license it does not have): nothing to put back
+  for (const i of items)
+    if (
+      (i.section === 'sharingDefaults' || i.section === 'sharingRules') &&
+      i.state === 'missing' &&
+      !isCustomObject(i.key)
+    ) {
+      i.restorable = false;
+      i.how = 'not in this org: it needs a feature or license this org lacks';
+    }
   // What can be changed before it is put back
   for (const i of items) {
     if (i.section === 'customSettings') i.edit = { field: 'Value', label: 'value' };
@@ -395,6 +405,12 @@ export async function sandboxAfter(client: SalesforceClient, tables: FileTable[]
 }
 
 // ---------- restore ----------
+
+/** What could not be put back, and why; `keys` are the items it was about (section|key). */
+export type SandboxFailure = { item: string; error: string; keys: string[] };
+
+/** Standard objects (Account, WebCart…) cannot be deployed: one an org lacks needs a feature or license there. */
+export const isCustomObject = (name: string): boolean => /__(c|mdt|e|b|x)$/.test(name);
 
 const remoteSiteXml = (r: Row): string =>
   `<?xml version="1.0" encoding="UTF-8"?>\n<RemoteSiteSetting xmlns="http://soap.sforce.com/2006/04/metadata">\n${
@@ -418,8 +434,16 @@ function typed(type: string, value: string): unknown {
 export async function sandboxRestore(
   client: SalesforceClient,
   items: SandboxItem[]
-): Promise<{ done: string[]; failed: Array<{ item: string; error: string }> }> {
-  const out = { done: [] as string[], failed: [] as Array<{ item: string; error: string }> };
+): Promise<{ done: string[]; failed: SandboxFailure[] }> {
+  const out = { done: [] as string[], failed: [] as SandboxFailure[] };
+  const keyOf = (i: SandboxItem) => `${i.section}|${i.key}`;
+  /** A deploy's problems, each item with the ones that name it (all of them when none does). */
+  const deployFailed = (list: SandboxItem[], what: (i: SandboxItem) => string, problems: string[]) => {
+    for (const i of list) {
+      const own = problems.filter((p) => p.includes(i.key));
+      out.failed.push({ item: what(i), error: (own.length ? own : problems).join('; '), keys: [keyOf(i)] });
+    }
+  };
   // Exactly the items chosen (a same one too: its value may have been changed)
   const picked = items.filter((i) => i.restorable);
 
@@ -432,7 +456,7 @@ export async function sandboxRestore(
       sites.map((i) => ({ fullName: text(i.row.SiteName), xml: remoteSiteXml(i.row) }))
     );
     if (r.success) out.done.push(...sites.map((i) => `remote site ${i.key}`));
-    else out.failed.push(...sites.map((i) => ({ item: `remote site ${i.key}`, error: r.problems.join('; ') })));
+    else deployFailed(sites, (i) => `remote site ${i.key}`, r.problems);
   }
 
   // Custom settings: a record per setting and key, its fields set together
@@ -481,7 +505,7 @@ export async function sandboxRestore(
         );
       out.done.push(`${setting} · ${key} (${list.length} value(s))`);
     } catch (e) {
-      out.failed.push({ item: `${setting} · ${key}`, error: (e as Error).message });
+      out.failed.push({ item: `${setting} · ${key}`, error: (e as Error).message, keys: list.map(keyOf) });
     }
   }
 
@@ -498,7 +522,11 @@ export async function sandboxRestore(
       for (const i of defaults) {
         const file = files.get(`objects/${i.key}.object`);
         if (!file) {
-          out.failed.push({ item: `sharing default of ${i.key}`, error: 'the object could not be read' });
+          out.failed.push({
+            item: `sharing default of ${i.key}`,
+            error: 'the object could not be read in this org',
+            keys: [keyOf(i)],
+          });
           continue;
         }
         const set = (xml: string, tag: string, value: string) =>
@@ -516,12 +544,14 @@ export async function sandboxRestore(
         const r = await deployFiles(client, 'CustomObject', patched);
         if (r.success) out.done.push(...patched.map((p) => `sharing default of ${p.fullName}`));
         else
-          out.failed.push(
-            ...patched.map((p) => ({ item: `sharing default of ${p.fullName}`, error: r.problems.join('; ') }))
+          deployFailed(
+            defaults.filter((i) => patched.some((p) => p.fullName === i.key)),
+            (i) => `sharing default of ${i.key}`,
+            r.problems
           );
       }
     } catch (e) {
-      out.failed.push({ item: 'sharing defaults', error: (e as Error).message });
+      out.failed.push({ item: 'sharing defaults', error: (e as Error).message, keys: defaults.map(keyOf) });
     }
   }
 
@@ -534,7 +564,7 @@ export async function sandboxRestore(
       shared.map((i) => ({ fullName: i.key, xml: xmlOf(i.row) }))
     );
     if (r.success) out.done.push(...shared.map((i) => `sharing rules of ${i.key}`));
-    else out.failed.push(...shared.map((i) => ({ item: `sharing rules of ${i.key}`, error: r.problems.join('; ') })));
+    else deployFailed(shared, (i) => `sharing rules of ${i.key}`, r.problems);
   }
 
   // Scheduled Apex: scheduled again under its name, with its class
@@ -542,7 +572,7 @@ export async function sandboxRestore(
     const cls = text(i.row.ApexClass);
     const cron = text(i.row.CronExpression);
     if (!/^[\w.]+$/.test(cls) || !/^[\w\s*?,/#LW-]+$/.test(cron)) {
-      out.failed.push({ item: `job ${i.key}`, error: 'unexpected class or schedule' });
+      out.failed.push({ item: `job ${i.key}`, error: 'unexpected class or schedule', keys: [keyOf(i)] });
       continue;
     }
     const name = text(i.row.Name).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
@@ -552,7 +582,7 @@ export async function sandboxRestore(
       if (!r.compiled || !r.success) throw new Error(r.compileProblem || r.exceptionMessage || 'failed');
       out.done.push(`job ${i.key}`);
     } catch (e) {
-      out.failed.push({ item: `job ${i.key}`, error: (e as Error).message });
+      out.failed.push({ item: `job ${i.key}`, error: (e as Error).message, keys: [keyOf(i)] });
     }
   }
   return out;

@@ -320,6 +320,8 @@ function After() {
   const [status, setStatus] = useState('');
   // A value changed before it is put back (a custom setting value, a remote site's URL, a job's schedule), by item
   const [edits, setEdits] = useState<Record<string, string>>({});
+  // The last Put back's errors, by item
+  const [failed, setFailed] = useState<Map<string, string>>(new Map());
   // Kept users whose e-mail the refresh ended with ".invalid"
   const [emails, setEmails] = useState<Row[] | null>(null);
 
@@ -365,16 +367,22 @@ function After() {
     setStatus(`Putting back ${list.length} item(s)…`);
     const r = await sandboxRestore(client, list);
     studio.logActivity('sandbox after refresh', { restored: r.done.length, failed: r.failed.length });
+    // Each failed item keeps its error on its row until the next Put back
+    const errors = new Map<string, string>();
+    for (const f of r.failed)
+      for (const k of f.keys) errors.set(k, [errors.get(k), f.error].filter(Boolean).join('; '));
+    setFailed(errors);
     setStatus(
       r.failed.length
-        ? `Done: ${r.done.length}. ❌ ${r.failed.map((f) => `${f.item}: ${f.error}`).join('; ')}`
+        ? `Put back ${r.done.length}; ❌ ${r.failed.length} failed — each error is on its row.`
         : `✓ Put back ${r.done.length}.`
     );
     if (tables) {
       const again = await sandboxAfter(client, tables);
       setItems(again);
       setEdits({});
-      setTicked(new Set(again.filter((i) => i.restorable && i.state !== 'same').map(keyOf)));
+      // Still ticked: what failed (to change or untick) and what is still different
+      setTicked(new Set(again.filter((i) => i.restorable && (i.state !== 'same' || errors.has(keyOf(i)))).map(keyOf)));
     }
   };
   const fixAll = async () => {
@@ -496,6 +504,9 @@ function After() {
                     }{' '}
                     {SANDBOX_LABELS[section]} <span className="muted">({list.length})</span>
                     {!can.length && <span className="muted small">— by hand in Setup</span>}
+                    {list.some((i) => failed.has(keyOf(i))) && (
+                      <span className="pill bad">{list.filter((i) => failed.has(keyOf(i))).length} failed</span>
+                    )}
                   </h4>
                   <div className="table-scroll">
                     <table className="after-table">
@@ -525,7 +536,10 @@ function After() {
                                   onChange={(e) => tick(k, e.target.checked)}
                                 />
                               </td>
-                              <td className="name">{i.label}</td>
+                              <td className="name">
+                                {i.label}
+                                {failed.has(k) && <div className="bad small gap-error">❌ {failed.get(k)}</div>}
+                              </td>
                               <td>{i.before}</td>
                               <td>{i.now || <span className="muted">—</span>}</td>
                               <td>
@@ -567,6 +581,20 @@ function After() {
             onChanged={() => tables && void sandboxAfter(client, tables).then(setItems)}
           />
           <div className="form">
+            {(() => {
+              const bad = [...ticked].filter((k) => failed.has(k));
+              return bad.length ? (
+                <button
+                  onClick={() => {
+                    const next = new Set(ticked);
+                    for (const k of bad) next.delete(k);
+                    setTicked(next);
+                  }}
+                >
+                  Untick the {bad.length} failed
+                </button>
+              ) : null;
+            })()}
             <button className="primary" disabled={!ticked.size} onClick={() => void restore()}>
               Put back {ticked.size || ''} ticked…
             </button>
