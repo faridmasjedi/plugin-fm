@@ -4469,3 +4469,15 @@ select.row-action {
   border-left: 1px solid var(--border);
   padding-left: 14px;
 }
+
+/* Open a saved copy: ▸ opens a kind or the details; a long list of fields scrolls */
+.tree-toggle {
+  min-width: 18px;
+  padding: 0 2px;
+  font-size: 14px;
+  color: var(--text);
+}
+.saved-details {
+  max-height: 320px;
+  overflow: auto;
+}

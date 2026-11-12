@@ -443,6 +443,42 @@ export function customPermissionHolders(client: SalesforceClient, customPermissi
   return setupAccessHolders(client, customPermissionId);
 }
 
+/** The active users who have a custom permission: through their profile, a permission set or a group. */
+export async function customPermissionUsers(client: SalesforceClient, customPermissionId: string): Promise<Row[]> {
+  const holders = await customPermissionHolders(client, customPermissionId);
+  const through = new Map(holders.map((h) => [String(h.PermissionSetId), `${String(h.Kind)}: ${String(h.Name)}`]));
+  const ids = [...through.keys()];
+  const users = new Map<string, Row & { Through: string[] }>();
+  for (let i = 0; i < ids.length; i += 200) {
+    // eslint-disable-next-line no-await-in-loop
+    const page = await query(
+      client,
+      `SELECT AssigneeId, Assignee.Name, Assignee.Username, Assignee.Profile.Name, PermissionSetId FROM PermissionSetAssignment WHERE Assignee.IsActive = true AND PermissionSetId IN (${ids
+        .slice(i, i + 200)
+        .map((x) => `'${x}'`)
+        .join(', ')})`,
+      { maxRows: 200_000 }
+    );
+    for (const a of page.rows) {
+      const id = String(a.AssigneeId);
+      const u =
+        users.get(id) ??
+        ({
+          Id: id,
+          Name: a['Assignee.Name'],
+          Username: a['Assignee.Username'],
+          Profile: a['Assignee.Profile.Name'] ?? '',
+          Through: [],
+        } as Row & { Through: string[] });
+      u.Through.push(through.get(String(a.PermissionSetId)) ?? '');
+      users.set(id, u);
+    }
+  }
+  return [...users.values()]
+    .map((u): Row => ({ ...u, Through: [...new Set(u.Through)].join('; ') }))
+    .sort((a, b) => String(a.Name).localeCompare(String(b.Name)));
+}
+
 /** Who gives access to a custom permission, connected app, Apex class…: permission sets, profiles and groups. */
 export async function setupAccessHolders(client: SalesforceClient, entityId: string): Promise<Row[]> {
   const customPermissionId = anyId(entityId);

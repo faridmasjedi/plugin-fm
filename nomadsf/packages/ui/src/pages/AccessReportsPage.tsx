@@ -16,7 +16,7 @@ export function ObjectAccessPage() {
   const [object, setObject] = useState<string>(() => storage.get('objectaccess.object', 'Account'));
   const [field, setField] = useState('');
   const [fields, setFields] = useState<Array<{ name: string; label: string }>>([]);
-  const [result, setResult] = useState<{ rows: Row[]; notes: string[] } | null>(null);
+  const [result, setResult] = useState<{ rows: Row[]; holders: Row[]; notes: string[] } | null>(null);
   const [status, setStatus] = useState('');
 
   useEffect(() => {
@@ -46,6 +46,30 @@ export function ObjectAccessPage() {
       setStatus(`❌ ${(e as Error).message}`);
     }
   };
+
+  const usersTable = !result ? null : result.rows.length === 0 ? (
+    <EmptyHint what="users with access" />
+  ) : (
+    <DataTable
+      columns={[
+        'Name',
+        'Username',
+        'Profile',
+        'Read',
+        'Create',
+        'Edit',
+        'Delete',
+        'ViewAll',
+        'ModifyAll',
+        ...(field ? ['FieldRead', 'FieldEdit'] : []),
+        'Through',
+      ]}
+      rows={result.rows}
+      rowKey="Id"
+      name={`${org.label}-${object}${field ? `-${field}` : ''}-access`}
+      note={<span>· active users · {result.notes.join(' ')}</span>}
+    />
+  );
 
   return (
     <div className="page">
@@ -81,30 +105,56 @@ export function ObjectAccessPage() {
         </button>
         <Status text={status} />
       </div>
-      {result &&
-        (result.rows.length === 0 ? (
-          <EmptyHint what="users with access" />
-        ) : (
-          <DataTable
-            columns={[
-              'Name',
-              'Username',
-              'Profile',
-              'Read',
-              'Create',
-              'Edit',
-              'Delete',
-              'ViewAll',
-              'ModifyAll',
-              ...(field ? ['FieldRead', 'FieldEdit'] : []),
-              'Through',
-            ]}
-            rows={result.rows}
-            rowKey="Id"
-            name={`${org.label}-${object}${field ? `-${field}` : ''}-access`}
-            note={<span>· active users · {result.notes.join(' ')}</span>}
-          />
-        ))}
+      {result && (
+        // Who can use it: the users, then what gives it (each profile, permission set or group)
+        <TableTabs
+          title={
+            <>
+              {object}
+              {field ? `.${field}` : ''}
+            </>
+          }
+          tabs={[
+            { id: 'users', label: 'Users', count: result.rows.length, content: usersTable },
+            ...(
+              [
+                ['profiles', 'Profiles', 'Profile'],
+                ['sets', 'Permission sets', 'Permission set'],
+                ['groups', 'Permission set groups', 'Permission set group'],
+              ] as const
+            ).map(([id, label, kind]) => {
+              const rows = result.holders.filter((h) => h.Kind === kind);
+              return {
+                id,
+                label,
+                count: rows.length,
+                content: rows.length ? (
+                  <DataTable
+                    columns={[
+                      'Name',
+                      'Read',
+                      'Create',
+                      'Edit',
+                      'Delete',
+                      'ViewAll',
+                      'ModifyAll',
+                      ...(field ? ['FieldRead', 'FieldEdit'] : []),
+                      'Through',
+                      'Users',
+                    ]}
+                    rows={rows}
+                    rowKey="Id"
+                    name={`${org.label}-${object}-${id}`}
+                    note={<span>· {label.toLowerCase()} giving access to it (Users = active users who have it)</span>}
+                  />
+                ) : (
+                  <EmptyHint what={label.toLowerCase()} />
+                ),
+              };
+            }),
+          ]}
+        />
+      )}
     </div>
   );
 }

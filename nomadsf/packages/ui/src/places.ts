@@ -176,7 +176,9 @@ export const PLACES: StudioPlace[] = [
       'perms.tab': 'setup',
     }
   ),
-  P('custperms', 'who has a custom permission', 'custom permission grant'),
+  P('permissions', 'who has a custom permission', 'custom permission grant users', 'Custom permissions', {
+    'perms.kind': 'custom',
+  }),
   P('groups', 'add users to a public group or queue', 'group queue members add remove'),
   P(
     'groups',

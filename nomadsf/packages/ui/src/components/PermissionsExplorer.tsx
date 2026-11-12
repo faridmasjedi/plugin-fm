@@ -22,6 +22,7 @@ import {
   RecordTypesPanel,
   SetupAccessPanel,
   TabSettingsPanel,
+  CustomPermissionPicker,
 } from '../pages/AccessManagePages';
 import { cannotChangePermissions, useAccessOf } from '../access';
 import { WhoHasIt } from './WhoHasIt';
@@ -41,6 +42,8 @@ type Tab =
   | 'assigned'
   | 'assign';
 const yes = (v: boolean): string => (v ? '✓' : '');
+/** What the kind switch shows: everything, one kind of holder, or custom permissions. */
+type Shown = 'all' | PermissionHolder['kind'] | 'custom';
 
 /** The chosen one as Assigned users knows it: a profile by its Profile Id, a group by its PermissionSetGroup Id. */
 function holderOf(
@@ -61,10 +64,10 @@ export function PermissionsExplorer({ reloadKey = 0 }: { reloadKey?: number } = 
   // Changing permissions needs Manage Profiles and Permission Sets (checked once per org)
   const blocked = cannotChangePermissions(useAccessOf(client), org.label);
   const [holders, setHolders] = useState<PermissionHolder[]>([]);
-  const [kindShown, setKindShown] = useState<'all' | PermissionHolder['kind']>(() => storage.get('perms.kind', 'all'));
+  const [kindShown, setKindShown] = useState<Shown>(() => storage.get('perms.kind', 'all'));
   const [holderId, setHolderId] = useState('');
   // One table per tab (the old "All" tab stacked them; a saved "all" opens Object access)
-  const chosenByKind = useRef<Partial<Record<'all' | PermissionHolder['kind'], string>>>({});
+  const chosenByKind = useRef<Partial<Record<Shown, string>>>({});
   const [tab, setTab] = useState<Tab>(() => {
     const saved = storage.get<Tab>('perms.tab', 'objects');
     return saved === 'all' ? 'objects' : saved;
@@ -147,10 +150,10 @@ export function PermissionsExplorer({ reloadKey = 0 }: { reloadKey?: number } = 
 
   return (
     <div className="card section">
-      <h3>Choose a profile, permission set or group</h3>
+      <h3>Choose a profile, permission set, group or custom permission</h3>
       <div className="form">
         <div className="segmented" role="group" aria-label="Show">
-          {(['all', ...kinds] as Array<'all' | PermissionHolder['kind']>).map((k) => (
+          {(['all', ...kinds, 'custom'] as Shown[]).map((k) => (
             <button
               key={k}
               className={kindShown === k ? 'active' : ''}
@@ -164,30 +167,33 @@ export function PermissionsExplorer({ reloadKey = 0 }: { reloadKey?: number } = 
                 storage.set('perms.kind', k);
               }}
             >
-              {k === 'all' ? 'All' : `${k}s`} (
-              {k === 'all' ? holders.length : holders.filter((h) => h.kind === k).length})
+              {k === 'all' ? 'All' : k === 'custom' ? 'Custom permissions' : `${k}s`}
+              {k === 'custom' ? '' : ` (${k === 'all' ? holders.length : holders.filter((h) => h.kind === k).length})`}
             </button>
           ))}
         </div>
-        <Select value={holderId} onChange={(e) => setHolderId(e.target.value)} style={{ minWidth: 380 }}>
-          <option value="">Choose ({shownHolders.length})</option>
-          {kinds
-            .filter((k) => kindShown === 'all' || k === kindShown)
-            .map((k) => (
-              <optgroup key={k} label={`${k}s`}>
-                {shownHolders
-                  .filter((h) => h.kind === k)
-                  .map((h) => (
-                    <option key={h.id} value={h.id}>
-                      {h.name}
-                    </option>
-                  ))}
-              </optgroup>
-            ))}
-        </Select>
+        {kindShown !== 'custom' && (
+          <Select value={holderId} onChange={(e) => setHolderId(e.target.value)} style={{ minWidth: 380 }}>
+            <option value="">Choose ({shownHolders.length})</option>
+            {kinds
+              .filter((k) => kindShown === 'all' || k === kindShown)
+              .map((k) => (
+                <optgroup key={k} label={`${k}s`}>
+                  {shownHolders
+                    .filter((h) => h.kind === k)
+                    .map((h) => (
+                      <option key={h.id} value={h.id}>
+                        {h.name}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+          </Select>
+        )}
         <Status text={status} />
       </div>
-      {holder && (
+      {kindShown === 'custom' && <CustomPermissionPicker reloadKey={reloadKey} />}
+      {holder && kindShown !== 'custom' && (
         // The one chosen: its name and kind, then what can be done with it
         <div className="holder-bar">
           <b>{holder.name}</b>

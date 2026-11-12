@@ -50,7 +50,6 @@ export type ToolId =
   | 'orgaccess'
   | 'permissions'
   | 'groups'
-  | 'custperms'
   | 'compare'
   | 'objectaccess'
   | 'audit'
@@ -94,10 +93,9 @@ export const TOOLS: Tool[] = [
     id: 'permissions',
     label: 'Access sets',
     icon: '▣',
-    hint: 'profiles, permission sets and groups: what each allows, who has it, assign',
+    hint: 'profiles, permission sets, groups, custom permissions: what each allows, who has it, assign',
   },
   { id: 'groups', label: 'Groups & queues', icon: '◎', hint: 'public groups, queues and their members' },
-  { id: 'custperms', label: 'Custom permissions', icon: '✱', hint: 'who gives each one; grant it' },
   { id: 'compare', label: 'Compare', icon: '⇆', hint: 'two users, profiles or permission sets' },
   { id: 'objectaccess', label: 'Object access', icon: '⛉', hint: 'who can use an object or field' },
   { id: 'audit', label: 'Logins & audit', icon: '⌛', hint: 'login history, setup audit trail' },
@@ -138,7 +136,7 @@ export const HUBS: Hub[] = [
     id: 'people',
     label: 'Access',
     icon: '⚿',
-    tools: ['access', 'permissions', 'custperms', 'groups', 'objectaccess', 'compare'],
+    tools: ['access', 'permissions', 'groups', 'objectaccess', 'compare'],
     breakBefore: ['objectaccess'],
   },
   { id: 'org', label: 'Org', icon: '◈', tools: ['company', 'health', 'limits', 'apps', 'audit'] },
@@ -159,6 +157,7 @@ const ALIASES: Record<string, ToolId> = {
   // Permission sets, Permissions and Assigned users are one tool now (Access sets); Overview went
   permsets: 'permissions',
   assigned: 'permissions',
+  custperms: 'permissions',
   accessmap: 'access',
 };
 

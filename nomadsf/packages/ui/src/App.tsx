@@ -16,7 +16,7 @@ import { MyAccessPage, ObjectAccessPage } from './pages/AccessReportsPage';
 import { AccessNote } from './toolAccess';
 import { CompanyPage } from './pages/CompanyPage';
 import { CsvComparePage } from './pages/CsvComparePage';
-import { CustomPermissionsPage, GroupsPage } from './pages/AccessManagePages';
+import { GroupsPage } from './pages/AccessManagePages';
 import { SchemaPage } from './pages/SchemaPage';
 import { AutomationPage } from './pages/AutomationPage';
 import { DeploymentsPage } from './pages/DeploymentsPage';
@@ -315,7 +315,6 @@ export function App() {
               {tool === 'access' && <UsersPage />}
               {tool === 'permissions' && <AccessSetsPage />}
               {tool === 'groups' && <GroupsPage />}
-              {tool === 'custperms' && <CustomPermissionsPage />}
               {tool === 'compare' && <ComparePage />}
               {tool === 'objectaccess' && <ObjectAccessPage />}
               {tool === 'audit' && <LoginsAuditPage />}

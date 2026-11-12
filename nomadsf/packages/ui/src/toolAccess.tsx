@@ -29,11 +29,6 @@ export const NEEDS: Partial<Record<ToolId, Need>> = {
     changeWhat: 'change permissions or assign them',
   },
   groups: { read: ['ViewSetup'], change: ['ManageUsers'], changeWhat: 'add or remove group and queue members' },
-  custperms: {
-    read: ['ViewSetup'],
-    change: ['ManageProfilesPermissionsets'],
-    changeWhat: 'grant or remove custom permissions',
-  },
   compare: { read: ['ViewSetup'] },
   objectaccess: { read: ['ViewSetup'] },
   audit: { read: ['ViewSetup'] },

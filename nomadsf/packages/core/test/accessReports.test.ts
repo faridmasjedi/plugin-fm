@@ -124,7 +124,12 @@ describe('who can use an object', () => {
       ],
       ['PermissionsViewAllData', 'PermissionsModifyAllData']
     );
-    const { rows } = await whoCanAccess(client, 'Account', 'Phone');
+    const { rows, holders } = await whoCanAccess(client, 'Account', 'Phone');
+    expect(holders.map((h) => [h.Kind, h.Name, h.Read, h.Delete, h.FieldRead, h.Through, h.Users])).toEqual([
+      ['Permission set', 'Auditor', '✓', '', '✓', 'View All Data', 1],
+      ['Permission set', 'Deleters', '✓', '✓', '', '', 1],
+      ['Profile', 'Sales', '✓', '', '✓', '', 1],
+    ]);
     expect(rows.map((r) => [r.Name, r.Read, r.Edit, r.Delete, r.ViewAll, r.FieldRead, r.FieldEdit, r.Through])).toEqual(
       [
         ['Ann', '✓', '✓', '✓', '', '✓', '', 'Profile: Sales; Permission set: Deleters'],

@@ -8,7 +8,7 @@ import { UserEditor } from '../components/UserEditor';
 import { WhoHasIt } from '../components/WhoHasIt';
 import { CompareAccess } from '../components/CompareAccess';
 import { storage, useStudio } from '../context';
-import { NewPermissionSet } from './AccessManagePages';
+import { NewCustomPermissionBox, NewPermissionSet } from './AccessManagePages';
 import { Status } from '../statusLog';
 
 /** A tool of the Access hub: its title, what it is about, then the tool. */
@@ -65,15 +65,34 @@ export function UsersPage() {
  */
 export function AccessSetsPage() {
   const [created, setCreated] = useState(0);
+  const [newKind, setNewKind] = useState<'set' | 'custom'>('set');
   return (
-    <AccessTool title="Access sets" about="profiles, permission sets and groups: what each allows, who has it">
+    <AccessTool
+      title="Access sets"
+      about="profiles, permission sets, groups and custom permissions: what each allows, who has it"
+    >
       {/* Creating one is its own job: a box of its own, closed until you open it */}
       <details className="card section create-box">
         <summary>
-          <b>+ New permission set or group</b>{' '}
-          <span className="muted">a permission set, or a group of permission sets</span>
+          <b>+ New permission set, group or custom permission</b>
         </summary>
-        <NewPermissionSet onCreated={() => setCreated((n) => n + 1)} />
+        <div className="segmented" role="group" aria-label="New">
+          {(
+            [
+              ['set', 'Permission set or group'],
+              ['custom', 'Custom permission'],
+            ] as const
+          ).map(([id, label]) => (
+            <button key={id} className={newKind === id ? 'active' : ''} onClick={() => setNewKind(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {newKind === 'set' ? (
+          <NewPermissionSet onCreated={() => setCreated((n) => n + 1)} />
+        ) : (
+          <NewCustomPermissionBox onCreated={() => setCreated((n) => n + 1)} />
+        )}
       </details>
       <PermissionsExplorer reloadKey={created} />
     </AccessTool>

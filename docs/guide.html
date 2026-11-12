@@ -169,10 +169,7 @@
               </tr>
               <tr>
                 <td><b>Access</b></td>
-                <td>
-                  Users · Access sets · Custom permissions · Groups &amp; queues — then, to review: Object access ·
-                  Compare
-                </td>
+                <td>Users · Access sets · Groups &amp; queues — then, to review: Object access · Compare</td>
               </tr>
               <tr>
                 <td><b>Org</b></td>
@@ -1315,7 +1312,7 @@
           </section>
           <section class="tool" data-title="Access sets">
             <h3 id="permissions">Access sets</h3>
-            <span id="permsets"></span><span id="assigned"></span>
+            <span id="permsets"></span><span id="assigned"></span><span id="custperms"></span>
             <p class="tool-lead">
               A profile, permission set or permission set group in one place: what it allows (and change it), who has
               it, and assign it.
@@ -1341,8 +1338,14 @@
               profile, role or public group, with an optional expiry). Every change asks for the org name first.
             </p>
             <p>
-              <b>+ New permission set or group</b>, in its own box at the top, creates one (label and API name), ready
-              to choose below.
+              <b>Custom permissions</b> (last on the switch): choose one — <b>Given by</b> lists the permission sets,
+              profiles and groups that give it (grant it to another, or take it away), <b>Users</b> the active users who
+              have it and through what.
+            </p>
+            <p>
+              <b>+ New permission set, group or custom permission</b>, in its own box at the top: a permission set or
+              group (label and API name), or a custom permission (Metadata API), granted at once to the permission sets
+              and profiles you tick.
             </p>
             <p id="permedit"><b>Changing permissions</b>:</p>
             <ol class="steps">
@@ -1391,16 +1394,6 @@
                 <li>Changes are only sent on <b>Save</b>, which asks first and lists anything that failed.</li>
               </ul>
             </div>
-          </section>
-          <section class="tool" data-title="Custom permissions">
-            <h3 id="custperms">Custom permissions</h3>
-            <p class="tool-lead">Custom permissions: who gives each one, grant it, create a new one.</p>
-            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
-            <p>
-              Every custom permission and the permission sets, profiles and groups that give it; grant it to another
-              permission set or profile, or remove a grant. <b>New custom permission…</b> creates one (Metadata API) and
-              grants it at once to the permission sets and profiles you tick.
-            </p>
           </section>
           <section class="tool" data-title="Groups &amp; queues">
             <h3 id="groups">Groups &amp; queues</h3>
@@ -1453,6 +1446,11 @@
               all or modify all of it (and read or edit the field), and <b>through what</b> — their profile, a
               permission set, a group, or View All Data / Modify All Data. Which records each user sees also depends on
               sharing.
+            </p>
+            <p>
+              The tabs: <b>Users</b>, then <b>Profiles</b>, <b>Permission sets</b> and <b>Permission set groups</b> —
+              each one that gives access to the object (and the field), what it allows, and how many active users have
+              it.
             </p>
             <div class="good-to-know">
               <h4>Good to know</h4>

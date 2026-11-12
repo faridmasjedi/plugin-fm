@@ -67,6 +67,12 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
     }),
     [tables, users, metadata, off]
   );
+  const flip = (key: string) => {
+    const next = new Set(open);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setOpen(next);
+  };
   const toggle = (key: string, on: boolean) => {
     const next = new Set(off);
     if (on) next.delete(key);
@@ -123,9 +129,26 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
                       of('lookup', 'ManagerId') && `manager ${of('lookup', 'ManagerId')}`,
                     ].filter(Boolean);
                     const fields = u.lines.filter((l) => l.Section === 'field' && l.Value !== '').length;
+                    const fieldLines = u.lines.filter(
+                      (l) => (l.Section === 'field' || l.Section === 'lookup') && l.Value !== ''
+                    );
+                    const key = `details:${u.username}`;
                     return (
                       <li>
+                        <button className="link tree-toggle" onClick={() => flip(key)}>
+                          {open.has(key) ? '▾' : '▸'}
+                        </button>{' '}
                         <span className="muted">Details ({fields} fields):</span> {details.join(' · ') || '—'}
+                        {open.has(key) && (
+                          // Every field kept, name and value (lookups by name)
+                          <ul className="relation-tree saved-details">
+                            {fieldLines.map((l) => (
+                              <li key={`${l.Section}:${l.Name}`}>
+                                <span className="muted mono">{l.Name}</span> {l.Value}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </li>
                     );
                   })()}
@@ -135,9 +158,13 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
                     const userOff = off.has(`user:${u.username}`);
                     const keys = names.map((n) => accessKey(u.username, section, n));
                     const on = keys.filter((k) => !off.has(k)).length;
+                    const openKey = `kind:${u.username}:${section}`;
                     return (
                       <li key={section}>
-                        {/* All of a kind at once, or one by one: everything is ticked until taken out */}
+                        {/* A kind: ▸ opens its items, one per line; its own tick takes all of it in or out */}
+                        <button className="link tree-toggle" onClick={() => flip(openKey)}>
+                          {open.has(openKey) ? '▾' : '▸'}
+                        </button>{' '}
                         <label className="check">
                           <input
                             type="checkbox"
@@ -155,26 +182,31 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
                               setOff(next);
                             }}
                           />{' '}
+                          {label}{' '}
                           <span className="muted">
-                            {label} ({on === keys.length ? names.length : `${on} of ${names.length}`}):
+                            ({on === keys.length ? names.length : `${on} of ${names.length}`})
                           </span>
-                        </label>{' '}
-                        <span className="saved-access-items">
-                          {names.map((n) => {
-                            const k = accessKey(u.username, section, n);
-                            return (
-                              <label key={k} className="check">
-                                <input
-                                  type="checkbox"
-                                  disabled={userOff}
-                                  checked={!off.has(k)}
-                                  onChange={(e) => toggle(k, e.target.checked)}
-                                />
-                                {n}
-                              </label>
-                            );
-                          })}
-                        </span>
+                        </label>
+                        {open.has(openKey) && (
+                          <ul className="relation-tree">
+                            {names.map((n) => {
+                              const k = accessKey(u.username, section, n);
+                              return (
+                                <li key={k}>
+                                  <label className="check">
+                                    <input
+                                      type="checkbox"
+                                      disabled={userOff}
+                                      checked={!off.has(k)}
+                                      onChange={(e) => toggle(k, e.target.checked)}
+                                    />{' '}
+                                    {n}
+                                  </label>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
                       </li>
                     );
                   })}
