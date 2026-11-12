@@ -1,8 +1,9 @@
 import { useContext, useState } from 'react';
-import { readTableFile } from '@nomadsf/core';
+import { fromCopySheets, isSandboxWorkbook, readTableFile, type AccessFile, type UserCopy } from '@nomadsf/core';
 import { GoContext, useStudio } from '../context';
 import { SavedCopy } from '../components/SavedCopy';
 import { UserSnapshot } from '../components/UserSnapshot';
+import { UsersFromWorkbook } from '../components/UsersFromWorkbook';
 import { CsvComparePage } from './CsvComparePage';
 import { Status } from '../statusLog';
 
@@ -10,6 +11,8 @@ import { Status } from '../statusLog';
 type Kind =
   | { kind: 'snapshot' }
   | { kind: 'user-workbook' }
+  | { kind: 'users'; users: UserCopy[]; metadata: AccessFile[] }
+  | { kind: 'sandbox' }
   | { kind: 'records-workbook'; sheets: string[] }
   | { kind: 'table' }
   | { kind: 'manifest' }
@@ -34,6 +37,10 @@ async function kindOf(file: File): Promise<Kind> {
       (t) => t.columns.length
     );
     const sheets = tables.map((t) => t.name);
+    if (isSandboxWorkbook(tables)) return { kind: 'sandbox' };
+    // Several users (a users workbook): all in one go
+    const copy = fromCopySheets(tables);
+    if (copy.users.length > 1) return { kind: 'users', users: copy.users, metadata: copy.metadata };
     if (sheets.includes('NomadSF users') || (sheets.includes('Details') && sheets.includes('Permission sets')))
       return { kind: 'user-workbook' };
     if (sheets.length > 1 && tables.every((t) => t.columns.includes('Id'))) return { kind: 'records-workbook', sheets };
@@ -46,6 +53,8 @@ async function kindOf(file: File): Promise<Kind> {
 const ABOUT: Record<Kind['kind'], string> = {
   snapshot: 'A user snapshot (Access › Users › Snapshot): the same user is found here and compared.',
   'user-workbook': 'A user’s Everything workbook: tick what the user should get, then copy them into this org.',
+  users: 'Several users: tick the ones to create or complete in this org, all in one go.',
+  sandbox: 'A workbook saved before a sandbox refresh: open it in Sandbox refresh › After the refresh.',
   'records-workbook': 'Records saved from Data › Record (a sheet per object): tick what to copy into this org.',
   table: 'A table of records: compare it with the org, or open it in Import / Update / Delete.',
   manifest: 'A package.xml: it is compared with the project in Branch ↔ Branch › From a manifest.',
@@ -144,6 +153,17 @@ export function FilesPage() {
             <SavedCopy key={`copy-${file.name}${file.size}`} file={file} onClose={() => setFile(null)} />
           )}
         </>
+      )}
+      {file && kind?.kind === 'users' && (
+        <UsersFromWorkbook key={file.name + file.size} users={kind.users} metadata={kind.metadata} source={file.name} />
+      )}
+      {file && kind?.kind === 'sandbox' && (
+        <div className="form">
+          <button className="primary" onClick={() => go?.('sandbox')}>
+            Open Sandbox refresh
+          </button>
+          <span className="muted">then After the refresh, and choose this workbook there</span>
+        </div>
       )}
       {file && kind?.kind === 'manifest' && (
         <div className="form">

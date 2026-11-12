@@ -9,7 +9,13 @@ import {
   sandboxAfter,
   sandboxBefore,
   sandboxRestore,
+  fromCopySheets,
+  invalidEmails,
+  fixEmails,
   searchUsers,
+  query,
+  soqlText,
+  type Row,
   writeWorkbook,
   type FileTable,
   type SandboxItem,
@@ -17,7 +23,7 @@ import {
   type UserMatch,
 } from '@nomadsf/core';
 import { DataTable, download } from '../components/DataTable';
-import { SavedCopy } from '../components/SavedCopy';
+import { UsersFromWorkbook } from '../components/UsersFromWorkbook';
 import { storage, useStudio } from '../context';
 import { Status } from '../statusLog';
 
@@ -68,6 +74,8 @@ function Before() {
   const studio = useStudio();
   const { client, org } = studio;
   const [typed, setTyped] = useState('');
+  const [by, setBy] = useState<'name' | 'query' | 'file'>('name');
+  const [where, setWhere] = useState("Profile.Name LIKE '%Integration%'");
   const [found, setFound] = useState<UserMatch[]>([]);
   const [users, setUsers] = useState<UserMatch[]>([]);
   const [status, setStatus] = useState('');
@@ -76,6 +84,54 @@ function Before() {
   const find = async () => {
     try {
       setFound(await searchUsers(client, typed));
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    }
+  };
+  /** Adds users, each once. */
+  const add = (list: UserMatch[]) => {
+    const known = new Set(users.map((u) => u.Id));
+    const next = [...users, ...list.filter((u) => !known.has(u.Id))];
+    setUsers(next);
+    setStatus(`${next.length - users.length} user(s) added.`);
+  };
+  const asMatch = (r: Row): UserMatch => r as unknown as UserMatch;
+  const USER_FIELDS = 'Id, Name, Username, Email, IsActive, Profile.Name';
+  // The users a query finds (a WHERE clause on User)
+  const fromQuery = async () => {
+    try {
+      if (/;|\bLIMIT\b/i.test(where)) throw new Error('Only the condition, without LIMIT or ;');
+      const r = await query(client, `SELECT ${USER_FIELDS} FROM User WHERE ${where} ORDER BY Name`, { maxRows: 2000 });
+      if (!r.rows.length) throw new Error('No user matches.');
+      add(r.rows.map(asMatch));
+    } catch (e) {
+      setStatus(`❌ ${(e as Error).message}`);
+    }
+  };
+  // The users of a CSV or Excel file: a column Id, Username or Email
+  const fromFile = async (f: File) => {
+    try {
+      const table = (await readTableFile(f.name, new Uint8Array(await f.arrayBuffer()))).find((t) => t.columns.length);
+      if (!table) throw new Error(`No table in ${f.name}.`);
+      const col = ['Id', 'Username', 'Email'].find((c) =>
+        table.columns.some((x) => x.toLowerCase() === c.toLowerCase())
+      );
+      if (!col) throw new Error('The file needs a column Id, Username or Email.');
+      const key = table.columns.find((x) => x.toLowerCase() === col.toLowerCase())!;
+      const values = [...new Set(table.rows.map((r) => (r[key] ?? '').trim()).filter(Boolean))];
+      const rows: Row[] = [];
+      for (let i = 0; i < values.length; i += 200) {
+        const list = values
+          .slice(i, i + 200)
+          .map((v) => `'${soqlText(v)}'`)
+          .join(', ');
+        // eslint-disable-next-line no-await-in-loop
+        rows.push(
+          ...(await query(client, `SELECT ${USER_FIELDS} FROM User WHERE ${col} IN (${list})`, { maxRows: 2000 })).rows
+        );
+      }
+      add(rows.map(asMatch));
+      if (rows.length < values.length) setStatus(`${rows.length} of ${values.length} found in ${org.label}.`);
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
     }
@@ -114,14 +170,66 @@ function Before() {
       </p>
       <h3>Users to keep</h3>
       <div className="form">
-        <input
-          placeholder="Name, username or e-mail"
-          value={typed}
-          onChange={(e) => setTyped(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && void find()}
-        />
-        <button onClick={() => void find()}>Find</button>
+        <div className="segmented" role="group" aria-label="Find users by">
+          {(
+            [
+              ['name', 'By name'],
+              ['query', 'By a query'],
+              ['file', 'From a CSV / Excel file'],
+            ] as const
+          ).map(([id, label]) => (
+            <button key={id} className={by === id ? 'active' : ''} onClick={() => setBy(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {by === 'name' && (
+          <>
+            <input
+              placeholder="Name, username or e-mail"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void find()}
+            />
+            <button onClick={() => void find()}>Find</button>
+          </>
+        )}
+        {by === 'query' && (
+          <>
+            <span className="mono muted">SELECT … FROM User WHERE</span>
+            <input
+              className="mono"
+              style={{ minWidth: 380 }}
+              value={where}
+              onChange={(e) => setWhere(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void fromQuery()}
+            />
+            <button onClick={() => void fromQuery()}>Add them all</button>
+          </>
+        )}
+        {by === 'file' && (
+          <label className="file-button">
+            Choose the file…
+            <input
+              type="file"
+              accept=".csv,.xlsx,text/csv"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) void fromFile(f);
+              }}
+            />
+          </label>
+        )}
       </div>
+      {by === 'query' && (
+        <p className="muted small">
+          e.g. <code>Profile.Name = &apos;Integration User&apos;</code> ·{' '}
+          <code>UserType = &apos;Standard&apos; AND IsActive = true AND Department = &apos;QA&apos;</code>
+        </p>
+      )}
+      {by === 'file' && <p className="muted small">A column named Id, Username or Email; one user per row.</p>}
       {found.length > 0 && (
         <div className="chips">
           {found
@@ -136,6 +244,12 @@ function Before() {
       )}
       {users.length > 0 ? (
         <div className="chips">
+          <span className="muted">{users.length} user(s):</span>
+          {users.length > 1 && (
+            <button className="link" onClick={() => setUsers([])}>
+              take all out
+            </button>
+          )}
           {users.map((u) => (
             <button
               key={u.Id}
@@ -176,8 +290,19 @@ function After() {
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [onlyChanged, setOnlyChanged] = useState(true);
   const [status, setStatus] = useState('');
+  // A value changed before it is put back (a custom setting value, a remote site's URL, a job's schedule), by item
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  // Kept users whose e-mail the refresh ended with ".invalid"
+  const [emails, setEmails] = useState<Row[] | null>(null);
 
   const keyOf = (i: SandboxItem) => `${i.section}|${i.key}`;
+  const valueOf = (i: SandboxItem) => edits[keyOf(i)] ?? String(i.edit ? i.row[i.edit.field] ?? '' : '');
+  const tick = (key: string, on: boolean) => {
+    const next = new Set(ticked);
+    if (on) next.add(key);
+    else next.delete(key);
+    setTicked(next);
+  };
   const open = async (f: File) => {
     setFile(null);
     setItems(null);
@@ -190,14 +315,24 @@ function After() {
       setStatus(`Comparing with ${org.label}…`);
       const found = await sandboxAfter(client, read);
       setItems(found);
+      setEdits({});
       setTicked(new Set(found.filter((i) => i.restorable && i.state !== 'same').map(keyOf)));
       setStatus('');
+      setEmails(null);
+      const kept = fromCopySheets(read.filter((t) => t.columns.length)).users;
+      if (kept.length)
+        void invalidEmails(client, kept)
+          .then(setEmails)
+          .catch(() => setEmails([]));
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
     }
   };
   const restore = async () => {
-    const list = (items ?? []).filter((i) => ticked.has(keyOf(i)));
+    // The chosen items, with the values as edited
+    const list = (items ?? [])
+      .filter((i) => ticked.has(keyOf(i)))
+      .map((i) => (i.edit ? { ...i, row: { ...i.row, [i.edit.field]: valueOf(i) } } : i));
     if (!list.length || !(await studio.confirmChange(`Put back ${list.length} item(s) in ${org.label}`))) return;
     setStatus(`Putting back ${list.length} item(s)…`);
     const r = await sandboxRestore(client, list);
@@ -210,26 +345,34 @@ function After() {
     if (tables) {
       const again = await sandboxAfter(client, tables);
       setItems(again);
+      setEdits({});
       setTicked(new Set(again.filter((i) => i.restorable && i.state !== 'same').map(keyOf)));
     }
   };
+  const fixAll = async () => {
+    if (
+      !emails?.length ||
+      !(await studio.confirmChange(`Set back ${emails.length} e-mail address(es) in ${org.label}`))
+    )
+      return;
+    const r = await fixEmails(client, emails);
+    studio.logActivity('sandbox after refresh', { emailsFixed: r.done });
+    setStatus(
+      r.errors.length ? `E-mails: ${r.done} set. ❌ ${r.errors.join('; ')}` : `✓ ${r.done} e-mail(s) set back.`
+    );
+    setEmails(emails.filter((e) => r.errors.some((x) => x.startsWith(String(e.Username)))));
+  };
 
   const about = tables ? sandboxAbout(tables) : null;
-  const rows = useMemo(
-    () =>
-      (items ?? [])
-        .filter((i) => !onlyChanged || i.state !== 'same')
-        .map((i) => ({
-          key: keyOf(i),
-          what: SANDBOX_LABELS[i.section],
-          name: i.label,
-          before: i.before,
-          now: i.now,
-          state: STATE_TEXT[i.state],
-          action: i.state === 'same' ? '' : i.restorable ? 'NomadSF puts it back' : `by hand: ${i.how ?? 'Setup'}`,
-        })),
-    [items, onlyChanged]
-  );
+  // The users kept in the workbook, with the files of their permission sets and groups
+  const kept = useMemo(() => (tables ? fromCopySheets(tables.filter((t) => t.columns.length)) : null), [tables]);
+  // The items shown, by section, in the order of the workbook
+  const sections = useMemo(() => {
+    const shown = (items ?? []).filter((i) => !onlyChanged || i.state !== 'same' || ticked.has(keyOf(i)));
+    return (Object.keys(SANDBOX_LABELS) as SandboxSection[])
+      .map((section) => ({ section, list: shown.filter((i) => i.section === section) }))
+      .filter((g) => g.list.length);
+  }, [items, onlyChanged, ticked]);
 
   return (
     <>
@@ -273,24 +416,90 @@ function After() {
             <input type="checkbox" checked={onlyChanged} onChange={(e) => setOnlyChanged(e.target.checked)} /> Only what
             changed ({items.filter((i) => i.state !== 'same').length} of {items.length})
           </label>
-          {rows.length ? (
-            <DataTable
-              columns={['what', 'name', 'before', 'now', 'state', 'action']}
-              rows={rows}
-              rowKey="key"
-              name={`${org.label}-after-refresh`}
-              groupBy="what"
-              selected={ticked}
-              onSelectedChange={(next) =>
-                // Only what NomadSF can put back can be ticked
-                setTicked(
-                  new Set(
-                    [...next].filter((k) => items.some((i) => keyOf(i) === k && i.restorable && i.state !== 'same'))
-                  )
-                )
-              }
-              note={<span>· before = the workbook, now = {org.label}</span>}
-            />
+          {sections.length ? (
+            sections.map(({ section, list }) => {
+              const can = list.filter((i) => i.restorable);
+              const on = can.filter((i) => ticked.has(keyOf(i))).length;
+              return (
+                <div key={section} className="after-group">
+                  <h4>
+                    {can.length > 0 && (
+                      <input
+                        type="checkbox"
+                        aria-label={`All ${SANDBOX_LABELS[section]}`}
+                        checked={on === can.length}
+                        ref={(el) => {
+                          if (el) el.indeterminate = on > 0 && on < can.length;
+                        }}
+                        onChange={(e) => {
+                          const next = new Set(ticked);
+                          for (const i of can) {
+                            if (e.target.checked) next.add(keyOf(i));
+                            else next.delete(keyOf(i));
+                          }
+                          setTicked(next);
+                        }}
+                      />
+                    )}{' '}
+                    {SANDBOX_LABELS[section]} <span className="muted">({list.length})</span>
+                  </h4>
+                  <div className="table-scroll">
+                    <table className="after-table">
+                      <thead>
+                        <tr>
+                          <th />
+                          <th>name</th>
+                          <th>before</th>
+                          <th>now in {org.label}</th>
+                          <th>put back as</th>
+                          <th>state</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {list.map((i) => {
+                          const k = keyOf(i);
+                          return (
+                            <tr key={k} className={ticked.has(k) ? 'picked' : ''}>
+                              <td>
+                                {i.restorable && (
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`Put back ${i.label}`}
+                                    checked={ticked.has(k)}
+                                    onChange={(e) => tick(k, e.target.checked)}
+                                  />
+                                )}
+                              </td>
+                              <td className="name">{i.label}</td>
+                              <td>{i.before}</td>
+                              <td>{i.now || <span className="muted">—</span>}</td>
+                              <td>
+                                {i.restorable && i.edit ? (
+                                  <input
+                                    className="mono"
+                                    aria-label={`New ${i.edit.label} of ${i.label}`}
+                                    value={valueOf(i)}
+                                    onChange={(e) => {
+                                      setEdits({ ...edits, [k]: e.target.value });
+                                      tick(k, true);
+                                    }}
+                                  />
+                                ) : i.restorable ? (
+                                  <span className="muted">as saved</span>
+                                ) : (
+                                  <span className="muted">by hand: {i.how ?? 'Setup'}</span>
+                                )}
+                              </td>
+                              <td>{STATE_TEXT[i.state]}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })
           ) : (
             <p className="good">✓ Everything is as it was.</p>
           )}
@@ -301,10 +510,30 @@ function After() {
           </div>
         </div>
       )}
-      {file && items && tables?.some((t) => t.name === 'NomadSF users') && (
+      {emails && emails.length > 0 && (
+        <div className="card section">
+          <h3>E-mails the refresh changed</h3>
+          <p className="muted">
+            A refresh adds “.invalid” to every e-mail so the sandbox never mails real people. These kept users need
+            theirs back (Salesforce may send them a confirmation).
+          </p>
+          <DataTable
+            columns={['Name', 'Username', 'Email', 'Fixed']}
+            rows={emails}
+            rowKey="Id"
+            name={`${org.label}-invalid-emails`}
+          />
+          <div className="form">
+            <button className="primary" onClick={() => void fixAll()}>
+              Set back {emails.length} e-mail(s)…
+            </button>
+          </div>
+        </div>
+      )}
+      {kept && kept.users.length > 0 && (
         <div className="section">
-          <h3>Users</h3>
-          <SavedCopy key={file.name + file.size} file={file} usersOnly onClose={() => undefined} />
+          <h3>Users ({kept.users.length})</h3>
+          <UsersFromWorkbook key={file?.name} users={kept.users} metadata={kept.metadata} source={file?.name ?? ''} />
         </div>
       )}
     </>

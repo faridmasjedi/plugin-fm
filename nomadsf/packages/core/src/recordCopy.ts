@@ -569,3 +569,60 @@ export function managersFirst(users: UserCopy[]): UserCopy[] {
   for (const u of users) place(u, new Set());
   return out;
 }
+
+/**
+ * What permission set and group files mention that the target org does not have: objects, fields and Apex classes.
+ * Creating them still works (those entries are left out), but the access to them is lost: deploy these first
+ * (Compare & move › Compare metadata, or your project) to keep it.
+ */
+export async function missingSchema(
+  target: SalesforceClient,
+  files: AccessFile[]
+): Promise<{ objects: string[]; fields: string[]; classes: string[] }> {
+  const all = (tag: string) => [
+    ...new Set(files.flatMap((f) => [...f.xml.matchAll(new RegExp(`<${tag}>([^<]+)</${tag}>`, 'g'))].map((m) => m[1]))),
+  ];
+  const objects = all('object');
+  const fields = all('field');
+  const classes = all('apexClass');
+  if (!objects.length && !fields.length && !classes.length) return { objects: [], fields: [], classes: [] };
+  const global = await target.rest<{ sobjects: Array<{ name: string }> }>('GET', '/sobjects');
+  const have = new Set(global.sobjects.map((o) => o.name.toLowerCase()));
+  const missingObjects = [...new Set([...objects, ...fields.map((f) => f.split('.')[0])])].filter(
+    (o) => !have.has(o.toLowerCase())
+  );
+  // Fields of objects that are there: one describe per object
+  const fieldsOf = new Map<string, Set<string>>();
+  const byObject = [...new Set(fields.map((f) => f.split('.')[0]))].filter((o) => have.has(o.toLowerCase()));
+  for (const o of byObject) {
+    // eslint-disable-next-line no-await-in-loop
+    const d = await target
+      .rest<{ fields: Array<{ name: string }> }>('GET', `/sobjects/${o}/describe`)
+      .catch(() => ({ fields: [] }));
+    fieldsOf.set(o.toLowerCase(), new Set(d.fields.map((x) => x.name.toLowerCase())));
+  }
+  const missingFields = fields.filter((f) => {
+    const [o, name] = f.split('.');
+    const known = fieldsOf.get(o.toLowerCase());
+    return known !== undefined && !known.has((name ?? '').toLowerCase());
+  });
+  const plainClasses = classes.filter((c) => !c.includes('__'));
+  const haveClasses = plainClasses.length
+    ? new Set(
+        (
+          await query(
+            target,
+            `SELECT Name FROM ApexClass WHERE NamespacePrefix = null AND Name IN (${plainClasses
+              .map((c) => `'${soqlText(c)}'`)
+              .join(', ')})`,
+            { maxRows: 50_000 }
+          ).catch(() => ({ rows: [] as Row[] }))
+        ).rows.map((r) => String(r.Name).toLowerCase())
+      )
+    : new Set<string>();
+  return {
+    objects: missingObjects.sort(),
+    fields: missingFields.sort(),
+    classes: plainClasses.filter((c) => !haveClasses.has(c.toLowerCase())).sort(),
+  };
+}

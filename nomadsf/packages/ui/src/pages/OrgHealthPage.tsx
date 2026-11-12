@@ -80,33 +80,15 @@ export function OrgHealthPage() {
                 ))}
               </Select>
             </label>
+            {/* The score alone; every check below is a tab with its count */}
+            <button
+              className={`health-score ${report.score !== undefined && report.score < 80 ? 'bad' : ''}`}
+              title="Salesforce's Security Health Check: see the risks"
+              onClick={() => setCheck('health-check')}
+            >
+              Health Check score <b>{report.score ?? '—'}</b>
+            </button>
             {report.notes.length > 0 && <span className="muted">Not available: {report.notes.join(' · ')}</span>}
-          </div>
-          <div className="metrics">
-            {(
-              [
-                [
-                  'health-check',
-                  report.score ?? '—',
-                  'Health Check score',
-                  report.score !== undefined && report.score < 80,
-                ],
-                ['powerful-permissions', report.powerUsers.length, 'users with powerful permissions', false],
-                ['dormant-users', report.dormant.length, 'active users not logged in', false],
-                ['unassigned-permission-sets', report.unusedPermissionSets.length, 'unassigned permission sets', false],
-                ['stale-oauth', report.staleTokens.length, 'unused OAuth tokens', false],
-              ] as Array<[string, number | string, string, boolean]>
-            ).map(([id, value, label, bad]) => (
-              <button
-                key={id}
-                className={`metric filter ${check === id ? 'active' : ''} ${bad ? 'bad' : ''}`}
-                title="Show them below"
-                onClick={() => setCheck(id)}
-              >
-                <b>{value}</b>
-                {label}
-              </button>
-            ))}
           </div>
           <TableTabs
             active={check}

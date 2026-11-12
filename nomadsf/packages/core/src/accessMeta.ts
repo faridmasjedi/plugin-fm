@@ -50,6 +50,7 @@ const FOLDERS: Record<string, [string, string]> = {
   PermissionSetGroup: ['permissionsetgroups', 'permissionsetgroup'],
   CustomPermission: ['customPermissions', 'customPermission'],
   RemoteSiteSetting: ['remoteSiteSettings', 'remoteSite'],
+  SharingRules: ['sharingRules', 'sharingRules'],
 };
 
 /** Deploys whole files of one type (test level Default: none without Apex, allowed in production). */

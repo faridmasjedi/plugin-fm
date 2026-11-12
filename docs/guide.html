@@ -2146,17 +2146,31 @@
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <ol class="steps">
               <li>
-                <b>Before the refresh</b>, in the sandbox: add the users to keep (integration users, testers…) and
-                <b>Save the workbook</b>. It keeps remote sites, named and external credentials, certificates (names),
-                custom setting values, scheduled Apex, and those users with their profile, role, permission sets and
-                groups (and the files of the permission sets).
+                <b>Before the refresh</b>, in the sandbox: add the users to keep — <b>by name</b>,
+                <b>by a query</b> (<code>Profile.Name = 'Integration User'</code>, any condition on User) or
+                <b>from a CSV / Excel file</b> with an Id, Username or Email column — and <b>Save the workbook</b>. It
+                keeps remote sites, named and external credentials, certificates (names), custom setting values,
+                scheduled Apex, sharing defaults and sharing rules, and those users with their profile, role, permission
+                sets and groups (and the files of the permission sets).
               </li>
               <li>Refresh the sandbox in Setup › Sandboxes (NomadSF never starts a refresh).</li>
               <li>
                 <b>After the refresh</b>, in the sandbox: open the workbook. Every item is <i>same</i>,
-                <i>different</i> or <i>missing</i>; remote sites, custom setting values and scheduled Apex can be put
-                back — tick them, <b>Put back…</b>, type the org name. The users are below: untick what they should not
-                get and copy them.
+                <i>different</i> or <i>missing</i>, grouped by kind. Tick exactly the ones to put back (a whole kind at
+                once, or one by one) and change the value first if you like — a custom setting value, a remote site's
+                URL, a job's schedule — then <b>Put back…</b> and type the org name. Remote sites, custom setting
+                values, sharing rules and scheduled Apex are put back; credentials, certificates and sharing defaults
+                say where to do them in Setup.
+              </li>
+              <li>
+                <b>Users</b>, below: every user of the workbook — found ones get the access they lack, missing ones are
+                created (change the username if you like); tick who, and one confirmation does them all. When the
+                permission sets mention objects, fields or classes the sandbox lacks, they are listed: deploy those
+                first.
+              </li>
+              <li>
+                <b>E-mails</b>: a refresh ends every user's e-mail with “.invalid”; the kept users' addresses are set
+                back in one go.
               </li>
               <li>
                 <b>Setup checklist</b>: what the API cannot do — e-mail deliverability, secrets of credentials,

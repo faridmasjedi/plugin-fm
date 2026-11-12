@@ -216,6 +216,28 @@ export function PermissionsExplorer({ reloadKey = 0 }: { reloadKey?: number } = 
         )}
         <Status text={status} />
       </div>
+      {/* Nothing chosen: all of them as a table (filter, CSV); a click chooses one */}
+      {kindShown !== 'custom' && !holder && holders.length > 0 && (
+        <DataTable
+          columns={['name', 'kind', 'api']}
+          rows={shownHolders.map((h) => ({ id: h.id, name: h.name, kind: h.kind, api: h.api ?? '' }))}
+          rowKey="id"
+          name={`${org.label}-access-sets`}
+          groupBy={kindShown === 'all' ? 'kind' : undefined}
+          onRowClick={(r) => setHolderId(String(r.id))}
+          note={<span>· click one to open it</span>}
+        />
+      )}
+      {kindShown === 'custom' && !custom && customs && customs.length > 0 && (
+        <DataTable
+          columns={['label', 'name', 'namespace']}
+          rows={customs.map((c) => ({ id: c.id, label: c.label, name: c.name, namespace: c.namespace ?? '' }))}
+          rowKey="id"
+          name={`${org.label}-custom-permissions`}
+          onRowClick={(r) => setCustomId(String(r.id))}
+          note={<span>· click one to open it</span>}
+        />
+      )}
       {kindShown === 'custom' && customs?.length === 0 && <EmptyHint what="custom permissions" />}
       {kindShown === 'custom' && custom && <CustomPermissionPanel key={custom.id} chosen={custom} />}
       {holder && kindShown !== 'custom' && (

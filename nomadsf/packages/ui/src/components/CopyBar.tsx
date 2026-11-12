@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { Select } from './Select';
 import {
   accessFiles,
@@ -10,6 +10,7 @@ import {
   explainError,
   filesAsSource,
   planUsers,
+  missingSchema,
   prepareCopy,
   readPicked,
   runCopy,
@@ -23,7 +24,7 @@ import {
   type SalesforceClient,
   type UserCopy,
 } from '@nomadsf/core';
-import { useStudio } from '../context';
+import { GoContext, useStudio } from '../context';
 import { askTyped } from './Dialogs';
 import { download } from './DataTable';
 import { Status } from '../statusLog';
@@ -51,6 +52,9 @@ export function CopyBar({ what }: { what: CopyWhat }) {
   const [targetId, setTargetId] = useState('');
   const [mask, setMask] = useState(() => (facts ? !facts.isSandbox : true));
   const [userPlan, setUserPlan] = useState<AccessPlan | null>(null);
+  // What the permission sets to create mention that the target lacks (objects, fields, classes)
+  const [gaps, setGaps] = useState<{ objects: string[]; fields: string[]; classes: string[] } | null>(null);
+  const go = useContext(GoContext);
   const [username, setUsername] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -78,6 +82,23 @@ export function CopyBar({ what }: { what: CopyWhat }) {
       .then((p) => {
         if (canceled) return;
         setUserPlan(p);
+        setGaps(null);
+        if (!p.create.length) return;
+        // The files of what will be created: from the workbook, or read from the org the user is copied from
+        const files = what.metadata?.length
+          ? Promise.resolve(what.metadata)
+          : what.records.kind === 'org'
+          ? accessFiles(client, {
+              permissionSets: p.create.filter((c) => c.type === 'PermissionSet').map((c) => c.name),
+              groups: p.create.filter((c) => c.type === 'PermissionSetGroup').map((c) => c.name),
+            })
+          : Promise.resolve([]);
+        void files
+          .then(async (all) => {
+            const toCreate = all.filter((m) => p.create.some((c) => c.type === m.type && c.name === m.name));
+            if (toCreate.length) setGaps(await missingSchema(await clientFor(target.id), toCreate));
+          })
+          .catch(() => undefined);
         setUsername((now) => now || (p.users[0]?.suggested ?? ''));
       })
       .catch((e: Error) => !canceled && setStatus(`❌ ${e.message}`));
@@ -269,6 +290,36 @@ export function CopyBar({ what }: { what: CopyWhat }) {
           {userPlan.create.length > 0 && ` Created there first: ${userPlan.create.map((c) => c.name).join(', ')}.`}
           {userPlan.noLicense.length > 0 && ` ${target.label} has no ${userPlan.noLicense.join(', ')} license.`}
         </p>
+      )}
+      {target && gaps && gaps.objects.length + gaps.fields.length + gaps.classes.length > 0 && (
+        <div className="note warn-box">
+          <b>
+            {target.label} lacks what these permission sets give access to — deploy it first, or that access is left
+            out:
+          </b>
+          <ul>
+            {gaps.objects.length > 0 && (
+              <li>
+                Objects ({gaps.objects.length}): {gaps.objects.join(', ')}
+              </li>
+            )}
+            {gaps.fields.length > 0 && (
+              <li>
+                Fields ({gaps.fields.length}): {gaps.fields.join(', ')}
+              </li>
+            )}
+            {gaps.classes.length > 0 && (
+              <li>
+                Apex classes ({gaps.classes.length}): {gaps.classes.join(', ')}
+              </li>
+            )}
+          </ul>
+          <div className="form">
+            <button onClick={() => go?.('orgdiff')}>Compare metadata with another org…</button>
+            <button onClick={() => go?.('project')}>Deploy from the project…</button>
+            <span className="muted">then come back and copy the user.</span>
+          </div>
+        </div>
       )}
       {status && <Status text={status} block />}
     </div>

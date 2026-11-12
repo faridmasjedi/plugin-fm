@@ -4,6 +4,10 @@ import { findSameUser } from './accessCompare.js';
 import { copySheets, usersBundle } from './recordCopy.js';
 import { query, soqlText, type Row } from './query.js';
 import { executeAnonymous, getUserInfo } from './soap.js';
+import { retrieveZip } from './metadata.js';
+import { fromBase64, readZip } from './zip.js';
+import { updateRecord } from './inspector.js';
+import type { UserCopy } from './recordCopy.js';
 import type { FileTable, Sheet } from './workbook.js';
 
 /**
@@ -21,7 +25,9 @@ export type SandboxSection =
   | 'externalCredentials'
   | 'certificates'
   | 'customSettings'
-  | 'scheduledJobs';
+  | 'scheduledJobs'
+  | 'sharingDefaults'
+  | 'sharingRules';
 
 export const SANDBOX_SHEETS: Record<SandboxSection, string> = {
   remoteSites: 'Sandbox · Remote sites',
@@ -30,6 +36,8 @@ export const SANDBOX_SHEETS: Record<SandboxSection, string> = {
   certificates: 'Sandbox · Certificates',
   customSettings: 'Sandbox · Custom settings',
   scheduledJobs: 'Sandbox · Scheduled Apex',
+  sharingDefaults: 'Sandbox · Sharing defaults',
+  sharingRules: 'Sandbox · Sharing rules',
 };
 const ABOUT_SHEET = 'Sandbox · About';
 
@@ -40,6 +48,8 @@ export const SANDBOX_LABELS: Record<SandboxSection, string> = {
   certificates: 'Certificates',
   customSettings: 'Custom settings',
   scheduledJobs: 'Scheduled Apex',
+  sharingDefaults: 'Sharing defaults',
+  sharingRules: 'Sharing rules',
 };
 
 /** Done by hand in Setup after every refresh: the API cannot read or set them. */
@@ -141,13 +151,43 @@ async function scheduledApex(client: SalesforceClient): Promise<Row[]> {
   }));
 }
 
+/** Excel holds at most 32,767 characters in a cell: a long file goes over several. */
+const CELL = 32_000;
+
+/** Every object's sharing rules (one Metadata API retrieve), as Object, Rules, Xml1…Xmln. */
+async function sharingRules(client: SalesforceClient): Promise<Row[]> {
+  const retrieved = await retrieveZip(client, [{ type: 'SharingRules', fullName: '*' }]);
+  if (!retrieved.zipFile) return [];
+  const files = await readZip(fromBase64(retrieved.zipFile));
+  const rows: Row[] = [];
+  for (const [path, bytes] of files) {
+    if (!path.endsWith('.sharingRules')) continue;
+    const xml = new TextDecoder().decode(bytes);
+    const rules = (xml.match(/<sharing(Criteria|Owner|Guest|Territory)Rules>/g) ?? []).length;
+    if (!rules) continue;
+    const row: Row = { Object: (path.split('/').pop() ?? '').replace(/\.sharingRules$/, ''), Rules: String(rules) };
+    for (let i = 0; i * CELL < xml.length; i += 1) row[`Xml${i + 1}`] = xml.slice(i * CELL, (i + 1) * CELL);
+    rows.push(row);
+  }
+  return rows.sort((a, b) => text(a.Object).localeCompare(text(b.Object)));
+}
+
+/** A sharing rules file back from its cells. */
+const xmlOf = (r: Row): string =>
+  Object.keys(r)
+    .filter((k) => /^Xml\d+$/.test(k))
+    .sort((a, b) => Number(a.slice(3)) - Number(b.slice(3)))
+    .map((k) => text(r[k]))
+    .join('');
+const sameXml = (a: string, b: string): boolean => a.replace(/\s+/g, '') === b.replace(/\s+/g, '');
+
 /** Everything a refresh replaces, as workbook sheets (the users' sheets read back by Data › Record › Open a saved copy too). */
 export async function sandboxBefore(
   client: SalesforceClient,
   options: { userIds: string[]; orgLabel: string }
 ): Promise<Sheet[]> {
   const tooling = (soql: string) => optional(query(client, soql, { tooling: true, maxRows: 10_000 }));
-  const [users, remoteSites, named, external, certificates, settings, jobs] = await Promise.all([
+  const [users, remoteSites, named, external, certificates, settings, jobs, defaults, rules] = await Promise.all([
     options.userIds.length ? usersBundle(client, options.userIds, options.orgLabel) : { users: [], metadata: [] },
     tooling('SELECT SiteName, EndpointUrl, IsActive, Description FROM RemoteProxy'),
     optional(query(client, 'SELECT DeveloperName, MasterLabel, Endpoint, PrincipalType FROM NamedCredential')),
@@ -155,6 +195,14 @@ export async function sandboxBefore(
     tooling('SELECT DeveloperName, MasterLabel, ExpirationDate, KeySize FROM Certificate'),
     customSettingLines(client).catch(() => [] as Row[]),
     scheduledApex(client),
+    optional(
+      query(
+        client,
+        'SELECT QualifiedApiName, InternalSharingModel, ExternalSharingModel FROM EntityDefinition WHERE IsCustomizable = true AND InternalSharingModel != null',
+        { maxRows: 5000 }
+      )
+    ),
+    sharingRules(client).catch(() => [] as Row[]),
   ]);
   const sheet = (section: SandboxSection, columns: string[], rows: Row[]): Sheet => ({
     name: SANDBOX_SHEETS[section],
@@ -177,6 +225,24 @@ export async function sandboxBefore(
     sheet('certificates', ['DeveloperName', 'MasterLabel', 'ExpirationDate', 'KeySize'], certificates),
     sheet('customSettings', ['Setting', 'Key', 'Field', 'Type', 'Value'], settings),
     sheet('scheduledJobs', ['Name', 'ApexClass', 'CronExpression', 'State', 'NextFireTime'], jobs),
+    sheet(
+      'sharingDefaults',
+      ['Object', 'Internal', 'External'],
+      defaults.map((d) => ({
+        Object: d.QualifiedApiName,
+        Internal: d.InternalSharingModel,
+        External: d.ExternalSharingModel,
+      }))
+    ),
+    {
+      name: SANDBOX_SHEETS.sharingRules,
+      columns: [
+        'Object',
+        'Rules',
+        ...Array.from({ length: Math.max(1, ...rules.map((r) => Object.keys(r).length - 2)) }, (_, i) => `Xml${i + 1}`),
+      ],
+      rows: rules,
+    },
     ...copySheets({ records: {}, ...users }),
   ];
 }
@@ -204,8 +270,10 @@ export type SandboxItem = {
   /** Whether NomadSF can put it back (otherwise: by hand, `how`). */
   restorable: boolean;
   how?: string;
-  /** What restoring needs. */
+  /** What restoring needs (the editable value already in it: Value, EndpointUrl or CronExpression). */
   row: Row;
+  /** The value that can be changed before it is put back. */
+  edit?: { field: string; label: string };
 };
 
 /** The saved workbook next to this org: every item, the same, different or missing. */
@@ -279,6 +347,35 @@ export async function sandboxAfter(client: SalesforceClient, tables: FileTable[]
     (r) => `${text(r.ApexClass)} ${text(r.CronExpression)}`.trim(),
     true
   );
+  compare(
+    'sharingDefaults',
+    (r) => text(r.Object),
+    (r) => `${text(r.Internal)} / external ${text(r.External)}`,
+    false,
+    'Setup › Sharing Settings'
+  );
+  {
+    const current = new Map(now('sharingRules').map((r) => [text(r.Object), r]));
+    for (const r of sheet('sharingRules')) {
+      const there = current.get(text(r.Object));
+      items.push({
+        section: 'sharingRules',
+        key: text(r.Object),
+        label: text(r.Object),
+        before: `${text(r.Rules)} rule(s)`,
+        now: there ? `${text(there.Rules)} rule(s)` : 'none',
+        state: !there ? 'missing' : sameXml(xmlOf(r), xmlOf(there)) ? 'same' : 'different',
+        restorable: true,
+        row: r,
+      });
+    }
+  }
+  // What can be changed before it is put back
+  for (const i of items) {
+    if (i.section === 'customSettings') i.edit = { field: 'Value', label: 'value' };
+    if (i.section === 'remoteSites') i.edit = { field: 'EndpointUrl', label: 'URL' };
+    if (i.section === 'scheduledJobs') i.edit = { field: 'CronExpression', label: 'schedule' };
+  }
   // A scheduled job without its class cannot be scheduled again here
   for (const i of items)
     if (i.section === 'scheduledJobs' && !text(i.row.ApexClass)) {
@@ -314,7 +411,8 @@ export async function sandboxRestore(
   items: SandboxItem[]
 ): Promise<{ done: string[]; failed: Array<{ item: string; error: string }> }> {
   const out = { done: [] as string[], failed: [] as Array<{ item: string; error: string }> };
-  const picked = items.filter((i) => i.restorable && i.state !== 'same');
+  // Exactly the items chosen (a same one too: its value may have been changed)
+  const picked = items.filter((i) => i.restorable);
 
   // Remote sites: one deploy
   const sites = picked.filter((i) => i.section === 'remoteSites');
@@ -378,6 +476,18 @@ export async function sandboxRestore(
     }
   }
 
+  // Sharing rules: one deploy, an object's whole file each
+  const shared = picked.filter((i) => i.section === 'sharingRules');
+  if (shared.length) {
+    const r = await deployFiles(
+      client,
+      'SharingRules',
+      shared.map((i) => ({ fullName: i.key, xml: xmlOf(i.row) }))
+    );
+    if (r.success) out.done.push(...shared.map((i) => `sharing rules of ${i.key}`));
+    else out.failed.push(...shared.map((i) => ({ item: `sharing rules of ${i.key}`, error: r.problems.join('; ') })));
+  }
+
   // Scheduled Apex: scheduled again under its name, with its class
   for (const i of picked.filter((x) => x.section === 'scheduledJobs')) {
     const cls = text(i.row.ApexClass);
@@ -394,6 +504,48 @@ export async function sandboxRestore(
       out.done.push(`job ${i.key}`);
     } catch (e) {
       out.failed.push({ item: `job ${i.key}`, error: (e as Error).message });
+    }
+  }
+  return out;
+}
+
+// ---------- e-mail addresses after a refresh ----------
+
+/**
+ * A refresh adds ".invalid" to every user's e-mail (so a sandbox never mails real people). The users kept in the
+ * workbook (integration users, testers) are found here with such an address, to set it back.
+ */
+export async function invalidEmails(client: SalesforceClient, users: UserCopy[]): Promise<Row[]> {
+  const out: Row[] = [];
+  for (const u of users) {
+    // eslint-disable-next-line no-await-in-loop
+    const found = await findSameUser(client, u.username);
+    if (!found) continue;
+    // eslint-disable-next-line no-await-in-loop
+    const row = (await query(client, `SELECT Id, Name, Username, Email FROM User WHERE Id = '${found.Id}'`)).rows[0];
+    const email = text(row?.Email);
+    if (/\.invalid$/i.test(email))
+      out.push({
+        Id: row.Id,
+        Name: row.Name,
+        Username: row.Username,
+        Email: email,
+        Fixed: email.replace(/\.invalid$/i, ''),
+      });
+  }
+  return out;
+}
+
+/** Sets the e-mails back (without ".invalid"). Salesforce may ask the user to confirm a changed address. */
+export async function fixEmails(client: SalesforceClient, rows: Row[]): Promise<{ done: number; errors: string[] }> {
+  const out = { done: 0, errors: [] as string[] };
+  for (const r of rows) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await updateRecord(client, 'User', text(r.Id), { Email: text(r.Fixed) });
+      out.done += 1;
+    } catch (e) {
+      out.errors.push(`${text(r.Username)}: ${(e as Error).message}`);
     }
   }
   return out;

@@ -4610,3 +4610,60 @@ button.chip.on {
   list-style: none;
   padding-left: 0;
 }
+
+/* Org health: the Health Check score beside the period */
+.health-score b {
+  font-size: 16px;
+  margin-left: 6px;
+}
+.health-score.bad b {
+  color: var(--bad);
+}
+
+/* Copy a user: what the target lacks, to deploy first */
+.warn-box {
+  border-left: 3px solid var(--warn, #d97706);
+}
+.warn-box ul {
+  margin: 6px 0;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}
+
+/* Sandbox refresh › After: a group per kind; tick any item, change its value before it is put back */
+.after-group h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px 0 6px;
+}
+.table-scroll {
+  overflow-x: auto;
+}
+.after-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.after-table th,
+.after-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.after-table th {
+  color: var(--muted);
+  font-weight: 600;
+}
+.after-table td.name {
+  overflow-wrap: anywhere;
+  min-width: 160px;
+}
+.after-table tr.picked {
+  background: var(--accent-soft);
+}
+.after-table input.mono {
+  width: 100%;
+  min-width: 200px;
+}
