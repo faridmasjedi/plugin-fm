@@ -9,8 +9,8 @@ Two scratch orgs from a Dev Hub, filled with invented data (Acme Corp, Globex, H
 
 ```sh
 cd nomadsf/tools/demo
-sf org create scratch -f scratch-def.json   -a nomadsf-demo   -v <dev hub> -d 30
-sf org create scratch -f scratch-def-b.json -a nomadsf-demo-b -v <dev hub> -d 30
+sf org create scratch -f scratch-def.json   -a nomadsf-demo   -v <dev hub> --duration-days 30
+sf org create scratch -f scratch-def-b.json -a nomadsf-demo-b -v <dev hub> --duration-days 30
 (cd project && sf project deploy start -o nomadsf-demo)        # fields, rule, classes, trigger, permission sets, group, queue
 sf org assign permset -n Demo_Admin -o nomadsf-demo
 sf apex run -o nomadsf-demo -f seed.apex                       # accounts, contacts, cases, opportunities
@@ -30,6 +30,17 @@ no `Finance_Read` or `Report_Builder` permission set, no `Customer_Number__c` fi
 Aura component, a `Finance_Team` group with only `Invoice_Manager`, and an older `AccountService`
 (deploy without those, seed with `seed-b.apex`, users with the same domain plus `.dev`). Rename each
 org's admin to Alex Morgan.
+
+### In one go, with a big test set
+
+`setup-demo-org.sh <alias> <a|b> <dev hub> <user domain> [size]` does all of the above for one org (b: acme-dev
+with its differences), then deploys the bulk test set of `make-bulk.mjs` and seeds its records (`seed-bulk.apex`).
+With `SHARING_DIR` pointing at the sharing seed it also makes Invoices private with two rules.
+
+`node make-bulk.mjs <project> --size small|medium|big --variant a|b` writes `force-app/main/bulk`: permission sets
+and groups, Apex services with tests, objects with fields, labels, custom permissions and LWCs. Variant b changes
+about a tenth, removes some and adds some, so every compare has same, different and only on one side. An org holds
+at most 1,000 permission sets, so medium (900) fits and big (4,000) is for projects only.
 
 ## The demo repository
 
