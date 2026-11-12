@@ -235,6 +235,19 @@ export const PLACES: StudioPlace[] = [
       'audit.tab': 'audit',
     }
   ),
+  P(
+    'eventlogs',
+    'read event log files',
+    'event monitoring logs api usage apex execution page views report export shield',
+    'From the org',
+    { 'eventlogs.source': 'org' }
+  ),
+  P('eventlogs', 'who exported reports', 'report export event log who downloaded data leak'),
+  P('eventlogs', 'which connected app uses the most API calls', 'api usage connected app integration calls event log'),
+  P('eventlogs', 'slowest Apex or pages', 'performance slow apex page run time event log'),
+  P('eventlogs', 'analyse event log CSV files', 'open csv event log files downloaded', 'Open CSV files', {
+    'eventlogs.source': 'files',
+  }),
   P('activity', 'what did I change or export with NomadSF', 'activity history changes made by nomadsf my log audit'),
 
   // ---------- Data protection ----------

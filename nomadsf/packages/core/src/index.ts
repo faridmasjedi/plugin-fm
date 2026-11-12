@@ -65,3 +65,6 @@ export * from './automationTree.js';
 export * from './placeSearch.js';
 export * from './sourceRegistry.js';
 export * from './soqlHelp.js';
+export * from './eventLogs.js';
+export * from './security.js';
+export * from './sharingTree.js';

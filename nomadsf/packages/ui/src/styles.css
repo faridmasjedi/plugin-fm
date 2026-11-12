@@ -4497,3 +4497,81 @@ select.row-action {
 .segmented.wraps button {
   height: var(--h);
 }
+/* Security › Dashboard: a tile per check */
+.sec-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.sec-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px 16px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  cursor: pointer;
+}
+.sec-tile:hover {
+  border-color: var(--accent);
+}
+.sec-tile.good {
+  border-left-color: var(--good, #1a7f37);
+}
+.sec-tile.warn {
+  border-left-color: var(--warn, #b26b00);
+}
+.sec-tile.bad {
+  border-left-color: var(--bad, #c62828);
+}
+.sec-tile-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+/* A tile's lines wrap inside it (a button keeps text on one line otherwise) */
+.sec-tile {
+  min-width: 0;
+  white-space: normal;
+}
+.sec-tile > span {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  overflow: visible;
+}
+.sec-tile-value {
+  font-size: 28px;
+  line-height: 1.1;
+}
+/* Who can see: the answer, then the reasons; the ones that reach the user stand out */
+.who-verdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+.who-steps {
+  margin: 0;
+  padding-left: 20px;
+}
+.who-steps li {
+  margin: 6px 0;
+  color: var(--muted);
+}
+.who-steps li.applies {
+  color: var(--text);
+  font-weight: 500;
+}
+.who-pick {
+  display: inline-flex;
+  gap: 6px;
+}
+.sharing-tree .sharing-rule {
+  margin: 8px 0;
+}

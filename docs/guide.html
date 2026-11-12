@@ -173,7 +173,11 @@
               </tr>
               <tr>
                 <td><b>Org</b></td>
-                <td>Company · Org health · Limits · Connected apps · Logins &amp; audit</td>
+                <td>Company · Limits · Connected apps</td>
+              </tr>
+              <tr>
+                <td><b>Security</b></td>
+                <td>Dashboard · Timeline · Event logs · Who can see · Sharing · Org health · Logins &amp; audit</td>
               </tr>
               <tr>
                 <td><b>Data protection</b></td>
@@ -1523,39 +1527,6 @@
               locale, time zone, currency, fiscal year and defaults — grouped, with only filled fields by default.
             </p>
           </section>
-          <section class="tool" data-title="Org health">
-            <h3 id="health">Org health</h3>
-            <p class="tool-lead">Risky access, unused things and licenses of the org at a glance.</p>
-            <p class="tool-meta"><span class="badge read">Reads only</span></p>
-            <div class="shot">
-              <video
-                src="media/health.mp4"
-                poster="media/health.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <ul>
-              <li>
-                <b>Security</b>: Salesforce's Health Check score and its risks; active users with Modify All Data, View
-                All Data, Manage Users, Author Apex, Customize Application or API Enabled, with what grants it; users
-                who have not logged in for 30–365 days; permission sets nobody has; OAuth tokens nobody uses; licenses
-                held by deactivated users.
-              </li>
-              <li>
-                <b>Licenses</b>: every user license and permission set license, used of total; click one for its users.
-              </li>
-            </ul>
-            <div class="good-to-know">
-              <h4>Good to know</h4>
-              <ul>
-                <li>Each number is a list: click it for the users, permission sets or tokens behind it.</li>
-              </ul>
-            </div>
-          </section>
           <section class="tool" data-title="Limits">
             <h3 id="limits">Limits</h3>
             <p class="tool-lead">The org’s limits and storage, and deleting old records by date.</p>
@@ -1614,6 +1585,171 @@
               <h4>Good to know</h4>
               <ul>
                 <li>Revoking a token signs that person out of the app; they sign in again to get a new one.</li>
+              </ul>
+            </div>
+          </section>
+        </section>
+
+        <section class="hub" id="hub-security" data-title="Security">
+          <h2 id="security">Security</h2>
+          <section class="tool" data-title="Dashboard">
+            <h3 id="secdash">Dashboard</h3>
+            <p class="tool-lead">The org's security at a glance: a tile per check, each opening its tool.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <ul class="parts">
+              <li>
+                <b>Tiles</b>: Health Check score and high risks, failed logins in the last 24 hours, API calls used
+                today, setup changes this week, users with Modify All Data, active users with no login for 90 days, free
+                user licenses, failed Apex jobs this week. Green, amber or red by how it looks.
+              </li>
+              <li>
+                Each tile reads one small thing on its own; one that cannot be read (a permission) shows <b>?</b>.
+              </li>
+              <li><b>Click a tile</b> to open the tool behind it, on the right tab.</li>
+            </ul>
+          </section>
+          <section class="tool" data-title="Timeline">
+            <h3 id="timeline">Timeline</h3>
+            <p class="tool-lead">Everything that happened in the org, in one table.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <ul class="parts">
+              <li>
+                <b>What is in it</b>: setup changes (the setup audit trail), logins, components last changed (Apex,
+                flows, validation rules, fields, LWC, permission sets, profiles) and what was done with NomadSF.
+              </li>
+              <li><b>Choose</b> the days and the kinds, then <b>Show</b>; newest first.</li>
+              <li>
+                <b>Filters</b> find a person, a component or a kind — "what did Ann do this week", "who touched this
+                flow".
+              </li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>A part your user cannot read is named above the table; the rest still shows.</li>
+                <li>
+                  API calls, Apex and page views are in <a href="#eventlogs">Event logs</a> (orgs with Event
+                  Monitoring).
+                </li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Event logs">
+            <h3 id="eventlogs">Event logs</h3>
+            <p class="tool-lead">
+              What happened in the org — logins, API calls, Apex, pages, reports — from its event log files.
+            </p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/eventlogs.mp4"
+                poster="media/eventlogs.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              Salesforce writes what happens in an org to <b>event log files</b>: CSV files per hour or per day, one
+              kind per file (Login, API Total Usage, Apex Execution, Lightning page views, Report export…). This page
+              reads them and puts several days together.
+            </p>
+            <ul class="parts">
+              <li>
+                <b>From the org</b>: choose a kind (with how many files the org keeps, and from when to when) and the
+                days, then <b>Read</b>. Nothing is read before.
+              </li>
+              <li>
+                <b>Open CSV files</b>: event log files you downloaded (from Salesforce's Event Log File Browser, or
+                another org) — the same summaries.
+              </li>
+              <li>
+                <b>Summaries</b>, from the columns each kind has: <i>Failed logins by IP</i>, <i>By user</i> (with
+                names), <i>By app or client</i>, <i>By what was used</i> (pages, Apex, reports — slowest first, with
+                average and max time), <i>By IP</i>, <i>By result</i>.
+              </li>
+              <li><b>Every event</b>: one table, newest first, to filter and export like any table.</li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Developer Edition and scratch orgs have no event log files. Other orgs get a few kinds (Login, Logout,
+                  API Total Usage…) kept one day; the Event Monitoring add-on (Salesforce Shield) gives every kind for
+                  30 days. You need the <i>View Event Log Files</i> permission.
+                </li>
+                <li>For who changed setup, see <a href="#audit">Logins &amp; audit</a>.</li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Who can see">
+            <h3 id="whocansee">Who can see this record?</h3>
+            <p class="tool-lead">A user and a record: whether they can read, edit, delete or transfer it — and why.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <ul class="parts">
+              <li>
+                <b>The answer</b> is Salesforce's own (Read, Edit, Delete, Transfer), for that user and that record.
+              </li>
+              <li>
+                <b>Why</b>, step by step: the object permission (from which profile or permission set), View/Modify All,
+                the owner and the role hierarchy (is the user's role above the owner's?), and the record's sharing
+                (rules, teams, manual shares) — the ones that reach the user stand out.
+              </li>
+              <li>When the user can read but not edit, it says what Edit would need.</li>
+            </ul>
+          </section>
+          <section class="tool" data-title="Sharing">
+            <h3 id="sharing">Sharing</h3>
+            <p class="tool-lead">How an object's records are shared, as a tree.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <ul class="parts">
+              <li><b>Defaults</b>: the org-wide default inside the company and outside (portals, Experience Cloud).</li>
+              <li><b>Roles</b>: users above a record's owner see it too.</li>
+              <li>
+                <b>Each sharing rule</b>: which records (owned by a role or group, or matching criteria such as
+                <i>Status equals Overdue</i>), with whom, and how (Read only, Read/Write).
+              </li>
+              <li><b>▸</b> on a group or role opens it to the people inside, one level per click.</li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Manual shares, teams and territories are per record: see <a href="#whocansee">Who can see</a>.</li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Org health">
+            <h3 id="health">Org health</h3>
+            <p class="tool-lead">Risky access, unused things and licenses of the org at a glance.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/health.mp4"
+                poster="media/health.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ul>
+              <li>
+                <b>Security</b>: Salesforce's Health Check score and its risks; active users with Modify All Data, View
+                All Data, Manage Users, Author Apex, Customize Application or API Enabled, with what grants it; users
+                who have not logged in for 30–365 days; permission sets nobody has; OAuth tokens nobody uses; licenses
+                held by deactivated users.
+              </li>
+              <li>
+                <b>Licenses</b>: every user license and permission set license, used of total; click one for its users.
+              </li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Each number is a list: click it for the users, permission sets or tokens behind it.</li>
               </ul>
             </div>
           </section>

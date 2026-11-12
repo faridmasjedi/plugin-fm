@@ -32,6 +32,11 @@ export const NEEDS: Partial<Record<ToolId, Need>> = {
   compare: { read: ['ViewSetup'] },
   objectaccess: { read: ['ViewSetup'] },
   audit: { read: ['ViewSetup'] },
+  eventlogs: { read: ['ViewEventLogFiles'] },
+  secdash: { read: ['ViewSetup'] },
+  timeline: { read: ['ViewSetup'] },
+  whocansee: { read: ['ViewSetup'] },
+  sharing: { read: ['ViewSetup'] },
   apps: { read: ['ViewSetup'] },
   health: { read: ['ViewSetup'] },
 };
@@ -39,6 +44,7 @@ export const NEEDS: Partial<Record<ToolId, Need>> = {
 /** Names people know, for the permissions the tools need (the org's own labels win when known). */
 const LABELS: Record<string, string> = {
   ViewSetup: 'View Setup and Configuration',
+  ViewEventLogFiles: 'View Event Log Files',
   AuthorApex: 'Author Apex',
   ModifyMetadata: 'Modify Metadata Through Metadata API Functions',
   ManageUsers: 'Manage Users',
