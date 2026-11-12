@@ -70,3 +70,4 @@ export * from './security.js';
 export * from './sharingTree.js';
 export * from './flowHousekeeping.js';
 export * from './sandboxRefresh.js';
+export * from './schemaDeps.js';

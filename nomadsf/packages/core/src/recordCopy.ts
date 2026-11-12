@@ -577,14 +577,16 @@ export function managersFirst(users: UserCopy[]): UserCopy[] {
  */
 export async function missingSchema(
   target: SalesforceClient,
-  files: AccessFile[]
+  files: AccessFile[],
+  /** More that is needed besides the files (settings: a custom setting's object, a job's class). */
+  extra: { objects?: string[]; fields?: string[]; classes?: string[] } = {}
 ): Promise<{ objects: string[]; fields: string[]; classes: string[] }> {
   const all = (tag: string) => [
     ...new Set(files.flatMap((f) => [...f.xml.matchAll(new RegExp(`<${tag}>([^<]+)</${tag}>`, 'g'))].map((m) => m[1]))),
   ];
-  const objects = all('object');
-  const fields = all('field');
-  const classes = all('apexClass');
+  const objects = [...new Set([...all('object'), ...(extra.objects ?? [])])];
+  const fields = [...new Set([...all('field'), ...(extra.fields ?? [])])];
+  const classes = [...new Set([...all('apexClass'), ...(extra.classes ?? [])])];
   if (!objects.length && !fields.length && !classes.length) return { objects: [], fields: [], classes: [] };
   const global = await target.rest<{ sobjects: Array<{ name: string }> }>('GET', '/sobjects');
   const have = new Set(global.sobjects.map((o) => o.name.toLowerCase()));
@@ -629,7 +631,8 @@ export async function missingSchema(
 
 /** What one permission set or group needs that the target lacks. */
 export type SchemaNeed = {
-  type: AccessFile['type'];
+  /** A permission set or group, or what else needs it ("Settings"). */
+  type: AccessFile['type'] | 'Settings';
   name: string;
   objects: string[];
   fields: string[];
@@ -643,18 +646,37 @@ export type SchemaNeed = {
  */
 export async function schemaPlan(
   target: SalesforceClient,
-  files: AccessFile[]
+  files: AccessFile[],
+  /** Other needs, each with a name (the settings and jobs to put back after a refresh). */
+  extra: Array<{ name: string; objects?: string[]; fields?: string[]; classes?: string[] }> = []
 ): Promise<{ needs: SchemaNeed[]; components: Array<{ type: string; name: string }> }> {
-  const missing = await missingSchema(target, files);
+  const missing = await missingSchema(target, files, {
+    objects: extra.flatMap((e) => e.objects ?? []),
+    fields: extra.flatMap((e) => e.fields ?? []),
+    classes: extra.flatMap((e) => e.classes ?? []),
+  });
   const mentions = (xml: string, tag: string, value: string) => xml.includes(`<${tag}>${value}</${tag}>`);
   const needs = files
-    .map((f) => ({
-      type: f.type,
-      name: f.name,
-      objects: missing.objects.filter((o) => mentions(f.xml, 'object', o) || new RegExp(`<field>${o}\\.`).test(f.xml)),
-      fields: missing.fields.filter((x) => mentions(f.xml, 'field', x)),
-      classes: missing.classes.filter((c) => mentions(f.xml, 'apexClass', c)),
-    }))
+    .map(
+      (f): SchemaNeed => ({
+        type: f.type,
+        name: f.name,
+        objects: missing.objects.filter(
+          (o) => mentions(f.xml, 'object', o) || new RegExp(`<field>${o}\\.`).test(f.xml)
+        ),
+        fields: missing.fields.filter((x) => mentions(f.xml, 'field', x)),
+        classes: missing.classes.filter((c) => mentions(f.xml, 'apexClass', c)),
+      })
+    )
+    .concat(
+      extra.map((e) => ({
+        type: 'Settings' as const,
+        name: e.name,
+        objects: missing.objects.filter((o) => e.objects?.includes(o)),
+        fields: missing.fields.filter((x) => e.fields?.includes(x)),
+        classes: missing.classes.filter((c) => e.classes?.includes(c)),
+      }))
+    )
     .filter((n) => n.objects.length + n.fields.length + n.classes.length > 0);
   return {
     needs,

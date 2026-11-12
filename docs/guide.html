@@ -2146,12 +2146,12 @@
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <ol class="steps">
               <li>
-                <b>Before the refresh</b>, in the sandbox: add the users to keep — <b>by name</b>,
-                <b>by a query</b> (<code>Profile.Name = 'Integration User'</code>, any condition on User) or
-                <b>from a CSV / Excel file</b> with an Id, Username or Email column — and <b>Save the workbook</b>. It
-                keeps remote sites, named and external credentials, certificates (names), custom setting values,
-                scheduled Apex, sharing defaults and sharing rules, and those users with their profile, role, permission
-                sets and groups (and the files of the permission sets).
+                <b>Before the refresh</b>, in the sandbox: untick the kinds you do not want in the workbook, add the
+                users to keep — <b>by name</b>, <b>by a query</b> (<code>Profile.Name = 'Integration User'</code>, any
+                condition on User) or <b>from a CSV / Excel file</b> with an Id, Username or Email column — and
+                <b>Save the workbook</b>. It keeps remote sites, named and external credentials, certificates (names),
+                custom setting values, scheduled Apex, sharing defaults and sharing rules, and those users with their
+                profile, role, permission sets and groups (and the files of the permission sets).
               </li>
               <li>Refresh the sandbox in Setup › Sandboxes (NomadSF never starts a refresh).</li>
               <li>
@@ -2164,9 +2164,9 @@
               </li>
               <li>
                 <b>Users</b>, below: every user of the workbook — found ones get the access they lack, missing ones are
-                created (change the username if you like); tick who, and one confirmation does them all. When the
-                permission sets mention objects, fields or classes the sandbox lacks, they are listed: deploy those
-                first.
+                created (change the username if you like); tick who, and one confirmation does them all. What their
+                permission sets need that the sandbox lacks is listed first, to deploy (<a href="#schema-gaps">below</a
+                >).
               </li>
               <li>
                 <b>E-mails</b>: a refresh ends every user's e-mail with “.invalid”; the kept users' addresses are set
@@ -2177,6 +2177,15 @@
                 certificates with keys, connected app secrets, endpoints, users to freeze.
               </li>
             </ol>
+            <p id="schema-gaps">
+              <b>What the org needs first.</b> When what you put back or the permission sets you create need objects,
+              fields or Apex classes the org does not have, a box lists them: per permission set (or for the custom
+              settings, the sharing, the scheduled Apex) what it needs, each with a tick. Choose where they come from —
+              another org or the project — and NomadSF also follows what those use there (a class that uses another
+              class, an object, a field: <i>Also needed, because they use them</i>), so the deploy is whole. Validate or
+              deploy it right there (tests, typed org name), or <b>Download package.xml</b> to deploy another way;
+              <b>Check again</b> after. Then put the settings back and create the users.
+            </p>
           </section>
         </section>
 

@@ -17,6 +17,7 @@ import {
   soqlText,
   type Row,
   writeWorkbook,
+  type AccessFile,
   type FileTable,
   type SandboxItem,
   type SandboxSection,
@@ -24,6 +25,7 @@ import {
 } from '@nomadsf/core';
 import { DataTable, download } from '../components/DataTable';
 import { UsersFromWorkbook } from '../components/UsersFromWorkbook';
+import { SchemaGaps } from '../components/SchemaGaps';
 import { storage, useStudio } from '../context';
 import { Status } from '../statusLog';
 
@@ -297,6 +299,8 @@ function Before() {
   );
 }
 
+const NO_FILES: AccessFile[] = [];
+
 const STATE_TEXT: Record<SandboxItem['state'], string> = {
   same: '✓ same',
   different: '≠ different',
@@ -387,6 +391,24 @@ function After() {
   };
 
   const about = tables ? sandboxAbout(tables) : null;
+  // What the ticked settings and jobs need in this org: a custom setting's object, the objects of sharing, a job's class
+  const settingsNeeds = useMemo(() => {
+    const chosen = (items ?? []).filter((i) => ticked.has(keyOf(i)));
+    const of = (section: SandboxSection) => chosen.filter((i) => i.section === section);
+    return [
+      { name: 'Custom settings', objects: [...new Set(of('customSettings').map((i) => String(i.row.Setting)))] },
+      {
+        name: 'Sharing defaults and rules',
+        objects: [...of('sharingDefaults'), ...of('sharingRules')].map((i) => i.key),
+      },
+      {
+        name: 'Scheduled Apex',
+        classes: of('scheduledJobs')
+          .map((i) => String(i.row.ApexClass))
+          .filter(Boolean),
+      },
+    ].filter((n) => (n.objects?.length ?? 0) + (n.classes?.length ?? 0) > 0);
+  }, [items, ticked]);
   // The users kept in the workbook, with the files of their permission sets and groups
   const kept = useMemo(() => (tables ? fromCopySheets(tables.filter((t) => t.columns.length)) : null), [tables]);
   // The items shown, by section, in the order of the workbook
@@ -530,6 +552,14 @@ function After() {
           ) : (
             <p className="good">✓ Everything is as it was.</p>
           )}
+          {/* What the ticked items need that this org lacks: deploy it first */}
+          <SchemaGaps
+            target={{ id: org.id, label: org.label, client }}
+            files={NO_FILES}
+            extra={settingsNeeds}
+            forWhat="these settings and jobs"
+            onChanged={() => tables && void sandboxAfter(client, tables).then(setItems)}
+          />
           <div className="form">
             <button className="primary" disabled={!ticked.size} onClick={() => void restore()}>
               Put back {ticked.size || ''} ticked…

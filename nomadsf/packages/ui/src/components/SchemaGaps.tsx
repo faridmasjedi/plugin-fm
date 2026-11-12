@@ -5,7 +5,9 @@ import {
   fromBase64,
   packageXml,
   projectMetadataZip,
+  neededToo,
   schemaPlan,
+  type AddedPiece,
   type AccessFile,
   type SalesforceClient,
   type SchemaNeed,
@@ -18,6 +20,7 @@ import { Select } from './Select';
 
 type Component = { type: string; name: string };
 const keyOf = (c: Component) => `${c.type}:${c.name}`;
+const NONE: Array<{ name: string }> = [];
 const KIND: Record<string, string> = { CustomObject: 'Object', CustomField: 'Field', ApexClass: 'Apex class' };
 
 /**
@@ -30,6 +33,8 @@ export function SchemaGaps({
   target,
   files,
   onChanged,
+  extra = NONE,
+  forWhat = 'these permission sets',
 }: {
   /** The org the users and permission sets go into. */
   target: { id: string; label: string; client: SalesforceClient };
@@ -37,6 +42,10 @@ export function SchemaGaps({
   files: AccessFile[];
   /** After a deploy: check again. */
   onChanged?: () => void;
+  /** Other needs, each named (the settings and jobs to put back after a refresh). */
+  extra?: Array<{ name: string; objects?: string[]; fields?: string[]; classes?: string[] }>;
+  /** What the pieces are for, in the heading ("these permission sets", "these settings"). */
+  forWhat?: string;
 }) {
   const studio = useStudio();
   const project = useProject();
@@ -44,13 +53,17 @@ export function SchemaGaps({
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [from, setFrom] = useState<string>('');
   const [checks, setChecks] = useState(0);
+  // What those pieces use in the org they come from, that the target lacks too (null: still reading)
+  const [also, setAlso] = useState<AddedPiece[] | null>([]);
+  // A deploy from here went through: once nothing is missing, it says so instead of disappearing
+  const [deployed, setDeployed] = useState(false);
   const others = studio.orgs.filter((o) => o.id !== target.id);
 
   useEffect(() => {
     let canceled = false;
     setPlan(null);
-    if (!files.length) return;
-    void schemaPlan(target.client, files)
+    if (!files.length && !extra.length) return;
+    void schemaPlan(target.client, files, extra)
       .then((p) => {
         if (canceled) return;
         setPlan(p);
@@ -60,15 +73,41 @@ export function SchemaGaps({
     return () => {
       canceled = true;
     };
-  }, [target.client, files, checks]);
+  }, [target.client, files, extra, checks]);
   // Where the components come from: the org the users came from when it is connected, else the project
   useEffect(() => {
     if (from) return;
     setFrom(project.source ? 'project' : others[0]?.id ?? '');
   }, [from, project.source, others]);
 
-  if (!plan || !plan.components.length) return null;
-  const chosen = plan.components.filter((c) => ticked.has(keyOf(c)));
+  // From an org: follow what each piece uses there (a class using another class, an object…)
+  useEffect(() => {
+    setAlso([]);
+    if (!plan?.components.length || !from || from === 'project') return undefined;
+    let canceled = false;
+    setAlso(null);
+    void studio
+      .clientFor(from)
+      .then((source) => neededToo(source, target.client, plan.components))
+      .then((found) => {
+        if (canceled) return;
+        setAlso(found);
+        setTicked((now) => new Set([...now, ...found.map(keyOf)]));
+      })
+      .catch(() => !canceled && setAlso([]));
+    return () => {
+      canceled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, from]);
+
+  if (!plan || !plan.components.length)
+    return deployed && plan ? (
+      <p className="good">
+        ✓ Deployed: {target.label} has everything {forWhat} need.
+      </p>
+    ) : null;
+  const chosen = [...plan.components, ...(also ?? [])].filter((c) => ticked.has(keyOf(c)));
   const flip = (k: string) => {
     const next = new Set(ticked);
     if (next.has(k)) next.delete(k);
@@ -83,6 +122,7 @@ export function SchemaGaps({
     </label>
   );
   const sourceOrg = others.find((o) => o.id === from);
+  const sourceLabel = (id: string) => (id === 'project' ? 'the project' : others.find((o) => o.id === id)?.label ?? '');
   const build = async () => {
     if (from === 'project') {
       if (!project.source || !project.info) throw new Error('Open the project first (Settings › Project).');
@@ -105,13 +145,15 @@ export function SchemaGaps({
   return (
     <div className="note warn-box schema-gaps">
       <b>
-        {target.label} lacks what these permission sets need. Deploy it first, then the permission sets go in with all
-        their access (otherwise those entries are left out):
+        {target.label} lacks what {forWhat} need. Deploy it first, then they go in whole (otherwise what needs it fails
+        or is left out):
       </b>
       <ol className="schema-steps">
         {plan.needs.map((n) => (
           <li key={`${n.type}:${n.name}`}>
-            <span className="muted">{n.type === 'PermissionSet' ? 'Permission set' : 'Permission set group'}</span>{' '}
+            <span className="muted">
+              {n.type === 'PermissionSet' ? 'Permission set' : n.type === 'Settings' ? '' : 'Permission set group'}
+            </span>{' '}
             <b>{n.name}</b> needs:
             <div className="schema-needs">
               {plan.components
@@ -126,6 +168,19 @@ export function SchemaGaps({
           </li>
         ))}
       </ol>
+      {also === null && <p className="muted small">Reading what they use in {sourceLabel(from)}…</p>}
+      {also && also.length > 0 && (
+        <div className="schema-also">
+          <b>Also needed, because they use them</b> (found in {sourceLabel(from)}):
+          <div className="schema-needs">
+            {also.map((c) => (
+              <span key={keyOf(c)}>
+                {tickbox(c)} <span className="muted small">← {c.neededBy}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="form">
         <label>
           Take them from
@@ -166,6 +221,7 @@ export function SchemaGaps({
           zipName={`needed-by-permission-sets.zip`}
           onDone={(outcome) => {
             if (outcome.success && !outcome.checkOnly) {
+              setDeployed(true);
               setChecks((n) => n + 1);
               onChanged?.();
             }
