@@ -20,16 +20,32 @@ import type { OrgSides } from './CompareAccess';
 import { Status } from '../statusLog';
 
 /** Assigned users: the users of a permission set, group, license, profile, role, public group or queue — in this org, or in two orgs. */
-export function WhoHasIt({ between }: { between?: OrgSides }) {
+export function WhoHasIt({
+  between,
+  kinds,
+  fixed,
+}: {
+  between?: OrgSides;
+  /** Only these kinds to choose from. */
+  kinds?: HolderKind[];
+  /** One holder, already chosen elsewhere (Access sets): no choosing here. */
+  fixed?: { kind: HolderKind; id: string };
+}) {
   const studio = useStudio();
   const client = between?.clientA ?? studio.client;
   const labelA = between?.labelA ?? studio.org.label;
   const clientB = between?.clientB ?? null;
   const isBetween = Boolean(between);
   const [holdersB, setHoldersB] = useState<Holder[] | null>(null);
-  const [kind, setKind] = useState<HolderKind>(() => storage.get('who.kind', 'permset'));
+  const kindList = HOLDER_KINDS.filter(([k]) => !kinds || kinds.includes(k));
+  const [chosenKind, setKind] = useState<HolderKind>(() => {
+    const saved = storage.get<HolderKind>('who.kind', 'permset');
+    return kindList.some(([k]) => k === saved) ? saved : kindList[0][0];
+  });
+  const kind = fixed?.kind ?? chosenKind;
   const [holders, setHolders] = useState<Holder[] | null>(null);
-  const [holderId, setHolderId] = useState('');
+  const [chosenId, setHolderId] = useState('');
+  const holderId = fixed?.id ?? chosenId;
   const [users, setUsers] = useState<Row[] | null>(null);
   const [activeOnly, setActiveOnly] = useState(true);
   const [status, setStatus] = useState('');
@@ -122,33 +138,37 @@ export function WhoHasIt({ between }: { between?: OrgSides }) {
 
   return (
     <div className="card section">
-      <h3>Assigned users</h3>
+      {!fixed && <h3>Assigned users</h3>}
       <div className="form">
-        <label>
-          Kind
-          <Select
-            value={kind}
-            onChange={(e) => {
-              setKind(e.target.value as HolderKind);
-              storage.set('who.kind', e.target.value);
-            }}
-          >
-            {HOLDER_KINDS.map(([k, label]) => (
-              <option key={k} value={k}>
-                {label}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <Select value={holderId} onChange={(e) => setHolderId(e.target.value)} style={{ minWidth: 320 }}>
-          <option value="">{holders ? `Choose a ${kindLabel.toLowerCase()} (${shown.length})` : 'Loading…'}</option>
-          {shown.map((h) => (
-            <option key={h.id} value={h.id}>
-              {h.label}
-              {h.detail ? ` (${h.detail})` : ''}
-            </option>
-          ))}
-        </Select>
+        {!fixed && (
+          <>
+            <label>
+              Kind
+              <Select
+                value={kind}
+                onChange={(e) => {
+                  setKind(e.target.value as HolderKind);
+                  storage.set('who.kind', e.target.value);
+                }}
+              >
+                {kindList.map(([k, label]) => (
+                  <option key={k} value={k}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <Select value={holderId} onChange={(e) => setHolderId(e.target.value)} style={{ minWidth: 320 }}>
+              <option value="">{holders ? `Choose a ${kindLabel.toLowerCase()} (${shown.length})` : 'Loading…'}</option>
+              {shown.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.label}
+                  {h.detail ? ` (${h.detail})` : ''}
+                </option>
+              ))}
+            </Select>
+          </>
+        )}
         <label className="check">
           <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Active users
           only

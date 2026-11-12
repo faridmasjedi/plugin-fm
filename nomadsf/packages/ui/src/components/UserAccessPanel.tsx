@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
+  copySheets,
+  usersBundle,
   addGroupMembers,
   assignAccess,
   assignLicense,
@@ -55,12 +57,15 @@ const LOGIN_COLUMNS = [
 ];
 
 /** Every tab of a user, a sheet each (Details, permission sets… login history): ⤓ takes only the open one. */
-export async function userWorkbook(client: SalesforceClient, userId: string): Promise<Sheet[]> {
-  const [record, access, system, logins] = await Promise.all([
+export async function userWorkbook(client: SalesforceClient, userId: string, orgLabel = ''): Promise<Sheet[]> {
+  const [record, access, system, logins, restore] = await Promise.all([
     inspectRecord(client, userId),
     userAccess(client, userId),
     effectivePermissions(client, userId),
     userLogins(client, userId),
+    // The same user by names (profile, role, manager…) and their permission set files: Data › Record › Open a
+    // saved copy reads it to create or complete the user in another org (a new sandbox)
+    usersBundle(client, [userId], orgLabel),
   ]);
   const value = (v: unknown): string =>
     v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
@@ -81,6 +86,7 @@ export async function userWorkbook(client: SalesforceClient, userId: string): Pr
     { name: 'Licenses', columns: ['Label', 'Name', 'Status', 'ExpirationDate'], rows: access.licenses },
     { name: 'OAuth apps', columns: ['App', 'Uses', 'LastUsed', 'Connected'], rows: access.oauthApps },
     { name: 'Login history', columns: LOGIN_COLUMNS, rows: logins },
+    ...copySheets({ records: {}, ...restore }),
   ];
 }
 

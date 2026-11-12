@@ -20,6 +20,7 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
   const [tables, setTables] = useState<FileTable[] | null>(null);
   const [users, setUsers] = useState<UserCopy[]>([]);
   const [metadata, setMetadata] = useState<AccessFile[]>([]);
+  const [olderReport, setOlderReport] = useState(false);
   const [off, setOff] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [error, setError] = useState('');
@@ -35,6 +36,7 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
         setTables(saved.tables);
         setUsers(saved.users);
         setMetadata(saved.metadata);
+        setOlderReport(Boolean(saved.olderReport));
       })
       .catch((e: Error) => !canceled && setError(e.message));
     return () => {
@@ -43,6 +45,7 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
   }, [file]);
 
   // Rows are ticked unless taken out; a sheet's key is its name, a row's is sheet:Id (or sheet:#n)
+  const accessKey = (user: string, section: string, name: string) => `access:${user}:${section}:${name}`;
   const rowKey = (t: FileTable, r: Record<string, string>, i: number) => `${t.name}:${r.Id || `#${i}`}`;
   const what = useMemo(
     () => ({
@@ -52,7 +55,14 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
           .filter((t) => !off.has(t.name))
           .map((t) => ({ ...t, rows: t.rows.filter((r, i) => !off.has(rowKey(t, r, i))) })),
       },
-      user: users[0] && !off.has(`user:${users[0].username}`) ? users[0] : undefined,
+      // Only the access still ticked goes with the user
+      user:
+        users[0] && !off.has(`user:${users[0].username}`)
+          ? {
+              ...users[0],
+              lines: users[0].lines.filter((l) => !off.has(accessKey(users[0].username, l.Section, l.Name))),
+            }
+          : undefined,
       metadata,
     }),
     [tables, users, metadata, off]
@@ -77,9 +87,17 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
       ) : (
         <>
           <p className="muted help">
-            Each sheet is an object; untick what not to copy. Lookups between the sheets (an Account's Contacts…) point
-            to the new records.
+            {users.length && !tables.length
+              ? 'Everything is copied; untick what the user should not get. A user already there is completed, a missing one is created.'
+              : "Each sheet is an object; untick what not to copy. Lookups between the sheets (an Account's Contacts…) point to the new records."}
           </p>
+          {olderReport && (
+            <p className="warn-text small">
+              ⚠ This workbook was saved before it carried the user's profile, role and manager by name: the access below
+              is copied, but to create the user, save the workbook again (Access › Users › Everything) or use the
+              Snapshot (CSV).
+            </p>
+          )}
           <ul className="relation-tree root">
             {users.map((u) => (
               <li key={u.username}>
@@ -113,14 +131,52 @@ export function SavedCopy({ file, onClose }: { file: File; onClose: () => void }
                   })()}
                   {ACCESS_SECTIONS.map(({ section, label }) => {
                     const names = u.lines.filter((l) => l.Section === section).map((l) => l.Name);
-                    return names.length ? (
+                    if (!names.length) return null;
+                    const userOff = off.has(`user:${u.username}`);
+                    const keys = names.map((n) => accessKey(u.username, section, n));
+                    const on = keys.filter((k) => !off.has(k)).length;
+                    return (
                       <li key={section}>
-                        <span className="muted">
-                          {label} ({names.length}):
-                        </span>{' '}
-                        {names.join(', ')}
+                        {/* All of a kind at once, or one by one: everything is ticked until taken out */}
+                        <label className="check">
+                          <input
+                            type="checkbox"
+                            disabled={userOff}
+                            checked={on === keys.length}
+                            ref={(el) => {
+                              if (el) el.indeterminate = on > 0 && on < keys.length;
+                            }}
+                            onChange={(e) => {
+                              const next = new Set(off);
+                              for (const k of keys) {
+                                if (e.target.checked) next.delete(k);
+                                else next.add(k);
+                              }
+                              setOff(next);
+                            }}
+                          />{' '}
+                          <span className="muted">
+                            {label} ({on === keys.length ? names.length : `${on} of ${names.length}`}):
+                          </span>
+                        </label>{' '}
+                        <span className="saved-access-items">
+                          {names.map((n) => {
+                            const k = accessKey(u.username, section, n);
+                            return (
+                              <label key={k} className="check">
+                                <input
+                                  type="checkbox"
+                                  disabled={userOff}
+                                  checked={!off.has(k)}
+                                  onChange={(e) => toggle(k, e.target.checked)}
+                                />
+                                {n}
+                              </label>
+                            );
+                          })}
+                        </span>
                       </li>
-                    ) : null;
+                    );
                   })}
                   {!u.lines.some((l) => ACCESS_SECTIONS.some((a) => a.section === l.Section)) && (
                     <li className="muted">no access</li>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Select } from '../components/Select';
-import { POWER_PERMISSIONS, usersAccessMap, whoCanAccess, type Row } from '@nomadsf/core';
+import { whoCanAccess, type Row } from '@nomadsf/core';
 import { TableTabs } from '../components/TableTabs';
 import { DataTable, EmptyHint } from '../components/DataTable';
 import { useAccessOf } from '../access';
@@ -8,71 +8,6 @@ import { storage, useStudio } from '../context';
 import { NEEDS, permissionLabel, toolAccess } from '../toolAccess';
 import { TOOLS, hubOf, type ToolId } from '../workspace';
 import { Status } from '../statusLog';
-
-/** Access › Access overview: every user with what they have; filter any column, export it. */
-export function AccessOverviewPage() {
-  const { client, org } = useStudio();
-  const [activeOnly, setActiveOnly] = useState(true);
-  const [rows, setRows] = useState<Row[] | null>(null);
-  const [status, setStatus] = useState('');
-  const load = async () => {
-    setRows(null);
-    setStatus('Reading every user, their permission sets, groups and licenses…');
-    try {
-      setRows(await usersAccessMap(client, { activeOnly }));
-      setStatus('');
-    } catch (e) {
-      setStatus(`❌ ${(e as Error).message}`);
-    }
-  };
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, activeOnly]);
-  return (
-    <div className="page">
-      <div className="toolbar">
-        <h2>Access overview</h2>
-        <span className="muted">every user and what they have, on {org.label}</span>
-        <span className="grow" />
-        <label className="check">
-          <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Active users
-          only
-        </label>
-        <button onClick={() => void load()}>Refresh</button>
-      </div>
-      {status && <Status text={status} block />}
-      {rows &&
-        (rows.length === 0 ? (
-          <EmptyHint what="users" />
-        ) : (
-          <DataTable
-            columns={[
-              'Name',
-              'Username',
-              'Profile',
-              'Role',
-              'License',
-              'PermissionSets',
-              'Groups',
-              'PermissionSetLicenses',
-              ...POWER_PERMISSIONS.map(([, label]) => label),
-              'LastLogin',
-            ]}
-            rows={rows}
-            rowKey="Id"
-            name={`${org.label}-access-overview`}
-            note={
-              <span>
-                · filter a column with ✓ (e.g. Modify All Data) to see who has it · powerful permissions from the
-                profile, permission sets and groups together
-              </span>
-            }
-          />
-        ))}
-    </div>
-  );
-}
 
 /** Access › Object access: who can read, create, edit, delete an object (and read / edit a field), and through what. */
 export function ObjectAccessPage() {
@@ -174,7 +109,7 @@ export function ObjectAccessPage() {
   );
 }
 
-/** Access › Your access: what your own user may do here, tool by tool, and every permission you have. */
+/** Settings › Your access: what your own user may do here, tool by tool, and every permission you have. */
 export function MyAccessPage() {
   const { client, org } = useStudio();
   const access = useAccessOf(client);

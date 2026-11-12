@@ -30,7 +30,6 @@ export function Dependencies({
   const project = useProject();
   const [found, setFound] = useState<Found | null>(null);
   const [error, setError] = useState('');
-  const [ticked, setTicked] = useState<Set<string>>(new Set());
   // Where to look, when both can: the org alone is quick; the project's files take longer in a big project
   const [from, setFrom] = useState<From>(() => storage.get<From>('deps.from', 'org'));
   const both = Boolean(id && inProject && project.source);
@@ -47,7 +46,6 @@ export function Dependencies({
     let canceled = false;
     setFound(null);
     setError('');
-    setTicked(new Set());
     const fromOrg = (list: Dependency[]) =>
       list.map((d) => ({
         key: `org:${d.id}`,
@@ -128,8 +126,6 @@ export function Dependencies({
       rowKey="key"
       name={`${name}-${what}`}
       groupBy="type"
-      selected={ticked}
-      onSelectedChange={setTicked}
       note={<span>· from {sources}</span>}
     />
   );

@@ -246,14 +246,63 @@ export function copySheets(bundle: {
   return sheets;
 }
 
+/** The sheets of Access › Users › Everything (workbook): a report of one user, not records to copy. */
+export const USER_REPORT_SHEETS = [
+  'Details',
+  'Permission set groups',
+  'Permission sets',
+  'System permissions',
+  'Groups & queues',
+  'Licenses',
+  'OAuth apps',
+  'Login history',
+];
+
+/** A value that is a Salesforce Id (a lookup kept as an Id: no use in another org). */
+const SF_ID = /^[a-zA-Z0-9]{15}([a-zA-Z0-9]{3})?$/;
+
+/**
+ * The user of an Everything workbook saved before it carried the NomadSF users sheet: their fields and access from
+ * the report's sheets. Lookups (profile, role, manager) were kept as Ids there, so they are not brought.
+ */
+export function userFromReport(tables: FileTable[]): UserCopy | undefined {
+  const sheet = (name: string) => tables.find((t) => t.name === name);
+  const details = sheet('Details');
+  if (!details || !details.columns.includes('API name') || !details.columns.includes('Value')) return undefined;
+  const value = (api: string) => details.rows.find((r) => r['API name'] === api)?.Value ?? '';
+  const username = value('Username');
+  if (!username) return undefined;
+  const lines: SnapshotLine[] = [{ Section: 'info', Name: 'user', Value: username }];
+  for (const r of details.rows) {
+    const name = r['API name'] ?? '';
+    if (!name || name === 'Id' || /Id$/.test(name) || SF_ID.test(r.Value ?? '')) continue;
+    lines.push({ Section: 'field', Name: name, Value: r.Value ?? '' });
+  }
+  const names = (sheetName: string, column: string) =>
+    (sheet(sheetName)?.rows ?? []).map((r) => r[column] ?? '').filter(Boolean);
+  for (const n of names('Permission sets', 'Name')) lines.push({ Section: 'permissionSet', Name: n, Value: '' });
+  for (const n of names('Permission set groups', 'Name'))
+    lines.push({ Section: 'permissionSetGroup', Name: n, Value: '' });
+  for (const n of names('Licenses', 'Name')) lines.push({ Section: 'license', Name: n, Value: '' });
+  for (const r of sheet('Groups & queues')?.rows ?? [])
+    if (r.DeveloperName && r.Member && (r.Kind === 'Queue' || r.Kind === 'Public group'))
+      lines.push({ Section: 'group', Name: r.DeveloperName, Value: r.Kind === 'Queue' ? 'Queue' : 'Public group' });
+  return { username, lines };
+}
+
 /** A saved copy back: the record tables, and the users and metadata sheets when there are. */
 export function fromCopySheets(tables: FileTable[]): {
   tables: FileTable[];
   users: UserCopy[];
   metadata: AccessFile[];
+  /** An Everything workbook from before it carried the user: profile, role and manager are not in it. */
+  olderReport?: boolean;
 } {
   const usersSheet = tables.find((t) => t.name === USERS_SHEET);
   const metaSheet = tables.find((t) => t.name === METADATA_SHEET);
+  // An Everything workbook: its report sheets are about the user, never records to copy
+  const report = userFromReport(tables);
+  if (report) tables = tables.filter((t) => !USER_REPORT_SHEETS.includes(t.name));
   const users: UserCopy[] = [];
   for (const r of usersSheet?.rows ?? []) {
     let u = users.find((x) => x.username === r.User);
@@ -271,7 +320,9 @@ export function fromCopySheets(tables: FileTable[]): {
         .map((k) => r[k])
         .join(''),
     }));
-  return { tables: tables.filter((t) => t !== usersSheet && t !== metaSheet), users, metadata };
+  const olderReport = Boolean(report && !users.length);
+  if (report && !users.length) users.push(report);
+  return { tables: tables.filter((t) => t !== usersSheet && t !== metaSheet), users, metadata, olderReport };
 }
 
 // ---------- into the target ----------

@@ -24,16 +24,39 @@ import {
   TabSettingsPanel,
 } from '../pages/AccessManagePages';
 import { cannotChangePermissions, useAccessOf } from '../access';
+import { WhoHasIt } from './WhoHasIt';
+import { AssignToUsers } from './AssignToUsers';
 import { Status } from '../statusLog';
 
-type Tab = 'all' | 'objects' | 'fields' | 'system' | 'setup' | 'rtypes' | 'layouts' | 'tabs' | 'login';
+type Tab =
+  | 'all'
+  | 'objects'
+  | 'fields'
+  | 'system'
+  | 'setup'
+  | 'rtypes'
+  | 'layouts'
+  | 'tabs'
+  | 'login'
+  | 'assigned'
+  | 'assign';
 const yes = (v: boolean): string => (v ? '✓' : '');
+
+/** The chosen one as Assigned users knows it: a profile by its Profile Id, a group by its PermissionSetGroup Id. */
+function holderOf(
+  holder: PermissionHolder,
+  info: PermissionSetInfo | null
+): { kind: 'profile' | 'permset' | 'group'; id: string } | undefined {
+  if (holder.kind === 'Permission set') return { kind: 'permset', id: holder.id };
+  if (holder.kind === 'Profile') return info?.profileId ? { kind: 'profile', id: info.profileId } : undefined;
+  return info?.groupId ? { kind: 'group', id: info.groupId } : undefined;
+}
 
 /**
  * What a profile, permission set or group allows: objects, fields and user / system permissions. Custom permission
  * sets and profiles can be edited; a group's permission sets can be added and removed.
  */
-export function PermissionsExplorer() {
+export function PermissionsExplorer({ reloadKey = 0 }: { reloadKey?: number } = {}) {
   const { client, org } = useStudio();
   // Changing permissions needs Manage Profiles and Permission Sets (checked once per org)
   const blocked = cannotChangePermissions(useAccessOf(client), org.label);
@@ -63,7 +86,7 @@ export function PermissionsExplorer() {
     permissionHolders(client)
       .then(setHolders)
       .catch((e: Error) => setStatus(`❌ ${e.message}`));
-  }, [client]);
+  }, [client, reloadKey]);
 
   const holder = holders.find((h) => h.id === holderId);
   const shownHolders = useMemo(
@@ -124,7 +147,7 @@ export function PermissionsExplorer() {
 
   return (
     <div className="card section">
-      <h3>Permissions of a profile, permission set or group</h3>
+      <h3>Choose a profile, permission set or group</h3>
       <div className="form">
         <div className="segmented" role="group" aria-label="Show">
           {(['all', ...kinds] as Array<'all' | PermissionHolder['kind']>).map((k) => (
@@ -248,11 +271,14 @@ export function PermissionsExplorer() {
                 ...(holder.kind === 'Profile' ? [['layouts', 'Page layouts']] : []),
                 ...(holder.kind === 'Permission set' ? [['tabs', 'Tabs']] : []),
                 ...(holder.kind === 'Profile' ? [['login', 'Login IP ranges']] : []),
+                // Who has it, and giving it (a profile is given by changing a user's profile: Users)
+                ['assigned', 'Assigned users'],
+                ...(holder.kind !== 'Profile' ? [['assign', 'Assign to users']] : []),
               ] as Array<[Tab, string]>
             ).map(([id, label]) => (
               <button
                 key={id}
-                className={`tab ${tab === id ? 'active' : ''}`}
+                className={`tab ${tab === id ? 'active' : ''} ${id === 'assigned' ? 'tab-break' : ''}`}
                 onClick={() => {
                   setTab(id);
                   storage.set('perms.tab', id);
@@ -262,6 +288,28 @@ export function PermissionsExplorer() {
               </button>
             ))}
           </div>
+          {tab === 'assigned' &&
+            (holderOf(holder, info) ? (
+              <WhoHasIt key={holder.id} fixed={holderOf(holder, info)} />
+            ) : (
+              <p className="muted">Reading…</p>
+            ))}
+          {tab === 'assign' &&
+            (holder.kind === 'Profile' ? (
+              <p className="muted">A profile is given by changing a user&apos;s profile: Access › Users.</p>
+            ) : holderOf(holder, info) ? (
+              <AssignToUsers
+                key={holder.id}
+                target={{
+                  kind: holder.kind === 'Permission set group' ? 'group' : 'permset',
+                  id: holderOf(holder, info)!.id,
+                  label: holder.name,
+                  name: holder.api ?? holder.name,
+                }}
+              />
+            ) : (
+              <p className="muted">Reading…</p>
+            ))}
           {tab === 'setup' && (
             <SetupAccessPanel
               permissionSetId={holder.id}

@@ -2953,6 +2953,17 @@ input.bad-input {
 .saved-user-access {
   font-size: 13px;
 }
+.saved-access-items {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+}
+.saved-access-items label.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
 .copy-bar {
   border-top: 1px solid var(--border);
   margin-top: 12px;
@@ -2976,6 +2987,9 @@ input.bad-input {
   gap: 6px;
   flex: none;
   margin-left: auto;
+}
+.dt-actions[hidden] {
+  display: none;
 }
 
 /* The browser's file button, drawn like ours */
@@ -4447,4 +4461,11 @@ select.row-action {
   flex-direction: column;
   gap: 4px;
   padding: 18px 20px;
+}
+
+/* Access sets: who has it and assigning, set apart from what it allows */
+.tabs .tab.tab-break {
+  margin-left: 14px;
+  border-left: 1px solid var(--border);
+  padding-left: 14px;
 }

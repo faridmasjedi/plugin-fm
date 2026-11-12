@@ -185,7 +185,7 @@ export function ApexTestsPage() {
                 picker
                 selected={selected}
                 onSelectedChange={setSelected}
-                note={<span>· test classes</span>}
+                note={<span>· tick the test classes to run, then Run selected</span>}
               />
             )}
           </div>

@@ -23,13 +23,11 @@ export const NEEDS: Partial<Record<ToolId, Need>> = {
   metadata: { read: ['ViewSetup'], change: ['ModifyMetadata'], changeWhat: 'retrieve metadata' },
   deployments: { read: ['ViewSetup'], change: ['ModifyMetadata'], changeWhat: 'quick deploy' },
   access: { change: ['ManageUsers'], changeWhat: 'edit, freeze or deactivate users' },
-  permsets: {
+  permissions: {
     read: ['ViewSetup'],
-    change: ['AssignPermissionSets', 'ManageUsers'],
-    changeWhat: 'assign or remove permission sets',
+    change: ['ManageProfilesPermissionsets', 'AssignPermissionSets'],
+    changeWhat: 'change permissions or assign them',
   },
-  permissions: { read: ['ViewSetup'], change: ['ManageProfilesPermissionsets'], changeWhat: 'change permissions' },
-  assigned: { read: ['ViewSetup'] },
   groups: { read: ['ViewSetup'], change: ['ManageUsers'], changeWhat: 'add or remove group and queue members' },
   custperms: {
     read: ['ViewSetup'],
@@ -37,7 +35,6 @@ export const NEEDS: Partial<Record<ToolId, Need>> = {
     changeWhat: 'grant or remove custom permissions',
   },
   compare: { read: ['ViewSetup'] },
-  accessmap: { read: ['ViewSetup'] },
   objectaccess: { read: ['ViewSetup'] },
   audit: { read: ['ViewSetup'] },
   apps: { read: ['ViewSetup'] },
