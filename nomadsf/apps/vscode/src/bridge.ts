@@ -119,6 +119,21 @@ export async function handleCall(op: string, args: unknown[], memento: vscode.Me
       if (!folders.includes(root)) await memento.update(FOLDERS, [...folders, root]);
       return { root, name: basename(root) };
     }
+    case 'workspaceProject': {
+      // The workspace folder, when it is a Salesforce project: the Studio's project unless another was chosen
+      for (const f of vscode.workspace.workspaceFolders ?? []) {
+        const root = f.uri.fsPath;
+        try {
+          await vscode.workspace.fs.stat(vscode.Uri.joinPath(f.uri, 'sfdx-project.json'));
+        } catch {
+          continue;
+        }
+        const folders = memento.get<string[]>(FOLDERS, []);
+        if (!folders.includes(root)) await memento.update(FOLDERS, [...folders, root]);
+        return { root, name: basename(root) };
+      }
+      return null;
+    }
     case 'fsAllowed':
       return memento.get<string[]>(FOLDERS, []).includes(String(a));
     case 'fsIsDir':

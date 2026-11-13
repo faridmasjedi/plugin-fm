@@ -395,7 +395,7 @@ export function App() {
             <span className={`pill ${production ? 'bad' : 'good'}`}>{production ? 'Production' : 'Sandbox'}</span>
           )}
           {user && (
-            <span className="muted user">
+            <span className="muted user" title={`${user.userFullName} · ${user.organizationName}`}>
               {user.userFullName} · {user.organizationName}
             </span>
           )}

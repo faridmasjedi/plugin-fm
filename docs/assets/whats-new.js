@@ -3,6 +3,10 @@
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
   next: [
+    'VS Code: the open workspace is the Studio’s project when it is a Salesforce project (no folder to choose)',
+    'Sandbox refresh: what is needed comes from the org the workbook was saved in; pieces the project lacks are named; custom settings are not taken as sharing defaults',
+    'Compare two users: one match is one button; Access sets lists profiles and groups before the long list of permission sets',
+    'Event logs: the dates follow the logs the org keeps; text no longer cut in narrow panes (the header, dropdowns, user boxes, AI hints, the Limits bars)',
     'New layout: 7 hubs — Develop, Data, Access, Security, Org, Compare & move, Settings. Release, Org to org and Data protection are gone: their tools moved (old links still open them)',
     'Compare & move: everything between two places, grouped by pair — Org ↔ Org, Org ↔ Project, Branch ↔ Branch, Org ↔ File, Sandbox',
     'Sandbox refresh: before it, save remote sites, credentials, certificates, custom settings, scheduled Apex and the users you choose in one workbook; after it, compare, put back what the API allows, and a Setup checklist',

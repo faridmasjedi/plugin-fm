@@ -703,7 +703,7 @@ button.inspect {
 }
 .usage {
   position: relative;
-  min-width: 64px;
+  min-width: 44px;
   height: 16px;
   border-radius: 4px;
   background: var(--panel-2);
@@ -4785,4 +4785,29 @@ button.chip.on {
 .code-project .form select {
   flex: 1 1 140px;
   min-width: 130px;
+}
+
+/* Limits: the table scrolls in its card when the pane is narrow */
+table.org-limits {
+  display: block;
+  overflow-x: auto;
+}
+
+/* The header in a narrow window (VS Code's editor, a split pane): the name never cut, the user on one line */
+header.top .brand {
+  flex: none;
+  white-space: nowrap;
+}
+header.top .user {
+  min-width: 0;
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 900px) {
+  header.top .brand .muted,
+  header.top .user {
+    display: none;
+  }
 }
