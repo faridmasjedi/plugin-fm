@@ -33,11 +33,6 @@ export const NEEDS: Partial<Record<ToolId, Need>> = {
   objectaccess: { read: ['ViewSetup'] },
   integration: { read: ['ViewSetup'] },
   codechecks: { read: ['ViewSetup'] },
-  appconfig: {
-    read: ['ViewSetup'],
-    change: ['CustomizeApplication', 'ModifyAllData'],
-    changeWhat: 'change app and credential settings',
-  },
   customsettings: {
     read: ['ViewSetup'],
     change: ['CustomizeApplication'],
@@ -54,7 +49,11 @@ export const NEEDS: Partial<Record<ToolId, Need>> = {
   timeline: { read: ['ViewSetup'] },
   whocansee: { read: ['ViewSetup'] },
   sharing: { read: ['ViewSetup'] },
-  apps: { read: ['ViewSetup'] },
+  apps: {
+    read: ['ViewSetup'],
+    change: ['CustomizeApplication', 'ModifyAllData'],
+    changeWhat: 'revoke tokens, change app and credential settings',
+  },
   health: { read: ['ViewSetup'] },
   licenses: { read: ['ViewSetup'], change: ['ManageUsers'], changeWhat: 'freeze, deactivate or free licenses' },
   flows: { read: ['ViewSetup'], change: ['ManageFlow'], changeWhat: 'delete flow versions and interviews' },

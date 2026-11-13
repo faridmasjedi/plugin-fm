@@ -10,7 +10,6 @@ import {
   type ConfigFile,
   type ConfigItem,
 } from '@nomadsf/core';
-import { DataTable } from '../components/DataTable';
 import { CodeEditor } from '../components/CodeEditor';
 import { Select } from '../components/Select';
 import { useStudio } from '../context';
@@ -57,66 +56,57 @@ const rowsOf = (item: ConfigItem): Row[] =>
     })
   );
 
-/**
- * Org › Apps & credentials: the connected apps and external client apps defined in this org, and its named and external
- * credentials — every setting of their files, to read and change (one value at a time, or the whole file), then
- * deploy. Secrets are not in these files: client secrets, passwords and keys stay in Setup.
- */
-export function AppConfigPage({ onOpen }: { onOpen?: (tool: string) => void }) {
-  const { client, org, confirmChange, logActivity } = useStudio();
+/** The org's apps and credentials as configuration files, grouped (read once per org; `reload` after a deploy). */
+export function useConfigItems(): { items: ConfigItem[] | null; error: string; reload: () => Promise<void> } {
+  const { client } = useStudio();
   const [items, setItems] = useState<ConfigItem[] | null>(null);
-  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const reload = async () => {
+    try {
+      setItems(configItems(await configFiles(client, CONFIG_TYPES)));
+      setError('');
+    } catch (e) {
+      setItems([]);
+      setError((e as Error).message);
+    }
+  };
+  useEffect(() => {
+    setItems(null);
+    void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client]);
+  return { items, error, reload };
+}
+
+/**
+ * One app or credential defined in the org: every setting of its files in folding groups (one per part of an app),
+ * changed in place or as a whole file, then deployed. Secrets are not in these files: they stay in Setup.
+ */
+export function ConfigItemView({ item, onDeployed }: { item: ConfigItem; onDeployed: () => Promise<void> }) {
+  const { client, org, confirmChange, logActivity } = useStudio();
   const [filter, setFilter] = useState('');
   const [editing, setEditing] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [xmlOf, setXmlOf] = useState<string | null>(null);
   const [xmlText, setXmlText] = useState('');
+  const [closed, setClosed] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const load = async (quiet = false) => {
-    setItems(null);
-    if (!quiet) setStatus(`Reading the apps and credentials of ${org.label}…`);
-    try {
-      setItems(configItems(await configFiles(client, CONFIG_TYPES)));
-      if (!quiet) setStatus('');
-    } catch (e) {
-      setItems([]);
-      setStatus(`❌ ${(e as Error).message}`);
-    }
-  };
-  useEffect(() => {
-    setName('');
-    setEditing(false);
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client]);
-
-  const item = items?.find((i) => `${i.kind}:${i.name}` === name);
-  const rows = useMemo(() => (item ? rowsOf(item) : []), [item]);
+  const rows = useMemo(() => rowsOf(item), [item]);
   const f = filter.trim().toLowerCase();
   const shown = rows.filter((r) => !f || r.shown.toLowerCase().includes(f) || r.value.toLowerCase().includes(f));
   const changed = rows.filter((r) => edits[r.key] !== undefined && edits[r.key] !== r.value);
   // An app with parts: one folding group per part (OAuth settings, policies…), the app's own file first
-  const [closed, setClosed] = useState<Set<string>>(new Set());
   const groups = useMemo(() => {
     const out = new Map<string, Row[]>();
     for (const r of shown) {
       const part =
-        r.file.type === 'ExternalClientApplication' || (item?.files.length ?? 0) < 2
-          ? 'The app'
-          : configTypeLabel(r.file.type);
+        r.file.type === 'ExternalClientApplication' || item.files.length < 2 ? 'The app' : configTypeLabel(r.file.type);
       out.set(part, [...(out.get(part) ?? []), r]);
     }
     return [...out.entries()];
   }, [shown, item]);
-
-  const open = (key: string) => {
-    setName(key);
-    setEditing(false);
-    setEdits({});
-    setXmlOf(null);
-  };
 
   const deploy = async (files: ConfigFile[], what: string) => {
     if (!(await confirmChange(`Deploy ${what} to ${org.label}.`))) return;
@@ -124,14 +114,12 @@ export function AppConfigPage({ onOpen }: { onOpen?: (tool: string) => void }) {
     setStatus('Deploying…');
     try {
       await deployConfigs(client, files);
-      logActivity('config-deploy', { item: item?.name, files: files.map((x) => x.fullName) });
-      setStatus(`✓ Deployed ${what}.`);
+      logActivity('config-deploy', { item: item.name, files: files.map((x) => x.fullName) });
       setEditing(false);
       setEdits({});
       setXmlOf(null);
-      const keep = name;
-      await load(true);
-      setName(keep);
+      await onDeployed();
+      setStatus(`✓ Deployed ${what}.`);
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
     } finally {
@@ -153,7 +141,7 @@ export function AppConfigPage({ onOpen }: { onOpen?: (tool: string) => void }) {
       setStatus(`❌ ${(e as Error).message}`);
       return;
     }
-    await deploy([...files.values()], `${changed.length} change(s) to ${item?.label}`);
+    await deploy([...files.values()], `${changed.length} change(s) to ${item.label}`);
   };
 
   const input = (r: Row) => {
@@ -176,162 +164,114 @@ export function AppConfigPage({ onOpen }: { onOpen?: (tool: string) => void }) {
   };
 
   return (
-    <div className="page">
-      <div className="toolbar">
-        <h2>Apps & credentials</h2>
-        <span className="muted">
-          Connected apps, external client apps, named and external credentials of {org.label}: every setting, to read
-          and change
-        </span>
-        <span className="grow" />
-        <button onClick={() => void load()} disabled={busy}>
-          Refresh
-        </button>
-      </div>
-      {status && <Status text={status} block />}
-      {items && (
-        <div className="card section">
-          {items.length ? (
-            <DataTable
-              name="apps-credentials"
-              columns={['kind', 'label', 'name', 'parts']}
-              rows={items.map((i) => ({
-                Id: `${i.kind}:${i.name}`,
-                kind: i.kind,
-                label: i.label,
-                name: i.name,
-                parts: i.files.length > 1 ? i.files.length : '',
-              }))}
-              onRowClick={(r) => open(String(r.Id))}
-              selectedKey={name}
-            />
-          ) : (
-            <p className="muted">No connected app, external client app or credential is defined in {org.label}.</p>
-          )}
-          <p className="muted small">
-            Apps from Salesforce or installed packages (Salesforce CLI, Workbench…) are used here but defined elsewhere:
-            their policies are in{' '}
-            <button className="link" onClick={() => onOpen?.('apps')}>
-              Org › Connected apps
+    <div className="config-view">
+      <div className="form">
+        {!editing && xmlOf === null && (
+          <>
+            <button className="primary" onClick={() => setEditing(true)}>
+              Edit settings
             </button>
-            . Secrets (client secrets, passwords, private keys) are never read or written: they stay in Setup.
+            <Select
+              value=""
+              onChange={(e) => {
+                const file = item.files.find((x) => x.fullName === e.target.value);
+                if (file) {
+                  setXmlOf(file.fullName);
+                  setXmlText(file.xml);
+                }
+              }}
+            >
+              <option value="">Edit a file…</option>
+              {item.files.map((x) => (
+                <option key={x.fullName} value={x.fullName}>
+                  {configTypeLabel(x.type)} — {x.fullName}
+                </option>
+              ))}
+            </Select>
+          </>
+        )}
+        <Status text={status} />
+      </div>
+      {xmlOf !== null ? (
+        <div className="config-xml">
+          <p className="muted small">
+            The whole file, as the Metadata API has it. Deploying it replaces the one in the org.
           </p>
-        </div>
-      )}
-      {item && (
-        <div className="card section">
-          <div className="form item-head">
-            <span className="pill">{item.kind}</span>
-            <b>{item.label}</b>
-            <span className="muted mono small">{item.name}</span>
-            <span className="grow" />
-            {!editing && xmlOf === null && (
-              <button className="primary" onClick={() => setEditing(true)}>
-                Edit settings
-              </button>
-            )}
-            {xmlOf === null && !editing && (
-              <Select
-                value=""
-                onChange={(e) => {
-                  const file = item.files.find((x) => x.fullName === e.target.value);
-                  if (file) {
-                    setXmlOf(file.fullName);
-                    setXmlText(file.xml);
-                  }
-                }}
-              >
-                <option value="">Edit a file…</option>
-                {item.files.map((x) => (
-                  <option key={x.fullName} value={x.fullName}>
-                    {configTypeLabel(x.type)} — {x.fullName}
-                  </option>
-                ))}
-              </Select>
-            )}
+          <CodeEditor value={xmlText} onChange={setXmlText} language="xml" height={420} />
+          <div className="form">
+            <button
+              className="primary"
+              disabled={busy}
+              onClick={() => {
+                const file = item.files.find((x) => x.fullName === xmlOf)!;
+                void deploy([{ ...file, xml: xmlText }], file.fullName);
+              }}
+            >
+              Deploy…
+            </button>
+            <button onClick={() => setXmlOf(null)}>Cancel</button>
           </div>
-          {xmlOf !== null ? (
-            <div className="config-xml">
-              <p className="muted small">
-                The whole file, as the Metadata API has it. Deploying it replaces the one in the org.
-              </p>
-              <CodeEditor value={xmlText} onChange={setXmlText} language="xml" height={420} />
-              <div className="form">
+        </div>
+      ) : (
+        <>
+          <div className="form">
+            <input
+              className="grow"
+              placeholder="Filter settings and values"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+            {editing && (
+              <>
+                <button className="primary" disabled={busy || !changed.length} onClick={() => void saveEdits()}>
+                  Deploy {changed.length || ''} change(s)…
+                </button>
                 <button
-                  className="primary"
-                  disabled={busy}
                   onClick={() => {
-                    const file = item.files.find((x) => x.fullName === xmlOf)!;
-                    void deploy([{ ...file, xml: xmlText }], `${file.fullName}`);
+                    setEditing(false);
+                    setEdits({});
                   }}
                 >
-                  Deploy…
+                  Cancel
                 </button>
-                <button onClick={() => setXmlOf(null)}>Cancel</button>
-              </div>
+              </>
+            )}
+          </div>
+          {groups.map(([part, list]) => (
+            <div key={part} className="config-group">
+              {groups.length > 1 && (
+                <button
+                  className="config-group-head"
+                  aria-expanded={!closed.has(part)}
+                  onClick={() => {
+                    const next = new Set(closed);
+                    if (next.has(part)) next.delete(part);
+                    else next.add(part);
+                    setClosed(next);
+                  }}
+                >
+                  <span className="tree-toggle">{closed.has(part) ? '▸' : '▾'}</span> {part}{' '}
+                  <span className="muted small">({list.length})</span>
+                </button>
+              )}
+              {!closed.has(part) && (
+                <table className="config-table">
+                  <tbody>
+                    {list.map((r) => (
+                      <tr
+                        key={r.key}
+                        className={edits[r.key] !== undefined && edits[r.key] !== r.value ? 'changed' : ''}
+                      >
+                        <td className="mono small">{r.path}</td>
+                        <td>{editing ? input(r) : <span className="config-value">{r.value}</span>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
-          ) : (
-            <>
-              <div className="form">
-                <input
-                  className="grow"
-                  placeholder="Filter settings and values"
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                />
-                {editing && (
-                  <>
-                    <button className="primary" disabled={busy || !changed.length} onClick={() => void saveEdits()}>
-                      Deploy {changed.length || ''} change(s)…
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditing(false);
-                        setEdits({});
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </>
-                )}
-              </div>
-              {groups.map(([part, list]) => (
-                <div key={part} className="config-group">
-                  {groups.length > 1 && (
-                    <button
-                      className="config-group-head"
-                      aria-expanded={!closed.has(part)}
-                      onClick={() => {
-                        const next = new Set(closed);
-                        if (next.has(part)) next.delete(part);
-                        else next.add(part);
-                        setClosed(next);
-                      }}
-                    >
-                      <span className="tree-toggle">{closed.has(part) ? '▸' : '▾'}</span> {part}{' '}
-                      <span className="muted small">({list.length})</span>
-                    </button>
-                  )}
-                  {!closed.has(part) && (
-                    <table className="config-table">
-                      <tbody>
-                        {list.map((r) => (
-                          <tr
-                            key={r.key}
-                            className={edits[r.key] !== undefined && edits[r.key] !== r.value ? 'changed' : ''}
-                          >
-                            <td className="mono small">{r.path}</td>
-                            <td>{editing ? input(r) : <span className="config-value">{r.value}</span>}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              ))}
-            </>
-          )}
-        </div>
+          ))}
+        </>
       )}
     </div>
   );

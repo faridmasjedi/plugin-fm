@@ -43,7 +43,6 @@ import { FieldUsagePage } from './pages/FieldUsagePage';
 import { LookupPage } from './pages/LookupPage';
 import { OrgComparePage } from './pages/OrgComparePage';
 import { BulkAccessPage } from './pages/BulkAccessPage';
-import { AppConfigPage } from './pages/AppConfigPage';
 import { CodeChecksPage } from './pages/CodeChecksPage';
 import { CustomSettingsPage } from './pages/CustomSettingsPage';
 import { IntegrationCheckPage } from './pages/IntegrationCheckPage';
@@ -331,7 +330,6 @@ export function App() {
               {tool === 'compare' && <ComparePage />}
               {tool === 'objectaccess' && <ObjectAccessPage />}
               {tool === 'bulkaccess' && <BulkAccessPage />}
-              {tool === 'appconfig' && <AppConfigPage onOpen={(to) => isTool(to) && ws.reopen(to)} />}
               {tool === 'codechecks' && <CodeChecksPage />}
               {tool === 'customsettings' && <CustomSettingsPage />}
               {tool === 'integration' && <IntegrationCheckPage />}

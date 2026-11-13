@@ -58,7 +58,6 @@ export type ToolId =
   | 'integration'
   | 'customsettings'
   | 'codechecks'
-  | 'appconfig'
   | 'audit'
   | 'eventlogs'
   | 'secdash'
@@ -158,15 +157,14 @@ export const TOOLS: Tool[] = [
   },
   { id: 'sharing', label: 'Sharing', icon: '⑂', hint: "an object's defaults and sharing rules, as a tree" },
   { id: 'myaccess', label: 'Your access', icon: '✓', hint: 'what your user may do here' },
-  { id: 'apps', label: 'Connected apps', icon: '⚷', hint: 'connected apps, OAuth usage' },
+  {
+    id: 'apps',
+    label: 'Apps & credentials',
+    icon: '⚷',
+    hint: 'the apps the org uses or defines, every setting, who uses them; named and external credentials',
+  },
   { id: 'health', label: 'Org health', icon: '♥', hint: 'security check, licenses' },
   { id: 'company', label: 'Company', icon: '◰', hint: 'company information: org Id, edition, locale, fiscal year' },
-  {
-    id: 'appconfig',
-    label: 'Apps & credentials',
-    icon: '⚿',
-    hint: 'connected apps, external client apps, named and external credentials: every setting, to read and change',
-  },
   { id: 'licenses', label: 'Licenses', icon: '✎', hint: 'how many are used; who holds one without using it' },
   { id: 'limits', label: 'Limits', icon: '▤', hint: 'org limits and storage' },
   { id: 'events', label: 'Events', icon: '⚡', hint: 'platform events, CDC' },
@@ -238,7 +236,7 @@ export const HUBS: Hub[] = [
     id: 'org',
     label: 'Org',
     icon: '◈',
-    tools: ['company', 'limits', 'licenses', 'apps', 'appconfig', 'metadata', 'deployments'],
+    tools: ['company', 'limits', 'licenses', 'apps', 'metadata', 'deployments'],
   },
   // Everything between two places: compare, deploy, retrieve, copy, restore
   {
@@ -282,6 +280,8 @@ const ALIASES: Record<string, ToolId> = {
   assigned: 'permissions',
   custperms: 'permissions',
   accessmap: 'access',
+  // Connected apps and Apps & credentials are one tool now
+  appconfig: 'apps',
 };
 
 /** A tool id as it is now (an old one from a link or a saved layout → the tool that took it over). */

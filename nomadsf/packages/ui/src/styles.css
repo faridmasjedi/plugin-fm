@@ -5410,3 +5410,51 @@ nav.side .nav-width:hover {
 .bulk-matches button {
   justify-content: flex-start;
 }
+/* A compare inside another card: its own cards flattened into sections */
+.config-compare > .card {
+  border: 0;
+  padding: 0;
+  margin: 12px 0 0;
+  background: none;
+  box-shadow: none;
+}
+.config-compare > h3 {
+  margin: 0 0 8px;
+}
+/* An item head inside a .form row: its label, name and API name centred, whatever the row's own rules */
+.item-head > .pill,
+.item-head > b,
+.item-head > span {
+  align-self: center;
+  height: auto;
+  margin: 0;
+}
+.form.item-head > span.pill,
+.form.item-head > span.muted,
+.form.item-head > span:not(.grow),
+.form.item-head > b {
+  align-self: center;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+}
+.form.item-head > span.pill,
+.item-head > .pill {
+  padding: 3px 10px;
+  line-height: 1.3;
+}
+/* The head row of a settings table stands apart from the values: its own background, smaller caps-like text */
+.config-table thead th {
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid var(--border);
+}
+.config-table thead th:first-child {
+  border-top-left-radius: 6px;
+}
+.config-table thead th:last-child {
+  border-top-right-radius: 6px;
+}

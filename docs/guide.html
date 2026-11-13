@@ -185,7 +185,7 @@
               </tr>
               <tr>
                 <td><b>Org</b></td>
-                <td>Company · Limits · Licenses · Connected apps · Apps &amp; credentials · Metadata · Deployments</td>
+                <td>Company · Limits · Licenses · Apps &amp; credentials · Metadata · Deployments</td>
               </tr>
               <tr>
                 <td><b>Compare &amp; Deploy</b></td>
@@ -1875,9 +1875,13 @@
               </li>
             </ul>
           </section>
-          <section class="tool" data-title="Connected apps">
-            <h3 id="apps">Connected apps</h3>
-            <p class="tool-lead">Connected apps, external client apps and every app people sign in to with OAuth.</p>
+          <section class="tool" data-title="Apps &amp; credentials">
+            <h3 id="apps">Apps &amp; credentials</h3>
+            <span id="appconfig"></span>
+            <p class="tool-lead">
+              Every app the org uses or defines — who uses it, its policies, every setting — and its named and external
+              credentials.
+            </p>
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
@@ -1891,44 +1895,39 @@
               ></video>
             </div>
             <p>
-              Connected apps, external client apps, and every app people sign in to with OAuth (including tools such as
-              the Salesforce CLI): users, tokens, uses and last use per app. The four counts at the top are buttons:
-              <b>connected apps</b>, <b>external client apps</b>, <b>users with OAuth tokens</b> (click one for their
-              tokens) and <b>OAuth tokens</b>. Click a connected app for its users, its settings and the profiles and
-              permission sets that are <b>pre-authorized</b> to use it (add or remove them). Tick tokens and
-              <b>Revoke</b> them (you type the org name).
+              The four counts at the top are tabs: <b>apps</b>, <b>credentials</b>,
+              <b>users with OAuth tokens</b> (click one for their tokens) and <b>OAuth tokens</b> (tick and
+              <b>Revoke</b>, after typing the org name).
             </p>
+            <ul class="parts">
+              <li>
+                <b>Apps</b>: connected apps, external client apps and apps people sign in to with OAuth (such as the
+                Salesforce CLI), one list. <i>Defined</i> says where an app comes from: <b>this org</b> (every setting
+                can be changed here) or <b>elsewhere</b> (Salesforce, a package or another org made it).
+              </li>
+              <li>
+                Click an app: <b>Who uses it</b> (users and tokens), <b>Policies &amp; who may use it</b> (its OAuth
+                policies, and the profiles and permission sets pre-authorized — add or remove them) and <b>Settings</b>.
+              </li>
+              <li>
+                <b>Settings</b> of an app defined here: every value of its files, an external client app with all its
+                parts (OAuth settings, global OAuth settings, OAuth policies, app policies) in folding groups.
+                <b>Edit settings</b> changes values in place (switches, lists of allowed values, text) then
+                <b>Deploy N change(s)</b>; <b>Edit a file…</b> deploys a whole file.
+              </li>
+              <li><b>Credentials</b>: named and external credentials, every setting, changed the same way.</li>
+            </ul>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
                 <li>Revoking a token signs that person out of the app; they sign in again to get a new one.</li>
+                <li>Client secrets, passwords and private keys are never read or written: they stay in Setup.</li>
+                <li>
+                  New orgs may refuse new connected apps; their successor, the external client app, is shown the same
+                  way.
+                </li>
               </ul>
             </div>
-          </section>
-          <section class="tool" data-title="Apps &amp; credentials">
-            <h3 id="appconfig">Apps &amp; credentials</h3>
-            <p class="tool-lead">
-              Every setting of the connected apps, external client apps, named credentials and external credentials
-              defined in the org — to read and change.
-            </p>
-            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
-            <ul class="parts">
-              <li>
-                An <b>external client app</b> is shown with all its parts: OAuth settings, global OAuth settings
-                (callback URL, PKCE, flows), OAuth policies (permitted users, IP relaxation, refresh tokens, session
-                level) and app policies.
-              </li>
-              <li>
-                <b>Edit settings</b>: every value in place — switches for true/false, a list for values Salesforce
-                limits (permitted users, IP relaxation…), text for the rest — then <b>Deploy N change(s)</b>.
-              </li>
-              <li><b>Edit a file…</b>: the whole file in the editor, deployed as it is.</li>
-              <li>
-                Apps from Salesforce or installed packages (Salesforce CLI, Workbench…) are used in the org but defined
-                elsewhere: their policies are in <a href="#apps">Connected apps</a>. Client secrets, passwords and keys
-                are never read or written: they stay in Setup.
-              </li>
-            </ul>
           </section>
           <section class="tool" data-title="Metadata">
             <h3 id="metadata">Metadata</h3>
@@ -2151,8 +2150,8 @@
               and in B (matched by username); click someone in both to compare the two users in full.
             </p>
             <p>
-              <b>Settings of apps &amp; credentials</b> (the switch at the top): the connected apps, external client
-              apps, named credentials and external credentials defined in A and B — same, different, only in one. Click
+              Two tabs at the top. <b>Apps</b>: the list above, and under it the settings of the apps defined in A or B.
+              <b>Credentials</b>: the named and external credentials of A and B. Same, different or only in one; click
               one for every setting side by side (or only the differences); <b>Deploy A’s version to B</b> copies it,
               after you type B’s name. Consumer keys and org-specific links are never a difference and never copied;
               secrets are not in these files.

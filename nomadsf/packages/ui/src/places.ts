@@ -190,12 +190,12 @@ export const PLACES: StudioPlace[] = [
     }
   ),
   P(
-    'appconfig',
+    'apps',
     'change the settings of a connected app',
     'connected app oauth callback url scopes pkce ip relaxation refresh token policy permitted users external client app'
   ),
   P(
-    'appconfig',
+    'apps',
     'see or change a named credential',
     'named credential external credential endpoint url callout authentication'
   ),

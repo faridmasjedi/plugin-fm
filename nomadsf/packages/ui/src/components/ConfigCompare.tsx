@@ -7,6 +7,7 @@ import {
   deployConfigs,
   diffItems,
   forAnotherOrg,
+  type ConfigKind,
   type ItemComparison,
 } from '@nomadsf/core';
 import { DataTable } from './DataTable';
@@ -22,7 +23,15 @@ const PARTS = ['OAuth settings', 'Global OAuth settings', 'OAuth policies', 'App
  * The connected apps, external client apps, named and external credentials of A and B: where each is, every setting
  * side by side (or only the differences), and A's version deployed to B (secrets and consumer keys never travel).
  */
-export function ConfigCompare() {
+export function ConfigCompare({
+  kinds,
+  embedded = false,
+}: {
+  /** Only these kinds (apps, or credentials). */
+  kinds?: ConfigKind[];
+  /** Inside another page: no title or org bar of its own. */
+  embedded?: boolean;
+}) {
   const { logActivity } = useStudio();
   const { a, b, clientA, clientB, error } = usePairClients();
   const [rows, setRows] = useState<ItemComparison[] | null>(null);
@@ -39,7 +48,8 @@ export function ConfigCompare() {
     if (!quiet) setStatus('Reading the apps and credentials of both orgs…');
     try {
       const [fa, fb] = await Promise.all([configFiles(clientA, CONFIG_TYPES), configFiles(clientB, CONFIG_TYPES)]);
-      setRows(compareItems(configItems(fa), configItems(fb)));
+      const keep = (i: { kind: ConfigKind }) => !kinds || kinds.includes(i.kind);
+      setRows(compareItems(configItems(fa).filter(keep), configItems(fb).filter(keep)));
       if (!quiet) setStatus('');
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
@@ -101,18 +111,24 @@ export function ConfigCompare() {
   };
 
   return (
-    <div className="page">
-      <div className="toolbar">
-        <h2>Settings of apps & credentials</h2>
-        <span className="muted">connected apps, external client apps, named and external credentials in two orgs</span>
-        <span className="grow" />
-        <button disabled={!clientB} onClick={() => void load()}>
-          Refresh
-        </button>
-      </div>
-      <OrgPairBar />
+    <div className={embedded ? 'config-compare' : 'page'}>
+      {embedded ? (
+        <h3>Settings of the apps defined in A or B</h3>
+      ) : (
+        <div className="toolbar">
+          <h2>{kinds?.includes('Named credential') ? 'Credentials' : 'Settings of apps & credentials'}</h2>
+          <span className="muted">
+            connected apps, external client apps, named and external credentials in two orgs
+          </span>
+          <span className="grow" />
+          <button disabled={!clientB} onClick={() => void load()}>
+            Refresh
+          </button>
+        </div>
+      )}
+      {!embedded && <OrgPairBar />}
       {error && <p className="bad-text">{error}</p>}
-      {!b && <p className="muted">Choose the other org (B) above.</p>}
+      {!b && !embedded && <p className="muted">Choose the other org (B) above.</p>}
       {status && <Status text={status} block />}
       {rows && (
         <div className="card section">
@@ -183,8 +199,8 @@ export function ConfigCompare() {
                   <thead>
                     <tr>
                       <th>Setting</th>
-                      <th>{a?.label ?? 'A'}</th>
-                      <th>{b?.label ?? 'B'}</th>
+                      <th>A · {a?.label ?? 'org A'}</th>
+                      <th>B · {b?.label ?? 'org B'}</th>
                     </tr>
                   </thead>
                   <tbody>

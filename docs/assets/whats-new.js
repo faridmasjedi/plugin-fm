@@ -3,6 +3,7 @@
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
   next: [
+    'Connected apps and Apps & credentials are one tool, Org › Apps & credentials: every app the org uses or defines in one list (defined here or elsewhere), each with who uses it, its policies and every setting; credentials in their own tab. Compare apps follows: Apps and Credentials',
     'Who can see moves to the Access hub, next to Object access (old links still open it)',
     'Assign in bulk: part of a profile, role or username is enough; example conditions for a query; permission sets and groups are searched, not listed by the hundred',
     'Apps & credentials and Compare apps: an app’s settings fold into one group per part (OAuth settings, policies…) instead of a prefix on every row',

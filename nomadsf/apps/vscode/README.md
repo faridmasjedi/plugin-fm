@@ -18,7 +18,7 @@
   | **Data**             | Query · Record (with the related tree: copy or save as Excel) · Import / Update / Delete · Lookup · Schema · Field usage · Backup · Lifecycle                                              |
   | **Access**           | Users · Access sets · Groups & queues · Object access · Who can see (a record, object, field or class, and why) · Compare                                                                  |
   | **Security**         | Dashboard · Timeline (everything that happened) · Event logs · Integration check (why an integration fails) · Sharing (as a tree) · Org health · Logins & audit                            |
-  | **Org**              | Company · Limits · Licenses · Connected apps · Apps & credentials · Metadata · Deployments                                                                                                 |
+  | **Org**              | Company · Limits · Licenses · Apps & credentials · Metadata · Deployments                                                                                                                  |
   | **Compare & Deploy** | Org ↔ Org (metadata, access, apps, copy records) · Project & git (Project, Branch ↔ Org, Branch ↔ Branch) · Org ↔ File (Open a file, Check a manifest, Compare with CSV) · Sandbox refresh |
 
 - **From the editor** (select text, right-click):

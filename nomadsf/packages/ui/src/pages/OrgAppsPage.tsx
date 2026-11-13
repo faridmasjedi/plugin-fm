@@ -178,22 +178,24 @@ function OrgAppsUsage() {
   );
 }
 
-type View = 'usage' | 'settings';
+type View = 'apps' | 'credentials';
 
 /**
  * Compare & Deploy › Compare apps: who uses each app in A and B (and their OAuth settings), or every setting of the
  * apps and credentials defined in each org, side by side, with A's version deployable to B.
  */
 export function OrgAppsPage() {
-  const [view, setView] = useState<View>(() => storage.get<View>('orgapps.view', 'usage'));
+  const [view, setView] = useState<View>(() =>
+    storage.get<string>('orgapps.view2', 'apps') === 'credentials' ? 'credentials' : 'apps'
+  );
   return (
     <>
       <div className="form view-switch">
         <div className="segmented" role="group" aria-label="What to compare">
           {(
             [
-              ['usage', 'Apps and who uses them'],
-              ['settings', 'Settings of apps & credentials'],
+              ['apps', 'Apps'],
+              ['credentials', 'Credentials'],
             ] as Array<[View, string]>
           ).map(([id, label]) => (
             <button
@@ -201,7 +203,7 @@ export function OrgAppsPage() {
               className={view === id ? 'active' : ''}
               onClick={() => {
                 setView(id);
-                storage.set('orgapps.view', id);
+                storage.set('orgapps.view2', id);
               }}
             >
               {label}
@@ -209,7 +211,18 @@ export function OrgAppsPage() {
           ))}
         </div>
       </div>
-      {view === 'usage' ? <OrgAppsUsage /> : <ConfigCompare />}
+      {view === 'apps' ? (
+        <>
+          <OrgAppsUsage />
+          <div className="page">
+            <div className="card section">
+              <ConfigCompare kinds={['Connected app', 'External client app']} embedded />
+            </div>
+          </div>
+        </>
+      ) : (
+        <ConfigCompare kinds={['Named credential', 'External credential']} />
+      )}
     </>
   );
 }
