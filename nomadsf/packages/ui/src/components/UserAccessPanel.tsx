@@ -285,7 +285,7 @@ export function UserAccessPanel({ userId, label, details }: { userId: string; la
             rows={access.oauthApps}
             rowKey="__none"
             name={name('oauth-apps')}
-            note={<span>· apps this user has connected with OAuth (Org › Connected apps for everyone)</span>}
+            note={<span>· apps this user has connected with OAuth (Org › Apps & credentials for everyone)</span>}
           />
         )
       ) : !logins ? (

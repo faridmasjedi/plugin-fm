@@ -51,7 +51,7 @@ describe('user snapshot', () => {
       'permissionSet:Old_Access:remove',
       'permissionSet:Sales_Ops:assign',
       'group:Support_Queue:add to the queue',
-      'app:Data Loader:used here only (revoke it in Org › Connected apps)',
+      'app:Data Loader:used here only (revoke it in Org › Apps & credentials)',
       'app:Salesforce CLI:the user connects it (signs in to the app)',
     ]);
     expect(diff.filter((d) => d.checkOnly).map((d) => d.name)).toEqual(['Data Loader', 'Salesforce CLI']);

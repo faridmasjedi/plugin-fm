@@ -224,7 +224,7 @@ export function diffSnapshot(snapshot: SnapshotLine[], now: SnapshotLine[]): Sna
         snapshot: '',
         org: '✓',
         ...(n.Section === 'app'
-          ? { action: 'used here only (revoke it in Org › Connected apps)', checkOnly: true }
+          ? { action: 'used here only (revoke it in Org › Apps & credentials)', checkOnly: true }
           : { action: 'remove', extra: true }),
       });
   }
@@ -330,7 +330,7 @@ export async function applySnapshot(
   for (const d of differences.filter((x) => x.checkOnly))
     out.failed.push({
       item: `app ${d.name}`,
-      error: 'only the user can connect an app (revoke one in Org › Connected apps)',
+      error: 'only the user can connect an app (revoke one in Org › Apps & credentials)',
     });
   // Licenses first: a permission set may need one
   const access = differences

@@ -42,6 +42,10 @@ import { EventsPage } from './pages/EventsPage';
 import { FieldUsagePage } from './pages/FieldUsagePage';
 import { LookupPage } from './pages/LookupPage';
 import { OrgComparePage } from './pages/OrgComparePage';
+import { BulkAccessPage } from './pages/BulkAccessPage';
+import { CodeChecksPage } from './pages/CodeChecksPage';
+import { CustomSettingsPage } from './pages/CustomSettingsPage';
+import { IntegrationCheckPage } from './pages/IntegrationCheckPage';
 import { PackagePage } from './pages/PackagePage';
 import { BackupPage } from './pages/BackupPage';
 import { MigratePage } from './pages/MigratePage';
@@ -325,6 +329,10 @@ export function App() {
               {tool === 'groups' && <GroupsPage />}
               {tool === 'compare' && <ComparePage />}
               {tool === 'objectaccess' && <ObjectAccessPage />}
+              {tool === 'bulkaccess' && <BulkAccessPage />}
+              {tool === 'codechecks' && <CodeChecksPage />}
+              {tool === 'customsettings' && <CustomSettingsPage />}
+              {tool === 'integration' && <IntegrationCheckPage />}
               {tool === 'audit' && <LoginsAuditPage />}
               {tool === 'eventlogs' && <EventLogsPage />}
               {tool === 'secdash' && (

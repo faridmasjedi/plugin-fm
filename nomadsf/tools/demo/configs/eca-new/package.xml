@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types><members>NomadSF_Demo</members><name>ExternalClientApplication</name></types>
+    <types><members>NomadSF_Demo_oauth</members><name>ExtlClntAppOauthSettings</name></types>
+    <types><members>NomadSF_Demo_glbloauth</members><name>ExtlClntAppGlobalOauthSettings</name></types>
+    <version>62.0</version>
+</Package>

@@ -16,9 +16,9 @@
   | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
   | **Develop**          | Code (with dependencies) · Execute Apex · Apex tests · Debug logs · Jobs · Save order · Flows · Events · REST Explorer                                                                     |
   | **Data**             | Query · Record (with the related tree: copy or save as Excel) · Import / Update / Delete · Lookup · Schema · Field usage · Backup · Lifecycle                                              |
-  | **Access**           | Users · Access sets · Groups & queues · Object access · Compare                                                                                                                            |
-  | **Security**         | Dashboard · Timeline (everything that happened) · Event logs · Who can see a record, object, field or class, and why · Sharing (as a tree) · Org health · Logins & audit                   |
-  | **Org**              | Company · Limits · Licenses · Connected apps · Metadata · Deployments                                                                                                                      |
+  | **Access**           | Users · Access sets · Groups & queues · Object access · Who can see (a record, object, field or class, and why) · Compare                                                                  |
+  | **Security**         | Dashboard · Timeline (everything that happened) · Event logs · Integration check (why an integration fails) · Sharing (as a tree) · Org health · Logins & audit                            |
+  | **Org**              | Company · Limits · Licenses · Apps & credentials · Metadata · Deployments                                                                                                                  |
   | **Compare & Deploy** | Org ↔ Org (metadata, access, apps, copy records) · Project & git (Project, Branch ↔ Org, Branch ↔ Branch) · Org ↔ File (Open a file, Check a manifest, Compare with CSV) · Sandbox refresh |
 
 - **From the editor** (select text, right-click):

@@ -17,8 +17,12 @@ import { DataTable, EmptyHint } from '../components/DataTable';
 import { ManagedList } from '../components/ManagedList';
 import { storage, useStudio } from '../context';
 import { Status } from '../statusLog';
+import { ConfigItemView, useConfigItems } from './AppConfigPage';
+import type { ConfigItem } from '@nomadsf/core';
 
-type View = 'connected' | 'external' | 'users' | 'tokens';
+type View = 'apps' | 'credentials' | 'users' | 'tokens';
+/** One line of the app list: an app used here, defined here, or both. */
+type AppRow = { key: string; name: string; kind: string; defined: string; usage?: OAuthApp; config?: ConfigItem };
 
 /** Settings worth seeing first, when the org returns them. */
 const KEY_SETTINGS = [
@@ -41,13 +45,21 @@ const fail = (r: { errors: string[] }): void => {
   if (r.errors.length) throw new Error(r.errors.join('; '));
 };
 
-/** Connected apps, external client apps and OAuth usage: each count opens its list; apps and users open their details. */
+/**
+ * Org › Apps & credentials: every app the org uses or defines (connected apps, external client apps, OAuth-only apps
+ * like Salesforce CLI) — who uses it, its tokens, its policies and who may use it, and, for an app defined here, every
+ * setting to change — and the named and external credentials. Each count opens its list.
+ */
 export function ConnectedAppsPage() {
   const { client, org, confirmChange, logActivity } = useStudio();
   const [report, setReport] = useState<ConnectedAppsReport | null>(null);
   const [status, setStatus] = useState('');
-  const [view, setView] = useState<View>(() => storage.get('apps.view2', 'connected'));
-  const [app, setApp] = useState<OAuthApp | null>(null);
+  const [view, setView] = useState<View>(() => {
+    const kept = storage.get<string>('apps.view3', 'apps');
+    return (['apps', 'credentials', 'users', 'tokens'] as string[]).includes(kept) ? (kept as View) : 'apps';
+  });
+  const [chosen, setChosen] = useState('');
+  const config = useConfigItems();
   const [userId, setUserId] = useState('');
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
@@ -64,7 +76,7 @@ export function ConnectedAppsPage() {
   };
   useEffect(() => {
     setReport(null);
-    setApp(null);
+    setChosen('');
     setUserId('');
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -72,13 +84,39 @@ export function ConnectedAppsPage() {
 
   const choose = (next: View) => {
     setView(next);
-    setApp(null);
+    setChosen('');
     setUserId('');
     setPicked(new Set());
-    storage.set('apps.view2', next);
+    storage.set('apps.view3', next);
   };
 
-  const apps = report?.apps ?? [];
+  const appRows = useMemo((): AppRow[] => {
+    const defined = (config.items ?? []).filter((i) => i.kind === 'Connected app' || i.kind === 'External client app');
+    const used = report?.apps ?? [];
+    const rows: AppRow[] = [];
+    const taken = new Set<ConfigItem>();
+    for (const u of used) {
+      const c = defined.find((i) => [i.label, i.name].some((n) => n.toLowerCase() === u.name.toLowerCase()));
+      if (c) taken.add(c);
+      rows.push({
+        key: `app:${u.name}`,
+        name: u.name,
+        kind: u.kind,
+        defined: c ? 'this org' : 'elsewhere',
+        usage: u,
+        config: c,
+      });
+    }
+    for (const c of defined.filter((i) => !taken.has(i)))
+      rows.push({ key: `app:${c.label}`, name: c.label, kind: c.kind, defined: 'this org', config: c });
+    return rows.sort((a, b) => a.name.localeCompare(b.name));
+  }, [report, config.items]);
+  const credentials = (config.items ?? []).filter(
+    (i) => i.kind === 'Named credential' || i.kind === 'External credential'
+  );
+  const appRow = appRows.find((a) => a.key === chosen);
+  const credential = credentials.find((c) => `cred:${c.kind}:${c.name}` === chosen);
+  const app = appRow?.usage ?? null;
   const tokens = report?.tokens ?? [];
   const users = useMemo(() => {
     const byUser = new Map<string, Row & { apps: Set<string> }>();
@@ -156,64 +194,147 @@ export function ConnectedAppsPage() {
       {label}
     </button>
   );
-  const appList = apps.filter((a) =>
-    view === 'connected' ? a.kind !== 'External client app' : a.kind === 'External client app'
-  );
 
   return (
     <div className="page">
       <div className="toolbar">
-        <h2>Connected apps</h2>
-        <span className="muted">Connected apps, external client apps and OAuth usage on {org.label}</span>
+        <h2>Apps &amp; credentials</h2>
+        <span className="muted">
+          The apps {org.label} uses or defines, its credentials, and who connects with OAuth
+        </span>
         <span className="grow" />
-        <button onClick={() => void load()}>Refresh</button>
+        <button
+          onClick={() => {
+            void load();
+            void config.reload();
+          }}
+        >
+          Refresh
+        </button>
       </div>
       {status && <Status text={status} block />}
       {report && (
         <>
           <div className="metrics">
-            {metric('connected', apps.filter((a) => a.kind !== 'External client app').length, 'connected apps')}
-            {metric('external', apps.filter((a) => a.kind === 'External client app').length, 'external client apps')}
+            {metric('apps', appRows.length, 'apps')}
+            {metric('credentials', config.items === null ? 0 : credentials.length, 'credentials')}
             {metric('users', users.length, 'users with OAuth tokens')}
             {metric('tokens', tokens.length, 'OAuth tokens')}
           </div>
 
-          {(view === 'connected' || view === 'external') &&
-            (appList.length === 0 ? (
-              <EmptyHint what={view === 'connected' ? 'connected apps' : 'external client apps'} />
+          {view === 'apps' &&
+            (appRows.length === 0 ? (
+              <EmptyHint what="apps" />
             ) : (
               <DataTable
-                columns={['name', 'kind', 'users', 'tokens', 'uses', 'lastUsed', 'created']}
-                rows={appList.map((a) => ({ ...a }))}
-                rowKey="name"
+                columns={['name', 'kind', 'defined', 'users', 'tokens', 'uses', 'lastUsed']}
+                rows={appRows.map((r) => ({
+                  key: r.key,
+                  name: r.name,
+                  kind: r.kind,
+                  defined: r.defined,
+                  users: r.usage?.users ?? '',
+                  tokens: r.usage?.tokens ?? '',
+                  uses: r.usage?.uses ?? '',
+                  lastUsed: r.usage?.lastUsed ?? '',
+                }))}
+                rowKey="key"
                 name={`${org.label}-apps`}
-                selectedKey={app?.name}
+                selectedKey={chosen}
                 onRowClick={(row) => {
-                  setApp(apps.find((a) => a.name === row.name) ?? null);
+                  setChosen(String(row.key));
                   setPicked(new Set());
                 }}
                 note={
                   <span>
-                    · click an app for its users{view === 'connected' ? ' and settings' : ''} · "OAuth only": tokens but
-                    no app in this org (e.g. Salesforce CLI)
+                    · defined “this org”: every setting can be changed here; “elsewhere”: Salesforce or a package made
+                    it (e.g. Salesforce CLI) · click an app for its users, policies and settings
+                    {config.items === null ? ' · reading the settings…' : ''}
                   </span>
                 }
               />
             ))}
-          {app && (view === 'connected' || view === 'external') && (
-            <div className="section">
-              <h3>{app.name}</h3>
-              {app.id && app.kind === 'Connected app' && <AppDetails appId={app.id} />}
-              <h4>
-                Users ({tokens.filter((t) => String(t.App).toLowerCase() === app.name.toLowerCase()).length} tokens)
-              </h4>
-              {tokenTable(
-                tokens.filter((t) => String(t.App).toLowerCase() === app.name.toLowerCase()),
-                `${org.label}-${app.name}-users`,
-                `who connected ${app.name}`
-              )}
+          {view === 'apps' && appRow && (
+            <div className="card section app-detail">
+              <div className="item-head">
+                <span className="pill">{appRow.kind}</span>
+                <b>{appRow.name}</b>
+                <span className="muted small">defined {appRow.defined}</span>
+              </div>
+              <TableTabs
+                key={appRow.key}
+                tabs={[
+                  {
+                    id: 'users',
+                    label: 'Who uses it',
+                    count: tokens.filter((t) => String(t.App).toLowerCase() === appRow.name.toLowerCase()).length,
+                    content: tokenTable(
+                      tokens.filter((t) => String(t.App).toLowerCase() === appRow.name.toLowerCase()),
+                      `${org.label}-${appRow.name}-users`,
+                      `who connected ${appRow.name}`
+                    ),
+                  },
+                  ...(app?.id && app.kind === 'Connected app'
+                    ? [{ id: 'policies', label: 'Policies & who may use it', content: <AppDetails appId={app.id} /> }]
+                    : []),
+                  {
+                    id: 'settings',
+                    label: appRow.config ? 'Settings' : 'Settings (elsewhere)',
+                    count: appRow.config ? undefined : undefined,
+                    content: appRow.config ? (
+                      <ConfigItemView item={appRow.config} onDeployed={config.reload} />
+                    ) : (
+                      <p className="muted">
+                        {appRow.name} is defined elsewhere (by Salesforce, a package or another org): its own settings
+                        are not this org’s to change. What this org decides — who may use it, its policies — is under{' '}
+                        {app?.id && app.kind === 'Connected app'
+                          ? 'Policies & who may use it'
+                          : 'Setup › Connected Apps › Manage'}
+                        .
+                      </p>
+                    ),
+                  },
+                ]}
+              />
             </div>
           )}
+
+          {view === 'credentials' &&
+            (config.items === null ? (
+              <p className="muted">Reading the credentials…</p>
+            ) : credentials.length === 0 ? (
+              <EmptyHint what="named or external credentials" />
+            ) : (
+              <DataTable
+                columns={['kind', 'label', 'name']}
+                rows={credentials.map((c) => ({
+                  key: `cred:${c.kind}:${c.name}`,
+                  kind: c.kind,
+                  label: c.label,
+                  name: c.name,
+                }))}
+                rowKey="key"
+                name={`${org.label}-credentials`}
+                selectedKey={chosen}
+                onRowClick={(row) => setChosen(String(row.key))}
+                note={<span>· click one for every setting, to change · passwords and secrets stay in Setup</span>}
+              />
+            ))}
+          {view === 'credentials' && credential && (
+            <div className="card section app-detail">
+              <div className="item-head">
+                <span className="pill">{credential.kind}</span>
+                <b>{credential.label}</b>
+                <span className="muted small mono">{credential.name}</span>
+              </div>
+              <ConfigItemView
+                key={`${credential.kind}:${credential.name}`}
+                item={credential}
+                onDeployed={config.reload}
+              />
+            </div>
+          )}
+          {config.error && <Status text={`❌ Settings could not be read: ${config.error}`} block />}
 
           {view === 'users' &&
             (users.length === 0 ? (

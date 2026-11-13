@@ -225,7 +225,7 @@ export function ExecutePage() {
               />
             </div>
           )}
-          {result.compiled && <LogViewer log={result.log} name="execute-anonymous" />}
+          {result.compiled && <LogViewer start="debug" log={result.log} name="execute-anonymous" />}
         </div>
       )}
     </div>

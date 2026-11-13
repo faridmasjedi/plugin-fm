@@ -4,11 +4,13 @@ import { DataTable, EmptyHint } from '../components/DataTable';
 import { UserComparison } from '../components/UserComparison';
 import { OrgPairBar, usePairClients } from '../pair';
 import { Status } from '../statusLog';
+import { storage } from '../context';
+import { ConfigCompare } from '../components/ConfigCompare';
 
 type Show = 'all' | AppComparison['status'];
 
 /** Org to org › Connected apps: which apps exist in A and B, and for apps in both their settings and who may use them. */
-export function OrgAppsPage() {
+function OrgAppsUsage() {
   const { a, b, clientA, clientB, error } = usePairClients();
   const [apps, setApps] = useState<AppComparison[] | null>(null);
   const [status, setStatus] = useState('');
@@ -89,8 +91,12 @@ export function OrgAppsPage() {
             }
           />
           {app && (
-            <div className="section">
-              <h3>{app.name}</h3>
+            <div className="card section app-detail">
+              <div className="item-head">
+                <span className="pill">{app.kindA || app.kindB}</span>
+                <b>{app.name}</b>
+                <span className="muted small">{app.status}</span>
+              </div>
               <h4>Users in A and B</h4>
               {!users ? (
                 <p className="muted">Reading the OAuth users of both orgs…</p>
@@ -144,8 +150,8 @@ export function OrgAppsPage() {
             </p>
           )}
           {app && (app.status === 'same' || app.status === 'different') && (
-            <div className="section">
-              <h4>The app in A and in B</h4>
+            <div className="card section app-detail">
+              <h4>Its settings in A and in B</h4>
               <p className="muted">
                 Its OAuth settings (admin-approved users only, refresh-token and session policies, start URL…) and the
                 profiles and permission sets pre-authorized to use it, side by side.
@@ -169,5 +175,54 @@ export function OrgAppsPage() {
         </>
       )}
     </div>
+  );
+}
+
+type View = 'apps' | 'credentials';
+
+/**
+ * Compare & Deploy › Compare apps: who uses each app in A and B (and their OAuth settings), or every setting of the
+ * apps and credentials defined in each org, side by side, with A's version deployable to B.
+ */
+export function OrgAppsPage() {
+  const [view, setView] = useState<View>(() =>
+    storage.get<string>('orgapps.view2', 'apps') === 'credentials' ? 'credentials' : 'apps'
+  );
+  return (
+    <>
+      <div className="form view-switch">
+        <div className="segmented" role="group" aria-label="What to compare">
+          {(
+            [
+              ['apps', 'Apps'],
+              ['credentials', 'Credentials'],
+            ] as Array<[View, string]>
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              className={view === id ? 'active' : ''}
+              onClick={() => {
+                setView(id);
+                storage.set('orgapps.view2', id);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {view === 'apps' ? (
+        <>
+          <OrgAppsUsage />
+          <div className="page config-below">
+            <div className="card section">
+              <ConfigCompare kinds={['Connected app', 'External client app']} embedded />
+            </div>
+          </div>
+        </>
+      ) : (
+        <ConfigCompare kinds={['Named credential', 'External credential']} />
+      )}
+    </>
   );
 }

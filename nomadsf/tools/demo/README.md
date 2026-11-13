@@ -21,7 +21,7 @@ sf apex run -o nomadsf-demo -f seed-groups.apex                # roles Support M
 sf apex run -o nomadsf-demo -f seed-groups-members.apex        # a group and roles inside Support Team and Tier 1 Support
 sf project deploy start -o nomadsf-demo --metadata-dir sharing-1-private  # Invoices private (starts a sharing recalculation)
 sf project deploy start -o nomadsf-demo --metadata-dir sharing-2-rules    # after it: two sharing rules on Invoices
-sf apex run -o nomadsf-demo -f seed-sharing-owners.apex        # Bob owns a few invoices (Security › Who can see, Sharing)
+sf apex run -o nomadsf-demo -f seed-sharing-owners.apex        # Bob owns a few invoices (Access › Who can see, Security › Sharing)
 sf apex run -o nomadsf-demo -f seed-northwind.apex             # an account no other org has (Record › Related copies it)
 ```
 
@@ -88,3 +88,10 @@ The ✦ AI of a scene (`ai: { task: answer }`) is answered by the recorder — n
 through the Studio's own reading of the answer. To try the real prompts instead, put `FM_AI_PROVIDER`,
 `FM_AI_MODEL` and `FM_AI_KEY` in `~/.nomadsf-demo-ai.env` (chmod 600): the server then answers the ✦ buttons
 with that provider, and `DEMO_REAL_AI=1 node tools/demo/record.mjs …` uses it.
+
+### Apps and credentials (demo)
+
+`configs/uat`, `configs/new`: a `Billing` named credential and its `Billing_Auth` external credential (the URL differs).
+`configs/eca-uat`, `configs/eca-new`: an external client app `NomadSF_Demo` with its OAuth settings (the scopes
+differ). Deploy each with `sf project deploy start --metadata-dir <folder> -o <org>`. New orgs refuse new connected apps
+("contact Salesforce Customer Support"): `configs/connected-app-*` is kept for orgs that still allow them.

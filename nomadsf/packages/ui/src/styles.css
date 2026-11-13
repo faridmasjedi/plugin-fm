@@ -4991,3 +4991,517 @@ nav.side .nav-width:hover {
   background: var(--tone);
   color: #fff;
 }
+
+/* Who can see: a long reason (many permission sets) shows three lines until "Show all"; long names wrap */
+.who-steps li {
+  overflow-wrap: anywhere;
+}
+.who-step-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.who-step-text.open {
+  display: inline;
+  -webkit-line-clamp: unset;
+}
+.who-verdict {
+  overflow-wrap: anywhere;
+}
+/* Who can see: the holders behind a reason, folded; the names in columns that wrap */
+.who-holders {
+  margin: 4px 0 2px;
+}
+.who-holders .group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  padding: 2px 0;
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.who-holders-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 4px 18px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  max-height: 320px;
+  overflow: auto;
+}
+.who-holders-body input {
+  align-self: flex-start;
+  width: 260px;
+  max-width: 100%;
+}
+.who-holder-names {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  columns: 3 220px;
+  column-gap: 24px;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text);
+}
+.who-holder-names li {
+  break-inside: avoid;
+  overflow-wrap: anywhere;
+}
+/* Assign in bulk: what can be chosen, and what is chosen, as chips that wrap; a long list scrolls */
+.bulk-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 2px;
+}
+.bulk-pick .chip {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+/* Integration check: a line per finding, its icon in the level's colour, the fix under it */
+.integration-summary {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+.integration-summary.bad {
+  color: var(--bad);
+}
+.integration-summary.warn {
+  color: var(--warn);
+}
+.integration-summary.good {
+  color: var(--good);
+}
+.integration-area h4 {
+  margin: 14px 0 6px;
+}
+.integration-area ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.finding {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+.finding-icon {
+  font-weight: 700;
+  text-align: center;
+}
+.finding.ok .finding-icon {
+  color: var(--good);
+}
+.finding.warn .finding-icon {
+  color: var(--warn);
+}
+.finding.bad .finding-icon {
+  color: var(--bad);
+}
+.finding.info .finding-icon {
+  color: var(--muted);
+}
+.finding-fix {
+  display: block;
+  color: var(--muted);
+  font-size: 12.5px;
+  margin-top: 2px;
+}
+/* A debug log's insights: findings first, then what ran as a tree */
+.log-insights h4 {
+  margin: 16px 0 6px;
+}
+.log-findings {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.log-ran,
+.log-ran ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 18px;
+}
+.log-ran {
+  padding-left: 0;
+}
+.log-ran li {
+  margin: 3px 0;
+  overflow-wrap: anywhere;
+}
+.log-ran-row {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.log-ran .tree-toggle {
+  display: inline-block;
+  width: 14px;
+}
+/* Custom settings: the row being edited or added, its fields in a grid that wraps */
+.setting-edit {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.setting-edit h4 {
+  margin: 0 0 8px;
+}
+.setting-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px 16px;
+  margin: 8px 0 10px;
+}
+.setting-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.row-actions {
+  display: inline-flex;
+  gap: 10px;
+}
+/* Code checks: severity chips and the finding opened */
+.chip.severity-high.on {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+.chip.severity-medium.on {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
+}
+.chip.severity-low.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.check-detail {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--muted);
+  border-radius: 10px;
+  background: var(--panel-2);
+  overflow-wrap: anywhere;
+}
+.check-detail.severity-high {
+  border-left-color: var(--bad);
+}
+.check-detail.severity-medium {
+  border-left-color: var(--warn);
+}
+.check-detail pre {
+  white-space: pre-wrap;
+  margin: 8px 0;
+  padding: 8px 10px;
+  background: var(--panel);
+  border-radius: 6px;
+}
+/* New custom setting: the API name made from the label, under its box (a long one wraps) */
+.api-hint {
+  display: block;
+  margin-top: 2px;
+  max-width: 260px;
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+}
+.api-field {
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.api-field input {
+  min-width: 240px;
+}
+/* A row of choices never cuts a button: on a narrow screen it wraps to a second line, the dividers kept */
+.segmented {
+  flex-wrap: wrap;
+  max-width: 100%;
+  gap: 1px;
+  background: var(--border);
+}
+.segmented button {
+  background: var(--panel);
+}
+.segmented button + button {
+  border-left: 0;
+}
+.segmented button.active {
+  background: var(--accent-soft);
+}
+/* New custom setting: the boxes line up at the top (a suggested API name under one does not push the others) */
+.new-setting .form {
+  align-items: flex-start;
+}
+/* Apps & credentials: a setting per row, long paths and values wrap; changed rows stand out */
+.config-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: 8px;
+}
+.config-table th,
+.config-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.config-table th:first-child,
+.config-table td:first-child {
+  width: 46%;
+}
+.config-table tr.changed td {
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+.config-input {
+  width: 100%;
+  min-width: 0;
+}
+.config-value {
+  overflow-wrap: anywhere;
+}
+.config-xml .monaco-editor {
+  border: 1px solid var(--border);
+}
+/* Compare apps & credentials: three columns that share the width, values wrap */
+.config-diff th:first-child,
+.config-diff td:first-child {
+  width: 34%;
+}
+.view-switch {
+  margin: 0 0 10px;
+}
+/* The head of one app or credential: its kind, name and API name centred on one line */
+.item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.item-head .pill {
+  line-height: 1.2;
+}
+.app-detail h4 {
+  margin: 14px 0 6px;
+}
+/* The whole-file editor: room between it, its buttons and the card's edge */
+.config-xml .form {
+  margin-top: 12px;
+}
+.config-xml > p {
+  margin: 8px 0;
+}
+/* Who can see: a compact answer — the verdict, then the reasons close under "Why" */
+.who-result .who-verdict {
+  margin-bottom: 4px;
+}
+.who-result h4 {
+  margin: 12px 0 6px;
+}
+.who-result .who-steps {
+  margin: 0;
+}
+.who-result .who-steps li {
+  margin: 4px 0;
+}
+.who-result > p.muted.small {
+  margin: 12px 0 0;
+}
+.who-step-text .pill {
+  margin-right: 4px;
+  vertical-align: 1px;
+}
+/* Settings grouped by part (an app's OAuth settings, policies…): a folding head per group */
+.config-group + .config-group {
+  margin-top: 6px;
+}
+.config-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.config-group-head .tree-toggle {
+  width: 12px;
+}
+.config-group .config-table {
+  margin-top: 4px;
+}
+/* Assign in bulk: example conditions as chips; matches as a short list, like a dropdown */
+.query-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+.query-examples .chip {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.bulk-matches {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 4px;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.bulk-matches button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.bulk-matches button:hover {
+  background: var(--accent-soft);
+}
+.bulk-plus {
+  color: var(--accent);
+  font-weight: 700;
+}
+/* Group heads and match rows read from the left, like a list */
+.config-group-head,
+.bulk-matches button {
+  justify-content: flex-start;
+}
+/* A compare inside another card: its own cards flattened into sections */
+.config-compare > .card {
+  border: 0;
+  padding: 0;
+  margin: 12px 0 0;
+  background: none;
+  box-shadow: none;
+}
+.config-compare > h3 {
+  margin: 0 0 8px;
+}
+/* An item head inside a .form row: its label, name and API name centred, whatever the row's own rules */
+.item-head > .pill,
+.item-head > b,
+.item-head > span {
+  align-self: center;
+  height: auto;
+  margin: 0;
+}
+.form.item-head > span.pill,
+.form.item-head > span.muted,
+.form.item-head > span:not(.grow),
+.form.item-head > b {
+  align-self: center;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+}
+.form.item-head > span.pill,
+.item-head > .pill {
+  padding: 3px 10px;
+  line-height: 1.3;
+}
+/* The head row of a settings table stands apart from the values: its own background, smaller caps-like text */
+.config-table thead th {
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid var(--border);
+}
+.config-table thead th:first-child {
+  border-top-left-radius: 6px;
+}
+.config-table thead th:last-child {
+  border-top-right-radius: 6px;
+}
+/* Folding groups stack closely; the settings card under the apps list keeps its distance */
+.config-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.config-groups .config-group,
+.config-groups .config-group + .config-group,
+.config-groups .config-group-head {
+  margin: 0;
+}
+.config-groups .config-table {
+  margin: 4px 0 8px;
+}
+.page.config-below {
+  padding-top: 0;
+  margin-top: 16px;
+}
+/* One app's or credential's settings: buttons, filter and groups spaced, a little room under the tabs */
+.config-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+.config-view > .form {
+  margin: 0;
+}
+/* New custom setting: a field per row — its boxes and Remove on one line, all the same height */
+.new-setting .form.field-row {
+  align-items: flex-start;
+}
+.field-row .field-remove {
+  height: var(--h, 32px);
+  align-self: flex-start;
+}
+/* The API name column keeps one width (a long suggested name wraps under it), so field rows line up */
+.field-row .api-field {
+  width: 240px;
+}
+.field-row .api-field input {
+  min-width: 0;
+  width: 100%;
+}
+.field-row .api-hint {
+  max-width: 100%;
+}

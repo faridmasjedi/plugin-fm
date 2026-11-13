@@ -123,7 +123,11 @@ export function MetadataPage() {
     try {
       const found = await listMetadata(client, name, types.find((t) => t.xmlName === name)?.inFolder);
       setComponents(found);
-      setStatus(`${found.length} component(s).`);
+      setStatus(
+        found.length === 0 && name === 'ConnectedApp'
+          ? '0 component(s). Connected apps from Salesforce or installed packages (Salesforce CLI, Workbench…) are used here but defined elsewhere, so they are not this org’s metadata: see Org › Apps & credentials.'
+          : `${found.length} component(s).`
+      );
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
     }

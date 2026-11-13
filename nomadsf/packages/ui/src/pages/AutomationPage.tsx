@@ -49,23 +49,26 @@ function SaveLanes({ steps, tree }: { steps: SaveStep[]; tree: AutomationTree })
           </div>
           {hint && <p className="muted small save-lane-hint">{hint}</p>}
           <div className="save-lane-cards">
-            {list.map((s) => (
-              <div
-                key={s.order}
-                className={`save-card ${s.active ? '' : 'off'} ${AutomationTree.rootOf(s) ? 'opens' : ''} ${
-                  treeOf === s.order ? 'open' : ''
-                }`}
-                title={AutomationTree.rootOf(s) ? 'Show what it runs' : s.detail}
-                role={AutomationTree.rootOf(s) ? 'button' : undefined}
-                onClick={() => AutomationTree.rootOf(s) && setTreeOf(treeOf === s.order ? undefined : s.order)}
-              >
-                <span className="save-card-order">{s.order}</span>
-                <span className="pill">{s.kind}</span>
-                <b className="save-card-name">{s.name}</b>
-                {s.events && <span className="muted small">{s.events}</span>}
-                {!s.active && <span className="muted small">inactive</span>}
-              </div>
-            ))}
+            {/* The first few, unless "Show all" was pressed (an opened card always shows) */}
+            {list
+              .filter((s, n) => n < FIRST || opened.has(when) || s.order === treeOf)
+              .map((s) => (
+                <div
+                  key={s.order}
+                  className={`save-card ${s.active ? '' : 'off'} ${AutomationTree.rootOf(s) ? 'opens' : ''} ${
+                    treeOf === s.order ? 'open' : ''
+                  }`}
+                  title={AutomationTree.rootOf(s) ? 'Show what it runs' : s.detail}
+                  role={AutomationTree.rootOf(s) ? 'button' : undefined}
+                  onClick={() => AutomationTree.rootOf(s) && setTreeOf(treeOf === s.order ? undefined : s.order)}
+                >
+                  <span className="save-card-order">{s.order}</span>
+                  <span className="pill">{s.kind}</span>
+                  <b className="save-card-name">{s.name}</b>
+                  {s.events && <span className="muted small">{s.events}</span>}
+                  {!s.active && <span className="muted small">inactive</span>}
+                </div>
+              ))}
             {list.length > FIRST && (
               <button
                 className="save-more"
