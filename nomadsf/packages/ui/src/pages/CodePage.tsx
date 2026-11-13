@@ -470,7 +470,8 @@ function ApexCodePage({ onOther }: { onOther: () => void }) {
       <AiAsk
         key={kind}
         task="write-metadata"
-        placeholder={`✦ Describe a new ${kindInfo(kind).one}, e.g. ${AI_EXAMPLE[kind]}`}
+        placeholder={`✦ Describe a new ${kindInfo(kind).one} (the AI writes it)`}
+        title={`e.g. ${AI_EXAMPLE[kind]}`}
         button={`Write the ${kindInfo(kind).one}`}
         what="your description"
         build={async (question) => ({

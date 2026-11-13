@@ -11,7 +11,7 @@ import {
   type ProjectInfo,
 } from '@nomadsf/core';
 import { storage } from './context';
-import { BridgeFolder, fromStored, isStoredFolder, type StoredFolder } from './embed';
+import { BridgeFolder, call, fromStored, isStoredFolder, type StoredFolder } from './embed';
 import { currentGitHub, lastRepo } from './github';
 import { aiUsable, loadExtensionAi, onExtensionAiChange } from './extensionAi';
 import type { HostKind } from './host';
@@ -344,7 +344,14 @@ export function useProjectState(hostKind: HostKind, describeFolders?: Record<str
       }
       if (!supportsFolders()) return;
       const handle = await storedProject().catch(() => undefined);
-      if (!handle) return;
+      if (!handle) {
+        // VS Code: the open workspace, when it is a Salesforce project
+        if (hostKind === 'vscode') {
+          const ws = await call<{ root: string; name: string } | null>('workspaceProject').catch(() => null);
+          if (ws) await fromHandle(new BridgeFolder(ws.root, '', ws.name) as unknown as DirHandle);
+        }
+        return;
+      }
       if ((await handle.queryPermission({ mode: 'read' })) === 'granted') await fromHandle(handle);
       else setNeedsPermission(true);
     })();

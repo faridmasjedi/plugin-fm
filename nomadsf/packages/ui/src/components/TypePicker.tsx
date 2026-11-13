@@ -97,7 +97,8 @@ export function TypePicker({
           Names{' '}
           <input
             type="search"
-            placeholder="Only components named… e.g. Case*, Billing (empty: all)"
+            placeholder="Only names like… e.g. Case*, Billing"
+            title="Only components whose names match (empty: all)"
             value={names}
             onChange={(e) => onNames(e.target.value)}
           />

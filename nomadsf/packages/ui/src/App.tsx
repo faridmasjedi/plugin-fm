@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Select } from './components/Select';
+import { SecurityDashboardPage, SharingPage, TimelinePage, WhoCanSeePage } from './pages/SecurityPages';
+import { EventLogsPage } from './pages/EventLogsPage';
+import { LicensesPage } from './pages/LicensesPage';
+import { FlowsPage } from './pages/FlowsPage';
+import { FilesPage } from './pages/FilesPage';
+import { SandboxPage } from './pages/SandboxPage';
 import { getUserInfo, type SalesforceClient, type UserInfo } from '@nomadsf/core';
 import { detectHost, openInOrg, orgFacts, type OrgChoice, type OrgFacts } from './host';
 import { useBusy } from './busy';
@@ -55,6 +61,8 @@ const host = detectHost();
 export function App() {
   const busy = useBusy();
   const [orgs, setOrgs] = useState<OrgChoice[]>([]);
+  // The sidebar: hub names, or icons only (remembered)
+  const [compactNav, setCompactNav] = useState(() => storage.get<boolean>('nav.compact', false));
   // The extension opened from a Salesforce tab starts on that tab's org
   const [orgId, setOrgId] = useState<string>(
     () =>
@@ -318,6 +326,18 @@ export function App() {
               {tool === 'compare' && <ComparePage />}
               {tool === 'objectaccess' && <ObjectAccessPage />}
               {tool === 'audit' && <LoginsAuditPage />}
+              {tool === 'eventlogs' && <EventLogsPage />}
+              {tool === 'secdash' && (
+                <SecurityDashboardPage
+                  onOpen={(to, set) => {
+                    for (const [k, v] of Object.entries(set ?? {})) storage.set(k, v);
+                    if (isTool(to)) ws.reopen(to);
+                  }}
+                />
+              )}
+              {tool === 'timeline' && <TimelinePage />}
+              {tool === 'whocansee' && <WhoCanSeePage />}
+              {tool === 'sharing' && <SharingPage />}
               {tool === 'myaccess' && <MyAccessPage />}
               {tool === 'schema' && <SchemaPage />}
               {tool === 'apps' && <ConnectedAppsPage />}
@@ -338,10 +358,16 @@ export function App() {
               {tool === 'fields' && <FieldUsagePage />}
               {tool === 'lookup' && <LookupPage />}
               {tool === 'orgdiff' && <OrgComparePage orgs={orgs} />}
-              {tool === 'package' && <PackagePage />}
+              {tool === 'package' && <PackagePage mode="branches" />}
+              {tool === 'branchorg' && <PackagePage mode="branch-org" />}
+              {tool === 'manifest' && <PackagePage mode="manifest" />}
               {tool === 'apextests' && <ApexTestsPage />}
               {tool === 'orgaccess' && <OrgAccessPage />}
               {tool === 'orgapps' && <OrgAppsPage />}
+              {tool === 'licenses' && <LicensesPage />}
+              {tool === 'flows' && <FlowsPage />}
+              {tool === 'files' && <FilesPage />}
+              {tool === 'sandbox' && <SandboxPage />}
             </GoContext.Provider>
           </InspectContext.Provider>
         </PairContext.Provider>
@@ -351,7 +377,7 @@ export function App() {
 
   return (
     <ProjectStateContext.Provider value={project}>
-      <div className="studio">
+      <div className={`studio ${compactNav ? 'nav-compact' : ''}`}>
         <header className="top">
           <div className="brand">
             <img className="logo" src="./logo.png" alt="" />
@@ -373,7 +399,7 @@ export function App() {
             <span className={`pill ${production ? 'bad' : 'good'}`}>{production ? 'Production' : 'Sandbox'}</span>
           )}
           {user && (
-            <span className="muted user">
+            <span className="muted user" title={`${user.userFullName} · ${user.organizationName}`}>
               {user.userFullName} · {user.organizationName}
             </span>
           )}
@@ -415,7 +441,15 @@ export function App() {
           </button>
         </header>
         <nav className="side">
-          <HubNav ws={ws} available={available} />
+          <HubNav
+            ws={ws}
+            available={available}
+            compact={compactNav}
+            onCompact={(c) => {
+              setCompactNav(c);
+              storage.set('nav.compact', c);
+            }}
+          />
         </nav>
         <main>
           <Panes ws={ws} available={available} render={render} />

@@ -180,14 +180,12 @@ export class CompareEngine {
     take(request.packageXml, 'changed');
     if (request.destructiveXml) take(request.destructiveXml, 'deleted');
     const version = /<version>\s*([\d.]+)\s*<\/version>/.exec(request.packageXml)?.[1] ?? project.apiVersion;
-    // The branch's other labels, to add if you want
-    const optional = await this.otherLabels(
-      { components, renames: [], files: [] },
-      new Map(),
-      files,
-      project.packageDirs,
-      ignored
-    );
+    // The branch's other labels, to add if you want: only when the manifest names labels itself (a manifest
+    // without them means no labels)
+    const namesLabels = components.some((c) => c.type === 'CustomLabel' || c.type === 'CustomLabels');
+    const optional = namesLabels
+      ? await this.otherLabels({ components, renames: [], files: [] }, new Map(), files, project.packageDirs, ignored)
+      : [];
     components.push(...optional);
     const record: ComparedPackage = {
       optional: optional.map((c) => `${c.type}:${c.name}`),

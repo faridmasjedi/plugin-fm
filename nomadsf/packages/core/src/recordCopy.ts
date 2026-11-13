@@ -502,9 +502,13 @@ export async function copyUsers(
       if (p?.found) {
         /* eslint-disable no-await-in-loop */
         const now = await takeUserSnapshot(target, p.found, options.targetLabel);
-        // Only what was picked and is missing: fields and other access stay as they are
+        // Only what was picked and is missing: fields and other access stay as they are; an empty role, manager or
+        // other lookup is filled (after a refresh a found user often has none), one that is set is kept
         const add = diffSnapshot(u.lines, now).filter(
-          (d) => !['field', 'lookup'].includes(d.section) && !d.extra && !d.checkOnly
+          (d) =>
+            !d.extra &&
+            !d.checkOnly &&
+            (!['field', 'lookup'].includes(d.section) || (d.section === 'lookup' && !d.org && Boolean(d.snapshot)))
         );
         const r = add.length ? await applySnapshot(target, p.found, add) : { done: [], failed: [] };
         out.done.push(`${u.username}: found, ${r.done.length} added`);
@@ -568,4 +572,177 @@ export function managersFirst(users: UserCopy[]): UserCopy[] {
   };
   for (const u of users) place(u, new Set());
   return out;
+}
+
+/** What permission sets, groups and settings need (by name): objects, fields (Object.Field), classes, groups, roles. */
+export type SchemaWant = {
+  objects?: string[];
+  fields?: string[];
+  classes?: string[];
+  groups?: string[];
+  roles?: string[];
+};
+export type SchemaMissing = {
+  objects: string[];
+  fields: string[];
+  classes: string[];
+  groups: string[];
+  roles: string[];
+};
+
+/**
+ * What permission set and group files (and `extra`) mention that the target org does not have: objects, fields, Apex
+ * classes, public groups and queues, roles. Read from Salesforce's own lists (EntityDefinition, FieldDefinition…), so
+ * a field the user cannot see (no field access yet, as right after a deploy) still counts as there.
+ */
+export async function missingSchema(
+  target: SalesforceClient,
+  files: AccessFile[],
+  extra: SchemaWant = {}
+): Promise<SchemaMissing> {
+  const all = (tag: string) => [
+    ...new Set(files.flatMap((f) => [...f.xml.matchAll(new RegExp(`<${tag}>([^<]+)</${tag}>`, 'g'))].map((m) => m[1]))),
+  ];
+  const uniq = (list: string[]) => [...new Set(list.filter(Boolean))];
+  const objects = uniq([...all('object'), ...(extra.objects ?? [])]);
+  const fields = uniq([...all('field'), ...(extra.fields ?? [])]);
+  const classes = uniq([...all('apexClass'), ...(extra.classes ?? [])]);
+  const groups = uniq(extra.groups ?? []);
+  const roles = uniq(extra.roles ?? []);
+  const none: SchemaMissing = { objects: [], fields: [], classes: [], groups: [], roles: [] };
+  if (!objects.length && !fields.length && !classes.length && !groups.length && !roles.length) return none;
+  const read = async (soql: string): Promise<Row[]> =>
+    (await query(target, soql, { maxRows: 50_000 }).catch(() => ({ rows: [] as Row[] }))).rows;
+  const inList = (list: string[]) => list.map((v) => `'${soqlText(v)}'`).join(', ');
+  const lower = (rows: Row[], field: string) => new Set(rows.map((r) => String(r[field] ?? '').toLowerCase()));
+
+  const objectNames = uniq([...objects, ...fields.map((f) => f.split('.')[0])]);
+  const haveObjects = objectNames.length
+    ? lower(
+        await read(`SELECT QualifiedApiName FROM EntityDefinition WHERE QualifiedApiName IN (${inList(objectNames)})`),
+        'QualifiedApiName'
+      )
+    : new Set<string>();
+  const missingObjects = objectNames.filter((o) => !haveObjects.has(o.toLowerCase()));
+  // Fields of objects that are there: Salesforce's field list per object
+  const fieldsOf = new Map<string, Set<string>>();
+  for (const o of uniq(fields.map((f) => f.split('.')[0])).filter((x) => haveObjects.has(x.toLowerCase()))) {
+    // eslint-disable-next-line no-await-in-loop
+    const rows = await read(
+      `SELECT QualifiedApiName FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName = '${soqlText(o)}'`
+    );
+    fieldsOf.set(o.toLowerCase(), lower(rows, 'QualifiedApiName'));
+  }
+  const missingFields = fields.filter((f) => {
+    const [o, name] = f.split('.');
+    const known = fieldsOf.get(o.toLowerCase());
+    return known !== undefined && !known.has((name ?? '').toLowerCase());
+  });
+  const plainClasses = classes.filter((c) => !c.includes('__'));
+  const haveClasses = plainClasses.length
+    ? lower(
+        await read(`SELECT Name FROM ApexClass WHERE NamespacePrefix = null AND Name IN (${inList(plainClasses)})`),
+        'Name'
+      )
+    : new Set<string>();
+  const haveGroups = groups.length
+    ? lower(await read(`SELECT DeveloperName FROM Group WHERE DeveloperName IN (${inList(groups)})`), 'DeveloperName')
+    : new Set<string>();
+  // A role by its API name or by its name (a user's role is kept by name)
+  const roleRows = roles.length
+    ? await read(
+        `SELECT DeveloperName, Name FROM UserRole WHERE DeveloperName IN (${inList(roles)}) OR Name IN (${inList(
+          roles
+        )})`
+      )
+    : [];
+  const haveRoles = new Set([...lower(roleRows, 'DeveloperName'), ...lower(roleRows, 'Name')]);
+  return {
+    objects: missingObjects.sort(),
+    fields: missingFields.sort(),
+    classes: plainClasses.filter((c) => !haveClasses.has(c.toLowerCase())).sort(),
+    groups: groups.filter((g) => !haveGroups.has(g.toLowerCase())).sort(),
+    roles: roles.filter((r) => !haveRoles.has(r.toLowerCase())).sort(),
+  };
+}
+
+/** What one permission set or group needs that the target lacks. */
+export type SchemaNeed = {
+  /** A permission set or group, or what else needs it ("Settings"). */
+  type: AccessFile['type'] | 'Settings';
+  name: string;
+  objects: string[];
+  fields: string[];
+  classes: string[];
+  groups: string[];
+  roles: string[];
+};
+
+/**
+ * The missing pieces in the order to deploy them: per permission set or group what it needs (objects with their
+ * fields, fields of objects that are there, Apex classes), and the components to deploy before it — a missing
+ * object is deployed whole (its fields come with it).
+ */
+export async function schemaPlan(
+  target: SalesforceClient,
+  files: AccessFile[],
+  /** Other needs, each with a name (the settings and jobs to put back, the users' roles and groups). */
+  extra: Array<{ name: string } & SchemaWant> = []
+): Promise<{
+  needs: SchemaNeed[];
+  components: Array<{ type: string; name: string }>;
+  /** Standard objects the target lacks (a feature or license it does not have): they cannot be deployed. */
+  unavailable: string[];
+}> {
+  const pick = (k: keyof SchemaWant) => extra.flatMap((e) => e[k] ?? []);
+  const missing = await missingSchema(target, files, {
+    objects: pick('objects'),
+    fields: pick('fields'),
+    classes: pick('classes'),
+    groups: pick('groups'),
+    roles: pick('roles'),
+  });
+  const mentions = (xml: string, tag: string, value: string) => xml.includes(`<${tag}>${value}</${tag}>`);
+  const needs = files
+    .map(
+      (f): SchemaNeed => ({
+        type: f.type,
+        name: f.name,
+        objects: missing.objects.filter(
+          (o) => mentions(f.xml, 'object', o) || new RegExp(`<field>${o}\\.`).test(f.xml)
+        ),
+        fields: missing.fields.filter((x) => mentions(f.xml, 'field', x)),
+        classes: missing.classes.filter((c) => mentions(f.xml, 'apexClass', c)),
+        groups: [],
+        roles: [],
+      })
+    )
+    .concat(
+      extra.map((e) => ({
+        type: 'Settings' as const,
+        name: e.name,
+        objects: missing.objects.filter((o) => e.objects?.includes(o)),
+        fields: missing.fields.filter((x) => e.fields?.includes(x)),
+        classes: missing.classes.filter((c) => e.classes?.includes(c)),
+        groups: missing.groups.filter((g) => e.groups?.includes(g)),
+        roles: missing.roles.filter((r) => e.roles?.includes(r)),
+      }))
+    )
+    .filter((n) => n.objects.length + n.fields.length + n.classes.length + n.groups.length + n.roles.length > 0);
+  // Standard objects (no __c…) are the org's own: one it lacks cannot be deployed, nor can its fields
+  const custom = (o: string) => /__(c|mdt|e|b|x)$/.test(o);
+  const unavailable = missing.objects.filter((o) => !custom(o));
+  return {
+    needs,
+    unavailable,
+    components: [
+      ...missing.roles.map((name) => ({ type: 'Role', name })),
+      ...missing.groups.map((name) => ({ type: 'Group', name })),
+      ...missing.objects.filter(custom).map((name) => ({ type: 'CustomObject', name })),
+      ...missing.fields
+        .filter((f) => !unavailable.includes(f.split('.')[0]))
+        .map((name) => ({ type: 'CustomField', name })),
+      ...missing.classes.map((name) => ({ type: 'ApexClass', name })),
+    ],
+  };
 }

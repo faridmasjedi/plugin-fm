@@ -66,6 +66,8 @@ if (existsSync(aiFile)) {
 const ORGS = [
   { id: 'acme-uat', alias: 'nomadsf-demo', type: 'Sandbox' },
   { id: 'acme-dev', alias: 'nomadsf-demo-b', type: 'Sandbox' },
+  // A third, empty org when DEMO_NEW names its alias (the "refreshed sandbox" of the sandbox refresh test)
+  ...(process.env.DEMO_NEW ? [{ id: 'acme-new', alias: process.env.DEMO_NEW, type: 'Sandbox' }] : []),
 ];
 
 // The CLI's login of each org (refreshed by @salesforce/core when it expires)

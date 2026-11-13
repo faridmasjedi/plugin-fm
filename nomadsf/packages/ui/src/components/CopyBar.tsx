@@ -24,6 +24,7 @@ import {
   type UserCopy,
 } from '@nomadsf/core';
 import { useStudio } from '../context';
+import { SchemaGaps } from './SchemaGaps';
 import { askTyped } from './Dialogs';
 import { download } from './DataTable';
 import { Status } from '../statusLog';
@@ -51,6 +52,9 @@ export function CopyBar({ what }: { what: CopyWhat }) {
   const [targetId, setTargetId] = useState('');
   const [mask, setMask] = useState(() => (facts ? !facts.isSandbox : true));
   const [userPlan, setUserPlan] = useState<AccessPlan | null>(null);
+  // What the permission sets to create mention that the target lacks (objects, fields, classes)
+  const [toCreate, setToCreate] = useState<AccessFile[]>([]);
+  const [targetClient, setTargetClient] = useState<SalesforceClient | null>(null);
   const [username, setUsername] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -78,6 +82,25 @@ export function CopyBar({ what }: { what: CopyWhat }) {
       .then((p) => {
         if (canceled) return;
         setUserPlan(p);
+        setToCreate([]);
+        if (!p.create.length) return;
+        // The files of what will be created: from the workbook, or read from the org the user is copied from
+        const files = what.metadata?.length
+          ? Promise.resolve(what.metadata)
+          : what.records.kind === 'org'
+          ? accessFiles(client, {
+              permissionSets: p.create.filter((c) => c.type === 'PermissionSet').map((c) => c.name),
+              groups: p.create.filter((c) => c.type === 'PermissionSetGroup').map((c) => c.name),
+            })
+          : Promise.resolve([]);
+        void files
+          .then(async (all) => {
+            const list = all.filter((m) => p.create.some((c) => c.type === m.type && c.name === m.name));
+            if (!list.length || canceled) return;
+            setTargetClient(await clientFor(target.id));
+            setToCreate(list);
+          })
+          .catch(() => undefined);
         setUsername((now) => now || (p.users[0]?.suggested ?? ''));
       })
       .catch((e: Error) => !canceled && setStatus(`❌ ${e.message}`));
@@ -269,6 +292,9 @@ export function CopyBar({ what }: { what: CopyWhat }) {
           {userPlan.create.length > 0 && ` Created there first: ${userPlan.create.map((c) => c.name).join(', ')}.`}
           {userPlan.noLicense.length > 0 && ` ${target.label} has no ${userPlan.noLicense.join(', ')} license.`}
         </p>
+      )}
+      {target && targetClient && toCreate.length > 0 && (
+        <SchemaGaps target={{ id: target.id, label: target.label, client: targetClient }} files={toCreate} />
       )}
       {status && <Status text={status} block />}
     </div>

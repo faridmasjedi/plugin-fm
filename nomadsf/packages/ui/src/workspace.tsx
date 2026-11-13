@@ -10,8 +10,8 @@ import { download } from './components/DataTable';
 import { ToolContext } from './statusLog';
 
 /**
- * The Studio's layout: tools grouped into hubs (Develop, Data, Data protection, Release, Access, Org, and
- * Org to org for the tools that work on two orgs),
+ * The Studio's layout: tools grouped into hubs (Develop, Data, Access, Security, Org for one org; Compare & Deploy for
+ * what goes between two places: two orgs, the org and the project, two branches, the org and a file; Settings),
  * each hub a page with its tools as tabs; and panes side by side — drag a hub or a tab to the
  * right half of a pane to open it beside, drag the divider to resize, ✕ to close. The layout
  * is remembered. ⌘/Ctrl + K jumps to any tool.
@@ -37,6 +37,8 @@ export type ToolId =
   | 'lifecycle'
   | 'project'
   | 'package'
+  | 'branchorg'
+  | 'manifest'
   | 'metadata'
   | 'orgdiff'
   | 'access'
@@ -53,11 +55,20 @@ export type ToolId =
   | 'compare'
   | 'objectaccess'
   | 'audit'
+  | 'eventlogs'
+  | 'secdash'
+  | 'timeline'
+  | 'whocansee'
+  | 'sharing'
   | 'myaccess'
   | 'orgapps'
   | 'settings'
   | 'settingsai'
-  | 'settingsproject';
+  | 'settingsproject'
+  | 'licenses'
+  | 'flows'
+  | 'files'
+  | 'sandbox';
 
 export type Tool = { id: ToolId; label: string; icon: string; hint: string };
 
@@ -67,6 +78,7 @@ export const TOOLS: Tool[] = [
   { id: 'apextests', label: 'Apex tests', icon: '◎', hint: 'run tests, code coverage' },
   { id: 'logs', label: 'Debug logs', icon: '☰', hint: 'logs and trace flags' },
   { id: 'automation', label: 'Save order', icon: '↯', hint: 'what runs, in order, when a record is saved' },
+  { id: 'flows', label: 'Flows', icon: '≋', hint: 'old versions, old API versions, waiting and failed interviews' },
   { id: 'jobs', label: 'Jobs', icon: '⏲', hint: 'scheduled and background Apex' },
   { id: 'query', label: 'Query', icon: '⌕', hint: 'SOQL with a filterable table' },
   { id: 'record', label: 'Record', icon: 'ⓘ', hint: 'inspect and edit one record' },
@@ -76,17 +88,24 @@ export const TOOLS: Tool[] = [
   { id: 'schema', label: 'Schema', icon: '⌗', hint: 'fields, relationships, record types' },
   { id: 'fields', label: 'Field usage', icon: '▦', hint: 'how full each field is, who can see it' },
   { id: 'backup', label: 'Backup', icon: '⛁', hint: 'backups, schedules, restore' },
-  { id: 'migrate', label: 'Migrate', icon: '⇶', hint: 'copy records between orgs' },
+  { id: 'migrate', label: 'Copy records', icon: '⇶', hint: 'copy records between orgs' },
   { id: 'lifecycle', label: 'Lifecycle', icon: '◷', hint: 'archive, anonymize, delete in steps' },
   { id: 'project', label: 'Project', icon: '⌂', hint: 'your repository, compare with the org' },
   {
     id: 'package',
-    label: 'Compare & package',
+    label: 'Branch ↔ Branch',
     icon: '⇆',
     hint: 'what a branch brings into another: package.xml, destructiveChanges.xml',
   },
+  { id: 'branchorg', label: 'Branch ↔ Org', icon: '⑂', hint: 'a branch of the project against an org, then deploy' },
+  {
+    id: 'manifest',
+    label: 'Check a manifest',
+    icon: '☷',
+    hint: 'a package.xml against an org: what differs, then deploy',
+  },
   { id: 'metadata', label: 'Metadata', icon: '◫', hint: 'retrieve, package.xml' },
-  { id: 'orgdiff', label: 'Org compare', icon: '⇋', hint: 'differences between two orgs, deploy' },
+  { id: 'orgdiff', label: 'Compare metadata', icon: '⇋', hint: 'differences between two orgs, deploy' },
   { id: 'deployments', label: 'Deployments', icon: '⇪', hint: 'deployment history, quick deploy' },
   { id: 'access', label: 'Users', icon: '☺', hint: 'a user and everything they have' },
   {
@@ -99,39 +118,73 @@ export const TOOLS: Tool[] = [
   { id: 'compare', label: 'Compare', icon: '⇆', hint: 'two users, profiles or permission sets' },
   { id: 'objectaccess', label: 'Object access', icon: '⛉', hint: 'who can use an object or field' },
   { id: 'audit', label: 'Logins & audit', icon: '⌛', hint: 'login history, setup audit trail' },
+  { id: 'eventlogs', label: 'Event logs', icon: '≣', hint: 'event log files: logins, API, Apex, pages, reports' },
+  { id: 'secdash', label: 'Dashboard', icon: '▣', hint: 'security at a glance: health, failed logins, API, admins' },
+  {
+    id: 'timeline',
+    label: 'Timeline',
+    icon: '⧖',
+    hint: 'everything that happened: setup, logins, components, NomadSF',
+  },
+  { id: 'whocansee', label: 'Who can see', icon: '◉', hint: 'can this user read or edit this record, and why' },
+  { id: 'sharing', label: 'Sharing', icon: '⑂', hint: "an object's defaults and sharing rules, as a tree" },
   { id: 'myaccess', label: 'Your access', icon: '✓', hint: 'what your user may do here' },
   { id: 'apps', label: 'Connected apps', icon: '⚷', hint: 'connected apps, OAuth usage' },
   { id: 'health', label: 'Org health', icon: '♥', hint: 'security check, licenses' },
   { id: 'company', label: 'Company', icon: '◰', hint: 'company information: org Id, edition, locale, fiscal year' },
+  { id: 'licenses', label: 'Licenses', icon: '✎', hint: 'how many are used; who holds one without using it' },
   { id: 'limits', label: 'Limits', icon: '▤', hint: 'org limits and storage' },
   { id: 'events', label: 'Events', icon: '⚡', hint: 'platform events, CDC' },
   { id: 'rest', label: 'REST Explorer', icon: '⇄', hint: 'any REST call' },
   { id: 'activity', label: 'Activity', icon: '⏱', hint: 'what you changed or exported with NomadSF, in every org' },
-  { id: 'orgaccess', label: 'Access', icon: '⚿', hint: 'users and permissions in two orgs' },
-  { id: 'orgapps', label: 'Connected apps', icon: '⚷', hint: 'connected apps in two orgs' },
+  { id: 'orgaccess', label: 'Compare access', icon: '⚿', hint: 'users and permissions in two orgs' },
+  { id: 'orgapps', label: 'Compare apps', icon: '⚷', hint: 'connected apps in two orgs' },
   { id: 'settings', label: 'Orgs', icon: '◈', hint: 'the orgs you are logged in to' },
   { id: 'settingsai', label: 'AI', icon: '✦', hint: 'the AI the ✦ buttons use' },
+  {
+    id: 'files',
+    label: 'Open a file',
+    icon: '⎙',
+    hint: 'a snapshot, workbook or CSV next to the org: restore, copy, compare',
+  },
+  {
+    id: 'sandbox',
+    label: 'Sandbox refresh',
+    icon: '⟲',
+    hint: 'before a refresh: save what it wipes; after: compare and put it back',
+  },
   { id: 'settingsproject', label: 'Project', icon: '⌂', hint: 'the Salesforce project every page uses' },
 ];
 
-/** `breakBefore`: a thin divider before these tabs (Access: changing access, then reviewing it). */
-export type Hub = { id: string; label: string; icon: string; tools: ToolId[]; breakBefore?: ToolId[] };
+/**
+ * `breakBefore`: a thin divider before these tabs (Access: changing access, then reviewing it).
+ * `sections`: a small heading before a tab, naming the group it starts (Compare & Deploy: Org ↔ Org, Org ↔ Project…).
+ */
+export type Hub = {
+  id: string;
+  label: string;
+  icon: string;
+  tools: ToolId[];
+  breakBefore?: ToolId[];
+  sections?: Partial<Record<ToolId, string>>;
+};
 
-// Most-used tab first; the order of the hubs follows the work: build, data, release, access, the org
+// Most-used tab first. Working in one org: Develop, Data, Access, Security, Org. Between two places (another org, the
+// project, a branch, a file): Compare & Deploy. The app's own: Settings.
 export const HUBS: Hub[] = [
   {
     id: 'develop',
     label: 'Develop',
     icon: '{}',
-    tools: ['code', 'apex', 'apextests', 'logs', 'jobs', 'automation', 'events', 'rest'],
+    tools: ['code', 'apex', 'apextests', 'logs', 'jobs', 'automation', 'flows', 'events', 'rest'],
   },
   {
     id: 'data',
     label: 'Data',
     icon: '⇅',
-    tools: ['query', 'record', 'data', 'csvcompare', 'lookup', 'schema', 'fields'],
+    tools: ['query', 'record', 'data', 'lookup', 'schema', 'fields', 'backup', 'lifecycle'],
+    breakBefore: ['backup'],
   },
-  { id: 'release', label: 'Release', icon: '⇡', tools: ['project', 'package', 'metadata', 'deployments'] },
   {
     id: 'people',
     label: 'Access',
@@ -139,9 +192,39 @@ export const HUBS: Hub[] = [
     tools: ['access', 'permissions', 'groups', 'objectaccess', 'compare'],
     breakBefore: ['objectaccess'],
   },
-  { id: 'org', label: 'Org', icon: '◈', tools: ['company', 'health', 'limits', 'apps', 'audit'] },
-  { id: 'protect', label: 'Data protection', icon: '⛁', tools: ['backup', 'lifecycle'] },
-  { id: 'between', label: 'Org to org', icon: '⇋', tools: ['migrate', 'orgdiff', 'orgaccess', 'orgapps'] },
+  // What happened in the org and how safe it is
+  {
+    id: 'security',
+    label: 'Security',
+    icon: '⛨',
+    tools: ['secdash', 'timeline', 'eventlogs', 'whocansee', 'sharing', 'health', 'audit'],
+  },
+  { id: 'org', label: 'Org', icon: '◈', tools: ['company', 'limits', 'licenses', 'apps', 'metadata', 'deployments'] },
+  // Everything between two places: compare, deploy, retrieve, copy, restore
+  {
+    id: 'move',
+    label: 'Compare & Deploy',
+    icon: '⇄',
+    tools: [
+      'orgdiff',
+      'orgaccess',
+      'orgapps',
+      'migrate',
+      'project',
+      'branchorg',
+      'package',
+      'files',
+      'manifest',
+      'csvcompare',
+      'sandbox',
+    ],
+    sections: {
+      orgdiff: 'Org ↔ Org',
+      project: 'Project & git',
+      files: 'Org ↔ File',
+      sandbox: 'Sandbox',
+    },
+  },
   // The app's own: your orgs, your AI, your project, and what you did with NomadSF (in every org)
   {
     id: 'settings',
@@ -310,7 +393,25 @@ export const dragTool = (tool: ToolId) => (e: React.DragEvent) => {
 };
 
 /** The sidebar: one entry per hub; drag one into the panes area to open it beside. */
-export function HubNav({ ws, available }: { ws: WorkspaceState; available: (tool: ToolId) => boolean }) {
+export function HubNav({
+  ws,
+  available,
+  compact,
+  onCompact,
+}: {
+  ws: WorkspaceState;
+  available: (tool: ToolId) => boolean;
+  /** Icons only: the name shows when the mouse is over a hub. */
+  compact: boolean;
+  onCompact: (compact: boolean) => void;
+}) {
+  // Narrow sidebar: the hub's name beside it on hover (a fixed box, so the scrolling sidebar does not cut it)
+  const [tip, setTip] = useState<{ label: string; top: number; left: number } | null>(null);
+  const showTip = (h: Hub) => (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!compact) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    setTip({ label: h.label, top: r.top + r.height / 2, left: r.right + 8 });
+  };
   const activeHub = hubOf(ws.panes[ws.active]?.tool ?? 'apex').id;
   const openHubs = new Set(ws.panes.map((p) => hubOf(p.tool).id));
   const hubs = HUBS.filter((h) => h.id !== 'settings' && h.tools.some(available));
@@ -318,12 +419,16 @@ export function HubNav({ ws, available }: { ws: WorkspaceState; available: (tool
     <button
       key={h.id}
       className={`hub ${activeHub === h.id ? 'active' : ''} ${openHubs.has(h.id) ? 'open' : ''}`}
+      data-hub={h.id}
+      aria-label={h.label}
       onClick={() => ws.openHub(h)}
+      onMouseEnter={showTip(h)}
+      onMouseLeave={() => setTip(null)}
       draggable
       onDragStart={dragTool(
         (h.tools.includes(ws.lastTab[h.id]) ? ws.lastTab[h.id] : undefined) ?? h.tools.find(available) ?? h.tools[0]
       )}
-      title={`${h.tools
+      title={`${compact ? `${h.label}: ` : ''}${h.tools
         .filter(available)
         .map((t) => toolOf(t)!.label)
         .join(' · ')}\nDrag to the right of a pane to open it beside`}
@@ -339,6 +444,22 @@ export function HubNav({ ws, available }: { ws: WorkspaceState; available: (tool
       <div className="nav-spacer" />
       <div className="nav-hint">Drag a hub or a tab to the right of a pane to open it beside · ⌘K to jump</div>
       {entry(HUBS.find((h) => h.id === 'settings')!)}
+      <button
+        className="nav-width"
+        onClick={() => {
+          setTip(null);
+          onCompact(!compact);
+        }}
+        title={compact ? 'Show the hub names' : 'Icons only (the name shows on hover)'}
+        aria-label={compact ? 'Show the hub names' : 'Icons only'}
+      >
+        {compact ? '»' : '« Narrow'}
+      </button>
+      {tip && (
+        <span className="hub-tip" style={{ top: tip.top, left: tip.left }}>
+          {tip.label}
+        </span>
+      )}
     </>
   );
 }
@@ -450,7 +571,7 @@ export function Panes({
               onDrop={onDrop(i)}
             >
               <div className="pane-bar">
-                <span className="pane-hub" title={hub.label}>
+                <span className="pane-hub" title={hub.label} data-hub={hub.id}>
                   <span className="icon">{hub.icon}</span>
                   <span className="hub-name">{hub.label}</span>
                 </span>
@@ -488,14 +609,16 @@ export function Panes({
               </div>
               <div className="pane-main">
                 <nav className="pane-nav" role="tablist" aria-label={`${hub.label} tools`}>
-                  {tools.map((t) => {
+                  {tools.map((t, n) => {
                     const meta = toolOf(t)!;
                     return (
                       <Fragment key={t}>
                         {hub.breakBefore?.includes(t) && <span className="pane-nav-break" aria-hidden="true" />}
+                        {hub.sections?.[t] && <span className="pane-nav-section">{hub.sections[t]}</span>}
                         <button
                           role="tab"
                           className={`pane-nav-item ${t === tool ? 'active' : ''}`}
+                          data-tone={n % 8}
                           title={`${meta.label}: ${meta.hint} · drag to the right to open beside`}
                           draggable
                           onDragStart={dragTool(t)}

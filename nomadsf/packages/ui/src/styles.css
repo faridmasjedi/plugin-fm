@@ -13,6 +13,23 @@
   --bad-soft: #fde8e8;
   --warn: #a15c00;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* A color per hub (its icon in the sidebar and on each pane) */
+  --hub-develop: #4f46e5;
+  --hub-data: #0d9488;
+  --hub-people: #d97706;
+  --hub-security: #dc2626;
+  --hub-org: #7c3aed;
+  --hub-move: #059669;
+  --hub-settings: #64748b;
+  /* A color per tab of a hub, by its place in the list */
+  --tone-0: #2563eb;
+  --tone-1: #0d9488;
+  --tone-2: #d97706;
+  --tone-3: #db2777;
+  --tone-4: #7c3aed;
+  --tone-5: #16a34a;
+  --tone-6: #ea580c;
+  --tone-7: #0891b2;
 }
 :root[data-theme='dark'] {
   --bg: #0f1216;
@@ -28,6 +45,21 @@
   --bad: #ff6b6b;
   --bad-soft: #321a1c;
   --warn: #f5b04c;
+  --hub-develop: #8b8cff;
+  --hub-data: #2dd4bf;
+  --hub-people: #fbbf24;
+  --hub-security: #f87171;
+  --hub-org: #a78bfa;
+  --hub-move: #34d399;
+  --hub-settings: #94a3b8;
+  --tone-0: #7aa2ff;
+  --tone-1: #2dd4bf;
+  --tone-2: #fbbf24;
+  --tone-3: #f472b6;
+  --tone-4: #a78bfa;
+  --tone-5: #4ade80;
+  --tone-6: #fb923c;
+  --tone-7: #22d3ee;
 }
 * {
   box-sizing: border-box;
@@ -86,7 +118,7 @@ a {
 
 .studio {
   display: grid;
-  grid-template-columns: 224px minmax(0, 1fr);
+  grid-template-columns: 236px minmax(0, 1fr);
   /* minmax: the panes take the window's height, not their content's, so each pane scrolls */
   grid-template-rows: auto minmax(0, 1fr);
   height: 100%;
@@ -703,6 +735,7 @@ button.inspect {
 }
 .usage {
   position: relative;
+  min-width: 44px;
   height: 16px;
   border-radius: 4px;
   background: var(--panel-2);
@@ -1868,9 +1901,9 @@ nav.side .hub.active .hub-count {
   color: var(--accent);
 }
 nav.side .hub-label {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* A long name (Compare & Deploy) wraps rather than being cut */
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 .nav-hint {
   margin: 0 6px 8px;
@@ -4496,4 +4529,465 @@ select.row-action {
 }
 .segmented.wraps button {
   height: var(--h);
+}
+/* Security › Dashboard: a tile per check */
+.sec-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.sec-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px 16px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  cursor: pointer;
+}
+.sec-tile:hover {
+  border-color: var(--accent);
+}
+.sec-tile.good {
+  border-left-color: var(--good, #1a7f37);
+}
+.sec-tile.warn {
+  border-left-color: var(--warn, #b26b00);
+}
+.sec-tile.bad {
+  border-left-color: var(--bad, #c62828);
+}
+.sec-tile-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+/* A tile's lines wrap inside it (a button keeps text on one line otherwise) */
+.sec-tile {
+  min-width: 0;
+  white-space: normal;
+}
+.sec-tile > span {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  overflow: visible;
+}
+.sec-tile-value {
+  font-size: 28px;
+  line-height: 1.1;
+}
+/* Who can see: the answer, then the reasons; the ones that reach the user stand out */
+.who-verdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+.who-steps {
+  margin: 0;
+  padding-left: 20px;
+}
+.who-steps li {
+  margin: 6px 0;
+  color: var(--muted);
+}
+.who-steps li.applies {
+  color: var(--text);
+  font-weight: 500;
+}
+.who-pick {
+  display: inline-flex;
+  gap: 6px;
+}
+.sharing-tree .sharing-rule {
+  margin: 8px 0;
+}
+
+/* Compare & Deploy: a small heading where a group of tabs starts (Org ↔ Org, Org ↔ Project…) */
+.pane-nav-section {
+  display: block;
+  margin: 12px 10px 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pane-nav-section:first-child {
+  margin-top: 2px;
+}
+
+/* Sandbox refresh: users picked (a chip each); the Setup checklist */
+button.chip {
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+}
+button.chip.on {
+  background: var(--accent-soft, #e3ecfc);
+  border-color: transparent;
+}
+.checklist,
+.file-kinds {
+  margin: 8px 0;
+  padding-left: 20px;
+  line-height: 1.7;
+}
+.checklist {
+  list-style: none;
+  padding-left: 0;
+}
+
+/* Org health: the Health Check score beside the period */
+.health-score b {
+  font-size: 16px;
+  margin-left: 6px;
+}
+.health-score.bad b {
+  color: var(--bad);
+}
+
+/* Copy a user: what the target lacks, to deploy first */
+.warn-box {
+  border-left: 3px solid var(--warn, #d97706);
+}
+.warn-box ul {
+  margin: 6px 0;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}
+
+/* Sandbox refresh › After: a group per kind; tick any item, change its value before it is put back */
+.after-group h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px 0 6px;
+}
+.table-scroll {
+  overflow-x: auto;
+}
+.after-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.after-table th,
+.after-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.after-table th {
+  color: var(--muted);
+  font-weight: 600;
+}
+.after-table td.name {
+  overflow-wrap: anywhere;
+  min-width: 160px;
+}
+.after-table tr.picked {
+  background: var(--accent-soft);
+}
+.after-table input.mono {
+  width: 100%;
+  min-width: 200px;
+}
+
+/* A switch is as wide as its buttons (never stretched across a page or card) */
+.segmented {
+  width: fit-content;
+  max-width: 100%;
+}
+/* + New …: the choice of what to create, then its form, apart */
+.create-box > .segmented {
+  margin: 6px 0 12px;
+}
+
+/* What an org needs before permission sets go in: per permission set, its pieces (ticks), in deploy order */
+.schema-steps {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+.schema-steps > li {
+  margin-bottom: 8px;
+}
+.schema-needs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 4px;
+}
+.schema-needs .mono {
+  overflow-wrap: anywhere;
+}
+
+/* Sandbox refresh › Before: the kinds that go into the workbook */
+.sandbox-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin-bottom: 10px;
+}
+
+/* What an org needs first: a collapsible group per kind (as in Compare & package), a row per piece */
+.gap-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+}
+.gap-group {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  min-width: 0;
+}
+.gap-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 10px;
+}
+.gap-title {
+  color: var(--text);
+}
+.gap-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0 10px 8px 36px;
+  max-height: 340px;
+  overflow: auto;
+}
+.gap-rows li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+  min-width: 0;
+}
+.gap-rows li .mono {
+  overflow-wrap: anywhere;
+}
+.gap-rows li.failed {
+  background: var(--bad-soft);
+}
+.gap-error {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+.schema-gaps {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.gap-head button.gap-title {
+  color: var(--text);
+  text-decoration: none;
+}
+
+/* Sandbox refresh › After: the table fits its card (long values wrap), the unavailable list wraps */
+.after-table td {
+  overflow-wrap: anywhere;
+}
+.after-table td:last-child,
+.after-table th:last-child {
+  white-space: nowrap;
+}
+.unavailable-list {
+  overflow-wrap: anywhere;
+  margin: 4px 0 8px 26px;
+}
+
+/* Code: in the narrow list, the filter and Compare content share the row and wrap, never cut */
+.code-project .form {
+  flex-wrap: wrap;
+}
+.code-project .form .search-select,
+.code-project .form select {
+  flex: 1 1 140px;
+  min-width: 130px;
+}
+
+/* Limits: the table scrolls in its card when the pane is narrow */
+table.org-limits {
+  display: block;
+  overflow-x: auto;
+}
+
+/* The header in a narrow window (VS Code's editor, a split pane): the name never cut, the user on one line */
+header.top .brand {
+  flex: none;
+  white-space: nowrap;
+}
+header.top .user {
+  min-width: 0;
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 900px) {
+  header.top .brand .muted,
+  header.top .user {
+    display: none;
+  }
+}
+/* Who can see: the chosen user, name and username apart */
+.who-user {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Hub colors: each hub's icon tinted with its own color; the open hub's icon filled with it */
+[data-hub='develop'] {
+  --hub: var(--hub-develop);
+}
+[data-hub='data'] {
+  --hub: var(--hub-data);
+}
+[data-hub='people'] {
+  --hub: var(--hub-people);
+}
+[data-hub='security'] {
+  --hub: var(--hub-security);
+}
+[data-hub='org'] {
+  --hub: var(--hub-org);
+}
+[data-hub='move'] {
+  --hub: var(--hub-move);
+}
+[data-hub='settings'] {
+  --hub: var(--hub-settings);
+}
+nav.side .hub[data-hub] .icon {
+  color: var(--hub);
+  background: color-mix(in srgb, var(--hub) 14%, transparent);
+}
+nav.side .hub.active[data-hub] .icon {
+  background: var(--hub);
+  color: #fff;
+}
+.pane-hub[data-hub] .icon {
+  color: var(--hub);
+}
+
+/* The sidebar's width: names, or icons only (« Narrow / ») */
+nav.side .nav-width {
+  margin-top: 6px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: left;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+nav.side .nav-width:hover {
+  color: var(--text);
+}
+.studio.nav-compact {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+.studio.nav-compact nav.side {
+  padding: 12px 8px;
+}
+.studio.nav-compact nav.side .hub {
+  grid-template-columns: 28px;
+  justify-content: center;
+  padding: 7px 0;
+}
+.studio.nav-compact nav.side .hub-label,
+.studio.nav-compact nav.side .hub-count,
+.studio.nav-compact .nav-hint {
+  display: none;
+}
+.studio.nav-compact nav.side .nav-width {
+  text-align: center;
+  padding: 4px 0;
+}
+.hub-tip {
+  position: fixed;
+  transform: translateY(-50%);
+  z-index: 50;
+  pointer-events: none;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 4px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.18);
+}
+@media (max-width: 900px) {
+  nav.side .nav-width,
+  .hub-tip {
+    display: none;
+  }
+}
+@media (max-width: 900px) {
+  .studio.nav-compact {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Each tab of a hub has its own color: the icon on a tint of it; the open tab filled with it */
+.pane-nav-item[data-tone='0'] {
+  --tone: var(--tone-0);
+}
+.pane-nav-item[data-tone='1'] {
+  --tone: var(--tone-1);
+}
+.pane-nav-item[data-tone='2'] {
+  --tone: var(--tone-2);
+}
+.pane-nav-item[data-tone='3'] {
+  --tone: var(--tone-3);
+}
+.pane-nav-item[data-tone='4'] {
+  --tone: var(--tone-4);
+}
+.pane-nav-item[data-tone='5'] {
+  --tone: var(--tone-5);
+}
+.pane-nav-item[data-tone='6'] {
+  --tone: var(--tone-6);
+}
+.pane-nav-item[data-tone='7'] {
+  --tone: var(--tone-7);
+}
+.pane-nav-item[data-tone] {
+  grid-template-columns: 24px 1fr;
+}
+.pane-nav-item[data-tone] .icon {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  font-size: 12px;
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+}
+.pane-nav-item.active[data-tone] {
+  background: color-mix(in srgb, var(--tone) 12%, transparent);
+  color: var(--text);
+}
+.pane-nav-item.active[data-tone] .icon {
+  background: var(--tone);
+  color: #fff;
 }

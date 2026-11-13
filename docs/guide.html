@@ -105,13 +105,15 @@
             <h2 id="layout">Hubs and panes</h2>
             <p>
               The sidebar has seven hubs and Settings. A hub opens in a pane with <b>its own sidebar of tools</b> on the
-              left; the bar at the top says where you are (<i>Release › Compare &amp; package</i>). A hub opens on the
-              tool you used last. In a narrow pane the tools' sidebar shows icons only.
+              left; the bar at the top says where you are (<i>Compare &amp; Deploy › Branch ↔ Branch</i>). A hub opens
+              on the tool you used last. In a narrow pane the tools' sidebar shows icons only. Each hub has its own
+              color. <b>« Narrow</b> at the bottom of the sidebar keeps only the icons (the name shows when the mouse is
+              over one); <b>»</b> brings the names back. The Studio remembers your choice.
             </p>
             <div class="shot">
               <video
-                src="media/hubs.mp4"
-                poster="media/hubs.jpg"
+                src="media/tour.mp4"
+                poster="media/tour.jpg"
                 muted
                 loop
                 playsinline
@@ -157,35 +159,39 @@
               </tr>
               <tr>
                 <td><b>Develop</b></td>
-                <td>Code · Execute Apex · Apex tests · Debug logs · Jobs · Save order · Events · REST Explorer</td>
+                <td>
+                  Code · Execute Apex · Apex tests · Debug logs · Jobs · Save order · Flows · Events · REST Explorer
+                </td>
               </tr>
               <tr>
                 <td><b>Data</b></td>
-                <td>Query · Record · Import / Update / Delete · Compare with CSV · Lookup · Schema · Field usage</td>
-              </tr>
-              <tr>
-                <td><b>Release</b></td>
-                <td>Project · Compare &amp; package · Metadata · Deployments</td>
+                <td>
+                  Query · Record · Import / Update / Delete · Lookup · Schema · Field usage — then Backup · Lifecycle
+                </td>
               </tr>
               <tr>
                 <td><b>Access</b></td>
                 <td>Users · Access sets · Groups &amp; queues — then, to review: Object access · Compare</td>
               </tr>
               <tr>
+                <td><b>Security</b></td>
+                <td>Dashboard · Timeline · Event logs · Who can see · Sharing · Org health · Logins &amp; audit</td>
+              </tr>
+              <tr>
                 <td><b>Org</b></td>
-                <td>Company · Org health · Limits · Connected apps · Logins &amp; audit</td>
+                <td>Company · Limits · Licenses · Connected apps · Metadata · Deployments</td>
               </tr>
               <tr>
-                <td><b>Data protection</b></td>
-                <td>Backup (with Restore) · Lifecycle</td>
-              </tr>
-              <tr>
-                <td><b>Org to org</b></td>
-                <td>Migrate · Org compare · Access · Connected apps — for two orgs, A → B</td>
+                <td><b>Compare &amp; Deploy</b></td>
+                <td>
+                  Org ↔ Org (Compare metadata · Compare access · Compare apps · Copy records) · Project &amp; git
+                  (Project · Branch ↔ Org · Branch ↔ Branch) · Org ↔ File (Open a file · Check a manifest · Compare with
+                  CSV) · Sandbox refresh
+                </td>
               </tr>
               <tr>
                 <td><b>Settings</b></td>
-                <td>Orgs · AI · Project · Activity</td>
+                <td>Orgs · AI · Project · Your access · Activity</td>
               </tr>
             </table>
             <h4 id="search">Search: say what you want to do</h4>
@@ -240,6 +246,23 @@
 
         <section class="hub" id="hub-develop" data-title="Develop">
           <h2 id="develop">Develop</h2>
+          <section class="tool" data-title="Overview">
+            <h3 id="hub-develop">Overview</h3>
+            <p class="tool-lead">
+              Every tab of Develop in a minute: code, tests, logs, jobs, automation, flows, events and REST.
+            </p>
+            <div class="shot">
+              <video
+                src="media/hub-develop.mp4"
+                poster="media/hub-develop.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+          </section>
           <section class="tool" data-title="Code">
             <h3 id="code">Code</h3>
             <p class="tool-lead">
@@ -554,6 +577,39 @@
               </ul>
             </div>
           </section>
+          <section class="tool" data-title="Flows">
+            <h3 id="flows">Flows</h3>
+            <p class="tool-lead">Tidy flows: old versions, old API versions, waiting and failed interviews.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/flows.mp4"
+                poster="media/flows.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ul class="parts">
+              <li>
+                <b>Old versions</b>: versions that no longer run, grouped by flow — the active one and the newest of
+                each flow are kept. Tick and <b>Delete ticked…</b>.
+              </li>
+              <li>
+                <b>Old API versions</b>: active flows below the API version you choose; save each again in Flow Builder
+                to move it on.
+              </li>
+              <li>
+                <b>Waiting interviews</b>: paused, or waiting for a time or an event; delete the ones left behind.
+              </li>
+              <li>
+                <b>Failed runs</b>: runs that ended in an error in the last days — when the org keeps flow interview
+                logs (Setup › Process Automation Settings).
+              </li>
+            </ul>
+          </section>
           <section class="tool" data-title="Events">
             <h3 id="events">Events</h3>
             <p class="tool-lead">Listen to platform events and change data capture, and publish a platform event.</p>
@@ -614,6 +670,24 @@
 
         <section class="hub" id="hub-data" data-title="Data">
           <h2 id="data">Data</h2>
+          <span id="protect"></span>
+          <section class="tool" data-title="Overview">
+            <h3 id="hub-data">Overview</h3>
+            <p class="tool-lead">
+              Every tab of Data: query, records, imports, lookups, schema, field usage, backup and lifecycle.
+            </p>
+            <div class="shot">
+              <video
+                src="media/hub-data.mp4"
+                poster="media/hub-data.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+          </section>
           <section class="tool" data-title="Query">
             <h3 id="query">Query</h3>
             <p class="tool-lead">SOQL with autocomplete, a filterable table, saved queries and history.</p>
@@ -840,45 +914,6 @@
               </ul>
             </div>
           </section>
-          <section class="tool" data-title="Compare with CSV">
-            <h3 id="csvcompare">Compare with CSV</h3>
-            <p class="tool-lead">
-              A spreadsheet of records next to the org: what is the same, what differs, what is missing — then make the
-              org match.
-            </p>
-            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
-            <div class="shot">
-              <video
-                src="media/csvcompare.mp4"
-                poster="media/csvcompare.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              A CSV of records — from an old org, a backup or a spreadsheet — next to this org. Choose the file, the
-              object and a field to match records by (Email, an External ID…; Ids from another org do not match), and
-              <b>Compare</b>: each row is <i>the same</i>, <i>different</i> (field by field, org now → CSV) or
-              <i>only in CSV</i>. Lookups are compared by name when the CSV has it (<code>Account.Name</code> for
-              <code>AccountId</code>). <b>Edit the CSV</b> changes rows first; <b>Make the org match the CSV</b> updates
-              what differs and inserts what is missing (you type the org name).
-            </p>
-            <div class="good-to-know">
-              <h4>Good to know</h4>
-              <ul>
-                <li>
-                  Match on a field both sides share (Email, an External ID, a name): Ids from another org never match.
-                </li>
-                <li>
-                  Nothing changes until <b>Make the org match the CSV</b>, which asks first and lists every row that
-                  failed.
-                </li>
-              </ul>
-            </div>
-          </section>
           <section class="tool" data-title="Lookup">
             <h3 id="lookup">Lookup</h3>
             <p class="tool-lead">A VLOOKUP against Salesforce: your file back with the Ids or fields you need.</p>
@@ -973,266 +1008,110 @@
               </ul>
             </div>
           </section>
-        </section>
-
-        <section class="hub" id="hub-release" data-title="Release">
-          <h2 id="release">Release</h2>
-          <section class="tool" data-title="Validate and deploy">
-            <h3 id="release-panel">Validate and deploy — the same everywhere</h3>
+          <section class="tool" data-title="Backup">
+            <h3 id="backup">Backup</h3>
             <p class="tool-lead">
-              Every place that builds a package ends with the same panel: Project, Compare &amp; package, Metadata, Org
-              compare, Code and the AI drafts.
+              Back up records to a folder on your computer, now or on a schedule; restore them later.
             </p>
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/backup.mp4"
+                poster="media/backup.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ol class="steps">
+              <li><b>+ New</b>, give it a name and choose the org.</li>
+              <li>
+                <b>What to back up</b>: objects you pick (tick them, type their names, or ✦ describe them), or all
+                custom / standard / all objects. Per object, a condition (which records) and the fields (all, only
+                these, all except these). <b>Count records</b> shows the size first.
+              </li>
+              <li>
+                <b>Settings</b>: incremental runs after the first full one, a schedule (daily, weekly, or every N hours,
+                days, weeks or months), the folder on your computer, files and attachments, and encryption with a
+                passphrase.
+              </li>
+              <li>
+                <b>Back up now</b>. Each run is a folder with a CSV per object and a manifest;
+                <b>Download as zip</b> works without a folder. <b>Backups &amp; restore</b> lists the runs.
+              </li>
+            </ol>
+            <div class="callout">
+              Scheduled backups run while NomadSF is open; a missed one runs once when you open it. Encrypted backups
+              can only be read with the passphrase — it cannot be recovered. In VS Code the folder is chosen with VS
+              Code's folder picker.
+            </div>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Backups only read the org. Restoring writes, and asks first.</li>
+                <li>An encrypted backup can only be read with its passphrase: it cannot be recovered.</li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Restore">
+            <h3 id="restore">Restore</h3>
+            <p class="tool-lead">Put back changed values and bring back deleted records from a backup run.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/restore.mp4"
+                poster="media/restore.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>Open a run under <b>Backups &amp; restore</b>, tick the objects and <b>Compare with the org</b>:</p>
             <ul>
+              <li><b>Changed since the backup</b>: tick values and <b>Put back</b>.</li>
               <li>
-                <b>Choose what goes in</b>: rows come in a box per metadata type. Each row has its own choice —
-                <b>to package</b> (package.xml) or <b>destructive</b> (destructiveChanges.xml) — and each box has
-                <b>+ All to package</b>, <b>− All destructive</b> and <b>Clear</b>.
+                <b>Deleted since the backup</b>: tick records and <b>Bring back</b>. Records still in the recycle bin
+                are undeleted with their Id; the others are created again, with the deleted records they point to, their
+                files, and the records that pointed to them re-linked.
               </li>
+            </ul>
+          </section>
+          <section class="tool" data-title="Lifecycle">
+            <h3 id="lifecycle">Lifecycle</h3>
+            <p class="tool-lead">Jobs in steps: back up, check, archive, anonymize, delete — on a schedule.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/lifecycle.mp4"
+                poster="media/lifecycle.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              Jobs in steps on one org: <b>Back up</b>, <b>Check</b> (stop above a limit), <b>Archive</b> (into a backup
+              folder, read back, then delete), <b>Anonymize</b> (personal fields in place), <b>Delete</b>. Start from a
+              template (retention, sandbox refresh, backup then archive) or an empty job, and schedule it like a backup.
+            </p>
+            <ul>
+              <li><b>Dry run</b> only counts.</li>
               <li>
-                <b>What's in the package</b> lists it file by file (A added, M changed, D deleted); click a file to see
-                its code.
+                <b>Run now</b> stops before the first step that changes data and asks for approval, showing what the
+                steps before it found. You can turn approval off per job; then put a Check step first.
               </li>
-              <li>
-                <b>Into</b>: the org it goes to. <b>Tests</b>: no tests (not in production), these test classes, all
-                local tests, or all in the org. <b>Find dependent tests</b> names the test classes that reach the
-                classes and triggers of the package — add or remove any. <b>Deletions</b> run after the deploy, or
-                before it.
-              </li>
-              <li>
-                <b>Validate on …</b> checks it without changing the org; <b>Deploy to …</b> deploys it. After a
-                successful validation, <b>Quick deploy</b> deploys it without running the tests again. Component errors
-                and test failures show as tabs; the result goes to the Log too. <b>Deployable zip</b> downloads the
-                package for your pipeline.
-              </li>
+              <li>Every run keeps a report: matched, changed, failed, who approved.</li>
             </ul>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
-                <li>
-                  Source-format files (a project or a branch) are converted to what the Metadata API expects — objects
-                  with their fields, custom labels one by one, and so on. Anything that cannot be converted yet is named
-                  above the buttons and left out.
-                </li>
-                <li>Every validate and deploy asks you to type the org's name first.</li>
-              </ul>
-            </div>
-          </section>
-          <section class="tool" data-title="Project">
-            <h3 id="project">Project</h3>
-            <p class="tool-lead">
-              Your Salesforce project next to the org: what differs, bring org changes in, deploy project changes out.
-            </p>
-            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
-            <div class="shot">
-              <video
-                src="media/project.mp4"
-                poster="media/project.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              Your Salesforce project (a folder on this computer or a GitHub repository, chosen in Settings › Project)
-              against the org. Use it to see what differs, bring org changes into the project, or deploy project changes
-              to the org.
-            </p>
-            <ol class="steps">
-              <li>
-                <b>Overview</b>: the project's components in a box per type (<b>Open in Metadata</b> on each), and its
-                manifests (<code>package.xml</code> files).
-              </li>
-              <li>
-                <b>Compare with the org</b>: choose the metadata types (or <b>All</b>), then <b>Compare</b>. The tiles
-                count <i>in both</i>, <i>only in org</i> and <i>only in project</i> — click one to show just those.
-                <b>Compare content of all</b> checks the files of components in both (<i>same</i> / <i>different</i>);
-                to check only some, use <b>⇄</b> on a component, <b>⇄ Compare</b> on a type, or type in the filter and
-                <b>Compare the … shown</b>.
-              </li>
-              <li>
-                Choose per row or per type: <b>to package</b> deploys the project's version, <b>destructive</b> deletes
-                it from the org. <b>Add all differences</b> takes everything that differs. A <code>.forceignore</code>
-                path leaves files out.
-              </li>
-              <li>
-                Then <a href="#release-panel">What's in the package and Validate and deploy</a>, or
-                <b>Retrieve into project…</b>: the org's version of the chosen components, in source format where each
-                already is in the project (labels merged, objects split per field). Each file shows as new, changed or
-                the same with its difference; nothing is written until <b>Write</b>.
-              </li>
-            </ol>
-            <div class="shot">
-              <video
-                src="media/retrieve.mp4"
-                poster="media/retrieve.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <div class="good-to-know">
-              <h4>Good to know</h4>
-              <ul>
-                <li>Choose the project once in <a href="#settings">Settings</a>; every page uses it.</li>
-                <li>Deploys and deletes ask first; a validation never changes the org.</li>
-              </ul>
-            </div>
-          </section>
-          <section class="tool" data-title="Compare &amp; package">
-            <h3 id="package">Compare &amp; package</h3>
-            <p class="tool-lead">
-              What one branch brings into another — like a pull request — as package.xml and destructiveChanges.xml; or
-              a branch against an org, a manifest, two orgs.
-            </p>
-            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
-            <div class="shot">
-              <video
-                src="media/package.mp4"
-                poster="media/package.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              Open the project <b>folder</b> (the repository with <code>sfdx-project.json</code>): Compare &amp; package
-              reads its git history, branches and tags, and writes nothing to it.
-            </p>
-            <ol class="steps">
-              <li>
-                <b>Branch ↔ Branch</b>: <b>Source</b> is the branch with the changes, <b>Target</b> where they go (⇄
-                swaps them). <b>Like a pull request</b> takes only what Source added since it branched from Target;
-                <b>Everything that differs</b> compares the two as they are now.
-              </li>
-              <li>
-                <b>Compare</b>: the package by type — added, changed, deleted — with a choice per row and per type.
-                Renamed files are a new component plus the old one deleted (keep the old one if you like). Custom labels
-                are counted one by one.
-              </li>
-              <li>
-                <b>Files</b> lists every file under <i>Changed / added</i> and <i>Deleted</i> (and what the
-                <code>.forceignore</code> left out). Click one to see the difference, and
-                <b>✦ Explain the difference</b> with AI.
-              </li>
-              <li>
-                Download the <b>Manifest (zip)</b> or the manifest <b>with the changed files</b>, or
-                <a href="#release-panel">validate and deploy</a> it.
-              </li>
-            </ol>
-            <p>The other ways to compare, from the switch at the top:</p>
-            <ul>
-              <li>
-                <b>From a manifest</b>: a <code>package.xml</code> (and optional destructiveChanges.xml) with the files
-                of a branch, checked against an org — what is the same, different, missing.
-              </li>
-              <li><b>Branch ↔ Org</b>: every type of a branch against the org at the top, then deploy what differs.</li>
-              <li>
-                Choosing types: <b>type to find them</b> (<i>flow, perm*</i>), <b>Tick shown</b>; the ticked ones stay
-                as chips. <b>Names</b> keeps only components whose names match (<i>Case*, Billing</i>).
-              </li>
-              <li><b>Org ↔ Org</b>: <a href="#orgdiff">Org compare</a>, here too.</li>
-            </ul>
-            <div class="good-to-know">
-              <h4>Good to know</h4>
-              <ul>
-                <li>
-                  A GitHub project is read without its history, so it cannot be compared here; open the folder instead.
-                </li>
-                <li>
-                  Every metadata type the Salesforce CLI knows (almost 500) is recognised the way the CLI does: in its
-                  folder, in sub-folders (<code>classes/services/Billing.cls</code>,
-                  <code>reports/Sales/EMEA/Pipeline</code>), and outside a type folder by its file name where Salesforce
-                  allows it.
-                </li>
-                <li>
-                  <b>Find dependent tests</b> follows the classes and triggers of the package to the test classes that
-                  call them — in the branch, not only in the org.
-                </li>
-              </ul>
-            </div>
-          </section>
-          <section class="tool" data-title="Metadata">
-            <h3 id="metadata">Metadata</h3>
-            <p class="tool-lead">Build a package (or a delete package) from any metadata of the org.</p>
-            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
-            <div class="shot">
-              <video
-                src="media/metadata.mp4"
-                poster="media/metadata.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>Build a package by hand from any metadata type of the org.</p>
-            <ol class="steps">
-              <li>
-                Choose a type, tick components, <b>Add to package</b> — a package can mix types. A long list (a type can
-                have thousands): <b>Find … by name</b> shows only the names you type (<i>AccountService</i>,
-                <i>Invoice*</i>, several with commas); what you ticked stays ticked. The package is listed in a box per
-                type (click a row to remove it), then <b>What's in the package</b>, where a click shows the component
-                itself (its XML or code).
-              </li>
-              <li>
-                <b>Download zip</b> retrieves them; <b>package.xml</b> / <b>Copy package.xml</b> give the manifest;
-                <b>Retrieve into project…</b> writes them into your project folder in source format, after showing each
-                file as new, changed or the same.
-              </li>
-              <li>
-                To remove things from the org: tick them and <b>Add to delete</b>. Choose
-                <code>destructiveChanges.xml</code>, <code>destructiveChangesPre.xml</code> (deleted before the deploy)
-                or <code>destructiveChangesPost.xml</code> (after), then download it, copy it, or
-                <b>Manifests (zip)</b> for both files. The page shows the <code>sf project deploy start</code> command
-                to use.
-              </li>
-            </ol>
-            <div class="good-to-know">
-              <h4>Good to know</h4>
-              <ul>
-                <li>
-                  Deploy the package to another org with <a href="#release-panel">Validate and deploy</a> under it —
-                  choose the org in <b>Into</b> — or download it for your pipeline.
-                </li>
-              </ul>
-            </div>
-          </section>
-          <section class="tool" data-title="Deployments">
-            <h3 id="deployments">Deployments</h3>
-            <p class="tool-lead">The org’s deployments and validations, their failures, and quick deploy.</p>
-            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
-            <div class="shot">
-              <video
-                src="media/deployments.mp4"
-                poster="media/deployments.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              The org's deployments and validations — who, when, components and tests, how many failed. Click one for
-              its component and test failures. A validation that succeeded with tests in the last 10 days can be
-              <b>Quick deployed</b> from here (you type the org name).
-            </p>
-            <div class="good-to-know">
-              <h4>Good to know</h4>
-              <ul>
-                <li>
-                  Quick deploy works for a validation that ran tests and succeeded in the last 10 days, with no change
-                  in the org since.
-                </li>
+                <li>Start with <b>Dry run</b>: it only counts.</li>
               </ul>
             </div>
           </section>
@@ -1240,6 +1119,21 @@
 
         <section class="hub" id="hub-people" data-title="Access">
           <h2 id="people">Access</h2>
+          <section class="tool" data-title="Overview">
+            <h3 id="hub-access">Overview</h3>
+            <p class="tool-lead">Every tab of Access: users, access sets, groups and queues, object access, compare.</p>
+            <div class="shot">
+              <video
+                src="media/hub-access.mp4"
+                poster="media/hub-access.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+          </section>
           <section class="tool" data-title="Users">
             <h3 id="access">Users</h3>
             <p class="tool-lead">
@@ -1320,8 +1214,8 @@
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
-                src="media/permedit.mp4"
-                poster="media/permedit.jpg"
+                src="media/accesssets.mp4"
+                poster="media/accesssets.jpg"
                 muted
                 loop
                 playsinline
@@ -1489,28 +1383,111 @@
                 tab, with a filter): system permissions, object and field access that differ.
               </li>
             </ul>
-            <p>To compare with another org, use <a href="#orgaccess">Org to org › Access</a>.</p>
+            <p>To compare with another org, use <a href="#orgaccess">Compare &amp; Deploy › Compare access</a>.</p>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
-                <li>To compare with another org, use <a href="#orgaccess">Org to org › Access</a>.</li>
+                <li>
+                  To compare with another org, use <a href="#orgaccess">Compare &amp; Deploy › Compare access</a>.
+                </li>
               </ul>
             </div>
           </section>
         </section>
 
-        <section class="hub" id="hub-org" data-title="Org">
-          <h2 id="org">Org</h2>
-          <section class="tool" data-title="Company">
-            <h3 id="company">Company information</h3>
+        <section class="hub" id="hub-security" data-title="Security">
+          <h2 id="security">Security</h2>
+          <section class="tool" data-title="Overview">
+            <h3 id="hub-security">Overview</h3>
             <p class="tool-lead">
-              Everything Salesforce keeps about the org: Ids, edition, instance, locale, currency and fiscal year.
+              Every tab of Security: dashboard, timeline, event logs, who can see, sharing, health, logins.
+            </p>
+            <div class="shot">
+              <video
+                src="media/hub-security.mp4"
+                poster="media/hub-security.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+          </section>
+          <section class="tool" data-title="Dashboard">
+            <h3 id="secdash">Dashboard</h3>
+            <p class="tool-lead">The org's security at a glance: a tile per check, each opening its tool.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/secdash.mp4"
+                poster="media/secdash.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ul class="parts">
+              <li>
+                <b>Tiles</b>: Health Check score and high risks, failed logins in the last 24 hours, API calls used
+                today, setup changes this week, users with Modify All Data, active users with no login for 90 days, free
+                user licenses, failed Apex jobs this week. Green, amber or red by how it looks.
+              </li>
+              <li>
+                Each tile reads one small thing on its own; one that cannot be read (a permission) shows <b>?</b>.
+              </li>
+              <li><b>Click a tile</b> to open the tool behind it, on the right tab.</li>
+            </ul>
+          </section>
+          <section class="tool" data-title="Timeline">
+            <h3 id="timeline">Timeline</h3>
+            <p class="tool-lead">Everything that happened in the org, in one table.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/timeline.mp4"
+                poster="media/timeline.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ul class="parts">
+              <li>
+                <b>What is in it</b>: setup changes (the setup audit trail), logins, components last changed (Apex,
+                flows, validation rules, fields, LWC, permission sets, profiles) and what was done with NomadSF.
+              </li>
+              <li><b>Choose</b> the days and the kinds, then <b>Show</b>; newest first.</li>
+              <li>
+                <b>Filters</b> find a person, a component or a kind — "what did Ann do this week", "who touched this
+                flow".
+              </li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>A part your user cannot read is named above the table; the rest still shows.</li>
+                <li>
+                  API calls, Apex and page views are in <a href="#eventlogs">Event logs</a> (orgs with Event
+                  Monitoring).
+                </li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Event logs">
+            <h3 id="eventlogs">Event logs</h3>
+            <p class="tool-lead">
+              What happened in the org — logins, API calls, Apex, pages, reports — from its event log files.
             </p>
             <p class="tool-meta"><span class="badge read">Reads only</span></p>
             <div class="shot">
               <video
-                src="media/company.mp4"
-                poster="media/company.jpg"
+                src="media/eventlogs.mp4"
+                poster="media/eventlogs.jpg"
                 muted
                 loop
                 playsinline
@@ -1519,9 +1496,114 @@
               ></video>
             </div>
             <p>
-              Everything Salesforce keeps about the org: name and address, org Id, edition, instance, sandbox or not,
-              locale, time zone, currency, fiscal year and defaults — grouped, with only filled fields by default.
+              Salesforce writes what happens in an org to <b>event log files</b>: CSV files per hour or per day, one
+              kind per file (Login, API Total Usage, Apex Execution, Lightning page views, Report export…). This page
+              reads them and puts several days together.
             </p>
+            <ul class="parts">
+              <li>
+                <b>From the org</b>: choose a kind (with how many files the org keeps, and from when to when) and the
+                days, then <b>Read</b>. Nothing is read before.
+              </li>
+              <li>
+                <b>Open CSV files</b>: event log files you downloaded (from Salesforce's Event Log File Browser, or
+                another org) — the same summaries.
+              </li>
+              <li>
+                <b>Summaries</b>, from the columns each kind has: <i>Failed logins by IP</i>, <i>By user</i> (with
+                names), <i>By app or client</i>, <i>By what was used</i> (pages, Apex, reports — slowest first, with
+                average and max time), <i>By IP</i>, <i>By result</i>.
+              </li>
+              <li><b>Every event</b>: one table, newest first, to filter and export like any table.</li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Developer Edition and scratch orgs have no event log files. Other orgs get a few kinds (Login, Logout,
+                  API Total Usage…) kept one day; the Event Monitoring add-on (Salesforce Shield) gives every kind for
+                  30 days. You need the <i>View Event Log Files</i> permission.
+                </li>
+                <li>For who changed setup, see <a href="#audit">Logins &amp; audit</a>.</li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Who can see">
+            <h3 id="whocansee">Who can see this?</h3>
+            <p class="tool-lead">
+              A user and a record, an object, a field, or an Apex class, Visualforce page or custom permission: what
+              they can do with it — and why.
+            </p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/whocansee.mp4"
+                poster="media/whocansee.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ul class="parts">
+              <li>
+                <b>The answer</b> is Salesforce's own (Read, Edit, Delete, Transfer), for that user and that record.
+              </li>
+              <li>
+                <b>Why</b>, step by step: the object permission (from which profile or permission set), View/Modify All,
+                the owner and the role hierarchy (is the user's role above the owner's?), and the record's sharing
+                (rules, teams, manual shares) — the ones that reach the user stand out.
+              </li>
+              <li>When the user can read but not edit, it says what Edit would need.</li>
+              <li>
+                <b>A record</b>: paste its Id or a Salesforce link, or choose an object and type part of a name (the
+                last changed records show first).
+              </li>
+              <li>
+                <b>An object</b>: Read, Create, Edit, Delete, View all and Modify all, each with the profile or
+                permission set that gives it, View/Modify All Data, and the object's org-wide default.
+              </li>
+              <li>
+                <b>A field</b>: its field-level security (Read, Edit) and from where; a required or system field follows
+                the object.
+              </li>
+              <li>
+                <b>A class, page or permission</b>: whether the user's profile or a permission set gives it (and Author
+                Apex, which opens every class and page).
+              </li>
+            </ul>
+          </section>
+          <section class="tool" data-title="Sharing">
+            <h3 id="sharing">Sharing</h3>
+            <p class="tool-lead">How an object's records are shared, as a tree.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/sharing.mp4"
+                poster="media/sharing.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ul class="parts">
+              <li><b>Defaults</b>: the org-wide default inside the company and outside (portals, Experience Cloud).</li>
+              <li><b>Roles</b>: users above a record's owner see it too.</li>
+              <li>
+                <b>Each sharing rule</b>: which records (owned by a role or group, or matching criteria such as
+                <i>Status equals Overdue</i>), with whom, and how (Read only, Read/Write).
+              </li>
+              <li><b>▸</b> on a group or role opens it to the people inside, one level per click.</li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Manual shares, teams and territories are per record: see <a href="#whocansee">Who can see</a>.</li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="Org health">
             <h3 id="health">Org health</h3>
@@ -1556,6 +1638,75 @@
               </ul>
             </div>
           </section>
+          <section class="tool" data-title="Logins &amp; audit">
+            <h3 id="audit">Logins &amp; audit</h3>
+            <p class="tool-lead">Login history and the setup audit trail.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/audit.mp4"
+                poster="media/audit.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              <b>Login history</b> (1–180 days, with usernames) and the <b>Setup audit trail</b> (7–180 days) of the
+              org. Long text in a cell shows in full when you hover it.
+            </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Hover a cell for its full text. Salesforce keeps the audit trail for 180 days.</li>
+              </ul>
+            </div>
+          </section>
+        </section>
+
+        <section class="hub" id="hub-org" data-title="Org">
+          <h2 id="org">Org</h2>
+          <section class="tool" data-title="Overview">
+            <h3 id="hub-org">Overview</h3>
+            <p class="tool-lead">
+              Every tab of Org: company, limits, licenses, connected apps, metadata and deployments.
+            </p>
+            <div class="shot">
+              <video
+                src="media/hub-org.mp4"
+                poster="media/hub-org.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+          </section>
+          <section class="tool" data-title="Company">
+            <h3 id="company">Company information</h3>
+            <p class="tool-lead">
+              Everything Salesforce keeps about the org: Ids, edition, instance, locale, currency and fiscal year.
+            </p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/company.mp4"
+                poster="media/company.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              Everything Salesforce keeps about the org: name and address, org Id, edition, instance, sandbox or not,
+              locale, time zone, currency, fiscal year and defaults — grouped, with only filled fields by default.
+            </p>
+          </section>
           <section class="tool" data-title="Limits">
             <h3 id="limits">Limits</h3>
             <p class="tool-lead">The org’s limits and storage, and deleting old records by date.</p>
@@ -1587,6 +1738,34 @@
               </ul>
             </div>
           </section>
+          <section class="tool" data-title="Licenses">
+            <h3 id="licenses">Licenses</h3>
+            <p class="tool-lead">How many are used, and who holds one without using it.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/licenses.mp4"
+                poster="media/licenses.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ul class="parts">
+              <li><b>Usage</b>: user and permission set licenses, used of total; click one for its users.</li>
+              <li>
+                <b>No login for N days</b>: active users who have not logged in (or never): <b>Freeze…</b> or
+                <b>Deactivate…</b> (deactivating frees the license).
+              </li>
+              <li><b>Frozen but active</b>: frozen users still use a license: unfreeze or deactivate them.</li>
+              <li>
+                <b>Held by inactive users</b>: permission set licenses still assigned to deactivated users:
+                <b>Remove the license…</b>.
+              </li>
+            </ul>
+          </section>
           <section class="tool" data-title="Connected apps">
             <h3 id="apps">Connected apps</h3>
             <p class="tool-lead">Connected apps, external client apps and every app people sign in to with OAuth.</p>
@@ -1617,46 +1796,14 @@
               </ul>
             </div>
           </section>
-          <section class="tool" data-title="Logins &amp; audit">
-            <h3 id="audit">Logins &amp; audit</h3>
-            <p class="tool-lead">Login history and the setup audit trail.</p>
-            <p class="tool-meta"><span class="badge read">Reads only</span></p>
-            <div class="shot">
-              <video
-                src="media/audit.mp4"
-                poster="media/audit.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              <b>Login history</b> (1–180 days, with usernames) and the <b>Setup audit trail</b> (7–180 days) of the
-              org. Long text in a cell shows in full when you hover it.
-            </p>
-            <div class="good-to-know">
-              <h4>Good to know</h4>
-              <ul>
-                <li>Hover a cell for its full text. Salesforce keeps the audit trail for 180 days.</li>
-              </ul>
-            </div>
-          </section>
-        </section>
-
-        <section class="hub" id="hub-protect" data-title="Data protection">
-          <h2 id="protect">Data protection</h2>
-          <section class="tool" data-title="Backup">
-            <h3 id="backup">Backup</h3>
-            <p class="tool-lead">
-              Back up records to a folder on your computer, now or on a schedule; restore them later.
-            </p>
+          <section class="tool" data-title="Metadata">
+            <h3 id="metadata">Metadata</h3>
+            <p class="tool-lead">Build a package (or a delete package) from any metadata of the org.</p>
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
-                src="media/backup.mp4"
-                poster="media/backup.jpg"
+                src="media/metadata.mp4"
+                poster="media/metadata.jpg"
                 muted
                 loop
                 playsinline
@@ -1664,58 +1811,46 @@
                 controls
               ></video>
             </div>
+            <p>Build a package by hand from any metadata type of the org.</p>
             <ol class="steps">
-              <li><b>+ New</b>, give it a name and choose the org.</li>
               <li>
-                <b>What to back up</b>: objects you pick (tick them, type their names, or ✦ describe them), or all
-                custom / standard / all objects. Per object, a condition (which records) and the fields (all, only
-                these, all except these). <b>Count records</b> shows the size first.
+                Choose a type, tick components, <b>Add to package</b> — a package can mix types. A long list (a type can
+                have thousands): <b>Find … by name</b> shows only the names you type (<i>AccountService</i>,
+                <i>Invoice*</i>, several with commas); what you ticked stays ticked. The package is listed in a box per
+                type (click a row to remove it), then <b>What's in the package</b>, where a click shows the component
+                itself (its XML or code).
               </li>
               <li>
-                <b>Settings</b>: incremental runs after the first full one, a schedule (daily, weekly, or every N hours,
-                days, weeks or months), the folder on your computer, files and attachments, and encryption with a
-                passphrase.
+                <b>Download zip</b> retrieves them; <b>package.xml</b> / <b>Copy package.xml</b> give the manifest;
+                <b>Retrieve into project…</b> writes them into your project folder in source format, after showing each
+                file as new, changed or the same.
               </li>
               <li>
-                <b>Back up now</b>. Each run is a folder with a CSV per object and a manifest;
-                <b>Download as zip</b> works without a folder. <b>Backups &amp; restore</b> lists the runs.
+                To remove things from the org: tick them and <b>Add to delete</b>. Choose
+                <code>destructiveChanges.xml</code>, <code>destructiveChangesPre.xml</code> (deleted before the deploy)
+                or <code>destructiveChangesPost.xml</code> (after), then download it, copy it, or
+                <b>Manifests (zip)</b> for both files. The page shows the <code>sf project deploy start</code> command
+                to use.
               </li>
             </ol>
-            <div class="callout">
-              Scheduled backups run while NomadSF is open; a missed one runs once when you open it. Encrypted backups
-              can only be read with the passphrase — it cannot be recovered. In VS Code the folder is chosen with VS
-              Code's folder picker.
-            </div>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
-                <li>Backups only read the org. Restoring writes, and asks first.</li>
-                <li>An encrypted backup can only be read with its passphrase: it cannot be recovered.</li>
+                <li>
+                  Deploy the package to another org with <a href="#release-panel">Validate and deploy</a> under it —
+                  choose the org in <b>Into</b> — or download it for your pipeline.
+                </li>
               </ul>
             </div>
           </section>
-          <section class="tool" data-title="Restore">
-            <h3 id="restore">Restore</h3>
-            <p class="tool-lead">Put back changed values and bring back deleted records from a backup run.</p>
-            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
-            <p>Open a run under <b>Backups &amp; restore</b>, tick the objects and <b>Compare with the org</b>:</p>
-            <ul>
-              <li><b>Changed since the backup</b>: tick values and <b>Put back</b>.</li>
-              <li>
-                <b>Deleted since the backup</b>: tick records and <b>Bring back</b>. Records still in the recycle bin
-                are undeleted with their Id; the others are created again, with the deleted records they point to, their
-                files, and the records that pointed to them re-linked.
-              </li>
-            </ul>
-          </section>
-          <section class="tool" data-title="Lifecycle">
-            <h3 id="lifecycle">Lifecycle</h3>
-            <p class="tool-lead">Jobs in steps: back up, check, archive, anonymize, delete — on a schedule.</p>
+          <section class="tool" data-title="Deployments">
+            <h3 id="deployments">Deployments</h3>
+            <p class="tool-lead">The org’s deployments and validations, their failures, and quick deploy.</p>
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
-                src="media/lifecycle.mp4"
-                poster="media/lifecycle.jpg"
+                src="media/deployments.mp4"
+                poster="media/deployments.jpg"
                 muted
                 loop
                 playsinline
@@ -1724,32 +1859,47 @@
               ></video>
             </div>
             <p>
-              Jobs in steps on one org: <b>Back up</b>, <b>Check</b> (stop above a limit), <b>Archive</b> (into a backup
-              folder, read back, then delete), <b>Anonymize</b> (personal fields in place), <b>Delete</b>. Start from a
-              template (retention, sandbox refresh, backup then archive) or an empty job, and schedule it like a backup.
+              The org's deployments and validations — who, when, components and tests, how many failed. Click one for
+              its component and test failures. A validation that succeeded with tests in the last 10 days can be
+              <b>Quick deployed</b> from here (you type the org name).
             </p>
-            <ul>
-              <li><b>Dry run</b> only counts.</li>
-              <li>
-                <b>Run now</b> stops before the first step that changes data and asks for approval, showing what the
-                steps before it found. You can turn approval off per job; then put a Check step first.
-              </li>
-              <li>Every run keeps a report: matched, changed, failed, who approved.</li>
-            </ul>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
-                <li>Start with <b>Dry run</b>: it only counts.</li>
+                <li>
+                  Quick deploy works for a validation that ran tests and succeeded in the last 10 days, with no change
+                  in the org since.
+                </li>
               </ul>
             </div>
           </section>
         </section>
 
-        <section class="hub" id="hub-between" data-title="Org to org">
-          <h2 id="between">Org to org</h2>
+        <section class="hub" id="hub-move" data-title="Compare &amp; Deploy">
+          <h2 id="move">Compare &amp; Deploy</h2>
+          <span id="release"></span><span id="between"></span>
+          <p class="hub-lead">
+            Everything between two places — another org, the project, a branch, a file: compare, deploy, retrieve, copy,
+            restore. The tabs are grouped: Org ↔ Org, Project &amp; git, Org ↔ File, Sandbox.
+          </p>
+          <section class="tool" data-title="Overview">
+            <h3 id="hub-move">Overview</h3>
+            <p class="tool-lead">Every tab of Compare &amp; Deploy, group by group.</p>
+            <div class="shot">
+              <video
+                src="media/hub-move.mp4"
+                poster="media/hub-move.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+          </section>
           <section class="tool" data-title="Two orgs">
             <h3 id="pair">Two orgs, A → B</h3>
-            <p class="tool-lead">The two orgs every Org to org tool works on: A (from) and B (into).</p>
+            <p class="tool-lead">The two orgs every Org ↔ Org tool works on: A (from) and B (into).</p>
             <p class="tool-meta"><span class="badge read">Reads only</span></p>
             <p>
               The tools that work on two orgs share one pair, chosen in the bar at the top of each: <b>A</b> (compare
@@ -1763,91 +1913,6 @@
               permission is missing. What one org could not be read shows as <b>?</b> ("not read in B"), never as a
               difference; copying into B is turned off when your user there can't change permissions.
             </p>
-          </section>
-          <section class="tool" data-title="Migrate">
-            <h3 id="migrate">Migrate</h3>
-            <p class="tool-lead">
-              Copy records from an org, a backup or a workbook into another org, keeping every link between them.
-            </p>
-            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
-            <div class="shot">
-              <video
-                src="media/migrate.mp4"
-                poster="media/migrate.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              Copies records from one org (or a backup) into another and keeps every link between them: a Contact still
-              points to its Account, a Case to its Contact, and so on — even though every record gets a new Id in the
-              target.
-            </p>
-            <ol class="steps">
-              <li>
-                <b>From</b>: org A of the bar, a backup run, or <b>Files</b> — an Excel workbook, a CSV or a ⤓ zip:
-                match each sheet to an object of B (sheets named after an object are matched already) and
-                <b>Use these files</b>; lookup columns holding Ids of other sheets are pointed to the new records.
-                <b>Into</b>: org B. Choose them in the bar at the top (the same two orgs for every tool of the hub).
-              </li>
-              <li>
-                <b>What to copy</b>: tick objects. Per object: <i>All</i> records (or a condition),
-                <i>Related only</i> (only the children of what you copy — e.g. the Contacts of the Accounts you copy),
-                or <i>Only those pointed to</i> (e.g. only the Users your records point to). <b>Children…</b> adds an
-                object's child objects in one click, with counts.
-              </li>
-              <li>
-                The <b>Plan</b> table shows it all at once, each object under the one it links to (Contacts under
-                Accounts, via AccountId): which records, a SOQL condition, a <b>limit</b> (the newest N records), the
-                fields (all, only some, or all except some). From each row: <b>+ Children…</b>, <b>+ Parent…</b> (also
-                copy the records its lookups point to) or <b>Remove</b>. A related object follows the lookup it was
-                added through (<i>via AccountId → Account</i>): only the Contacts of the copied Accounts come along, not
-                every Contact owned by a copied User. Change it in the row, or choose
-                <i>via any lookup to the objects above</i>.
-              </li>
-              <li>
-                <b>Check plan</b> before anything is written. It shows the load order (parents before children), records
-                per object, fields missing in the target, masked fields, and <b>Links between records</b>: every lookup,
-                whether it is kept or lost, and a fix for each lost one (add the object, or match on a field such as
-                Name or an external Id).
-              </li>
-              <li>
-                <b>Copy</b> — you type the target org name. Progress shows per object; failures are listed with a CSV.
-              </li>
-            </ol>
-            <ul>
-              <li>
-                <b>Again</b>: running the same copy again updates the records it created instead of duplicating them.
-                <b>Undo last copy</b> deletes what the last copy created.
-              </li>
-              <li>
-                <b>Mask personal data</b>: names, emails and phones are replaced (on by default from production into a
-                sandbox).
-              </li>
-              <li><b>Files and attachments</b> can be copied with their records.</li>
-              <li>
-                <b>Keep the old Ids in the target org</b>: for large copies with the Bulk API, a field
-                <code>NomadSF_Old_Id__c</code> remembers each source Id; remove it afterwards with one click.
-              </li>
-            </ul>
-            <div class="good-to-know">
-              <h4>Good to know</h4>
-              <ul>
-                <li><b>Check plan</b> reads only; nothing is written until <b>Copy</b>, which asks for B’s name.</li>
-                <li>
-                  From files: open ▸ on a sheet to tick only the rows you want; press <b>Use these files</b> again after
-                  changing the ticks.
-                </li>
-                <li>
-                  An object set to <i>Related to the ones above</i> takes only the records whose parent is copied; set
-                  it to <i>All</i> to copy it on its own.
-                </li>
-                <li>For one record and what hangs under it, <a href="#record">Record › Related</a> is quicker.</li>
-              </ul>
-            </div>
           </section>
           <section class="tool" data-title="Org compare">
             <h3 id="orgdiff">Org compare</h3>
@@ -1950,6 +2015,441 @@
               and in B (matched by username); click someone in both to compare the two users in full.
             </p>
           </section>
+          <section class="tool" data-title="Copy records">
+            <h3 id="migrate">Migrate</h3>
+            <p class="tool-lead">
+              Copy records from an org, a backup or a workbook into another org, keeping every link between them.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/migrate.mp4"
+                poster="media/migrate.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              Copies records from one org (or a backup) into another and keeps every link between them: a Contact still
+              points to its Account, a Case to its Contact, and so on — even though every record gets a new Id in the
+              target.
+            </p>
+            <ol class="steps">
+              <li>
+                <b>From</b>: org A of the bar, a backup run, or <b>Files</b> — an Excel workbook, a CSV or a ⤓ zip:
+                match each sheet to an object of B (sheets named after an object are matched already) and
+                <b>Use these files</b>; lookup columns holding Ids of other sheets are pointed to the new records.
+                <b>Into</b>: org B. Choose them in the bar at the top (the same two orgs for every tool of the hub).
+              </li>
+              <li>
+                <b>What to copy</b>: tick objects. Per object: <i>All</i> records (or a condition),
+                <i>Related only</i> (only the children of what you copy — e.g. the Contacts of the Accounts you copy),
+                or <i>Only those pointed to</i> (e.g. only the Users your records point to). <b>Children…</b> adds an
+                object's child objects in one click, with counts.
+              </li>
+              <li>
+                The <b>Plan</b> table shows it all at once, each object under the one it links to (Contacts under
+                Accounts, via AccountId): which records, a SOQL condition, a <b>limit</b> (the newest N records), the
+                fields (all, only some, or all except some). From each row: <b>+ Children…</b>, <b>+ Parent…</b> (also
+                copy the records its lookups point to) or <b>Remove</b>. A related object follows the lookup it was
+                added through (<i>via AccountId → Account</i>): only the Contacts of the copied Accounts come along, not
+                every Contact owned by a copied User. Change it in the row, or choose
+                <i>via any lookup to the objects above</i>.
+              </li>
+              <li>
+                <b>Check plan</b> before anything is written. It shows the load order (parents before children), records
+                per object, fields missing in the target, masked fields, and <b>Links between records</b>: every lookup,
+                whether it is kept or lost, and a fix for each lost one (add the object, or match on a field such as
+                Name or an external Id).
+              </li>
+              <li>
+                <b>Copy</b> — you type the target org name. Progress shows per object; failures are listed with a CSV.
+              </li>
+            </ol>
+            <ul>
+              <li>
+                <b>Again</b>: running the same copy again updates the records it created instead of duplicating them.
+                <b>Undo last copy</b> deletes what the last copy created.
+              </li>
+              <li>
+                <b>Mask personal data</b>: names, emails and phones are replaced (on by default from production into a
+                sandbox).
+              </li>
+              <li><b>Files and attachments</b> can be copied with their records.</li>
+              <li>
+                <b>Keep the old Ids in the target org</b>: for large copies with the Bulk API, a field
+                <code>NomadSF_Old_Id__c</code> remembers each source Id; remove it afterwards with one click.
+              </li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li><b>Check plan</b> reads only; nothing is written until <b>Copy</b>, which asks for B’s name.</li>
+                <li>
+                  From files: open ▸ on a sheet to tick only the rows you want; press <b>Use these files</b> again after
+                  changing the ticks.
+                </li>
+                <li>
+                  An object set to <i>Related to the ones above</i> takes only the records whose parent is copied; set
+                  it to <i>All</i> to copy it on its own.
+                </li>
+                <li>For one record and what hangs under it, <a href="#record">Record › Related</a> is quicker.</li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Validate and deploy">
+            <h3 id="release-panel">Validate and deploy — the same everywhere</h3>
+            <p class="tool-lead">
+              Every place that builds a package ends with the same panel: Project, Branch ↔ Branch, Metadata, Org
+              compare, Code and the AI drafts.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <ul>
+              <li>
+                <b>Choose what goes in</b>: rows come in a box per metadata type. Each row has its own choice —
+                <b>to package</b> (package.xml) or <b>destructive</b> (destructiveChanges.xml) — and each box has
+                <b>+ All to package</b>, <b>− All destructive</b> and <b>Clear</b>.
+              </li>
+              <li>
+                <b>What's in the package</b> lists it file by file (A added, M changed, D deleted); click a file to see
+                its code.
+              </li>
+              <li>
+                <b>Into</b>: the org it goes to. <b>Tests</b>: no tests (not in production), these test classes, all
+                local tests, or all in the org. <b>Find dependent tests</b> names the test classes that reach the
+                classes and triggers of the package — add or remove any. <b>Deletions</b> run after the deploy, or
+                before it.
+              </li>
+              <li>
+                <b>Validate on …</b> checks it without changing the org; <b>Deploy to …</b> deploys it. After a
+                successful validation, <b>Quick deploy</b> deploys it without running the tests again. Component errors
+                and test failures show as tabs; the result goes to the Log too. <b>Deployable zip</b> downloads the
+                package for your pipeline.
+              </li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Source-format files (a project or a branch) are converted to what the Metadata API expects — objects
+                  with their fields, custom labels one by one, and so on. Anything that cannot be converted yet is named
+                  above the buttons and left out.
+                </li>
+                <li>Every validate and deploy asks you to type the org's name first.</li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Project">
+            <h3 id="project">Project</h3>
+            <p class="tool-lead">
+              Your Salesforce project next to the org: what differs, bring org changes in, deploy project changes out.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/project.mp4"
+                poster="media/project.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              Your Salesforce project (a folder on this computer or a GitHub repository, chosen in Settings › Project)
+              against the org. Use it to see what differs, bring org changes into the project, or deploy project changes
+              to the org.
+            </p>
+            <ol class="steps">
+              <li>
+                <b>Overview</b>: the project's components in a box per type (<b>Open in Metadata</b> on each), and its
+                manifests (<code>package.xml</code> files).
+              </li>
+              <li>
+                <b>Compare with the org</b>: choose the metadata types (or <b>All</b>), then <b>Compare</b>. The tiles
+                count <i>in both</i>, <i>only in org</i> and <i>only in project</i> — click one to show just those.
+                <b>Compare content of all</b> checks the files of components in both (<i>same</i> / <i>different</i>);
+                to check only some, use <b>⇄</b> on a component, <b>⇄ Compare</b> on a type, or type in the filter and
+                <b>Compare the … shown</b>.
+              </li>
+              <li>
+                Choose per row or per type: <b>to package</b> deploys the project's version, <b>destructive</b> deletes
+                it from the org. <b>Add all differences</b> takes everything that differs. A <code>.forceignore</code>
+                path leaves files out.
+              </li>
+              <li>
+                Then <a href="#release-panel">What's in the package and Validate and deploy</a>, or
+                <b>Retrieve into project…</b>: the org's version of the chosen components, in source format where each
+                already is in the project (labels merged, objects split per field). Each file shows as new, changed or
+                the same with its difference; nothing is written until <b>Write</b>.
+              </li>
+            </ol>
+            <div class="shot">
+              <video
+                src="media/retrieve.mp4"
+                poster="media/retrieve.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Choose the project once in <a href="#settings">Settings</a>; every page uses it.</li>
+                <li>Deploys and deletes ask first; a validation never changes the org.</li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Branch ↔ Branch">
+            <h3 id="package">Branch ↔ Branch</h3>
+            <p class="tool-lead">
+              What one branch brings into another — like a pull request — as package.xml and destructiveChanges.xml.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/package.mp4"
+                poster="media/package.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              Open the project <b>folder</b> (the repository with <code>sfdx-project.json</code>): Branch ↔ Branch reads
+              its git history, branches and tags, and writes nothing to it.
+            </p>
+            <ol class="steps">
+              <li>
+                <b>Branch ↔ Branch</b>: <b>Source</b> is the branch with the changes, <b>Target</b> where they go (⇄
+                swaps them). <b>Like a pull request</b> takes only what Source added since it branched from Target;
+                <b>Everything that differs</b> compares the two as they are now.
+              </li>
+              <li>
+                <b>Compare</b>: the package by type — added, changed, deleted — with a choice per row and per type.
+                Renamed files are a new component plus the old one deleted (keep the old one if you like). Custom labels
+                are counted one by one.
+              </li>
+              <li>
+                <b>Files</b> lists every file under <i>Changed / added</i> and <i>Deleted</i> (and what the
+                <code>.forceignore</code> left out). Click one to see the difference, and
+                <b>✦ Explain the difference</b> with AI.
+              </li>
+              <li>
+                Download the <b>Manifest (zip)</b> or the manifest <b>with the changed files</b>, or
+                <a href="#release-panel">validate and deploy</a> it.
+              </li>
+            </ol>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  A GitHub project is read without its history, so it cannot be compared here; open the folder instead.
+                  The same goes for Branch ↔ Org and Check a manifest.
+                </li>
+                <li>
+                  Every metadata type the Salesforce CLI knows (almost 500) is recognised the way the CLI does: in its
+                  folder, in sub-folders (<code>classes/services/Billing.cls</code>,
+                  <code>reports/Sales/EMEA/Pipeline</code>), and outside a type folder by its file name where Salesforce
+                  allows it.
+                </li>
+                <li>
+                  <b>Find dependent tests</b> follows the classes and triggers of the package to the test classes that
+                  call them — in the branch, not only in the org.
+                </li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Branch ↔ Org">
+            <h3 id="branchorg">Branch ↔ Org</h3>
+            <p class="tool-lead">A branch of the project against an org, then deploy what differs.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/branchorg.mp4"
+                poster="media/branchorg.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ol class="steps">
+              <li>Choose the branch (any branch or tag of the folder, not only the one checked out).</li>
+              <li>
+                Choose the types: <b>type to find them</b> (<i>flow, perm*</i>), <b>Tick shown</b>; the ticked ones stay
+                as chips. <b>Names</b> keeps only components whose names match (<i>Case*, Billing</i>).
+              </li>
+              <li>
+                Compare with the org at the top: same, different, only in the branch, only in the org — then
+                <a href="#release-panel">validate and deploy</a> what you tick.
+              </li>
+            </ol>
+          </section>
+          <section class="tool" data-title="Open a file">
+            <h3 id="files">Open a file</h3>
+            <p class="tool-lead">A snapshot, workbook, CSV or package.xml next to the org: NomadSF says what it is.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/files.mp4"
+                poster="media/files.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ul class="parts">
+              <li>
+                <b>User snapshot</b> (.csv from Access › Users): the same user is found here and compared; make them
+                match, or create them.
+              </li>
+              <li>
+                <b>Everything workbook</b> of a user, or <b>records saved</b> from Data › Record: tick what to copy,
+                then copy it into the org.
+              </li>
+              <li><b>A CSV or Excel table</b>: compare it with the org, or copy it as new records.</li>
+              <li><b>package.xml</b>: opens <a href="#manifest">Check a manifest</a>.</li>
+            </ul>
+          </section>
+          <section class="tool" data-title="Check a manifest">
+            <h3 id="manifest">Check a manifest</h3>
+            <p class="tool-lead">
+              A package.xml against an org: its components, taken from a branch, compared one by one — then deploy.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/manifest.mp4"
+                poster="media/manifest.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ol class="steps">
+              <li>
+                Choose the <code>package.xml</code> (and, if you have one, the destructiveChanges.xml) and the branch
+                the files come from.
+              </li>
+              <li>
+                Each component is checked against the org you choose: same, different or missing there; open one to see
+                the branch's version next to the org's. What the branch does not have is named.
+              </li>
+              <li>Tick what to send, then <a href="#release-panel">validate and deploy</a>.</li>
+            </ol>
+          </section>
+          <section class="tool" data-title="Compare with CSV">
+            <h3 id="csvcompare">Compare with CSV</h3>
+            <p class="tool-lead">
+              A spreadsheet of records next to the org: what is the same, what differs, what is missing — then make the
+              org match.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/csvcompare.mp4"
+                poster="media/csvcompare.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              A CSV of records — from an old org, a backup or a spreadsheet — next to this org. Choose the file, the
+              object and a field to match records by (Email, an External ID…; Ids from another org do not match), and
+              <b>Compare</b>: each row is <i>the same</i>, <i>different</i> (field by field, org now → CSV) or
+              <i>only in CSV</i>. Lookups are compared by name when the CSV has it (<code>Account.Name</code> for
+              <code>AccountId</code>). <b>Edit the CSV</b> changes rows first; <b>Make the org match the CSV</b> updates
+              what differs and inserts what is missing (you type the org name).
+            </p>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>
+                  Match on a field both sides share (Email, an External ID, a name): Ids from another org never match.
+                </li>
+                <li>
+                  Nothing changes until <b>Make the org match the CSV</b>, which asks first and lists every row that
+                  failed.
+                </li>
+              </ul>
+            </div>
+          </section>
+          <section class="tool" data-title="Sandbox refresh">
+            <h3 id="sandbox">Sandbox refresh</h3>
+            <p class="tool-lead">Before a refresh, save what it replaces; after it, compare and put it back.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/sandbox.mp4"
+                poster="media/sandbox.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ol class="steps">
+              <li>
+                <b>Before the refresh</b>, in the sandbox: untick the kinds you do not want in the workbook, add the
+                users to keep — <b>by name</b>, <b>by a query</b> (<code>Profile.Name = 'Integration User'</code>, any
+                condition on User) or <b>from a CSV / Excel file</b> with an Id, Username or Email column — and
+                <b>Save the workbook</b>. It keeps remote sites, named and external credentials, certificates (names),
+                custom setting values, scheduled Apex, sharing defaults and sharing rules, and those users with their
+                profile, role, permission sets and groups (and the files of the permission sets).
+              </li>
+              <li>Refresh the sandbox in Setup › Sandboxes (NomadSF never starts a refresh).</li>
+              <li>
+                <b>After the refresh</b>, in the sandbox: open the workbook. Every item is <i>same</i>,
+                <i>different</i> or <i>missing</i>, grouped by kind. Tick exactly the ones to put back (a whole kind at
+                once, or one by one) and change the value first if you like — a custom setting value, a remote site's
+                URL, a job's schedule — then <b>Put back…</b> and type the org name. Remote sites, custom setting
+                values, sharing rules and scheduled Apex are put back; credentials, certificates and sharing defaults
+                say where to do them in Setup.
+              </li>
+              <li>
+                <b>Users</b>, below: every user of the workbook — found ones get the access they lack, missing ones are
+                created (change the username if you like); tick who, and one confirmation does them all. What their
+                permission sets need that the sandbox lacks is listed first, to deploy (<a href="#schema-gaps">below</a
+                >).
+              </li>
+              <li>
+                <b>E-mails</b>: a refresh ends every user's e-mail with “.invalid”; the kept users' addresses are set
+                back in one go.
+              </li>
+              <li>
+                <b>Setup checklist</b>: what the API cannot do — e-mail deliverability, secrets of credentials,
+                certificates with keys, connected app secrets, endpoints, users to freeze.
+              </li>
+            </ol>
+            <p id="schema-gaps">
+              <b>What the org needs first.</b> When what you put back or the permission sets you create need objects,
+              fields or Apex classes the org does not have, a box lists them: per permission set (or for the custom
+              settings, the sharing, the scheduled Apex) what it needs, each with a tick. Choose where they come from —
+              another org or the project — and NomadSF also follows what those use there (a class that uses another
+              class, an object, a field: <i>Also needed, because they use them</i>), so the deploy is whole. Validate or
+              deploy it right there (tests, typed org name), or <b>Download package.xml</b> to deploy another way;
+              <b>Check again</b> after. Then put the settings back and create the users.
+            </p>
+          </section>
         </section>
 
         <section class="hub" id="hub-scenarios" data-title="Scenarios">
@@ -1988,7 +2488,8 @@
             </ol>
             <div class="callout">
               For many Accounts at once (the newest 100, with their Contacts), use
-              <a href="#migrate">Org to org › Migrate</a> with a limit and <i>Related to the ones above</i>.
+              <a href="#migrate">Compare &amp; Deploy › Copy records</a> with a limit and
+              <i>Related to the ones above</i>.
             </div>
           </section>
           <section class="tool" data-title="New starter’s access">
@@ -2060,8 +2561,8 @@
             </p>
             <ol class="steps">
               <li>
-                <a href="#csvcompare">Data › Compare with CSV</a>: choose the file and the object, and match on a field
-                both sides share (an External ID, or the name).
+                <a href="#csvcompare">Compare &amp; Deploy › Compare with CSV</a>: choose the file and the object, and
+                match on a field both sides share (an External ID, or the name).
               </li>
               <li>Read the differences field by field: org now → spreadsheet.</li>
               <li>Untick rows you don’t want, then <b>Make the org match the CSV</b> (it asks first).</li>
@@ -2102,8 +2603,8 @@
                 <b>Run</b>. Check the coverage.
               </li>
               <li>
-                Deploy it: from your project (<a href="#project">Release › Project</a>) or from a sandbox with
-                <a href="#orgdiff">Org compare</a>.
+                Deploy it: from your project (<a href="#project">Compare &amp; Deploy › Project</a>) or from a sandbox
+                with <a href="#orgdiff">Org compare</a>.
               </li>
             </ol>
           </section>
@@ -2112,8 +2613,8 @@
             <p class="tool-lead">A feature is finished in a sandbox and must go to production.</p>
             <ol class="steps">
               <li>
-                <a href="#orgdiff">Org to org › Org compare</a>: A = the sandbox, B = production. Choose the types and
-                <b>Compare</b>.
+                <a href="#orgdiff">Compare &amp; Deploy › Compare metadata</a>: A = the sandbox, B = production. Choose
+                the types and <b>Compare</b>.
               </li>
               <li>
                 Tick what belongs to the feature (<b>Select the difference</b> ticks all of it), then
@@ -2122,7 +2623,7 @@
               <li>
                 Validate it into B with the test level you need — production is shown in red and asks for its name.
               </li>
-              <li>Later, <b>Quick deploy</b> the validation from <a href="#deployments">Release › Deployments</a>.</li>
+              <li>Later, <b>Quick deploy</b> the validation from <a href="#deployments">Org › Deployments</a>.</li>
             </ol>
           </section>
           <section class="tool" data-title="Why a save fails">
@@ -2169,8 +2670,8 @@
             </p>
             <div class="shot">
               <video
-                src="media/settings.mp4"
-                poster="media/settings.jpg"
+                src="media/hub-settings.mp4"
+                poster="media/hub-settings.jpg"
                 muted
                 loop
                 playsinline
@@ -2185,13 +2686,61 @@
                 AI page.
               </li>
               <li>
-                <b>Project</b>: a folder on this computer or a GitHub repository and branch. Every page uses it; Compare
-                &amp; package needs the <b>folder</b>, as it reads the project's git history.
+                <b>Project</b>: a folder on this computer or a GitHub repository and branch (in VS Code, the open
+                workspace when it is a Salesforce project). Every page uses it; Branch ↔ Branch, Branch ↔ Org and Check
+                a manifest need the <b>folder</b>, as it reads the project's git history.
               </li>
             </ul>
           </section>
+          <section class="tool" data-title="Orgs">
+            <h3 id="orgs">Orgs</h3>
+            <p class="tool-lead">
+              The orgs you are logged in to: each with its type, your user, and a button to open it.
+            </p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/settings.mp4"
+                poster="media/settings.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+          </section>
+          <section class="tool" data-title="Project">
+            <h3 id="settingsproject">Project</h3>
+            <p class="tool-lead">
+              The Salesforce project every page uses: a folder, a GitHub repository, or the VS Code workspace.
+            </p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/settingsproject.mp4"
+                poster="media/settingsproject.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+          </section>
           <section class="tool" data-title="AI">
             <h2 id="ai">AI</h2>
+            <div class="shot">
+              <video
+                src="media/settingsai.mp4"
+                poster="media/settingsai.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <p>
               In <b>Settings → AI</b>, connect your own provider: Anthropic Claude, OpenAI, Gemini, Mistral, Groq,
               OpenRouter (key or sign-in), GitHub Models, Ollama on your computer, or any OpenAI-format endpoint. The ✦
@@ -2309,9 +2858,9 @@
               </li>
               <li>
                 <b>Every change asks first</b>, in every org: saving code, editing records, validating and deploying,
-                deleting, restoring and copying data, changing permissions — you type the org name (in Org to org, B's
-                name). Running Apex or tests, turning on debug logs and Log in as ask too. Production orgs are shown in
-                red.
+                deleting, restoring and copying data, changing permissions — you type the org name (between two orgs,
+                B's name). Running Apex or tests, turning on debug logs and Log in as ask too. Production orgs are shown
+                in red.
               </li>
               <li>
                 <b>Only what your user may do</b>: NomadSF works with your own Salesforce permissions. Each tool says

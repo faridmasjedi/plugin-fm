@@ -32,16 +32,26 @@ export const NEEDS: Partial<Record<ToolId, Need>> = {
   compare: { read: ['ViewSetup'] },
   objectaccess: { read: ['ViewSetup'] },
   audit: { read: ['ViewSetup'] },
+  eventlogs: { read: ['ViewEventLogFiles'] },
+  secdash: { read: ['ViewSetup'] },
+  timeline: { read: ['ViewSetup'] },
+  whocansee: { read: ['ViewSetup'] },
+  sharing: { read: ['ViewSetup'] },
   apps: { read: ['ViewSetup'] },
   health: { read: ['ViewSetup'] },
+  licenses: { read: ['ViewSetup'], change: ['ManageUsers'], changeWhat: 'freeze, deactivate or free licenses' },
+  flows: { read: ['ViewSetup'], change: ['ManageFlow'], changeWhat: 'delete flow versions and interviews' },
+  sandbox: { read: ['ViewSetup'], change: ['ModifyMetadata'], changeWhat: 'put settings back after a refresh' },
 };
 
 /** Names people know, for the permissions the tools need (the org's own labels win when known). */
 const LABELS: Record<string, string> = {
   ViewSetup: 'View Setup and Configuration',
+  ViewEventLogFiles: 'View Event Log Files',
   AuthorApex: 'Author Apex',
   ModifyMetadata: 'Modify Metadata Through Metadata API Functions',
   ManageUsers: 'Manage Users',
+  ManageFlow: 'Manage Flow',
   AssignPermissionSets: 'Assign Permission Sets',
   ManageProfilesPermissionsets: 'Manage Profiles and Permission Sets',
   ViewAllData: 'View All Data',

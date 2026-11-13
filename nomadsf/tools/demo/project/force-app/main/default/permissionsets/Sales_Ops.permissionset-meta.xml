@@ -25,4 +25,8 @@
         <object>Contact</object>
         <viewAllRecords>false</viewAllRecords>
     </objectPermissions>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Approve_Discounts</name>
+    </customPermissions>
 </PermissionSet>

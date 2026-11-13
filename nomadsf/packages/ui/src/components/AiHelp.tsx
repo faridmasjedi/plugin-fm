@@ -114,6 +114,7 @@ export function AiExplain({
 export function AiAsk({
   task,
   placeholder,
+  title,
   button,
   what,
   build,
@@ -121,6 +122,8 @@ export function AiAsk({
 }: {
   task: string;
   placeholder: string;
+  /** The full example, on hover (the placeholder is kept short). */
+  title?: string;
   button: string;
   what: string;
   build?: (question: string) => Promise<Record<string, unknown>>;
@@ -152,6 +155,7 @@ export function AiAsk({
       <div className="form ai-ask">
         <input
           placeholder={placeholder}
+          title={title}
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && void ask()}

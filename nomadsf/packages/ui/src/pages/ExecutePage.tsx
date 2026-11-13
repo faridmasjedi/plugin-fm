@@ -164,7 +164,8 @@ export function ExecutePage() {
       </div>
       <AiAsk
         task="write-apex"
-        placeholder="✦ Describe the Apex you need, e.g. deactivate users who have not logged in for 90 days"
+        placeholder="✦ Describe the Apex, e.g. deactivate users idle for 90 days"
+        title="e.g. deactivate users who have not logged in for 90 days"
         button="Write Apex"
         what="your request"
         onAnswer={(answer) =>

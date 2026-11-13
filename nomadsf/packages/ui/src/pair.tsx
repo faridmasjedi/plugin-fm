@@ -6,7 +6,7 @@ import { useAccessOf } from './access';
 import type { OrgChoice } from './host';
 
 /**
- * Org to org: the two orgs every tool of the hub works on (A → B: compare from A, copy and deploy into B).
+ * Compare & Deploy, two orgs: the two orgs every two-org tool works on (A → B: compare from A, copy and deploy into B).
  * One pair for the whole hub, remembered; A starts as the org chosen at the top.
  */
 export type OrgPair = { a: string; b: string };
