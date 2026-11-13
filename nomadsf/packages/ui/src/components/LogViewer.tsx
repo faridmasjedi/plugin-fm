@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Select } from './Select';
 import { logInsights, parseLog, type LogNode } from '@nomadsf/core';
 import { DataTable } from './DataTable';
 import { CodeEditor } from './CodeEditor';
 import { AiExplain } from './AiHelp';
 
-type Tab = 'insights' | 'debug' | 'events' | 'limits' | 'raw';
+export type LogTab = 'insights' | 'debug' | 'events' | 'limits' | 'raw';
+type Tab = LogTab;
 
 /** One thing that ran, with what it ran in turn (folded below the first level). */
 function RanNode({ node, depth = 0 }: { node: LogNode; depth?: number }) {
@@ -35,10 +36,21 @@ function RanNode({ node, depth = 0 }: { node: LogNode; depth?: number }) {
 }
 
 /** Developer Console style log inspector: insights first, then debug messages, all events, limits and the raw log. */
-export function LogViewer({ log, name = 'apex-log' }: { log: string; name?: string }) {
+export function LogViewer({
+  log,
+  name = 'apex-log',
+  start = 'insights',
+}: {
+  log: string;
+  name?: string;
+  /** The tab it opens on: Insights in Debug logs; Debug (your System.debug lines) after Execute Apex. */
+  start?: Tab;
+}) {
   const summary = useMemo(() => parseLog(log), [log]);
   const insights = useMemo(() => logInsights(summary), [summary]);
-  const [tab, setTab] = useState<Tab>('insights');
+  const [tab, setTab] = useState<Tab>(start);
+  // A new log (another run) opens on the starting tab again
+  useEffect(() => setTab(start), [log, start]);
   const [eventType, setEventType] = useState('');
   const types = useMemo(() => [...new Set(summary.events.map((e) => e.type))].sort(), [summary]);
 
