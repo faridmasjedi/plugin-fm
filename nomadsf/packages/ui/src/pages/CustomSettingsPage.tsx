@@ -35,7 +35,7 @@ const shown = (v: unknown): string =>
   v === null || v === undefined ? '' : typeof v === 'boolean' ? (v ? '✓' : '') : String(v);
 
 /**
- * Data › Custom settings: every custom setting of the org with its values — edit one, add one (a level of a hierarchy
+ * Develop › Custom settings: every custom setting of the org with its values — edit one, add one (a level of a hierarchy
  * setting, a row of a list setting), delete one — and a new custom setting with its fields. Each change asks first.
  */
 export function CustomSettingsPage() {

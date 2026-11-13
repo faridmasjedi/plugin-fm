@@ -160,15 +160,14 @@
               <tr>
                 <td><b>Develop</b></td>
                 <td>
-                  Code · Execute Apex · Apex tests · Code checks · Debug logs · Jobs · Save order · Flows · Events ·
-                  REST Explorer
+                  Code · Execute Apex · Apex tests · Code checks · Custom settings · Debug logs · Jobs · Save order ·
+                  Flows · Events · REST Explorer
                 </td>
               </tr>
               <tr>
                 <td><b>Data</b></td>
                 <td>
-                  Query · Record · Import / Update / Delete · Lookup · Schema · Field usage · Custom settings — then
-                  Backup · Lifecycle
+                  Query · Record · Import / Update / Delete · Lookup · Schema · Field usage — then Backup · Lifecycle
                 </td>
               </tr>
               <tr>
@@ -486,6 +485,25 @@
               Pattern rules, read line by line and query by query: a place to look, not a verdict — and not a full scan
               like Salesforce Code Analyzer or Checkmarx.
             </p>
+          </section>
+          <section class="tool" data-title="Custom settings">
+            <h3 id="customsettings">Custom settings</h3>
+            <p class="tool-lead">
+              Every custom setting with its values — edit, add, delete — and a new custom setting with its fields.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <ul class="parts">
+              <li>
+                <b>Hierarchy</b> settings show a value per level: the organization default, a profile, a user (the
+                closest one wins). <b>+ Add a level</b> picks the level.
+              </li>
+              <li><b>List</b> settings show rows by name; <b>+ Add a row</b> names a new one.</li>
+              <li><b>Edit</b> and <b>Delete</b> on each row; every change asks for the org name.</li>
+              <li>
+                <b>+ New custom setting</b>: label, API name, kind, visibility and fields (text, number, checkbox, URL,
+                e-mail), deployed in one go.
+              </li>
+            </ul>
           </section>
           <section class="tool" data-title="Debug logs">
             <h3 id="logs">Debug logs</h3>
@@ -1046,25 +1064,6 @@
                 </li>
               </ul>
             </div>
-          </section>
-          <section class="tool" data-title="Custom settings">
-            <h3 id="customsettings">Custom settings</h3>
-            <p class="tool-lead">
-              Every custom setting with its values — edit, add, delete — and a new custom setting with its fields.
-            </p>
-            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
-            <ul class="parts">
-              <li>
-                <b>Hierarchy</b> settings show a value per level: the organization default, a profile, a user (the
-                closest one wins). <b>+ Add a level</b> picks the level.
-              </li>
-              <li><b>List</b> settings show rows by name; <b>+ Add a row</b> names a new one.</li>
-              <li><b>Edit</b> and <b>Delete</b> on each row; every change asks for the org name.</li>
-              <li>
-                <b>+ New custom setting</b>: label, API name, kind, visibility and fields (text, number, checkbox, URL,
-                e-mail), deployed in one go.
-              </li>
-            </ul>
           </section>
           <section class="tool" data-title="Backup">
             <h3 id="backup">Backup</h3>

@@ -4,7 +4,7 @@ import { query, type Row } from './query.js';
 import { escapeXml } from './soap.js';
 
 /**
- * Data › Custom settings: every custom setting of the org with its values — a hierarchy setting by level (the org
+ * Develop › Custom settings: every custom setting of the org with its values — a hierarchy setting by level (the org
  * default, a profile, a user), a list setting by name — to edit, add and delete; and a new custom setting with its
  * fields, deployed.
  */

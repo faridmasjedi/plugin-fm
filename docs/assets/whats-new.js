@@ -13,7 +13,7 @@ window.NOMADSF_WHATS_NEW = {
     'Access › Assign in bulk: permission sets, permission set groups, public groups and queues given to (or taken from) many users at once — users by name, username, profile, role, a query or a CSV / Excel file — with a line per user saying what happened',
     'Security › Integration check: why an integration fails — the user (active, frozen, locked), API Enabled, password age, its recent logins with Salesforce’s reason for each failure and what it usually means, the connected app (admin-approved users, tokens), expiring certificates, inactive remote sites',
     'Debug logs: a log opens on Insights — errors and limits close to their maximum, the same query or DML many times (a loop), what ran as a tree (triggers, flows, validation rules, classes), the slowest methods, every query and DML grouped with its lines',
-    'Data › Custom settings: every custom setting with its values (by org, profile or user; or rows by name) to edit, add and delete, and a new custom setting with its fields',
+    'Develop › Custom settings: every custom setting with its values (by org, profile or user; or rows by name) to edit, add and delete, and a new custom setting with its fields',
     'Develop › Code checks: well-known mistakes in Apex, triggers, Visualforce, LWC and Aura of the org or the project — SOQL injection, XSS, secrets in code, without sharing, missing access checks, hard-coded Ids, queries and DML in loops — each with why and how to fix',
     'Who can see: many profiles and permission sets behind a reason fold into “Which ones (N)”, the names by kind with a filter; long reasons never run out of their box',
     'Save order: “Show all” now really shows only the first six of a busy step until pressed',

@@ -124,6 +124,7 @@ export const scenes = [
     ['Execute Apex', 'Execute Apex: run anonymous Apex'],
     ['Apex tests', 'Apex tests: run tests, see the coverage'],
     ['Code checks', 'Code checks: security mistakes and queries in loops, with the fix'],
+    ['Custom settings', 'Custom settings: their values by org, profile or user — and new ones'],
     ['Debug logs', 'Debug logs: switch logging on, read a log’s insights'],
     ['Jobs', 'Jobs: scheduled and background Apex'],
     ['Save order', 'Save order: what runs when a record is saved'],
@@ -138,7 +139,6 @@ export const scenes = [
     ['Lookup', 'Lookup: Ids for the values of a CSV column'],
     ['Schema', 'Schema: fields, relationships, record types'],
     ['Field usage', 'Field usage: how full each field is'],
-    ['Custom settings', 'Custom settings: their values by org, profile or user — and new ones'],
     ['Backup', 'Backup: back up and restore, on a schedule'],
     ['Lifecycle', 'Lifecycle: archive, anonymize and delete in steps'],
   ]),
@@ -1503,7 +1503,7 @@ export const scenes = [
   {
     name: 'customsettings',
     hash: 'customsettings',
-    intro: 'Data › Custom settings: their values — edit, add, delete — and new custom settings',
+    intro: 'Develop › Custom settings: their values — edit, add, delete — and new custom settings',
     run: async (h) => {
       const pick = h.page.locator('.pane-body label', { hasText: 'Custom setting' }).locator('select');
       await pick.waitFor({ timeout: 60000 });
