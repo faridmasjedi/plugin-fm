@@ -214,7 +214,7 @@ export function OrgAppsPage() {
       {view === 'apps' ? (
         <>
           <OrgAppsUsage />
-          <div className="page">
+          <div className="page config-below">
             <div className="card section">
               <ConfigCompare kinds={['Connected app', 'External client app']} embedded />
             </div>

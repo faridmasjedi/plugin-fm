@@ -237,40 +237,42 @@ export function ConfigItemView({ item, onDeployed }: { item: ConfigItem; onDeplo
               </>
             )}
           </div>
-          {groups.map(([part, list]) => (
-            <div key={part} className="config-group">
-              {groups.length > 1 && (
-                <button
-                  className="config-group-head"
-                  aria-expanded={!closed.has(part)}
-                  onClick={() => {
-                    const next = new Set(closed);
-                    if (next.has(part)) next.delete(part);
-                    else next.add(part);
-                    setClosed(next);
-                  }}
-                >
-                  <span className="tree-toggle">{closed.has(part) ? '▸' : '▾'}</span> {part}{' '}
-                  <span className="muted small">({list.length})</span>
-                </button>
-              )}
-              {!closed.has(part) && (
-                <table className="config-table">
-                  <tbody>
-                    {list.map((r) => (
-                      <tr
-                        key={r.key}
-                        className={edits[r.key] !== undefined && edits[r.key] !== r.value ? 'changed' : ''}
-                      >
-                        <td className="mono small">{r.path}</td>
-                        <td>{editing ? input(r) : <span className="config-value">{r.value}</span>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          ))}
+          <div className="config-groups">
+            {groups.map(([part, list]) => (
+              <div key={part} className="config-group">
+                {groups.length > 1 && (
+                  <button
+                    className="config-group-head"
+                    aria-expanded={!closed.has(part)}
+                    onClick={() => {
+                      const next = new Set(closed);
+                      if (next.has(part)) next.delete(part);
+                      else next.add(part);
+                      setClosed(next);
+                    }}
+                  >
+                    <span className="tree-toggle">{closed.has(part) ? '▸' : '▾'}</span> {part}{' '}
+                    <span className="muted small">({list.length})</span>
+                  </button>
+                )}
+                {!closed.has(part) && (
+                  <table className="config-table">
+                    <tbody>
+                      {list.map((r) => (
+                        <tr
+                          key={r.key}
+                          className={edits[r.key] !== undefined && edits[r.key] !== r.value ? 'changed' : ''}
+                        >
+                          <td className="mono small">{r.path}</td>
+                          <td>{editing ? input(r) : <span className="config-value">{r.value}</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            ))}
+          </div>
         </>
       )}
     </div>

@@ -174,48 +174,50 @@ export function ConfigCompare({
             )}
           </div>
           {!shownDiff.length && <p className="muted">The same in both.</p>}
-          {groups.map(([part, list]) => (
-            <div key={part} className="config-group">
-              {groups.length > 1 && (
-                <button
-                  className="config-group-head"
-                  aria-expanded={!closed.has(part)}
-                  onClick={() => {
-                    const next = new Set(closed);
-                    if (next.has(part)) next.delete(part);
-                    else next.add(part);
-                    setClosed(next);
-                  }}
-                >
-                  <span className="tree-toggle">{closed.has(part) ? '▸' : '▾'}</span> {part}{' '}
-                  <span className="muted small">
-                    ({list.length}
-                    {both ? `, ${list.filter((d) => !d.same).length} different` : ''})
-                  </span>
-                </button>
-              )}
-              {!closed.has(part) && (
-                <table className="config-table config-diff">
-                  <thead>
-                    <tr>
-                      <th>Setting</th>
-                      <th>A · {a?.label ?? 'org A'}</th>
-                      <th>B · {b?.label ?? 'org B'}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {list.map((d) => (
-                      <tr key={d.path} className={both && !d.same ? 'changed' : ''}>
-                        <td className="mono small">{d.setting}</td>
-                        <td>{d.a || <span className="muted">—</span>}</td>
-                        <td>{d.b || <span className="muted">—</span>}</td>
+          <div className="config-groups">
+            {groups.map(([part, list]) => (
+              <div key={part} className="config-group">
+                {groups.length > 1 && (
+                  <button
+                    className="config-group-head"
+                    aria-expanded={!closed.has(part)}
+                    onClick={() => {
+                      const next = new Set(closed);
+                      if (next.has(part)) next.delete(part);
+                      else next.add(part);
+                      setClosed(next);
+                    }}
+                  >
+                    <span className="tree-toggle">{closed.has(part) ? '▸' : '▾'}</span> {part}{' '}
+                    <span className="muted small">
+                      ({list.length}
+                      {both ? `, ${list.filter((d) => !d.same).length} different` : ''})
+                    </span>
+                  </button>
+                )}
+                {!closed.has(part) && (
+                  <table className="config-table config-diff">
+                    <thead>
+                      <tr>
+                        <th>Setting</th>
+                        <th>A · {a?.label ?? 'org A'}</th>
+                        <th>B · {b?.label ?? 'org B'}</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          ))}
+                    </thead>
+                    <tbody>
+                      {list.map((d) => (
+                        <tr key={d.path} className={both && !d.same ? 'changed' : ''}>
+                          <td className="mono small">{d.setting}</td>
+                          <td>{d.a || <span className="muted">—</span>}</td>
+                          <td>{d.b || <span className="muted">—</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            ))}
+          </div>
           <p className="muted small">
             The consumer key differs in every org and is not a difference. Secrets (client secrets, passwords, private
             keys) are not in these files and are never copied: set them in Setup in {b?.label ?? 'B'}.

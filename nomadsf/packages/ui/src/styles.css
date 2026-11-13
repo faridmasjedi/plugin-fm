@@ -5458,3 +5458,21 @@ nav.side .nav-width:hover {
 .config-table thead th:last-child {
   border-top-right-radius: 6px;
 }
+/* Folding groups stack closely; the settings card under the apps list keeps its distance */
+.config-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.config-groups .config-group,
+.config-groups .config-group + .config-group,
+.config-groups .config-group-head {
+  margin: 0;
+}
+.config-groups .config-table {
+  margin: 4px 0 8px;
+}
+.page.config-below {
+  padding-top: 0;
+  margin-top: 16px;
+}
