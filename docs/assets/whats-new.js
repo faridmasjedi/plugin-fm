@@ -3,6 +3,10 @@
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
   next: [
+    'Compare & move is now Compare & Deploy, tidied: Project & git holds Project, Branch ↔ Org and Branch ↔ Branch (was Compare & package); Check a manifest (was From a manifest) sits under Org ↔ File, where Open a file sends a package.xml; the second Org ↔ Org inside Compare & package is gone (it was Compare metadata again)',
+    'Who can see: a record found by name in an object (or an Id or a link), and without a record an object, a field, or an Apex class, Visualforce page or custom permission — what the user can do and which profile or permission set gives it; the name and username no longer run together',
+    'Colors: each hub and each tab of a hub has its own color; « Narrow keeps only the hub icons (the name shows on hover), remembered',
+    'Guide: all videos made again — a tour, one per hub that walks every tab, and one per tool — with subtitles saying what each step does; the cheat sheet and ⌘K search know the new tools',
     'VS Code: the open workspace is the Studio’s project when it is a Salesforce project (no folder to choose)',
     'Sandbox refresh: what is needed comes from the org the workbook was saved in; pieces the project lacks are named; custom settings are not taken as sharing defaults',
     'Compare two users: one match is one button; Access sets lists profiles and groups before the long list of permission sets',

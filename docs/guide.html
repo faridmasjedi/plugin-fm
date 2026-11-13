@@ -105,13 +105,15 @@
             <h2 id="layout">Hubs and panes</h2>
             <p>
               The sidebar has seven hubs and Settings. A hub opens in a pane with <b>its own sidebar of tools</b> on the
-              left; the bar at the top says where you are (<i>Compare &amp; move › Compare &amp; package</i>). A hub
-              opens on the tool you used last. In a narrow pane the tools' sidebar shows icons only.
+              left; the bar at the top says where you are (<i>Compare &amp; Deploy › Branch ↔ Branch</i>). A hub opens
+              on the tool you used last. In a narrow pane the tools' sidebar shows icons only. Each hub has its own
+              color. <b>« Narrow</b> at the bottom of the sidebar keeps only the icons (the name shows when the mouse is
+              over one); <b>»</b> brings the names back. The Studio remembers your choice.
             </p>
             <div class="shot">
               <video
-                src="media/hubs.mp4"
-                poster="media/hubs.jpg"
+                src="media/tour.mp4"
+                poster="media/tour.jpg"
                 muted
                 loop
                 playsinline
@@ -180,11 +182,11 @@
                 <td>Company · Limits · Licenses · Connected apps · Metadata · Deployments</td>
               </tr>
               <tr>
-                <td><b>Compare &amp; move</b></td>
+                <td><b>Compare &amp; Deploy</b></td>
                 <td>
-                  Org ↔ Org (Compare metadata · Compare access · Compare apps · Copy records) · Org ↔ Project (Project)
-                  · Branch ↔ Branch (Compare &amp; package) · Org ↔ File (Open a file · Compare with CSV) · Sandbox
-                  refresh
+                  Org ↔ Org (Compare metadata · Compare access · Compare apps · Copy records) · Project &amp; git
+                  (Project · Branch ↔ Org · Branch ↔ Branch) · Org ↔ File (Open a file · Check a manifest · Compare with
+                  CSV) · Sandbox refresh
                 </td>
               </tr>
               <tr>
@@ -244,6 +246,23 @@
 
         <section class="hub" id="hub-develop" data-title="Develop">
           <h2 id="develop">Develop</h2>
+          <section class="tool" data-title="Overview">
+            <h3 id="hub-develop">Overview</h3>
+            <p class="tool-lead">
+              Every tab of Develop in a minute: code, tests, logs, jobs, automation, flows, events and REST.
+            </p>
+            <div class="shot">
+              <video
+                src="media/hub-develop.mp4"
+                poster="media/hub-develop.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+          </section>
           <section class="tool" data-title="Code">
             <h3 id="code">Code</h3>
             <p class="tool-lead">
@@ -562,6 +581,17 @@
             <h3 id="flows">Flows</h3>
             <p class="tool-lead">Tidy flows: old versions, old API versions, waiting and failed interviews.</p>
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/flows.mp4"
+                poster="media/flows.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <ul class="parts">
               <li>
                 <b>Old versions</b>: versions that no longer run, grouped by flow — the active one and the newest of
@@ -641,6 +671,23 @@
         <section class="hub" id="hub-data" data-title="Data">
           <h2 id="data">Data</h2>
           <span id="protect"></span>
+          <section class="tool" data-title="Overview">
+            <h3 id="hub-data">Overview</h3>
+            <p class="tool-lead">
+              Every tab of Data: query, records, imports, lookups, schema, field usage, backup and lifecycle.
+            </p>
+            <div class="shot">
+              <video
+                src="media/hub-data.mp4"
+                poster="media/hub-data.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+          </section>
           <section class="tool" data-title="Query">
             <h3 id="query">Query</h3>
             <p class="tool-lead">SOQL with autocomplete, a filterable table, saved queries and history.</p>
@@ -1012,6 +1059,17 @@
             <h3 id="restore">Restore</h3>
             <p class="tool-lead">Put back changed values and bring back deleted records from a backup run.</p>
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/restore.mp4"
+                poster="media/restore.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <p>Open a run under <b>Backups &amp; restore</b>, tick the objects and <b>Compare with the org</b>:</p>
             <ul>
               <li><b>Changed since the backup</b>: tick values and <b>Put back</b>.</li>
@@ -1061,6 +1119,21 @@
 
         <section class="hub" id="hub-people" data-title="Access">
           <h2 id="people">Access</h2>
+          <section class="tool" data-title="Overview">
+            <h3 id="hub-access">Overview</h3>
+            <p class="tool-lead">Every tab of Access: users, access sets, groups and queues, object access, compare.</p>
+            <div class="shot">
+              <video
+                src="media/hub-access.mp4"
+                poster="media/hub-access.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+          </section>
           <section class="tool" data-title="Users">
             <h3 id="access">Users</h3>
             <p class="tool-lead">
@@ -1141,8 +1214,8 @@
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
-                src="media/permedit.mp4"
-                poster="media/permedit.jpg"
+                src="media/accesssets.mp4"
+                poster="media/accesssets.jpg"
                 muted
                 loop
                 playsinline
@@ -1310,11 +1383,13 @@
                 tab, with a filter): system permissions, object and field access that differ.
               </li>
             </ul>
-            <p>To compare with another org, use <a href="#orgaccess">Compare &amp; move › Compare access</a>.</p>
+            <p>To compare with another org, use <a href="#orgaccess">Compare &amp; Deploy › Compare access</a>.</p>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
-                <li>To compare with another org, use <a href="#orgaccess">Compare &amp; move › Compare access</a>.</li>
+                <li>
+                  To compare with another org, use <a href="#orgaccess">Compare &amp; Deploy › Compare access</a>.
+                </li>
               </ul>
             </div>
           </section>
@@ -1322,10 +1397,38 @@
 
         <section class="hub" id="hub-security" data-title="Security">
           <h2 id="security">Security</h2>
+          <section class="tool" data-title="Overview">
+            <h3 id="hub-security">Overview</h3>
+            <p class="tool-lead">
+              Every tab of Security: dashboard, timeline, event logs, who can see, sharing, health, logins.
+            </p>
+            <div class="shot">
+              <video
+                src="media/hub-security.mp4"
+                poster="media/hub-security.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+          </section>
           <section class="tool" data-title="Dashboard">
             <h3 id="secdash">Dashboard</h3>
             <p class="tool-lead">The org's security at a glance: a tile per check, each opening its tool.</p>
             <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/secdash.mp4"
+                poster="media/secdash.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <ul class="parts">
               <li>
                 <b>Tiles</b>: Health Check score and high risks, failed logins in the last 24 hours, API calls used
@@ -1342,6 +1445,17 @@
             <h3 id="timeline">Timeline</h3>
             <p class="tool-lead">Everything that happened in the org, in one table.</p>
             <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/timeline.mp4"
+                poster="media/timeline.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <ul class="parts">
               <li>
                 <b>What is in it</b>: setup changes (the setup audit trail), logins, components last changed (Apex,
@@ -1415,9 +1529,23 @@
             </div>
           </section>
           <section class="tool" data-title="Who can see">
-            <h3 id="whocansee">Who can see this record?</h3>
-            <p class="tool-lead">A user and a record: whether they can read, edit, delete or transfer it — and why.</p>
+            <h3 id="whocansee">Who can see this?</h3>
+            <p class="tool-lead">
+              A user and a record, an object, a field, or an Apex class, Visualforce page or custom permission: what
+              they can do with it — and why.
+            </p>
             <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/whocansee.mp4"
+                poster="media/whocansee.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <ul class="parts">
               <li>
                 <b>The answer</b> is Salesforce's own (Read, Edit, Delete, Transfer), for that user and that record.
@@ -1428,12 +1556,39 @@
                 (rules, teams, manual shares) — the ones that reach the user stand out.
               </li>
               <li>When the user can read but not edit, it says what Edit would need.</li>
+              <li>
+                <b>A record</b>: paste its Id or a Salesforce link, or choose an object and type part of a name (the
+                last changed records show first).
+              </li>
+              <li>
+                <b>An object</b>: Read, Create, Edit, Delete, View all and Modify all, each with the profile or
+                permission set that gives it, View/Modify All Data, and the object's org-wide default.
+              </li>
+              <li>
+                <b>A field</b>: its field-level security (Read, Edit) and from where; a required or system field follows
+                the object.
+              </li>
+              <li>
+                <b>A class, page or permission</b>: whether the user's profile or a permission set gives it (and Author
+                Apex, which opens every class and page).
+              </li>
             </ul>
           </section>
           <section class="tool" data-title="Sharing">
             <h3 id="sharing">Sharing</h3>
             <p class="tool-lead">How an object's records are shared, as a tree.</p>
             <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/sharing.mp4"
+                poster="media/sharing.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <ul class="parts">
               <li><b>Defaults</b>: the org-wide default inside the company and outside (portals, Experience Cloud).</li>
               <li><b>Roles</b>: users above a record's owner see it too.</li>
@@ -1513,6 +1668,23 @@
 
         <section class="hub" id="hub-org" data-title="Org">
           <h2 id="org">Org</h2>
+          <section class="tool" data-title="Overview">
+            <h3 id="hub-org">Overview</h3>
+            <p class="tool-lead">
+              Every tab of Org: company, limits, licenses, connected apps, metadata and deployments.
+            </p>
+            <div class="shot">
+              <video
+                src="media/hub-org.mp4"
+                poster="media/hub-org.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+          </section>
           <section class="tool" data-title="Company">
             <h3 id="company">Company information</h3>
             <p class="tool-lead">
@@ -1570,6 +1742,17 @@
             <h3 id="licenses">Licenses</h3>
             <p class="tool-lead">How many are used, and who holds one without using it.</p>
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/licenses.mp4"
+                poster="media/licenses.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <ul class="parts">
               <li><b>Usage</b>: user and permission set licenses, used of total; click one for its users.</li>
               <li>
@@ -1692,13 +1875,28 @@
           </section>
         </section>
 
-        <section class="hub" id="hub-move" data-title="Compare &amp; move">
-          <h2 id="move">Compare &amp; move</h2>
+        <section class="hub" id="hub-move" data-title="Compare &amp; Deploy">
+          <h2 id="move">Compare &amp; Deploy</h2>
           <span id="release"></span><span id="between"></span>
           <p class="hub-lead">
             Everything between two places — another org, the project, a branch, a file: compare, deploy, retrieve, copy,
-            restore. The tabs are grouped by pair: Org ↔ Org, Org ↔ Project, Branch ↔ Branch, Org ↔ File, Sandbox.
+            restore. The tabs are grouped: Org ↔ Org, Project &amp; git, Org ↔ File, Sandbox.
           </p>
+          <section class="tool" data-title="Overview">
+            <h3 id="hub-move">Overview</h3>
+            <p class="tool-lead">Every tab of Compare &amp; Deploy, group by group.</p>
+            <div class="shot">
+              <video
+                src="media/hub-move.mp4"
+                poster="media/hub-move.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+          </section>
           <section class="tool" data-title="Two orgs">
             <h3 id="pair">Two orgs, A → B</h3>
             <p class="tool-lead">The two orgs every Org ↔ Org tool works on: A (from) and B (into).</p>
@@ -1905,7 +2103,7 @@
           <section class="tool" data-title="Validate and deploy">
             <h3 id="release-panel">Validate and deploy — the same everywhere</h3>
             <p class="tool-lead">
-              Every place that builds a package ends with the same panel: Project, Compare &amp; package, Metadata, Org
+              Every place that builds a package ends with the same panel: Project, Branch ↔ Branch, Metadata, Org
               compare, Code and the AI drafts.
             </p>
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
@@ -2009,11 +2207,10 @@
               </ul>
             </div>
           </section>
-          <section class="tool" data-title="Compare &amp; package">
-            <h3 id="package">Compare &amp; package</h3>
+          <section class="tool" data-title="Branch ↔ Branch">
+            <h3 id="package">Branch ↔ Branch</h3>
             <p class="tool-lead">
-              What one branch brings into another — like a pull request — as package.xml and destructiveChanges.xml; or
-              a branch against an org, a manifest, two orgs.
+              What one branch brings into another — like a pull request — as package.xml and destructiveChanges.xml.
             </p>
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
@@ -2028,8 +2225,8 @@
               ></video>
             </div>
             <p>
-              Open the project <b>folder</b> (the repository with <code>sfdx-project.json</code>): Compare &amp; package
-              reads its git history, branches and tags, and writes nothing to it.
+              Open the project <b>folder</b> (the repository with <code>sfdx-project.json</code>): Branch ↔ Branch reads
+              its git history, branches and tags, and writes nothing to it.
             </p>
             <ol class="steps">
               <li>
@@ -2052,24 +2249,12 @@
                 <a href="#release-panel">validate and deploy</a> it.
               </li>
             </ol>
-            <p>The other ways to compare, from the switch at the top:</p>
-            <ul>
-              <li>
-                <b>From a manifest</b>: a <code>package.xml</code> (and optional destructiveChanges.xml) with the files
-                of a branch, checked against an org — what is the same, different, missing.
-              </li>
-              <li><b>Branch ↔ Org</b>: every type of a branch against the org at the top, then deploy what differs.</li>
-              <li>
-                Choosing types: <b>type to find them</b> (<i>flow, perm*</i>), <b>Tick shown</b>; the ticked ones stay
-                as chips. <b>Names</b> keeps only components whose names match (<i>Case*, Billing</i>).
-              </li>
-              <li><b>Org ↔ Org</b>: <a href="#orgdiff">Org compare</a>, here too.</li>
-            </ul>
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
                 <li>
                   A GitHub project is read without its history, so it cannot be compared here; open the folder instead.
+                  The same goes for Branch ↔ Org and Check a manifest.
                 </li>
                 <li>
                   Every metadata type the Salesforce CLI knows (almost 500) is recognised the way the CLI does: in its
@@ -2084,10 +2269,48 @@
               </ul>
             </div>
           </section>
+          <section class="tool" data-title="Branch ↔ Org">
+            <h3 id="branchorg">Branch ↔ Org</h3>
+            <p class="tool-lead">A branch of the project against an org, then deploy what differs.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/branchorg.mp4"
+                poster="media/branchorg.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ol class="steps">
+              <li>Choose the branch (any branch or tag of the folder, not only the one checked out).</li>
+              <li>
+                Choose the types: <b>type to find them</b> (<i>flow, perm*</i>), <b>Tick shown</b>; the ticked ones stay
+                as chips. <b>Names</b> keeps only components whose names match (<i>Case*, Billing</i>).
+              </li>
+              <li>
+                Compare with the org at the top: same, different, only in the branch, only in the org — then
+                <a href="#release-panel">validate and deploy</a> what you tick.
+              </li>
+            </ol>
+          </section>
           <section class="tool" data-title="Open a file">
             <h3 id="files">Open a file</h3>
             <p class="tool-lead">A snapshot, workbook, CSV or package.xml next to the org: NomadSF says what it is.</p>
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/files.mp4"
+                poster="media/files.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <ul class="parts">
               <li>
                 <b>User snapshot</b> (.csv from Access › Users): the same user is found here and compared; make them
@@ -2098,8 +2321,37 @@
                 then copy it into the org.
               </li>
               <li><b>A CSV or Excel table</b>: compare it with the org, or copy it as new records.</li>
-              <li><b>package.xml</b>: opens Compare &amp; package, From a manifest.</li>
+              <li><b>package.xml</b>: opens <a href="#manifest">Check a manifest</a>.</li>
             </ul>
+          </section>
+          <section class="tool" data-title="Check a manifest">
+            <h3 id="manifest">Check a manifest</h3>
+            <p class="tool-lead">
+              A package.xml against an org: its components, taken from a branch, compared one by one — then deploy.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/manifest.mp4"
+                poster="media/manifest.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ol class="steps">
+              <li>
+                Choose the <code>package.xml</code> (and, if you have one, the destructiveChanges.xml) and the branch
+                the files come from.
+              </li>
+              <li>
+                Each component is checked against the org you choose: same, different or missing there; open one to see
+                the branch's version next to the org's. What the branch does not have is named.
+              </li>
+              <li>Tick what to send, then <a href="#release-panel">validate and deploy</a>.</li>
+            </ol>
           </section>
           <section class="tool" data-title="Compare with CSV">
             <h3 id="csvcompare">Compare with CSV</h3>
@@ -2144,6 +2396,17 @@
             <h3 id="sandbox">Sandbox refresh</h3>
             <p class="tool-lead">Before a refresh, save what it replaces; after it, compare and put it back.</p>
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/sandbox.mp4"
+                poster="media/sandbox.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <ol class="steps">
               <li>
                 <b>Before the refresh</b>, in the sandbox: untick the kinds you do not want in the workbook, add the
@@ -2225,7 +2488,7 @@
             </ol>
             <div class="callout">
               For many Accounts at once (the newest 100, with their Contacts), use
-              <a href="#migrate">Compare &amp; move › Copy records</a> with a limit and
+              <a href="#migrate">Compare &amp; Deploy › Copy records</a> with a limit and
               <i>Related to the ones above</i>.
             </div>
           </section>
@@ -2298,7 +2561,7 @@
             </p>
             <ol class="steps">
               <li>
-                <a href="#csvcompare">Compare &amp; move › Compare with CSV</a>: choose the file and the object, and
+                <a href="#csvcompare">Compare &amp; Deploy › Compare with CSV</a>: choose the file and the object, and
                 match on a field both sides share (an External ID, or the name).
               </li>
               <li>Read the differences field by field: org now → spreadsheet.</li>
@@ -2340,7 +2603,7 @@
                 <b>Run</b>. Check the coverage.
               </li>
               <li>
-                Deploy it: from your project (<a href="#project">Compare &amp; move › Project</a>) or from a sandbox
+                Deploy it: from your project (<a href="#project">Compare &amp; Deploy › Project</a>) or from a sandbox
                 with <a href="#orgdiff">Org compare</a>.
               </li>
             </ol>
@@ -2350,7 +2613,7 @@
             <p class="tool-lead">A feature is finished in a sandbox and must go to production.</p>
             <ol class="steps">
               <li>
-                <a href="#orgdiff">Compare &amp; move › Compare metadata</a>: A = the sandbox, B = production. Choose
+                <a href="#orgdiff">Compare &amp; Deploy › Compare metadata</a>: A = the sandbox, B = production. Choose
                 the types and <b>Compare</b>.
               </li>
               <li>
@@ -2407,8 +2670,8 @@
             </p>
             <div class="shot">
               <video
-                src="media/settings.mp4"
-                poster="media/settings.jpg"
+                src="media/hub-settings.mp4"
+                poster="media/hub-settings.jpg"
                 muted
                 loop
                 playsinline
@@ -2424,13 +2687,60 @@
               </li>
               <li>
                 <b>Project</b>: a folder on this computer or a GitHub repository and branch (in VS Code, the open
-                workspace when it is a Salesforce project). Every page uses it; Compare &amp; package needs the
-                <b>folder</b>, as it reads the project's git history.
+                workspace when it is a Salesforce project). Every page uses it; Branch ↔ Branch, Branch ↔ Org and Check
+                a manifest need the <b>folder</b>, as it reads the project's git history.
               </li>
             </ul>
           </section>
+          <section class="tool" data-title="Orgs">
+            <h3 id="orgs">Orgs</h3>
+            <p class="tool-lead">
+              The orgs you are logged in to: each with its type, your user, and a button to open it.
+            </p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/settings.mp4"
+                poster="media/settings.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+          </section>
+          <section class="tool" data-title="Project">
+            <h3 id="settingsproject">Project</h3>
+            <p class="tool-lead">
+              The Salesforce project every page uses: a folder, a GitHub repository, or the VS Code workspace.
+            </p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/settingsproject.mp4"
+                poster="media/settingsproject.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+          </section>
           <section class="tool" data-title="AI">
             <h2 id="ai">AI</h2>
+            <div class="shot">
+              <video
+                src="media/settingsai.mp4"
+                poster="media/settingsai.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <p>
               In <b>Settings → AI</b>, connect your own provider: Anthropic Claude, OpenAI, Gemini, Mistral, Groq,
               OpenRouter (key or sign-in), GitHub Models, Ollama on your computer, or any OpenAI-format endpoint. The ✦

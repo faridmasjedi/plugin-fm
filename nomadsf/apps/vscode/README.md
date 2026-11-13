@@ -2,7 +2,7 @@
 
 **A Salesforce workbench next to your code.** NomadSF Studio opens in an editor tab for the Salesforce DX project you have open: Execute Apex, SOQL, code with a compare against your repository, Apex tests with coverage, debug logs, metadata and org compare — plus data backup, restore, migration and lifecycle jobs. It works on its own: the Studio ships with the extension, uses the orgs you already logged in to with the Salesforce CLI, and logs in to new ones itself, so the CLI is optional.
 
-![NomadSF Studio: hubs, and two side by side](https://faridmasjedi.github.io/plugin-fm/media/hubs.gif)
+![NomadSF Studio: hubs, and two side by side](https://faridmasjedi.github.io/plugin-fm/media/tour.gif)
 
 [Website](https://faridmasjedi.github.io/plugin-fm/) · [Guide](https://faridmasjedi.github.io/plugin-fm/guide.html) · [Releases](https://github.com/faridmasjedi/plugin-fm/releases) · [Report a problem](https://github.com/faridmasjedi/plugin-fm/issues)
 
@@ -12,14 +12,14 @@
 - **Your orgs, no CLI needed**: the orgs logged in to with the Salesforce CLI on this computer show up by alias; **NomadSF: Log in to an org** (or Studio → Settings) logs in to a new one in your browser and saves it where the CLI keeps it, so both see it.
 - **Every Studio tool**, grouped into hubs, with tools side by side and **Search** (top right, or <kbd>⌘K</kbd>) to jump to a tool or to what you want to do:
 
-  | Hub                | Tools                                                                                                                                                                 |
-  | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | **Develop**        | Code (with dependencies) · Execute Apex · Apex tests · Debug logs · Jobs · Save order · Flows · Events · REST Explorer                                                |
-  | **Data**           | Query · Record (with the related tree: copy or save as Excel) · Import / Update / Delete · Lookup · Schema · Field usage · Backup · Lifecycle                         |
-  | **Access**         | Users · Access sets · Groups & queues · Object access · Compare                                                                                                       |
-  | **Security**       | Dashboard · Timeline (everything that happened) · Event logs · Who can see a record, and why · Sharing (as a tree) · Org health · Logins & audit                      |
-  | **Org**            | Company · Limits · Licenses · Connected apps · Metadata · Deployments                                                                                                 |
-  | **Compare & move** | Org ↔ Org (metadata, access, apps, copy records) · Org ↔ Project · Branch ↔ Branch (Compare & package) · Org ↔ File (Open a file, Compare with CSV) · Sandbox refresh |
+  | Hub                  | Tools                                                                                                                                                                                      |
+  | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+  | **Develop**          | Code (with dependencies) · Execute Apex · Apex tests · Debug logs · Jobs · Save order · Flows · Events · REST Explorer                                                                     |
+  | **Data**             | Query · Record (with the related tree: copy or save as Excel) · Import / Update / Delete · Lookup · Schema · Field usage · Backup · Lifecycle                                              |
+  | **Access**           | Users · Access sets · Groups & queues · Object access · Compare                                                                                                                            |
+  | **Security**         | Dashboard · Timeline (everything that happened) · Event logs · Who can see a record, object, field or class, and why · Sharing (as a tree) · Org health · Logins & audit                   |
+  | **Org**              | Company · Limits · Licenses · Connected apps · Metadata · Deployments                                                                                                                      |
+  | **Compare & Deploy** | Org ↔ Org (metadata, access, apps, copy records) · Project & git (Project, Branch ↔ Org, Branch ↔ Branch) · Org ↔ File (Open a file, Check a manifest, Compare with CSV) · Sandbox refresh |
 
 - **From the editor** (select text, right-click):
   - **Show all data of the selected record Id** — the record inspector for an Id in your code or logs.
@@ -37,7 +37,7 @@
 - **Access**: everything a user has, with a snapshot or a workbook to restore them elsewhere; access sets — profiles, permission sets, groups and custom permissions: what each allows (edit custom ones), who has it, assign it; groups and queues; who can use an object or a field, by user, profile, permission set or group; compare two users, profiles, permission sets or groups.
 - **Security**: a dashboard, a timeline of everything that happened, event logs, who can see a record and why, sharing as a tree, org health, logins and audit trail.
 - **Org**: company, limits, licenses (and who holds one without using it: freeze, deactivate, free it), connected apps and OAuth usage, metadata retrieve and package.xml, deployments with their failures and quick deploy.
-- **Compare & move**: everything between two places — two orgs (compare metadata and deploy the differences, compare access and apps, copy records keeping every link), the org and your project (compare, retrieve, deploy), two branches (package.xml and destructiveChanges.xml), the org and a file (a user snapshot, a workbook, a CSV), and a sandbox refresh: save what it replaces before, compare and put it back after.
+- **Compare & Deploy**: everything between two places — two orgs (compare metadata and deploy the differences, compare access and apps, copy records keeping every link), the org and your project (compare, retrieve, deploy), a branch and an org, two branches (package.xml and destructiveChanges.xml), the org and a file (a user snapshot, a workbook, a CSV, a package.xml), and a sandbox refresh: save what it replaces before, compare and put it back after.
 - **Every tool says what you are missing**: when your user lacks a permission a tool needs, the tool says so at the top, with the permission's name.
 
 ## Requirements

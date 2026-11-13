@@ -56,13 +56,9 @@
             <span class="job">Give a user a permission set, a license or a group — or take it away</span>
             <span class="where">Access › Users</span><span class="badge ask">asks</span>
           </a>
-          <a class="cheat-row" href="guide.html#permsets">
-            <span class="job">Who has a permission set or group; create a new one</span>
-            <span class="where">Access › Permission sets</span><span class="badge ask">asks</span>
-          </a>
           <a class="cheat-row" href="guide.html#permissions">
-            <span class="job">What a profile or permission set allows — and change it</span>
-            <span class="where">Access › Permissions</span><span class="badge ask">asks</span>
+            <span class="job">What a profile, permission set or group allows — and change it</span>
+            <span class="where">Access › Access sets</span><span class="badge ask">asks</span>
           </a>
           <a class="cheat-row" href="guide.html#objectaccess">
             <span class="job">Why can't someone see an object or field? Who can, and through what</span>
@@ -72,9 +68,9 @@
             <span class="job">Compare two users (every field, licenses), profiles or permission sets side by side</span>
             <span class="where">Access › Compare</span><span class="badge read">reads</span>
           </a>
-          <a class="cheat-row" href="guide.html#accessmap">
-            <span class="job">Every user with powerful permissions (Modify All Data, View All…) in one table</span>
-            <span class="where">Access › Overview</span><span class="badge read">reads</span>
+          <a class="cheat-row" href="guide.html#health">
+            <span class="job">Every user with powerful permissions (Modify All Data, View All…)</span>
+            <span class="where">Security › Org health</span><span class="badge read">reads</span>
           </a>
           <a class="cheat-row" href="guide.html#groups">
             <span class="job">Add someone to a public group or queue</span>
@@ -84,17 +80,18 @@
             <span class="job">Who is in a role or group that is a member of a group or queue</span>
             <span class="where">Access › Groups &amp; queues</span><span class="badge read">reads</span>
           </a>
-          <a class="cheat-row" href="guide.html#assigned">
-            <span class="job">All users of a license, profile, role, permission set or queue</span>
-            <span class="where">Access › Assigned users</span><span class="badge ask">asks</span>
+          <a class="cheat-row" href="guide.html#access">
+            <span class="job">All users of a role, license, public group or queue</span>
+            <span class="where">Access › Users › Users of a role, license or group</span
+            ><span class="badge ask">asks</span>
           </a>
-          <a class="cheat-row" href="guide.html#custperms">
-            <span class="job">Who gives a custom permission; grant it or create one</span>
-            <span class="where">Access › Custom permissions</span><span class="badge ask">asks</span>
+          <a class="cheat-row" href="guide.html#permissions">
+            <span class="job">Who gives a custom permission, who has it; grant it or create one</span>
+            <span class="where">Access › Access sets › Custom permissions</span><span class="badge ask">asks</span>
           </a>
           <a class="cheat-row" href="guide.html#myaccess">
             <span class="job">What may my own user do in this org?</span>
-            <span class="where">Access › Your access</span><span class="badge read">reads</span>
+            <span class="where">Settings › Your access</span><span class="badge read">reads</span>
           </a>
           <a class="cheat-row" href="guide.html#audit">
             <span class="job">Who logged in, and who changed setup</span>
@@ -102,7 +99,7 @@
           </a>
           <a class="cheat-row" href="guide.html#orgaccess">
             <span class="job">Copy a user's access from one org into another</span>
-            <span class="where">Compare &amp; move › Compare access</span><span class="badge ask">asks</span>
+            <span class="where">Compare &amp; Deploy › Compare access</span><span class="badge ask">asks</span>
           </a>
           <a class="cheat-row" href="guide.html#record">
             <span class="job">Copy a user into another org with their permission sets</span>
@@ -147,7 +144,7 @@
           </a>
           <a class="cheat-row" href="guide.html#csvcompare">
             <span class="job">A spreadsheet next to the org: what differs — then make the org match</span>
-            <span class="where">Compare &amp; move › Compare with CSV</span><span class="badge ask">asks</span>
+            <span class="where">Compare &amp; Deploy › Compare with CSV</span><span class="badge ask">asks</span>
           </a>
           <a class="cheat-row" href="guide.html#lookup">
             <span class="job">Turn names into Ids before a load (a VLOOKUP against Salesforce)</span>
@@ -166,6 +163,10 @@
       <section class="cheat-group">
         <h2>Code &amp; debugging</h2>
         <div class="cheat-list">
+          <a class="cheat-row" href="guide.html#flows">
+            <span class="job">Old flow versions, flows on old API versions, waiting or failed interviews</span>
+            <span class="where">Develop › Flows</span><span class="badge ask">asks</span>
+          </a>
           <a class="cheat-row" href="guide.html#code">
             <span class="job">Open, edit and save Apex, triggers, Visualforce, LWC or Aura</span>
             <span class="where">Develop › Code</span><span class="badge ask">asks</span>
@@ -208,13 +209,13 @@
           </a>
           <a class="cheat-row" href="guide.html#automation">
             <span class="job">What runs when a record is saved, in order</span>
-            <span class="where">Develop › Automation</span><span class="badge read">reads</span>
+            <span class="where">Develop › Save order</span><span class="badge read">reads</span>
           </a>
           <a class="cheat-row" href="guide.html#automation">
             <span class="job"
               >What a trigger or flow runs: methods, records written and their triggers, flow actions</span
             >
-            <span class="where">Develop › Automation</span><span class="badge read">reads</span>
+            <span class="where">Develop › Save order</span><span class="badge read">reads</span>
           </a>
           <a class="cheat-row" href="guide.html#events">
             <span class="job">Listen to platform events or change data capture; publish an event</span>
@@ -233,24 +234,26 @@
             <span class="job"
               >Your project next to the org: what differs, per row to package or destructive, then deploy</span
             >
-            <span class="where">Compare &amp; move › Project</span><span class="badge ask">asks</span>
+            <span class="where">Compare &amp; Deploy › Project</span><span class="badge ask">asks</span>
           </a>
           <a class="cheat-row" href="guide.html#project">
             <span class="job">Bring the org’s version into your project folder, file by file</span>
-            <span class="where">Compare &amp; move › Project · Org › Metadata</span
+            <span class="where">Compare &amp; Deploy › Project · Org › Metadata</span
             ><span class="badge read">reads</span>
           </a>
           <a class="cheat-row" href="guide.html#package">
             <span class="job"
               >What a branch brings into another (like a pull request), as package.xml and destructiveChanges.xml</span
             >
-            <span class="where">Compare &amp; move › Compare &amp; package</span><span class="badge ask">asks</span>
+            <span class="where">Compare &amp; Deploy › Branch ↔ Branch</span><span class="badge ask">asks</span>
           </a>
-          <a class="cheat-row" href="guide.html#package">
-            <span class="job"
-              >A branch against the org, or a manifest with a branch’s files checked against an org</span
-            >
-            <span class="where">Compare &amp; move › Compare &amp; package</span><span class="badge ask">asks</span>
+          <a class="cheat-row" href="guide.html#branchorg">
+            <span class="job">A branch of the project against an org, then deploy what differs</span>
+            <span class="where">Compare &amp; Deploy › Branch ↔ Org</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#manifest">
+            <span class="job">Check a package.xml against an org (files from a branch), then deploy it</span>
+            <span class="where">Compare &amp; Deploy › Check a manifest</span><span class="badge ask">asks</span>
           </a>
           <a class="cheat-row" href="guide.html#release-panel">
             <span class="job">Validate, deploy or quick deploy a package, with the tests that reach it</span>
@@ -281,6 +284,10 @@
       <section class="cheat-group">
         <h2>Org checks</h2>
         <div class="cheat-list">
+          <a class="cheat-row" href="guide.html#licenses">
+            <span class="job">Who holds a license without using it (no login, frozen, inactive); free it</span>
+            <span class="where">Org › Licenses</span><span class="badge ask">asks</span>
+          </a>
           <a class="cheat-row" href="guide.html#company">
             <span class="job">The org's Id, edition, instance, locale, currency and fiscal year</span>
             <span class="where">Org › Company</span><span class="badge read">reads</span>
@@ -304,7 +311,10 @@
             <span class="where">Security › Timeline</span><span class="badge read">reads</span>
           </a>
           <a class="cheat-row" href="guide.html#whocansee">
-            <span class="job">Why can (or can't) this user see or edit this record</span>
+            <span class="job"
+              >Why can (or can't) this user see or edit a record, use an object or field, run a class or page, or has a
+              custom permission</span
+            >
             <span class="where">Security › Who can see</span><span class="badge read">reads</span>
           </a>
           <a class="cheat-row" href="guide.html#sharing">
@@ -332,35 +342,47 @@
         </div>
       </section>
       <section class="cheat-group">
-        <h2>Between two orgs</h2>
+        <h2>Between two places: orgs, the project, files</h2>
         <div class="cheat-list">
+          <a class="cheat-row" href="guide.html#sandbox">
+            <span class="job">Before a sandbox refresh: save settings and users; after: compare and put back</span>
+            <span class="where">Compare &amp; Deploy › Sandbox refresh</span><span class="badge ask">asks</span>
+          </a>
+          <a class="cheat-row" href="guide.html#files">
+            <span class="job">Open a snapshot, workbook, CSV or package.xml and use it in this org</span>
+            <span class="where">Compare &amp; Deploy › Open a file</span><span class="badge ask">asks</span>
+          </a>
           <a class="cheat-row" href="guide.html#migrate">
             <span class="job">Copy records into another org, keeping every link</span>
-            <span class="where">Compare &amp; move › Copy records</span><span class="badge ask">asks</span>
+            <span class="where">Compare &amp; Deploy › Copy records</span><span class="badge ask">asks</span>
           </a>
           <a class="cheat-row" href="guide.html#migrate">
             <span class="job">Load a workbook or CSV files into an org, linked together</span>
-            <span class="where">Compare &amp; move › Copy records</span><span class="badge ask">asks</span>
+            <span class="where">Compare &amp; Deploy › Copy records</span><span class="badge ask">asks</span>
           </a>
           <a class="cheat-row" href="guide.html#orgdiff">
             <span class="job">What is different between two orgs — and deploy the difference</span>
-            <span class="where">Compare &amp; move › Compare metadata</span><span class="badge ask">asks</span>
+            <span class="where">Compare &amp; Deploy › Compare metadata</span><span class="badge ask">asks</span>
           </a>
           <a class="cheat-row" href="guide.html#orgaccess">
             <span class="job"
               >Compare users (every field, licenses) or permission sets between a sandbox and production</span
             >
-            <span class="where">Compare &amp; move › Compare access</span><span class="badge read">reads</span>
+            <span class="where">Compare &amp; Deploy › Compare access</span><span class="badge read">reads</span>
           </a>
           <a class="cheat-row" href="guide.html#orgapps">
             <span class="job">Connected apps in two orgs, and who uses them in each</span>
-            <span class="where">Compare &amp; move › Compare apps</span><span class="badge read">reads</span>
+            <span class="where">Compare &amp; Deploy › Compare apps</span><span class="badge read">reads</span>
           </a>
         </div>
       </section>
       <section class="cheat-group">
         <h2>Backups &amp; clean-up</h2>
         <div class="cheat-list">
+          <a class="cheat-row" href="guide.html#restore">
+            <span class="job">Put back records or values from a backup</span>
+            <span class="where">Data › Backup › Backups &amp; restore</span><span class="badge ask">asks</span>
+          </a>
           <a class="cheat-row" href="guide.html#backup">
             <span class="job">Back up records to a folder on your computer, now or on a schedule</span>
             <span class="where">Data › Backup</span><span class="badge ask">asks</span>

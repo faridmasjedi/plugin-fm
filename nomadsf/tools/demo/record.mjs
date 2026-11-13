@@ -22,10 +22,14 @@ const SIZE = envW && envH ? { width: envW, height: envH } : { width: 1920, heigh
 const ZOOM = Number(process.env.DEMO_ZOOM ?? 1.5) || 1;
 const SCALE = 1;
 const VIDEO = SIZE;
-const GIFS = ['hubs', 'query', 'migrate', 'search'];
+const GIFS = ['tour', 'query', 'migrate', 'search'];
 // The demo git repository (make-repo.mjs), opened as "the project folder" by scenes with `folder: true`; a folder
 // a backup is written to (Backup's "Choose folder…", in readwrite mode), emptied before each recording
-const ROOTS = { repo: join(work, 'acme-project'), backups: join(work, 'backups') };
+// DEMO_REPO and DEMO_BACKUPS point them elsewhere (a real project to test against, a backups folder of your own)
+const ROOTS = {
+  repo: process.env.DEMO_REPO ? resolve(process.env.DEMO_REPO) : join(work, 'acme-project'),
+  backups: process.env.DEMO_BACKUPS ? resolve(process.env.DEMO_BACKUPS) : join(work, 'backups'),
+};
 
 /** Chrome's folder picker: the demo repository to read, or the backups folder to write (served from this process). */
 const FOLDER = () => {
@@ -137,7 +141,8 @@ const FOLDER = () => {
 };
 
 async function openFolder(page) {
-  rmSync(ROOTS.backups, { recursive: true, force: true });
+  // The recorder's own backups folder starts empty; a folder of yours (DEMO_BACKUPS) is kept as it is
+  if (!process.env.DEMO_BACKUPS) rmSync(ROOTS.backups, { recursive: true, force: true });
   mkdirSync(ROOTS.backups, { recursive: true });
   const inRoot = (root, p) => {
     const full = join(ROOTS[root], p ?? '');
@@ -224,8 +229,43 @@ function helpers(page, clock) {
       if (to - from > 1.5) clock.cuts.push([from + 0.5, to - 0.3]);
     }
   };
+  // What is clicked is brought to the middle of the screen (smoothly) when it sits near an edge, so the viewer
+  // sees it and what is around it — not a button cut at the bottom of the window
+  const centre = async (locator) => {
+    const moved = await locator
+      .evaluate((el) => {
+        // Screen pixels (the zoom included): clear of the header and pane bar above, the Log and subtitle below
+        const r = el.getBoundingClientRect();
+        if (r.top >= 200 && r.bottom <= window.innerHeight - 230) return false;
+        el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+        return true;
+      })
+      .catch(() => false);
+    if (moved) await pause(700);
+    else await locator.scrollIntoViewIfNeeded().catch(() => {});
+  };
+  /** The subtitle at the bottom of the video: what is happening, in a sentence (a guide while watching). */
+  const say = async (text, ms) => {
+    await page.evaluate((t) => {
+      let el = document.getElementById('__subtitle');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = '__subtitle';
+        el.style.cssText =
+          'position:fixed;left:50%;bottom:44px;transform:translateX(-50%);z-index:2147483646;max-width:86%;' +
+          'padding:8px 18px;border-radius:10px;background:rgba(15,23,42,.86);color:#fff;' +
+          'font:500 17px/1.4 system-ui,-apple-system,sans-serif;text-align:center;letter-spacing:.1px;' +
+          'box-shadow:0 8px 24px rgba(0,0,0,.22);pointer-events:none;transition:opacity .2s';
+        document.body.appendChild(el);
+      }
+      el.style.opacity = t ? '1' : '0';
+      if (t) el.textContent = t;
+    }, text);
+    // Time to read it: about 14 characters a second, at least 1.6 s
+    if (text) await pause(ms ?? Math.max(1600, Math.min(4200, text.length * 70)));
+  };
   const pointAt = async (locator) => {
-    await locator.scrollIntoViewIfNeeded();
+    await centre(locator);
     const box = await locator.boundingBox();
     if (box) await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 18 });
     return box;
@@ -245,10 +285,30 @@ function helpers(page, clock) {
     const exact = clickable.filter({ hasText: new RegExp(`^\\s*${esc(name)}\\s*$`) });
     return (await exact.count()) ? exact.first() : clickable.filter({ hasText: name }).first();
   };
+  // A long list is a searchable dropdown (its own select is hidden): open it, type the choice, Enter — as a person
+  const searchable = (locator) =>
+    locator.evaluate((e) => e.classList.contains('search-select-native')).catch(() => false);
+  const viaSearch = async (locator, text) => {
+    await press(locator.locator('xpath=..').locator('.search-select-button'));
+    await page.keyboard.type(text.trim(), { delay: 45 });
+    await pause(500);
+    await page.keyboard.press('Enter');
+    await pause(900);
+  };
   const h = {
     page,
     pause,
     press,
+    say,
+    /** Brings something into view (smoothly, to the middle) without clicking it: a result below the fold. */
+    look: async (locator) => {
+      await locator.first().waitFor({ state: 'visible', timeout: 20000 });
+      await locator
+        .first()
+        .evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'smooth' }))
+        .catch(() => {});
+      await pause(900);
+    },
     /** A button or tab by its text. */
     click: async (name) => press(await button(name)),
     /** A hub in the sidebar, then a tool in the hub's own sidebar. */
@@ -293,6 +353,7 @@ function helpers(page, clock) {
         .evaluateAll((os) => os.map((o) => ({ value: o.value, text: o.textContent })));
       const hit = options.find((o) => (text instanceof RegExp ? text.test(o.text) : o.text.includes(text)));
       if (!hit) throw new Error(`No option ${text}`);
+      if (await searchable(locator)) return viaSearch(locator, hit.text);
       await pointAt(locator);
       await locator.selectOption(hit.value);
       await pause(900);
@@ -312,6 +373,13 @@ function helpers(page, clock) {
     row: (text) =>
       page.locator('tr', { has: page.locator('td', { hasText: new RegExp(`^\\s*${esc(text)}\\s*$`) }) }).first(),
     select: async (locator, value) => {
+      if (await searchable(locator)) {
+        const text = await locator.evaluate(
+          (e, v) => [...e.options].find((o) => o.value === v || o.textContent === v || o.label === v)?.textContent ?? v,
+          value
+        );
+        return viaSearch(locator, text);
+      }
       await pointAt(locator);
       await locator.selectOption(value);
       await pause(900);
@@ -366,6 +434,8 @@ async function record(scene, browser) {
     }, ZOOM);
   const page = await context.newPage();
   if (scene.folder) await openFolder(page);
+  // A scene's own setup in the page before it loads (e.g. the extension's AI form for Settings › AI)
+  if (scene.init) await page.addInitScript(scene.init);
   // DEMO_REAL_AI=1: the server's own AI answers (see server.mjs) instead of the scene's written answers
   if (scene.ai && !process.env.DEMO_REAL_AI) await scriptedAi(page, scene.ai);
   // A recording is a test too: an error in the page fails the scene
@@ -381,8 +451,11 @@ async function record(scene, browser) {
   const h = helpers(page, clock);
   let error;
   try {
+    // The scene's first subtitle: the tool, and what it is for
+    if (scene.intro) await h.say(scene.intro);
     await scene.run(h);
     await h.pause(1800);
+    await h.say('');
     if (pageErrors.length) throw new Error(`Page error: ${pageErrors[0]}`);
     // …and so does a problem in the Log the scene did not set out to show (scene.problems: a pattern it expects)
     const problems = (await page.locator('.log-row.status-problem .log-text').allTextContents()).filter(

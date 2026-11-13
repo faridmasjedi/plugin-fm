@@ -22,7 +22,13 @@ sf apex run -o nomadsf-demo -f seed-groups-members.apex        # a group and rol
 sf project deploy start -o nomadsf-demo --metadata-dir sharing-1-private  # Invoices private (starts a sharing recalculation)
 sf project deploy start -o nomadsf-demo --metadata-dir sharing-2-rules    # after it: two sharing rules on Invoices
 sf apex run -o nomadsf-demo -f seed-sharing-owners.apex        # Bob owns a few invoices (Security › Who can see, Sharing)
+sf apex run -o nomadsf-demo -f seed-northwind.apex             # an account no other org has (Record › Related copies it)
 ```
+
+The project also holds a remote site (`Billing_API`), a custom setting (`Integration_Settings__c`, seeded by
+`seed-integration.apex`), a custom permission (`Approve_Discounts`, in `Sales_Ops`) and the `Invoice_Reminder` flow.
+For Develop › Flows, deploy the flow three times to acme-uat (v1 obsolete, v2 active at API 49, v3 a draft) so there
+are old versions and an old API version to show.
 
 The project holds an Invoice object, classes with their tests (a trigger, a batch, a selector, an LWC
 controller), LWCs, an Aura component, a Visualforce page and component, nine permission sets, three
@@ -52,6 +58,11 @@ deployed, and `feature/vip-discount` with a changed class, a new class and test,
 deleted validation rule. Start the server with it (`DEMO_PROJECT=$PWD/tools/demo/.recordings/acme-project`); scenes
 with `folder: true` open it as the project folder (Compare & package reads its git history).
 
+`manifest/package.xml` names a few components of `feature/vip-discount` for the Check a manifest scene.
+
+A third, empty org stands in for a freshly refreshed sandbox: `DEMO_NEW=<alias> node tools/demo/server.mjs` adds it
+as **acme-new** (Sandbox refresh › After, Copy records).
+
 ## Recording
 
 ```sh
@@ -60,6 +71,12 @@ yarn build                                   # the Studio the recordings show
 node tools/demo/server.mjs                   # the Studio on http://localhost:7171 with the demo orgs
 node tools/demo/record.mjs                   # every scene; or name some: record.mjs query related
 ```
+
+`DEMO_REPO` and `DEMO_BACKUPS` set the folders the fake folder picker offers (the project, and where Backup writes);
+a `DEMO_BACKUPS` folder is kept, not emptied. `DEMO_MEDIA` writes the videos elsewhere, `DEMO_SCENES` adds a scenes
+file. Every scene has subtitles: `intro` (the tool, and what it is for) and `h.say(text)` before a step; a clicked
+element near an edge is scrolled to the middle first. `hub-*` scenes walk each hub tab by tab; `init` runs in the page
+before it loads (Settings › AI sets `__nomadsfDemoAiForm` to show the extension's AI form). A failed scene keeps the old video and leaves `.recordings/failed-<scene>.png`.
 
 Needs ffmpeg (`brew install ffmpeg`) and Playwright's own (`npx playwright install ffmpeg`); Chrome is
 the browser. Each scene in `scenes.mjs` opens a fresh Studio and uses it like a person: a visible
