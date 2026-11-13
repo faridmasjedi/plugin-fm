@@ -445,7 +445,7 @@ function NewCustomSetting({ onCreated }: { onCreated: (name: string) => void }) 
       </div>
       <h4>Fields</h4>
       {fields.map((f, i) => (
-        <div key={i} className="form">
+        <div key={i} className="form field-row">
           <input
             placeholder="Label, e.g. Endpoint"
             value={f.label}
@@ -464,7 +464,11 @@ function NewCustomSetting({ onCreated }: { onCreated: (name: string) => void }) 
               <option key={t}>{t}</option>
             ))}
           </Select>
-          <button className="link danger" onClick={() => setFields(fields.filter((_, n) => n !== i))}>
+          <button
+            className="danger field-remove"
+            title="Remove this field"
+            onClick={() => setFields(fields.filter((_, n) => n !== i))}
+          >
             Remove
           </button>
         </div>

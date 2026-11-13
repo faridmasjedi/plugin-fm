@@ -5486,3 +5486,22 @@ nav.side .nav-width:hover {
 .config-view > .form {
   margin: 0;
 }
+/* New custom setting: a field per row — its boxes and Remove on one line, all the same height */
+.new-setting .form.field-row {
+  align-items: flex-start;
+}
+.field-row .field-remove {
+  height: var(--h, 32px);
+  align-self: flex-start;
+}
+/* The API name column keeps one width (a long suggested name wraps under it), so field rows line up */
+.field-row .api-field {
+  width: 240px;
+}
+.field-row .api-field input {
+  min-width: 0;
+  width: 100%;
+}
+.field-row .api-hint {
+  max-width: 100%;
+}
