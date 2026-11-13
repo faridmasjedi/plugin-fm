@@ -57,12 +57,12 @@ const ABOUT: Record<Kind['kind'], string> = {
   sandbox: 'A workbook saved before a sandbox refresh: open it in Sandbox refresh › After the refresh.',
   'records-workbook': 'Records saved from Data › Record (a sheet per object): tick what to copy into this org.',
   table: 'A table of records: compare it with the org, or open it in Import / Update / Delete.',
-  manifest: 'A package.xml: it is compared with the project in Branch ↔ Branch › From a manifest.',
+  manifest: 'A package.xml: Check a manifest compares its components with an org and deploys them.',
   unknown: '',
 };
 
 /**
- * Compare & move › Open a file: a snapshot, a workbook, a CSV or a package.xml next to the org on screen. NomadSF
+ * Compare & Deploy › Open a file: a snapshot, a workbook, a CSV or a package.xml next to the org on screen. NomadSF
  * says what the file is and opens it in the tool that uses it — nothing is changed until that tool asks.
  */
 export function FilesPage() {
@@ -125,7 +125,7 @@ export function FilesPage() {
               <b>A CSV or Excel table</b> of records: compare it with the org field by field, then make the org match.
             </li>
             <li>
-              <b>package.xml</b>: compare it with the project (Branch ↔ Branch › From a manifest).
+              <b>package.xml</b>: check it against an org (Check a manifest).
             </li>
           </ul>
         )}
@@ -167,10 +167,10 @@ export function FilesPage() {
       )}
       {file && kind?.kind === 'manifest' && (
         <div className="form">
-          <button className="primary" onClick={() => go?.('package')}>
-            Open Branch ↔ Branch
+          <button className="primary" onClick={() => go?.('manifest')}>
+            Open Check a manifest
           </button>
-          <span className="muted">then From a manifest, and choose this file there</span>
+          <span className="muted">and choose this file there</span>
         </div>
       )}
     </div>

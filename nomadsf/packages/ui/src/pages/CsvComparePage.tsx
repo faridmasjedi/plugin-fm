@@ -82,7 +82,7 @@ export function CsvComparePage({ initialFile }: { initialFile?: File } = {}) {
     if (guess && (!object || object === guessed.current)) setObject(guess.name);
     guessed.current = guess?.name;
   };
-  // A file already chosen (Compare & move › Open a file): its first table is opened
+  // A file already chosen (Compare & Deploy › Open a file): its first table is opened
   useEffect(() => {
     if (!initialFile) return;
     void initialFile

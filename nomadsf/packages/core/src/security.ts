@@ -485,3 +485,251 @@ export async function whoCanSee(client: SalesforceClient, userId: string, record
         : undefined,
   };
 }
+
+// ---------- who can see: records by name, and access without a record ----------
+
+const soqlText = (value: string): string => value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+export type RecordPick = { Id: string; Name: string };
+
+/**
+ * Records of an object to choose from: by their name field (contains the text), the most recently changed first;
+ * with no text, the 20 last changed. An Id or a Salesforce link typed in is taken as it is.
+ */
+export async function findRecords(client: SalesforceClient, object: string, text: string): Promise<RecordPick[]> {
+  if (!/^\w+$/.test(object)) throw new Error('Choose an object.');
+  const id = text.match(/\b([a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?)\b/g)?.find((t) => /\d/.test(t) && ID.test(t));
+  const describe = await client.rest<{ fields: Array<{ name: string; nameField: boolean; filterable: boolean }> }>(
+    'GET',
+    `/sobjects/${object}/describe`
+  );
+  const name = describe.fields.find((f) => f.nameField)?.name ?? 'Id';
+  const t = text.trim();
+  const where = id
+    ? `WHERE Id = '${id}'`
+    : t && name !== 'Id' && describe.fields.find((f) => f.name === name)?.filterable
+    ? `WHERE ${name} LIKE '%${soqlText(t)}%'`
+    : '';
+  const rows = (
+    await query(client, `SELECT Id, ${name} FROM ${object} ${where} ORDER BY LastModifiedDate DESC LIMIT 20`)
+  ).rows;
+  return rows.map((r) => ({ Id: String(r.Id), Name: String(r[name] ?? r.Id) }));
+}
+
+/** What can be checked without a record: an object, one of its fields, or an Apex class, page or custom permission. */
+export type UseTarget =
+  | { kind: 'object'; object: string }
+  | { kind: 'field'; object: string; field: string }
+  | { kind: 'ApexClass' | 'ApexPage' | 'CustomPermission'; name: string };
+
+export type TargetAccess = {
+  /** What was checked, in words ("Invoice__c", "Account.Customer_Tier__c", "Apex class InvoiceService"). */
+  what: string;
+  can: Array<[string, boolean]>;
+  steps: AccessStep[];
+  note?: string;
+};
+
+const ENTITY: Record<'ApexClass' | 'ApexPage' | 'CustomPermission', { label: string; field: string }> = {
+  ApexClass: { label: 'Apex class', field: 'Name' },
+  ApexPage: { label: 'Visualforce page', field: 'Name' },
+  CustomPermission: { label: 'Custom permission', field: 'DeveloperName' },
+};
+
+/**
+ * What a user may do with an object, a field, or an Apex class / Visualforce page / custom permission — from their
+ * profile, permission sets and permission set groups — and which of them gives it. Read only.
+ */
+export async function whoCanUse(client: SalesforceClient, userId: string, target: UseTarget): Promise<TargetAccess> {
+  if (!ID.test(userId) || !userId.startsWith('005')) throw new Error('Choose a user.');
+  const assigned = `ParentId IN (SELECT PermissionSetId FROM PermissionSetAssignment WHERE AssigneeId = '${userId}')`;
+  const from = (r: Row): string =>
+    r['Parent.IsOwnedByProfile']
+      ? `profile ${String(r['Parent.Profile.Name'] ?? '')}`
+      : `permission set ${String(r['Parent.Label'] ?? '')}`;
+  const parentFields = 'Parent.Label, Parent.IsOwnedByProfile, Parent.Profile.Name';
+  // "View All Data" / "Modify All Data" open every object and record
+  const powers = (
+    await query(
+      client,
+      `SELECT Label, IsOwnedByProfile, Profile.Name, PermissionsViewAllData, PermissionsModifyAllData FROM PermissionSet WHERE Id IN (SELECT PermissionSetId FROM PermissionSetAssignment WHERE AssigneeId = '${userId}') AND (PermissionsViewAllData = true OR PermissionsModifyAllData = true)`
+    ).catch(() => ({ rows: [] as Row[] }))
+  ).rows.map((r) => ({
+    who: r.IsOwnedByProfile ? `profile ${String(r['Profile.Name'] ?? '')}` : `permission set ${String(r.Label ?? '')}`,
+    modify: r.PermissionsModifyAllData === true,
+  }));
+  const powerSteps: AccessStep[] = powers.map((p) => ({
+    area: p.modify ? 'Modify all data' : 'View all data',
+    applies: true,
+    text: `${p.modify ? 'Modify All Data' : 'View All Data'} via ${p.who} — every object and record`,
+  }));
+
+  if (target.kind === 'object' || target.kind === 'field') {
+    if (!/^\w+$/.test(target.object)) throw new Error('Choose an object.');
+    const object = target.object;
+    const perms = (
+      await query(
+        client,
+        `SELECT PermissionsRead, PermissionsCreate, PermissionsEdit, PermissionsDelete, PermissionsViewAllRecords, PermissionsModifyAllRecords, ${parentFields} FROM ObjectPermissions WHERE SobjectType = '${object}' AND ${assigned}`
+      ).catch(() => ({ rows: [] as Row[] }))
+    ).rows;
+    const grant = (field: string): string[] => perms.filter((r) => r[field] === true).map(from);
+    const objectRead = grant('PermissionsRead');
+    if (target.kind === 'object') {
+      const rights: Array<[string, string]> = [
+        ['Read', 'PermissionsRead'],
+        ['Create', 'PermissionsCreate'],
+        ['Edit', 'PermissionsEdit'],
+        ['Delete', 'PermissionsDelete'],
+        ['View all', 'PermissionsViewAllRecords'],
+        ['Modify all', 'PermissionsModifyAllRecords'],
+      ];
+      const sharing = (
+        await query(
+          client,
+          `SELECT InternalSharingModel, ExternalSharingModel FROM EntityDefinition WHERE QualifiedApiName = '${object}'`
+        ).catch(() => ({ rows: [] as Row[] }))
+      ).rows[0];
+      const steps: AccessStep[] = [
+        ...rights.map(([label, field]) => {
+          const via = grant(field);
+          return {
+            area: label,
+            applies: via.length > 0,
+            text: via.length ? `${label} via ${via.join(', ')}` : `${label}: not in the profile or any permission set`,
+          };
+        }),
+        ...powerSteps,
+      ];
+      if (sharing?.InternalSharingModel)
+        steps.push({
+          area: 'Sharing',
+          applies: false,
+          text: `Org-wide default ${String(sharing.InternalSharingModel)} (external ${String(
+            sharing.ExternalSharingModel ?? '—'
+          )}): which records they see also depends on ownership, roles and sharing — check one record for that`,
+        });
+      return {
+        what: object,
+        // View All Data opens reading; Modify All Data opens everything
+        can: rights.map(([label, field]): [string, boolean] => [
+          label,
+          grant(field).length > 0 || powers.some((p) => p.modify || label === 'Read' || label === 'View all'),
+        ]),
+        steps,
+      };
+    }
+    // A field: field-level security, and the object's own Read first
+    const field = target.field.includes('.') ? target.field.split('.').pop()! : target.field;
+    if (!/^\w+$/.test(field)) throw new Error('Choose a field.');
+    const fls = (
+      await query(
+        client,
+        `SELECT PermissionsRead, PermissionsEdit, ${parentFields} FROM FieldPermissions WHERE Field = '${object}.${field}' AND SobjectType = '${object}' AND ${assigned}`
+      ).catch(() => ({ rows: [] as Row[] }))
+    ).rows;
+    const flsGrant = (f: string): string[] => fls.filter((r) => r[f] === true).map(from);
+    const read = flsGrant('PermissionsRead');
+    const edit = flsGrant('PermissionsEdit');
+    // Required and system fields have no field-level security: whoever reads the object reads them
+    const permissionable = (
+      await query(
+        client,
+        `SELECT IsPermissionable FROM EntityParticle WHERE EntityDefinition.QualifiedApiName = '${object}' AND QualifiedApiName = '${field}'`
+      ).catch(() => ({ rows: [] as Row[] }))
+    ).rows[0];
+    if (!permissionable) throw new Error(`${object} has no field ${field}.`);
+    const always = permissionable.IsPermissionable === false;
+    const objectOk = objectRead.length > 0 || powers.length > 0;
+    const steps: AccessStep[] = [
+      {
+        area: 'Object',
+        applies: objectOk,
+        text: objectRead.length
+          ? `${object}: Read via ${objectRead.join(', ')}`
+          : `${object}: no Read in the profile or any permission set${
+              powers.length ? '' : ' — none of its fields can be seen'
+            }`,
+      },
+      ...(always
+        ? [
+            {
+              area: 'Field',
+              applies: objectOk,
+              text: `${field} has no field-level security (required or system): it follows the object`,
+            },
+          ]
+        : [
+            {
+              area: 'Read',
+              applies: read.length > 0,
+              text: read.length ? `Read via ${read.join(', ')}` : 'Read: not in the profile or any permission set',
+            },
+            {
+              area: 'Edit',
+              applies: edit.length > 0,
+              text: edit.length ? `Edit via ${edit.join(', ')}` : 'Edit: not in the profile or any permission set',
+            },
+          ]),
+      ...powerSteps,
+    ];
+    return {
+      what: `${object}.${field}`,
+      can: [
+        ['Read', objectOk && (always || read.length > 0)],
+        ['Edit', objectOk && (always || edit.length > 0)],
+      ],
+      steps,
+      note:
+        powers.length && !always
+          ? 'View/Modify All Data does not open fields hidden by field-level security.'
+          : undefined,
+    };
+  }
+
+  const kind = ENTITY[target.kind];
+  const entity = (
+    await query(
+      client,
+      `SELECT Id, ${kind.field} FROM ${target.kind} WHERE ${kind.field} = '${soqlText(target.name)}' LIMIT 1`
+    )
+  ).rows[0];
+  if (!entity) throw new Error(`No ${kind.label.toLowerCase()} named ${target.name}.`);
+  const holders = (
+    await query(
+      client,
+      `SELECT ${parentFields} FROM SetupEntityAccess WHERE SetupEntityId = '${String(entity.Id)}' AND ${assigned}`
+    ).catch(() => ({ rows: [] as Row[] }))
+  ).rows.map(from);
+  const author =
+    target.kind === 'CustomPermission'
+      ? []
+      : (
+          await query(
+            client,
+            `SELECT Label, IsOwnedByProfile, Profile.Name FROM PermissionSet WHERE Id IN (SELECT PermissionSetId FROM PermissionSetAssignment WHERE AssigneeId = '${userId}') AND PermissionsAuthorApex = true`
+          ).catch(() => ({ rows: [] as Row[] }))
+        ).rows.map((r) =>
+          r.IsOwnedByProfile ? `profile ${String(r['Profile.Name'] ?? '')}` : `permission set ${String(r.Label ?? '')}`
+        );
+  const steps: AccessStep[] = [
+    {
+      area: 'Access',
+      applies: holders.length > 0,
+      text: holders.length
+        ? `Given by ${holders.join(', ')}`
+        : `Not in the profile or any permission set (or group) of the user`,
+    },
+  ];
+  if (author.length)
+    steps.push({
+      area: 'Author Apex',
+      applies: true,
+      text: `Author Apex via ${author.join(', ')} — every class and page`,
+    });
+  return {
+    what: `${kind.label} ${target.name}`,
+    can: [[target.kind === 'CustomPermission' ? 'Has it' : 'Can run', holders.length > 0 || author.length > 0]],
+    steps,
+  };
+}

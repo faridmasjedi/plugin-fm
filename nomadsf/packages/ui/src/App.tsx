@@ -61,6 +61,8 @@ const host = detectHost();
 export function App() {
   const busy = useBusy();
   const [orgs, setOrgs] = useState<OrgChoice[]>([]);
+  // The sidebar: hub names, or icons only (remembered)
+  const [compactNav, setCompactNav] = useState(() => storage.get<boolean>('nav.compact', false));
   // The extension opened from a Salesforce tab starts on that tab's org
   const [orgId, setOrgId] = useState<string>(
     () =>
@@ -356,7 +358,9 @@ export function App() {
               {tool === 'fields' && <FieldUsagePage />}
               {tool === 'lookup' && <LookupPage />}
               {tool === 'orgdiff' && <OrgComparePage orgs={orgs} />}
-              {tool === 'package' && <PackagePage />}
+              {tool === 'package' && <PackagePage mode="branches" />}
+              {tool === 'branchorg' && <PackagePage mode="branch-org" />}
+              {tool === 'manifest' && <PackagePage mode="manifest" />}
               {tool === 'apextests' && <ApexTestsPage />}
               {tool === 'orgaccess' && <OrgAccessPage />}
               {tool === 'orgapps' && <OrgAppsPage />}
@@ -373,7 +377,7 @@ export function App() {
 
   return (
     <ProjectStateContext.Provider value={project}>
-      <div className="studio">
+      <div className={`studio ${compactNav ? 'nav-compact' : ''}`}>
         <header className="top">
           <div className="brand">
             <img className="logo" src="./logo.png" alt="" />
@@ -437,7 +441,15 @@ export function App() {
           </button>
         </header>
         <nav className="side">
-          <HubNav ws={ws} available={available} />
+          <HubNav
+            ws={ws}
+            available={available}
+            compact={compactNav}
+            onCompact={(c) => {
+              setCompactNav(c);
+              storage.set('nav.compact', c);
+            }}
+          />
         </nav>
         <main>
           <Panes ws={ws} available={available} render={render} />

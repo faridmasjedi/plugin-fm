@@ -95,7 +95,7 @@ export const PLACES: StudioPlace[] = [
   P('fields', 'find unused fields', 'field usage empty fill rate how full', 'Usage', { 'fields.tab': 'usage' }),
   P('fields', 'who can see a field', 'field level security fls visible', 'Access', { 'fields.tab': 'access' }),
 
-  // ---------- Release ----------
+  // ---------- Compare & Deploy: the org and the project, two branches ----------
   P('project', 'open my Salesforce project', 'repository folder sfdx project overview', 'Overview', {
     'project.tab': 'overview',
   }),
@@ -103,24 +103,12 @@ export const PLACES: StudioPlace[] = [
     'project.tab': 'compare',
   }),
   P('project', 'retrieve from the org into my project', 'pull changes write files source'),
-  P('package', 'compare two branches', 'git branch diff pull request merge feature main', 'Branch ↔ Branch', {
-    'compare.mode': 'branches',
-  }),
-  P('package', 'build package.xml from a branch', 'packagexml destructive manifest delta', 'Branch ↔ Branch', {
-    'compare.mode': 'branches',
-  }),
-  P('package', 'deploy my branch to an org', 'compare branch with org repo deploy validate', 'Branch ↔ Org', {
-    'compare.mode': 'branch-org',
-  }),
-  P('package', 'compare a branch with an org', 'git branch vs sandbox repo', 'Branch ↔ Org', {
-    'compare.mode': 'branch-org',
-  }),
-  P('package', 'deploy a package.xml from a branch', 'manifest packagexml', 'From a manifest', {
-    'compare.mode': 'manifest',
-  }),
-  P('package', 'compare two orgs and package the difference', 'sandbox vs sandbox', 'Org ↔ Org', {
-    'compare.mode': 'org-org',
-  }),
+  P('package', 'compare two branches', 'git branch diff pull request merge feature main'),
+  P('package', 'build package.xml from a branch', 'packagexml destructive manifest delta'),
+  P('branchorg', 'deploy my branch to an org', 'compare branch with org repo deploy validate'),
+  P('branchorg', 'compare a branch with an org', 'git branch vs sandbox repo'),
+  P('manifest', 'deploy a package.xml from a branch', 'manifest packagexml'),
+  P('manifest', 'check a manifest against an org', 'package.xml packagexml what differs validate'),
   P('metadata', 'retrieve metadata', 'download zip packagexml flows layouts objects'),
   P('metadata', 'find one component by name in a long list', 'search class flow name filter thousands'),
   P('metadata', 'see or change a flow, layout or other metadata', 'xml metadata edit deploy'),
@@ -278,7 +266,7 @@ export const PLACES: StudioPlace[] = [
   }),
   P('activity', 'what did I change or export with NomadSF', 'activity history changes made by nomadsf my log audit'),
 
-  // ---------- Data protection ----------
+  // ---------- Data: backup and lifecycle ----------
   P('backup', 'back up data', 'backup records objects files', 'What to back up', { 'backup.tab': 'what' }),
   P('backup', 'schedule a backup', 'daily weekly automatic backup', 'Settings', { 'backup.tab': 'when' }),
   P('backup', 'restore records from a backup', 'restore undo deleted recover', 'Backups & restore', {
@@ -290,7 +278,7 @@ export const PLACES: StudioPlace[] = [
   }),
   P('lifecycle', 'delete records in steps', 'purge cleanup hard delete'),
 
-  // ---------- Compare & move: two orgs ----------
+  // ---------- Compare & Deploy: two orgs ----------
   P('migrate', 'copy records to another org', 'seed sandbox copy data migrate related records'),
   P('orgdiff', 'compare metadata of two orgs', 'sandbox vs production difference deploy package between'),
   P('orgdiff', 'deploy from one org to another', 'move metadata between orgs'),
@@ -312,4 +300,38 @@ export const PLACES: StudioPlace[] = [
   P('settings', 'add or log in to an org', 'connect org login new org sandbox'),
   P('settingsai', 'connect an AI', 'ai provider api key openai anthropic model'),
   P('settingsproject', 'choose my project folder', 'project folder github repository'),
+
+  // ---------- Security ----------
+  P('secdash', 'is my org safe', 'security overview dashboard health check failed logins risks at a glance'),
+  P('secdash', 'how many failed logins', 'failed login wrong password locked blocked today'),
+  P('timeline', 'what changed in setup this week', 'audit trail setup changes who changed what timeline history'),
+  P('timeline', 'what happened in the org', 'everything that happened logins changes deployments one place timeline'),
+  P('whocansee', 'why can a user see this record', 'record access why can see edit sharing reason who can see'),
+  P('whocansee', "why can't a user see a record", 'cannot see record access denied sharing missing'),
+  P('sharing', 'how is an object shared', 'sharing rules org wide defaults owd private public read write tree'),
+  P('sharing', 'list sharing rules', 'sharing rule criteria owner based role group table'),
+  P('health', 'who has Modify All Data', 'powerful permissions view all data modify all data admins risky'),
+  P('health', 'unused permission sets', 'unassigned permission sets nobody has clean up'),
+  P('audit', 'setup audit trail', 'who changed setup audit trail last 30 days', 'Setup audit trail', {
+    'audit.tab': 'audit',
+  }),
+  // ---------- More ways to say it ----------
+  P('groups', 'who is in a queue', 'queue members public group members role subordinates'),
+  P('files', 'open a workbook of records or users', 'excel xlsx saved copy everything workbook users file'),
+  P('files', 'restore a user from a snapshot', 'snapshot csv user restore another org'),
+  P('sandbox', 'users to recreate after a refresh', 'integration users testers sandbox refresh users workbook'),
+  P(
+    'sandbox',
+    'save settings before a sandbox refresh',
+    'remote site named credential custom setting scheduled apex sharing refresh'
+  ),
+  P('orgapps', 'compare connected apps of two orgs', 'connected app settings two orgs oauth policies'),
+  P('csvcompare', 'make the org match a spreadsheet', 'csv excel compare differences update org match file'),
+  P('compare', 'compare two permission sets', 'permission set difference profile difference two'),
+  P('permissions', 'create a custom permission', 'new custom permission grant', 'Custom permissions', {
+    'perms.kind': 'custom',
+  }),
+  P('permissions', 'who has a custom permission', 'custom permission users given by', 'Custom permissions', {
+    'perms.kind': 'custom',
+  }),
 ];

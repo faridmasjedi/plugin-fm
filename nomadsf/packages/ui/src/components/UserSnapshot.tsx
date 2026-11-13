@@ -31,7 +31,7 @@ export function UserSnapshot({
 }: {
   userId?: string;
   username?: string;
-  /** A snapshot already chosen (Compare & move › Open a file): compared at once. */
+  /** A snapshot already chosen (Compare & Deploy › Open a file): compared at once. */
   initialFile?: File;
 }) {
   const { client, org, orgs, clientFor, confirmChange, logActivity } = useStudio();

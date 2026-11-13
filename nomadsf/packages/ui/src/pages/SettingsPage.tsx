@@ -9,6 +9,10 @@ import { useProject } from '../project';
 const SOURCE_LABEL = { local: 'NomadSF app', folder: 'Folder on this computer', github: 'GitHub' } as const;
 
 /** Settings, one part per tool of the Settings hub: the orgs, the AI, the Salesforce project every page uses. */
+/** The guide's recording of Settings › AI shows the extension's form (tools/demo sets this; nothing is saved). */
+const demoAiForm = (): boolean =>
+  typeof window !== 'undefined' && (window as { __nomadsfDemoAiForm?: boolean }).__nomadsfDemoAiForm === true;
+
 export function SettingsPage({
   section,
   hostKind,
@@ -47,7 +51,7 @@ export function SettingsPage({
       )}
 
       {section === 'ai' &&
-        (hostKind === 'extension' ? (
+        (hostKind === 'extension' || demoAiForm() ? (
           <AiSettingsCard />
         ) : (
           <div className="card section">

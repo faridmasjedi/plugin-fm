@@ -42,7 +42,7 @@ export function CompareAccess({ between }: { between?: OrgSides }) {
   const labelB = between?.labelB ?? labelA;
   const other = Boolean(between);
   const [mode, setMode] = useState<Mode>(() => {
-    // Its own key (Compare & package keeps its mode under compare.mode)
+    // Its own key (compare.mode was the old Compare & package mode)
     const saved = storage.get<string>('access.compare.mode', 'users');
     const known = ['users', 'all', ...KINDS.map(([k]) => k)];
     return (known.includes(saved) && (saved !== 'all' || other) ? saved : 'users') as Mode;

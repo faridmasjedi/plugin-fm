@@ -10,7 +10,7 @@ import { download } from './components/DataTable';
 import { ToolContext } from './statusLog';
 
 /**
- * The Studio's layout: tools grouped into hubs (Develop, Data, Access, Security, Org for one org; Compare & move for
+ * The Studio's layout: tools grouped into hubs (Develop, Data, Access, Security, Org for one org; Compare & Deploy for
  * what goes between two places: two orgs, the org and the project, two branches, the org and a file; Settings),
  * each hub a page with its tools as tabs; and panes side by side — drag a hub or a tab to the
  * right half of a pane to open it beside, drag the divider to resize, ✕ to close. The layout
@@ -37,6 +37,8 @@ export type ToolId =
   | 'lifecycle'
   | 'project'
   | 'package'
+  | 'branchorg'
+  | 'manifest'
   | 'metadata'
   | 'orgdiff'
   | 'access'
@@ -91,9 +93,16 @@ export const TOOLS: Tool[] = [
   { id: 'project', label: 'Project', icon: '⌂', hint: 'your repository, compare with the org' },
   {
     id: 'package',
-    label: 'Compare & package',
+    label: 'Branch ↔ Branch',
     icon: '⇆',
     hint: 'what a branch brings into another: package.xml, destructiveChanges.xml',
+  },
+  { id: 'branchorg', label: 'Branch ↔ Org', icon: '⑂', hint: 'a branch of the project against an org, then deploy' },
+  {
+    id: 'manifest',
+    label: 'Check a manifest',
+    icon: '☷',
+    hint: 'a package.xml against an org: what differs, then deploy',
   },
   { id: 'metadata', label: 'Metadata', icon: '◫', hint: 'retrieve, package.xml' },
   { id: 'orgdiff', label: 'Compare metadata', icon: '⇋', hint: 'differences between two orgs, deploy' },
@@ -149,7 +158,7 @@ export const TOOLS: Tool[] = [
 
 /**
  * `breakBefore`: a thin divider before these tabs (Access: changing access, then reviewing it).
- * `sections`: a small heading before a tab, naming the group it starts (Compare & move: Org ↔ Org, Org ↔ Project…).
+ * `sections`: a small heading before a tab, naming the group it starts (Compare & Deploy: Org ↔ Org, Org ↔ Project…).
  */
 export type Hub = {
   id: string;
@@ -161,7 +170,7 @@ export type Hub = {
 };
 
 // Most-used tab first. Working in one org: Develop, Data, Access, Security, Org. Between two places (another org, the
-// project, a branch, a file): Compare & move. The app's own: Settings.
+// project, a branch, a file): Compare & Deploy. The app's own: Settings.
 export const HUBS: Hub[] = [
   {
     id: 'develop',
@@ -194,13 +203,24 @@ export const HUBS: Hub[] = [
   // Everything between two places: compare, deploy, retrieve, copy, restore
   {
     id: 'move',
-    label: 'Compare & move',
+    label: 'Compare & Deploy',
     icon: '⇄',
-    tools: ['orgdiff', 'orgaccess', 'orgapps', 'migrate', 'project', 'package', 'files', 'csvcompare', 'sandbox'],
+    tools: [
+      'orgdiff',
+      'orgaccess',
+      'orgapps',
+      'migrate',
+      'project',
+      'branchorg',
+      'package',
+      'files',
+      'manifest',
+      'csvcompare',
+      'sandbox',
+    ],
     sections: {
       orgdiff: 'Org ↔ Org',
-      project: 'Org ↔ Project',
-      package: 'Branch ↔ Branch',
+      project: 'Project & git',
       files: 'Org ↔ File',
       sandbox: 'Sandbox',
     },
@@ -373,7 +393,25 @@ export const dragTool = (tool: ToolId) => (e: React.DragEvent) => {
 };
 
 /** The sidebar: one entry per hub; drag one into the panes area to open it beside. */
-export function HubNav({ ws, available }: { ws: WorkspaceState; available: (tool: ToolId) => boolean }) {
+export function HubNav({
+  ws,
+  available,
+  compact,
+  onCompact,
+}: {
+  ws: WorkspaceState;
+  available: (tool: ToolId) => boolean;
+  /** Icons only: the name shows when the mouse is over a hub. */
+  compact: boolean;
+  onCompact: (compact: boolean) => void;
+}) {
+  // Narrow sidebar: the hub's name beside it on hover (a fixed box, so the scrolling sidebar does not cut it)
+  const [tip, setTip] = useState<{ label: string; top: number; left: number } | null>(null);
+  const showTip = (h: Hub) => (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!compact) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    setTip({ label: h.label, top: r.top + r.height / 2, left: r.right + 8 });
+  };
   const activeHub = hubOf(ws.panes[ws.active]?.tool ?? 'apex').id;
   const openHubs = new Set(ws.panes.map((p) => hubOf(p.tool).id));
   const hubs = HUBS.filter((h) => h.id !== 'settings' && h.tools.some(available));
@@ -381,12 +419,16 @@ export function HubNav({ ws, available }: { ws: WorkspaceState; available: (tool
     <button
       key={h.id}
       className={`hub ${activeHub === h.id ? 'active' : ''} ${openHubs.has(h.id) ? 'open' : ''}`}
+      data-hub={h.id}
+      aria-label={h.label}
       onClick={() => ws.openHub(h)}
+      onMouseEnter={showTip(h)}
+      onMouseLeave={() => setTip(null)}
       draggable
       onDragStart={dragTool(
         (h.tools.includes(ws.lastTab[h.id]) ? ws.lastTab[h.id] : undefined) ?? h.tools.find(available) ?? h.tools[0]
       )}
-      title={`${h.tools
+      title={`${compact ? `${h.label}: ` : ''}${h.tools
         .filter(available)
         .map((t) => toolOf(t)!.label)
         .join(' · ')}\nDrag to the right of a pane to open it beside`}
@@ -402,6 +444,22 @@ export function HubNav({ ws, available }: { ws: WorkspaceState; available: (tool
       <div className="nav-spacer" />
       <div className="nav-hint">Drag a hub or a tab to the right of a pane to open it beside · ⌘K to jump</div>
       {entry(HUBS.find((h) => h.id === 'settings')!)}
+      <button
+        className="nav-width"
+        onClick={() => {
+          setTip(null);
+          onCompact(!compact);
+        }}
+        title={compact ? 'Show the hub names' : 'Icons only (the name shows on hover)'}
+        aria-label={compact ? 'Show the hub names' : 'Icons only'}
+      >
+        {compact ? '»' : '« Narrow'}
+      </button>
+      {tip && (
+        <span className="hub-tip" style={{ top: tip.top, left: tip.left }}>
+          {tip.label}
+        </span>
+      )}
     </>
   );
 }
@@ -513,7 +571,7 @@ export function Panes({
               onDrop={onDrop(i)}
             >
               <div className="pane-bar">
-                <span className="pane-hub" title={hub.label}>
+                <span className="pane-hub" title={hub.label} data-hub={hub.id}>
                   <span className="icon">{hub.icon}</span>
                   <span className="hub-name">{hub.label}</span>
                 </span>
@@ -551,7 +609,7 @@ export function Panes({
               </div>
               <div className="pane-main">
                 <nav className="pane-nav" role="tablist" aria-label={`${hub.label} tools`}>
-                  {tools.map((t) => {
+                  {tools.map((t, n) => {
                     const meta = toolOf(t)!;
                     return (
                       <Fragment key={t}>
@@ -560,6 +618,7 @@ export function Panes({
                         <button
                           role="tab"
                           className={`pane-nav-item ${t === tool ? 'active' : ''}`}
+                          data-tone={n % 8}
                           title={`${meta.label}: ${meta.hint} · drag to the right to open beside`}
                           draggable
                           onDragStart={dragTool(t)}

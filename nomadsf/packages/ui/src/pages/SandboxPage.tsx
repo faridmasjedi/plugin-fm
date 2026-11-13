@@ -35,7 +35,7 @@ import { Status } from '../statusLog';
 type Tab = 'before' | 'after' | 'checklist';
 
 /**
- * Compare & move › Sandbox refresh. Before: save what a refresh replaces with production's, in one workbook. After:
+ * Compare & Deploy › Sandbox refresh. Before: save what a refresh replaces with production's, in one workbook. After:
  * open it in the refreshed sandbox, see what changed, put back what the API allows (it asks first), and go through
  * the Setup checklist. The refresh itself is started in Setup › Sandboxes, never here.
  */

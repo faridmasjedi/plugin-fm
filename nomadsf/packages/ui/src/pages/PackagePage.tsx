@@ -31,7 +31,6 @@ import { ProjectCompare } from '../components/ProjectCompare';
 import { ReleasePanel } from '../components/ReleasePanel';
 import { storage, useStudio } from '../context';
 import { detectHost } from '../host';
-import { OrgComparePage } from './OrgComparePage';
 import { useProject } from '../project';
 import { Status } from '../statusLog';
 
@@ -44,13 +43,20 @@ import { Status } from '../statusLog';
  */
 
 type Change = PackageComponent['change'];
-type Mode = 'branches' | 'manifest' | 'branch-org' | 'org-org';
-const MODES: Array<{ id: Mode; label: string; needsFolder: boolean }> = [
-  { id: 'branches', label: 'Branch ↔ Branch', needsFolder: true },
-  { id: 'manifest', label: 'From a manifest', needsFolder: true },
-  { id: 'branch-org', label: 'Branch ↔ Org', needsFolder: true },
-  { id: 'org-org', label: 'Org ↔ Org', needsFolder: false },
-];
+/** Each is its own tool of Compare & Deploy: Branch ↔ Branch, Branch ↔ Org (Project & git), Check a manifest. */
+export type PackageMode = 'branches' | 'manifest' | 'branch-org';
+type Mode = PackageMode;
+const MODES: Record<Mode, { title: string; hint: string }> = {
+  branches: {
+    title: 'Branch ↔ Branch',
+    hint: 'what a branch brings into another, as package.xml and destructiveChanges.xml',
+  },
+  'branch-org': { title: 'Branch ↔ Org', hint: 'a branch of the project against an org, then deploy' },
+  manifest: {
+    title: 'Check a manifest',
+    hint: 'a package.xml: its components from a branch, checked against an org, then deploy',
+  },
+};
 
 const HOW: Array<{ id: CompareHow; label: string; hint: string }> = [
   {
@@ -95,27 +101,13 @@ const languageOf = (path: string): CodeEditorProps['language'] => {
   return 'plaintext';
 };
 
-export function PackagePage() {
+export function PackagePage({ mode }: { mode: Mode }) {
   const project = useProject();
-  const studio = useStudio();
   const handle = project.source?.kind === 'folder' ? project.source.handle : undefined;
   const engine = useMemo(() => (handle ? new CompareEngine(handle) : undefined), [handle]);
   const [refs, setRefs] = useState<Refs>();
   const [branch, setBranch] = useState('');
   const [error, setError] = useState('');
-  // What to compare: two branches, a manifest with the files of a branch, a branch with an org, or two orgs
-  const [mode, setMode] = useState<Mode>(() => {
-    const kept = storage.get<string>('compare.mode', 'branches');
-    return MODES.some((m) => m.id === kept) ? (kept as Mode) : 'branches';
-  });
-  // Every mode opened keeps its own comparison while another is shown; the others start fresh
-  const [visited, setVisited] = useState<Set<Mode>>(() => new Set([mode]));
-  const chooseMode = (next: Mode): void => {
-    setMode(next);
-    setVisited(new Set([...visited, next]));
-    storage.set('compare.mode', next);
-  };
-
   // Branches and tags of the folder
   useEffect(() => {
     setRefs(undefined);
@@ -137,38 +129,20 @@ export function PackagePage() {
   }, [engine]);
 
   const hasFolder = Boolean(project.source && handle && engine);
-  const modeSwitch = (
-    <div className="tabs" role="tablist" aria-label="What to compare">
-      {MODES.map((m) => (
-        <button
-          key={m.id}
-          role="tab"
-          className={`tab ${mode === m.id ? 'active' : ''}`}
-          disabled={m.needsFolder && !hasFolder}
-          title={m.needsFolder && !hasFolder ? 'Open the project folder first' : undefined}
-          onClick={() => chooseMode(m.id)}
-        >
-          {m.label}
-        </button>
-      ))}
-    </div>
-  );
-
   return (
     <div className="page compare-page">
       <div className="toolbar">
-        <h2>Compare &amp; package</h2>
+        <h2>{MODES[mode].title}</h2>
         <span className="muted">
           {hasFolder
             ? `${project.source!.name}${
                 branch ? ` · on ${branch}` : ''
               } · read from git, nothing is written to the folder`
-            : 'what a branch brings into another, as package.xml and destructiveChanges.xml'}
+            : MODES[mode].hint}
         </span>
       </div>
-      {modeSwitch}
       {error && <Status text={error} block />}
-      {!hasFolder && mode !== 'org-org' && (
+      {!hasFolder && (
         <div className="card section">
           <p>
             This reads the project's git history: open the project <b>folder</b> (the repository with
@@ -189,19 +163,11 @@ export function PackagePage() {
           )}
         </div>
       )}
-      {[...visited]
-        .filter((m) => m === 'org-org' || hasFolder)
-        .map((m) => (
-          <div key={`${m}:${handle?.name ?? ''}`} className="compare-mode" hidden={m !== mode}>
-            {m === 'org-org' ? (
-              <div className="card section">
-                <OrgComparePage orgs={studio.orgs} embedded />
-              </div>
-            ) : (
-              <ModePanel mode={m} engine={engine!} refs={refs} branch={branch} />
-            )}
-          </div>
-        ))}
+      {hasFolder && (
+        <div key={handle?.name ?? ''} className="compare-mode">
+          <ModePanel mode={mode} engine={engine!} refs={refs} branch={branch} />
+        </div>
+      )}
     </div>
   );
 }
@@ -209,17 +175,7 @@ export function PackagePage() {
 type Refs = { branches: string[]; remoteBranches: string[]; tags: string[] };
 
 /** One mode of Compare & package with its own comparison (Branch ↔ Branch, manifest, Branch ↔ Org). */
-function ModePanel({
-  mode,
-  engine,
-  refs,
-  branch,
-}: {
-  mode: Exclude<Mode, 'org-org'>;
-  engine: CompareEngine;
-  refs?: Refs;
-  branch: string;
-}) {
+function ModePanel({ mode, engine, refs, branch }: { mode: Mode; engine: CompareEngine; refs?: Refs; branch: string }) {
   const studio = useStudio();
   const [sourceRef, setSourceRef] = useState('');
   const [targetRef, setTargetRef] = useState('');

@@ -10,7 +10,13 @@ import {
   type SharingTarget,
   securityTimeline,
   whoCanSee,
-  type RecordAccess,
+  whoCanUse,
+  findRecords,
+  lookupFields,
+  query,
+  type AccessStep,
+  type LookupField,
+  type RecordPick,
   type TileValue,
   type TimelineKind,
   type TimelineRow,
@@ -178,16 +184,53 @@ export function TimelinePage() {
 
 type UserPick = { Id: string; Name: string; Username: string };
 
-/** A user and a record: what Salesforce lets them do with it, and why, step by step. Read only. */
+/** What is checked: one record, or — without a record — an object, a field, or a class, page or custom permission. */
+type WhoWhat = 'record' | 'object' | 'field' | 'meta';
+type MetaKind = 'ApexClass' | 'ApexPage' | 'CustomPermission';
+const META_KINDS: Array<[MetaKind, string]> = [
+  ['ApexClass', 'Apex class'],
+  ['ApexPage', 'Visualforce page'],
+  ['CustomPermission', 'Custom permission'],
+];
+type WhoResult = { what: string; can: Array<[string, boolean]>; steps: AccessStep[]; note?: string };
+
+/**
+ * A user and something in the org: what Salesforce lets them do with it, and why, step by step. A record (by its
+ * Id, a link, or found by name in an object), or without a record an object, a field, or an Apex class, Visualforce
+ * page or custom permission. Read only.
+ */
 export function WhoCanSeePage() {
   const { client, org } = useStudio();
   const [typed, setTyped] = useState('');
   const [users, setUsers] = useState<UserPick[]>([]);
   const [user, setUser] = useState<UserPick | null>(null);
+  const [what, setWhat] = useState<WhoWhat>(() => storage.get<WhoWhat>('whocansee.what', 'record'));
+  const [objects, setObjects] = useState<SObjectSummary[]>([]);
+  const [object, setObject] = useState('');
+  const [recordText, setRecordText] = useState('');
+  const [records, setRecords] = useState<RecordPick[]>([]);
   const [recordId, setRecordId] = useState('');
-  const [result, setResult] = useState<RecordAccess | null>(null);
+  const [fields, setFields] = useState<LookupField[]>([]);
+  const [field, setField] = useState('');
+  const [metaKind, setMetaKind] = useState<MetaKind>('ApexClass');
+  const [metaNames, setMetaNames] = useState<string[]>([]);
+  const [metaName, setMetaName] = useState('');
+  const [result, setResult] = useState<WhoResult | null>(null);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const choose = (w: WhoWhat) => {
+    setWhat(w);
+    setResult(null);
+    setStatus('');
+    storage.set('whocansee.what', w);
+  };
+  useEffect(() => {
+    describeGlobal(client)
+      .then((list) => setObjects(list.sort((a, b) => a.name.localeCompare(b.name))))
+      .catch(() => undefined);
+  }, [client]);
+  const objectName = objects.find((o) => o.name.toLowerCase() === object.trim().toLowerCase())?.name ?? '';
 
   useEffect(() => {
     if (typed.trim().length < 2 || user) return undefined;
@@ -201,13 +244,84 @@ export function WhoCanSeePage() {
     return () => clearTimeout(t);
   }, [typed, client, user]);
 
+  // A record: an Id or a link is used as it is; with an object chosen, its records whose name holds the text
+  const typedId = useMemo(
+    () => recordText.match(/\b([a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?)\b/g)?.find((t) => /\d/.test(t)) ?? '',
+    [recordText]
+  );
+  useEffect(() => {
+    setRecords([]);
+    if (what !== 'record' || !objectName || typedId) return undefined;
+    const t = setTimeout(
+      () =>
+        void findRecords(client, objectName, recordText)
+          .then(setRecords)
+          .catch(() => setRecords([])),
+      350
+    );
+    return () => clearTimeout(t);
+  }, [what, objectName, recordText, typedId, client]);
+  useEffect(() => setRecordId(typedId), [typedId]);
+
+  useEffect(() => {
+    setFields([]);
+    if (what !== 'field' || !objectName) return;
+    lookupFields(client, objectName)
+      .then(setFields)
+      .catch(() => setFields([]));
+  }, [what, objectName, client]);
+
+  useEffect(() => {
+    setMetaNames([]);
+    if (what !== 'meta') return;
+    const name = metaKind === 'CustomPermission' ? 'DeveloperName' : 'Name';
+    query(client, `SELECT ${name} FROM ${metaKind} ORDER BY ${name}`, { maxRows: 5000 })
+      .then((r) => setMetaNames(r.rows.map((row) => String(row[name]))))
+      .catch(() => setMetaNames([]));
+  }, [what, metaKind, client]);
+
+  const ready =
+    !!user &&
+    (what === 'record'
+      ? !!recordId
+      : what === 'object'
+      ? !!objectName
+      : what === 'field'
+      ? !!objectName && !!field.trim()
+      : !!metaName.trim());
+
   const check = async () => {
     if (!user) return;
     setBusy(true);
     setResult(null);
     setStatus('Checking…');
     try {
-      setResult(await whoCanSee(client, user.Id, recordId.trim()));
+      if (what === 'record') {
+        const r = await whoCanSee(client, user.Id, recordId);
+        const picked = records.find((x) => x.Id === recordId);
+        setResult({
+          what: `${r.object}${picked ? ` ${picked.Name}` : ''}`,
+          can: [
+            ['Read', r.read],
+            ['Edit', r.edit],
+            ['Delete', r.delete],
+            ['Transfer', r.transfer],
+          ],
+          steps: r.steps,
+          note: r.editNeeds,
+        });
+      } else
+        setResult(
+          await whoCanUse(
+            client,
+            user.Id,
+            what === 'object'
+              ? { kind: 'object', object: objectName }
+              : what === 'field'
+              ? { kind: 'field', object: objectName, field: field.trim() }
+              : { kind: metaKind, name: metaName.trim() }
+          )
+        );
       setStatus('');
     } catch (e) {
       setStatus(`❌ ${(e as Error).message}`);
@@ -215,28 +329,33 @@ export function WhoCanSeePage() {
       setBusy(false);
     }
   };
-  const verdict = useMemo(
-    () =>
-      result
-        ? ([
-            ['Read', result.read],
-            ['Edit', result.edit],
-            ['Delete', result.delete],
-            ['Transfer', result.transfer],
-          ] as Array<[string, boolean]>)
-        : [],
-    [result]
+
+  const objectBox = (placeholder: string) => (
+    <ComboInput
+      options={objectChoices(objects)}
+      placeholder={placeholder}
+      value={object}
+      style={{ minWidth: 220 }}
+      onChange={(e) => {
+        setObject(e.target.value);
+        setResult(null);
+      }}
+    />
   );
+
   return (
     <div className="page">
       <div className="toolbar">
-        <h2>Who can see this record?</h2>
-        <span className="muted">A user and a record in {org.label}: what they can do with it, and why</span>
+        <h2>Who can see this?</h2>
+        <span className="muted">
+          A user and a record, object, field or class in {org.label}: what they can do, and why
+        </span>
       </div>
       <div className="form">
         {user ? (
-          <span>
-            <b>{user.Name}</b> <span className="muted">{user.Username}</span>{' '}
+          <span className="who-user">
+            <b>{user.Name}</b>
+            <span className="muted">{user.Username}</span>
             <button
               onClick={() => {
                 setUser(null);
@@ -272,8 +391,94 @@ export function WhoCanSeePage() {
             )}
           </span>
         )}
-        <input placeholder="Record Id" value={recordId} onChange={(e) => setRecordId(e.target.value)} />
-        <button className="primary" disabled={busy || !user || !recordId.trim()} onClick={() => void check()}>
+      </div>
+      <div className="form">
+        <div className="segmented" role="group" aria-label="What to check">
+          {(
+            [
+              ['record', 'A record'],
+              ['object', 'An object'],
+              ['field', 'A field'],
+              ['meta', 'A class, page or permission'],
+            ] as const
+          ).map(([id, label]) => (
+            <button key={id} className={what === id ? 'active' : ''} onClick={() => choose(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="form">
+        {what === 'record' && (
+          <>
+            {objectBox('Object (to find by name)')}
+            <input
+              style={{ minWidth: 260 }}
+              placeholder={objectName ? `${objectName}: a name, an Id or a link` : 'Record Id or a Salesforce link'}
+              value={recordText}
+              onChange={(e) => {
+                setRecordText(e.target.value);
+                setResult(null);
+              }}
+            />
+            {!typedId && records.length > 0 && (
+              <Select value={recordId} onChange={(e) => setRecordId(e.target.value)}>
+                <option value="">{records.length} record(s)…</option>
+                {records.map((r) => (
+                  <option key={r.Id} value={r.Id}>
+                    {r.Name} — {r.Id}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </>
+        )}
+        {what === 'object' && objectBox('Object')}
+        {what === 'field' && (
+          <>
+            {objectBox('Object')}
+            <ComboInput
+              options={fields.map((f) => ({ value: f.name, label: `${f.label} (${f.name})` }))}
+              placeholder={objectName ? 'Field' : 'Choose the object first'}
+              disabled={!objectName}
+              value={field}
+              style={{ minWidth: 220 }}
+              onChange={(e) => {
+                setField(e.target.value);
+                setResult(null);
+              }}
+            />
+          </>
+        )}
+        {what === 'meta' && (
+          <>
+            <Select
+              value={metaKind}
+              onChange={(e) => {
+                setMetaKind(e.target.value as MetaKind);
+                setMetaName('');
+                setResult(null);
+              }}
+            >
+              {META_KINDS.map(([k, label]) => (
+                <option key={k} value={k}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+            <ComboInput
+              options={metaNames.map((n) => ({ value: n }))}
+              placeholder="Name"
+              value={metaName}
+              style={{ minWidth: 240 }}
+              onChange={(e) => {
+                setMetaName(e.target.value);
+                setResult(null);
+              }}
+            />
+          </>
+        )}
+        <button className="primary" disabled={busy || !ready} onClick={() => void check()}>
           Check
         </button>
       </div>
@@ -281,8 +486,8 @@ export function WhoCanSeePage() {
       {result && user && (
         <div className="card section who-result">
           <div className="who-verdict">
-            <b>{user.Name}</b> can, on this {result.object}:
-            {verdict.map(([label, ok]) => (
+            <b>{user.Name}</b> can, on {result.what}:
+            {result.can.map(([label, ok]) => (
               <span key={label} className={`pill ${ok ? 'good' : 'bad'}`}>
                 {label} {ok ? '✓' : '✗'}
               </span>
@@ -296,10 +501,11 @@ export function WhoCanSeePage() {
               </li>
             ))}
           </ol>
-          {result.editNeeds && <p className="note">→ {result.editNeeds}</p>}
+          {result.note && <p className="note">→ {result.note}</p>}
           <p className="muted small">
-            The answer is Salesforce's own (UserRecordAccess); the steps explain it. Territories and implicit sharing (a
-            parent's sharing for its children) also count and are not listed one by one.
+            {what === 'record'
+              ? "The answer is Salesforce's own (UserRecordAccess); the steps explain it. Territories and implicit sharing (a parent's sharing for its children) also count and are not listed one by one."
+              : 'From the profile, permission sets and permission set groups of the user. Which records they see also depends on sharing: check one record for that.'}
           </p>
         </div>
       )}
