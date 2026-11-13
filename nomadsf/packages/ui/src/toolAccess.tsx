@@ -31,6 +31,23 @@ export const NEEDS: Partial<Record<ToolId, Need>> = {
   groups: { read: ['ViewSetup'], change: ['ManageUsers'], changeWhat: 'add or remove group and queue members' },
   compare: { read: ['ViewSetup'] },
   objectaccess: { read: ['ViewSetup'] },
+  integration: { read: ['ViewSetup'] },
+  codechecks: { read: ['ViewSetup'] },
+  appconfig: {
+    read: ['ViewSetup'],
+    change: ['CustomizeApplication', 'ModifyAllData'],
+    changeWhat: 'change app and credential settings',
+  },
+  customsettings: {
+    read: ['ViewSetup'],
+    change: ['CustomizeApplication'],
+    changeWhat: 'change custom setting values or create one',
+  },
+  bulkaccess: {
+    read: ['ViewSetup'],
+    change: ['AssignPermissionSets', 'ManageUsers'],
+    changeWhat: 'give or take back permission sets, groups and queues',
+  },
   audit: { read: ['ViewSetup'] },
   eventlogs: { read: ['ViewEventLogFiles'] },
   secdash: { read: ['ViewSetup'] },

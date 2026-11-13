@@ -4,11 +4,13 @@ import { DataTable, EmptyHint } from '../components/DataTable';
 import { UserComparison } from '../components/UserComparison';
 import { OrgPairBar, usePairClients } from '../pair';
 import { Status } from '../statusLog';
+import { storage } from '../context';
+import { ConfigCompare } from '../components/ConfigCompare';
 
 type Show = 'all' | AppComparison['status'];
 
 /** Org to org › Connected apps: which apps exist in A and B, and for apps in both their settings and who may use them. */
-export function OrgAppsPage() {
+function OrgAppsUsage() {
   const { a, b, clientA, clientB, error } = usePairClients();
   const [apps, setApps] = useState<AppComparison[] | null>(null);
   const [status, setStatus] = useState('');
@@ -169,5 +171,41 @@ export function OrgAppsPage() {
         </>
       )}
     </div>
+  );
+}
+
+type View = 'usage' | 'settings';
+
+/**
+ * Compare & Deploy › Compare apps: who uses each app in A and B (and their OAuth settings), or every setting of the
+ * apps and credentials defined in each org, side by side, with A's version deployable to B.
+ */
+export function OrgAppsPage() {
+  const [view, setView] = useState<View>(() => storage.get<View>('orgapps.view', 'usage'));
+  return (
+    <>
+      <div className="form view-switch">
+        <div className="segmented" role="group" aria-label="What to compare">
+          {(
+            [
+              ['usage', 'Apps and who uses them'],
+              ['settings', 'Settings of apps & credentials'],
+            ] as Array<[View, string]>
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              className={view === id ? 'active' : ''}
+              onClick={() => {
+                setView(id);
+                storage.set('orgapps.view', id);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {view === 'usage' ? <OrgAppsUsage /> : <ConfigCompare />}
+    </>
   );
 }

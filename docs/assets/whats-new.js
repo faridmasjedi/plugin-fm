@@ -3,6 +3,18 @@
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
   next: [
+    'Org › Apps & credentials: every setting of the connected apps, external client apps (with their OAuth settings and policies), named and external credentials defined in the org — edit values in place or the whole file, then deploy',
+    'Compare & Deploy › Compare apps › Settings of apps & credentials: the same in two orgs side by side (or only the differences), and A’s version deployed to B after typing B’s name; consumer keys and org-specific links never count or travel',
+    'Metadata and Code › Other metadata: an empty ConnectedApp list says why (apps from Salesforce or packages are defined elsewhere) and where to find them',
+    'Access › Assign in bulk: permission sets, permission set groups, public groups and queues given to (or taken from) many users at once — users by name, username, profile, role, a query or a CSV / Excel file — with a line per user saying what happened',
+    'Security › Integration check: why an integration fails — the user (active, frozen, locked), API Enabled, password age, its recent logins with Salesforce’s reason for each failure and what it usually means, the connected app (admin-approved users, tokens), expiring certificates, inactive remote sites',
+    'Debug logs: a log opens on Insights — errors and limits close to their maximum, the same query or DML many times (a loop), what ran as a tree (triggers, flows, validation rules, classes), the slowest methods, every query and DML grouped with its lines',
+    'Data › Custom settings: every custom setting with its values (by org, profile or user; or rows by name) to edit, add and delete, and a new custom setting with its fields',
+    'Develop › Code checks: well-known mistakes in Apex, triggers, Visualforce, LWC and Aura of the org or the project — SOQL injection, XSS, secrets in code, without sharing, missing access checks, hard-coded Ids, queries and DML in loops — each with why and how to fix',
+    'Who can see: many profiles and permission sets behind a reason fold into “Which ones (N)”, the names by kind with a filter; long reasons never run out of their box',
+    'Save order: “Show all” now really shows only the first six of a busy step until pressed',
+  ],
+  '3.0.0': [
     'Compare & move is now Compare & Deploy, tidied: Project & git holds Project, Branch ↔ Org and Branch ↔ Branch (was Compare & package); Check a manifest (was From a manifest) sits under Org ↔ File, where Open a file sends a package.xml; the second Org ↔ Org inside Compare & package is gone (it was Compare metadata again)',
     'Who can see: a record found by name in an object (or an Id or a link), and without a record an object, a field, or an Apex class, Visualforce page or custom permission — what the user can do and which profile or permission set gives it; the name and username no longer run together',
     'Colors: each hub and each tab of a hub has its own color; « Narrow keeps only the hub icons (the name shows on hover), remembered',

@@ -88,3 +88,10 @@ The ✦ AI of a scene (`ai: { task: answer }`) is answered by the recorder — n
 through the Studio's own reading of the answer. To try the real prompts instead, put `FM_AI_PROVIDER`,
 `FM_AI_MODEL` and `FM_AI_KEY` in `~/.nomadsf-demo-ai.env` (chmod 600): the server then answers the ✦ buttons
 with that provider, and `DEMO_REAL_AI=1 node tools/demo/record.mjs …` uses it.
+
+### Apps and credentials (demo)
+
+`configs/uat`, `configs/new`: a `Billing` named credential and its `Billing_Auth` external credential (the URL differs).
+`configs/eca-uat`, `configs/eca-new`: an external client app `NomadSF_Demo` with its OAuth settings (the scopes
+differ). Deploy each with `sf project deploy start --metadata-dir <folder> -o <org>`. New orgs refuse new connected apps
+("contact Salesforce Customer Support"): `configs/connected-app-*` is kept for orgs that still allow them.

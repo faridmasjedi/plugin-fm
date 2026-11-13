@@ -1,16 +1,44 @@
 import { useMemo, useState } from 'react';
 import { Select } from './Select';
-import { parseLog } from '@nomadsf/core';
+import { logInsights, parseLog, type LogNode } from '@nomadsf/core';
 import { DataTable } from './DataTable';
 import { CodeEditor } from './CodeEditor';
 import { AiExplain } from './AiHelp';
 
-type Tab = 'debug' | 'events' | 'limits' | 'raw';
+type Tab = 'insights' | 'debug' | 'events' | 'limits' | 'raw';
 
-/** Developer Console style log inspector: debug messages, all events, limits and the raw log. */
+/** One thing that ran, with what it ran in turn (folded below the first level). */
+function RanNode({ node, depth = 0 }: { node: LogNode; depth?: number }) {
+  const [open, setOpen] = useState(depth < 1);
+  return (
+    <li>
+      <span className="log-ran-row">
+        {node.children.length > 0 ? (
+          <button className="tree-toggle link" onClick={() => setOpen(!open)} aria-expanded={open}>
+            {open ? '▾' : '▸'}
+          </button>
+        ) : (
+          <span className="tree-toggle" />
+        )}
+        <span className="pill">{node.kind}</span> {node.name}
+        {node.ms > 0 && <span className="muted small"> · {node.ms} ms</span>}
+      </span>
+      {open && node.children.length > 0 && (
+        <ul>
+          {node.children.map((c, i) => (
+            <RanNode key={i} node={c} depth={depth + 1} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+/** Developer Console style log inspector: insights first, then debug messages, all events, limits and the raw log. */
 export function LogViewer({ log, name = 'apex-log' }: { log: string; name?: string }) {
   const summary = useMemo(() => parseLog(log), [log]);
-  const [tab, setTab] = useState<Tab>(summary.debugs.length > 0 ? 'debug' : 'events');
+  const insights = useMemo(() => logInsights(summary), [summary]);
+  const [tab, setTab] = useState<Tab>('insights');
   const [eventType, setEventType] = useState('');
   const types = useMemo(() => [...new Set(summary.events.map((e) => e.type))].sort(), [summary]);
 
@@ -41,6 +69,7 @@ export function LogViewer({ log, name = 'apex-log' }: { log: string; name?: stri
       <div className="tabs">
         {(
           [
+            ['insights', 'Insights'],
             ['debug', `Debug (${summary.debugs.length})`],
             ['events', `Events (${summary.events.length})`],
             ['limits', `Limits (${summary.limits.length})`],
@@ -60,6 +89,54 @@ export function LogViewer({ log, name = 'apex-log' }: { log: string; name?: stri
               {e.details}
             </div>
           ))}
+        </div>
+      )}
+      {tab === 'insights' && (
+        <div className="log-insights">
+          <ul className="log-findings">
+            {insights.insights.map((f, i) => (
+              <li key={i} className={`finding ${f.level}`}>
+                <span className="finding-icon">{f.level === 'bad' ? '✗' : f.level === 'warn' ? '⚠' : 'ℹ'}</span>
+                <span>{f.text}</span>
+              </li>
+            ))}
+          </ul>
+          {insights.ran.length > 0 && (
+            <>
+              <h4>What ran</h4>
+              <ul className="log-ran">
+                {insights.ran.map((n, i) => (
+                  <RanNode key={i} node={n} />
+                ))}
+              </ul>
+            </>
+          )}
+          {insights.slowest.length > 0 && (
+            <>
+              <h4>Slowest methods</h4>
+              <DataTable name={`${name}-slowest`} columns={['method', 'calls', 'ms']} rows={insights.slowest} />
+            </>
+          )}
+          {insights.queries.length > 0 && (
+            <>
+              <h4>Queries ({summary.soqlQueries})</h4>
+              <DataTable
+                name={`${name}-queries`}
+                columns={['count', 'rows', 'ms', 'lines', 'text']}
+                rows={insights.queries.map((q) => ({ ...q, lines: q.lines.join(', ') }))}
+              />
+            </>
+          )}
+          {insights.dml.length > 0 && (
+            <>
+              <h4>DML ({summary.dmlStatements})</h4>
+              <DataTable
+                name={`${name}-dml`}
+                columns={['text', 'count', 'rows', 'ms', 'lines']}
+                rows={insights.dml.map((d) => ({ ...d, lines: d.lines.join(', ') }))}
+              />
+            </>
+          )}
         </div>
       )}
       {tab === 'debug' && (

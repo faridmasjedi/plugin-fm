@@ -123,7 +123,8 @@ export const scenes = [
     ['Code', 'Code: every class, trigger, page and component — with its dependencies'],
     ['Execute Apex', 'Execute Apex: run anonymous Apex'],
     ['Apex tests', 'Apex tests: run tests, see the coverage'],
-    ['Debug logs', 'Debug logs: switch logging on, read the logs'],
+    ['Code checks', 'Code checks: security mistakes and queries in loops, with the fix'],
+    ['Debug logs', 'Debug logs: switch logging on, read a log’s insights'],
     ['Jobs', 'Jobs: scheduled and background Apex'],
     ['Save order', 'Save order: what runs when a record is saved'],
     ['Flows', 'Flows: old versions, old API versions, waiting and failed interviews'],
@@ -137,6 +138,7 @@ export const scenes = [
     ['Lookup', 'Lookup: Ids for the values of a CSV column'],
     ['Schema', 'Schema: fields, relationships, record types'],
     ['Field usage', 'Field usage: how full each field is'],
+    ['Custom settings', 'Custom settings: their values by org, profile or user — and new ones'],
     ['Backup', 'Backup: back up and restore, on a schedule'],
     ['Lifecycle', 'Lifecycle: archive, anonymize and delete in steps'],
   ]),
@@ -144,6 +146,7 @@ export const scenes = [
     ['Users', 'Users: a user and everything they have'],
     ['Access sets', 'Access sets: profiles, permission sets, groups, custom permissions'],
     ['Groups & queues', 'Groups & queues: who is in each'],
+    ['Assign in bulk', 'Assign in bulk: many permission sets, groups and queues, to many users'],
     ['Object access', 'Object access: who can use an object or a field'],
     ['Compare', 'Compare: two users, profiles or permission sets'],
   ]),
@@ -152,6 +155,7 @@ export const scenes = [
     ['Timeline', 'Timeline: everything that happened, in one list'],
     ['Event logs', 'Event logs: logins, API calls, Apex, pages, reports'],
     ['Who can see', 'Who can see: a record, object, field or class — and why'],
+    ['Integration check', 'Integration check: why an integration fails, and what to do'],
     ['Sharing', 'Sharing: an object’s sharing, as a tree'],
     ['Org health', 'Org health: Health Check, what is not used'],
     ['Logins & audit', 'Logins & audit: login history, setup audit trail'],
@@ -565,7 +569,7 @@ export const scenes = [
       await h.confirm('acme-uat');
       await h.settle();
       await h.pause(800);
-      await h.say('Back in Debug logs: open the newest log');
+      await h.say('Back in Debug logs: open the newest log — it opens on its insights');
       await h.tab('Develop', 'Debug logs');
       await h.click('Refresh');
       await h.settle();
@@ -1479,6 +1483,117 @@ export const scenes = [
     },
   },
   // ---------- new tools ----------
+  {
+    name: 'codechecks',
+    hash: 'codechecks',
+    intro: 'Develop › Code checks: well-known mistakes in the code, each with why and how to fix it',
+    run: async (h) => {
+      await h.say('The org’s Apex, triggers, Visualforce, LWC and Aura — or the project’s');
+      await h.click('Check');
+      await h.until(/file\(s\) checked/, 180000);
+      await h.settle();
+      await h.say('High, Medium, Low: injection, XSS, secrets, sharing, access checks, loops');
+      await h.pause(800);
+      await h.press(h.page.locator('table tbody tr').first());
+      await h.say('Click one: the line, why it matters, and the fix');
+      await h.look(h.page.locator('.check-detail'));
+      await h.pause(1600);
+    },
+  },
+  {
+    name: 'customsettings',
+    hash: 'customsettings',
+    intro: 'Data › Custom settings: their values — edit, add, delete — and new custom settings',
+    run: async (h) => {
+      const pick = h.page.locator('.pane-body label', { hasText: 'Custom setting' }).locator('select');
+      await pick.waitFor({ timeout: 60000 });
+      await h.say('Choose a custom setting: a hierarchy one has a value per level');
+      await h.choose(pick, /Integration_Settings__c/);
+      await h.until('Organization');
+      await h.settle();
+      await h.pause(1000);
+      await h.say('Add a level for one profile, with its own value');
+      await h.click('+ Add a level');
+      await h.press(h.page.locator('.setting-edit .segmented button', { hasText: 'A profile' }));
+      await h.pause(1500);
+      await h.choose(h.page.locator('.setting-edit select').first(), /^Standard User$/);
+      await h.type(
+        h.page.locator('.setting-edit input:not([type=checkbox])').last(),
+        'https://billing-test.example.com'
+      );
+      await h.click('Save…');
+      await h.confirm('acme-uat');
+      await h.until('Profile: Standard User');
+      await h.settle();
+      await h.pause(1400);
+      await h.say('Delete it again — every change asks for the org’s name');
+      await h.press(
+        h.page.locator('tr', { hasText: 'Profile: Standard User' }).locator('button', { hasText: 'Delete' })
+      );
+      await h.confirm('acme-uat');
+      await h.until('Deleted');
+      await h.settle();
+      await h.say('+ New custom setting: its label, kind and fields, deployed in one go');
+      await h.click('+ New custom setting');
+      await h.type(h.page.locator('input[placeholder="e.g. Billing Settings"]'), 'Shipping Settings');
+      await h.type(h.page.locator('input[placeholder="Label, e.g. Endpoint"]').first(), 'Carrier endpoint');
+      await h.pause(1600);
+    },
+  },
+  {
+    name: 'bulkaccess',
+    hash: 'bulkaccess',
+    intro: 'Access › Assign in bulk: permission sets, groups and queues — to or from many users at once',
+    run: async (h) => {
+      await h.say('The users: by name, username, profile, role, a query or a file');
+      await h.press(h.page.locator('.segmented button', { hasText: 'By a query' }));
+      await h.type(h.page.locator('input.mono'), "Name IN ('Bob Ray')");
+      await h.click('Find');
+      await h.until('active user(s) found');
+      await h.say('What to give: any number of permission sets, groups and queues');
+      await h.type(h.page.locator('input[placeholder^="Find permission sets"]'), 'Report Builder');
+      await h.press(h.page.locator('.bulk-pick .chip', { hasText: /^\+ Report Builder$/ }).first());
+      await h.press(h.page.locator('.segmented button', { hasText: /^Public groups/ }));
+      await h.type(h.page.locator('input[placeholder^="Find public groups"]'), 'Sales Leads');
+      await h.press(h.page.locator('.bulk-pick .chip', { hasText: /Sales Leads/ }).first());
+      await h.say('Add them — one confirmation, then a line per user and item');
+      await h.click(/^Add 2 to 1/);
+      await h.confirm('acme-uat');
+      await h.until(/added,/, 120000);
+      await h.settle();
+      await h.look(h.page.locator('table').last());
+      await h.pause(1400);
+      await h.say('Remove takes them back the same way');
+      await h.click(/^Remove 2 from 1/);
+      await h.confirm('acme-uat');
+      await h.until(/removed,/, 120000);
+      await h.settle();
+      await h.pause(1600);
+    },
+  },
+  {
+    name: 'integration',
+    hash: 'integration',
+    intro: 'Security › Integration check: why an integration fails — and what to do',
+    run: async (h) => {
+      await h.say('Choose the integration user, and its connected app');
+      await h.type(h.page.locator('input[placeholder^="Integration user"]'), 'Integration User');
+      await h.pause(1500);
+      await h.choose(h.page.locator('.who-pick select, .who-pick .search-select-native').first(), /^Integration User/);
+      await h.choose(
+        h.page.locator('.pane-body label', { hasText: 'Connected app' }).locator('select'),
+        /CPQ Integration/
+      );
+      await h.click('Check');
+      await h.until(/problem|Nothing/, 60000);
+      await h.settle();
+      await h.say('The user, its API permission, its logins, the app, certificates and endpoints');
+      await h.pause(1200);
+      await h.say('Each problem says what to do: here, the user is not approved for the app');
+      await h.look(h.page.locator('.finding.bad').first());
+      await h.pause(1800);
+    },
+  },
   {
     name: 'flows',
     intro: 'Develop › Flows: old versions, old API versions, waiting and failed interviews',

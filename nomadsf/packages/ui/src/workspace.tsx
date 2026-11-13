@@ -54,6 +54,11 @@ export type ToolId =
   | 'groups'
   | 'compare'
   | 'objectaccess'
+  | 'bulkaccess'
+  | 'integration'
+  | 'customsettings'
+  | 'codechecks'
+  | 'appconfig'
   | 'audit'
   | 'eventlogs'
   | 'secdash'
@@ -75,6 +80,12 @@ export type Tool = { id: ToolId; label: string; icon: string; hint: string };
 export const TOOLS: Tool[] = [
   { id: 'apex', label: 'Execute Apex', icon: '▶', hint: 'run anonymous Apex' },
   { id: 'code', label: 'Code', icon: '{}', hint: 'Apex, triggers, Visualforce, LWC, Aura' },
+  {
+    id: 'codechecks',
+    label: 'Code checks',
+    icon: '⚑',
+    hint: 'well-known mistakes in Apex, Visualforce, LWC and Aura: injection, XSS, secrets, loops',
+  },
   { id: 'apextests', label: 'Apex tests', icon: '◎', hint: 'run tests, code coverage' },
   { id: 'logs', label: 'Debug logs', icon: '☰', hint: 'logs and trace flags' },
   { id: 'automation', label: 'Save order', icon: '↯', hint: 'what runs, in order, when a record is saved' },
@@ -85,6 +96,12 @@ export const TOOLS: Tool[] = [
   { id: 'data', label: 'Import / Update / Delete', icon: '⇅', hint: 'from a CSV file or a query' },
   { id: 'lookup', label: 'Lookup', icon: '⌖', hint: 'find Ids for a CSV column' },
   { id: 'csvcompare', label: 'Compare with CSV', icon: '≍', hint: 'a CSV next to the org; make the org match it' },
+  {
+    id: 'customsettings',
+    label: 'Custom settings',
+    icon: '⚙',
+    hint: 'their values by org, profile, user or name: edit, add, delete; a new one',
+  },
   { id: 'schema', label: 'Schema', icon: '⌗', hint: 'fields, relationships, record types' },
   { id: 'fields', label: 'Field usage', icon: '▦', hint: 'how full each field is, who can see it' },
   { id: 'backup', label: 'Backup', icon: '⛁', hint: 'backups, schedules, restore' },
@@ -117,6 +134,12 @@ export const TOOLS: Tool[] = [
   { id: 'groups', label: 'Groups & queues', icon: '◎', hint: 'public groups, queues and their members' },
   { id: 'compare', label: 'Compare', icon: '⇆', hint: 'two users, profiles or permission sets' },
   { id: 'objectaccess', label: 'Object access', icon: '⛉', hint: 'who can use an object or field' },
+  {
+    id: 'bulkaccess',
+    label: 'Assign in bulk',
+    icon: '⊕',
+    hint: 'permission sets, groups and queues to or from many users',
+  },
   { id: 'audit', label: 'Logins & audit', icon: '⌛', hint: 'login history, setup audit trail' },
   { id: 'eventlogs', label: 'Event logs', icon: '≣', hint: 'event log files: logins, API, Apex, pages, reports' },
   { id: 'secdash', label: 'Dashboard', icon: '▣', hint: 'security at a glance: health, failed logins, API, admins' },
@@ -127,11 +150,23 @@ export const TOOLS: Tool[] = [
     hint: 'everything that happened: setup, logins, components, NomadSF',
   },
   { id: 'whocansee', label: 'Who can see', icon: '◉', hint: 'can this user read or edit this record, and why' },
+  {
+    id: 'integration',
+    label: 'Integration check',
+    icon: '⇌',
+    hint: 'why an integration fails: its user, logins, connected app, certificates',
+  },
   { id: 'sharing', label: 'Sharing', icon: '⑂', hint: "an object's defaults and sharing rules, as a tree" },
   { id: 'myaccess', label: 'Your access', icon: '✓', hint: 'what your user may do here' },
   { id: 'apps', label: 'Connected apps', icon: '⚷', hint: 'connected apps, OAuth usage' },
   { id: 'health', label: 'Org health', icon: '♥', hint: 'security check, licenses' },
   { id: 'company', label: 'Company', icon: '◰', hint: 'company information: org Id, edition, locale, fiscal year' },
+  {
+    id: 'appconfig',
+    label: 'Apps & credentials',
+    icon: '⚿',
+    hint: 'connected apps, external client apps, named and external credentials: every setting, to read and change',
+  },
   { id: 'licenses', label: 'Licenses', icon: '✎', hint: 'how many are used; who holds one without using it' },
   { id: 'limits', label: 'Limits', icon: '▤', hint: 'org limits and storage' },
   { id: 'events', label: 'Events', icon: '⚡', hint: 'platform events, CDC' },
@@ -176,20 +211,20 @@ export const HUBS: Hub[] = [
     id: 'develop',
     label: 'Develop',
     icon: '{}',
-    tools: ['code', 'apex', 'apextests', 'logs', 'jobs', 'automation', 'flows', 'events', 'rest'],
+    tools: ['code', 'apex', 'apextests', 'codechecks', 'logs', 'jobs', 'automation', 'flows', 'events', 'rest'],
   },
   {
     id: 'data',
     label: 'Data',
     icon: '⇅',
-    tools: ['query', 'record', 'data', 'lookup', 'schema', 'fields', 'backup', 'lifecycle'],
+    tools: ['query', 'record', 'data', 'lookup', 'schema', 'fields', 'customsettings', 'backup', 'lifecycle'],
     breakBefore: ['backup'],
   },
   {
     id: 'people',
     label: 'Access',
     icon: '⚿',
-    tools: ['access', 'permissions', 'groups', 'objectaccess', 'compare'],
+    tools: ['access', 'permissions', 'groups', 'bulkaccess', 'objectaccess', 'compare'],
     breakBefore: ['objectaccess'],
   },
   // What happened in the org and how safe it is
@@ -197,9 +232,14 @@ export const HUBS: Hub[] = [
     id: 'security',
     label: 'Security',
     icon: '⛨',
-    tools: ['secdash', 'timeline', 'eventlogs', 'whocansee', 'sharing', 'health', 'audit'],
+    tools: ['secdash', 'timeline', 'eventlogs', 'whocansee', 'integration', 'sharing', 'health', 'audit'],
   },
-  { id: 'org', label: 'Org', icon: '◈', tools: ['company', 'limits', 'licenses', 'apps', 'metadata', 'deployments'] },
+  {
+    id: 'org',
+    label: 'Org',
+    icon: '◈',
+    tools: ['company', 'limits', 'licenses', 'apps', 'appconfig', 'metadata', 'deployments'],
+  },
   // Everything between two places: compare, deploy, retrieve, copy, restore
   {
     id: 'move',

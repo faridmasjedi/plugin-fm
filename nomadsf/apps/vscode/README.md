@@ -12,14 +12,14 @@
 - **Your orgs, no CLI needed**: the orgs logged in to with the Salesforce CLI on this computer show up by alias; **NomadSF: Log in to an org** (or Studio → Settings) logs in to a new one in your browser and saves it where the CLI keeps it, so both see it.
 - **Every Studio tool**, grouped into hubs, with tools side by side and **Search** (top right, or <kbd>⌘K</kbd>) to jump to a tool or to what you want to do:
 
-  | Hub                  | Tools                                                                                                                                                                                      |
-  | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-  | **Develop**          | Code (with dependencies) · Execute Apex · Apex tests · Debug logs · Jobs · Save order · Flows · Events · REST Explorer                                                                     |
-  | **Data**             | Query · Record (with the related tree: copy or save as Excel) · Import / Update / Delete · Lookup · Schema · Field usage · Backup · Lifecycle                                              |
-  | **Access**           | Users · Access sets · Groups & queues · Object access · Compare                                                                                                                            |
-  | **Security**         | Dashboard · Timeline (everything that happened) · Event logs · Who can see a record, object, field or class, and why · Sharing (as a tree) · Org health · Logins & audit                   |
-  | **Org**              | Company · Limits · Licenses · Connected apps · Metadata · Deployments                                                                                                                      |
-  | **Compare & Deploy** | Org ↔ Org (metadata, access, apps, copy records) · Project & git (Project, Branch ↔ Org, Branch ↔ Branch) · Org ↔ File (Open a file, Check a manifest, Compare with CSV) · Sandbox refresh |
+  | Hub                  | Tools                                                                                                                                                                                                                   |
+  | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | **Develop**          | Code (with dependencies) · Execute Apex · Apex tests · Debug logs · Jobs · Save order · Flows · Events · REST Explorer                                                                                                  |
+  | **Data**             | Query · Record (with the related tree: copy or save as Excel) · Import / Update / Delete · Lookup · Schema · Field usage · Backup · Lifecycle                                                                           |
+  | **Access**           | Users · Access sets · Groups & queues · Object access · Compare                                                                                                                                                         |
+  | **Security**         | Dashboard · Timeline (everything that happened) · Event logs · Who can see a record, object, field or class, and why · Integration check (why an integration fails) · Sharing (as a tree) · Org health · Logins & audit |
+  | **Org**              | Company · Limits · Licenses · Connected apps · Apps & credentials · Metadata · Deployments                                                                                                                              |
+  | **Compare & Deploy** | Org ↔ Org (metadata, access, apps, copy records) · Project & git (Project, Branch ↔ Org, Branch ↔ Branch) · Org ↔ File (Open a file, Check a manifest, Compare with CSV) · Sandbox refresh                              |
 
 - **From the editor** (select text, right-click):
   - **Show all data of the selected record Id** — the record inspector for an Id in your code or logs.

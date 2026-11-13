@@ -271,7 +271,31 @@ export async function securityTimeline(
 
 // ---------- who can see a record ----------
 
-export type AccessStep = { area: string; text: string; applies: boolean };
+export type AccessStep = {
+  area: string;
+  text: string;
+  applies: boolean;
+  /** The profiles and permission sets behind the step ("profile Sales", "permission set Finance Read"), when any. */
+  via?: string[];
+};
+
+/** "profile Sales", or "1 profile and 119 permission sets": the names themselves go in the step's `via`. */
+export function namedHolders(list: string[]): string {
+  const names = [...new Set(list)];
+  if (names.length <= 2) return names.join(' and ');
+  const profiles = names.filter((n) => n.startsWith('profile ')).length;
+  const sets = names.length - profiles;
+  return [
+    profiles && `${profiles} profile${profiles > 1 ? 's' : ''}`,
+    sets && `${sets} permission set${sets > 1 ? 's' : ''}`,
+  ]
+    .filter(Boolean)
+    .join(' and ');
+}
+const viaOf = (...lists: string[][]): string[] | undefined => {
+  const all = [...new Set(lists.flat())];
+  return all.length > 2 ? all : undefined;
+};
 export type RecordAccess = {
   object: string;
   read: boolean;
@@ -333,18 +357,20 @@ export async function whoCanSee(client: SalesforceClient, userId: string, record
     area: 'Object',
     applies: readFrom.length > 0,
     text: readFrom.length
-      ? `${object}: Read via ${readFrom.join(', ')}${
-          editFrom.length ? `; Edit via ${editFrom.join(', ')}` : '; no Edit'
+      ? `${object}: Read via ${namedHolders(readFrom)}${
+          editFrom.length ? `; Edit via ${namedHolders(editFrom)}` : '; no Edit'
         }`
       : `${object}: no Read in the profile or any permission set — no record of it can be seen`,
+    via: viaOf(readFrom, editFrom),
   });
   if (viewAll.length || modifyAll.length)
     steps.push({
       area: 'View all',
       applies: true,
       text: `${
-        modifyAll.length ? `Modify All via ${modifyAll.join(', ')}` : `View All via ${viewAll.join(', ')}`
+        modifyAll.length ? `Modify All via ${namedHolders(modifyAll)}` : `View All via ${namedHolders(viewAll)}`
       } — every ${object} record, whatever its sharing`,
+      via: viaOf(modifyAll.length ? modifyAll : viewAll),
     });
 
   // 2. The owner and the role hierarchy
@@ -596,7 +622,10 @@ export async function whoCanUse(client: SalesforceClient, userId: string, target
           return {
             area: label,
             applies: via.length > 0,
-            text: via.length ? `${label} via ${via.join(', ')}` : `${label}: not in the profile or any permission set`,
+            text: via.length
+              ? `${label} via ${namedHolders(via)}`
+              : `${label}: not in the profile or any permission set`,
+            via: viaOf(via),
           };
         }),
         ...powerSteps,
@@ -646,10 +675,11 @@ export async function whoCanUse(client: SalesforceClient, userId: string, target
         area: 'Object',
         applies: objectOk,
         text: objectRead.length
-          ? `${object}: Read via ${objectRead.join(', ')}`
+          ? `${object}: Read via ${namedHolders(objectRead)}`
           : `${object}: no Read in the profile or any permission set${
               powers.length ? '' : ' — none of its fields can be seen'
             }`,
+        via: viaOf(objectRead),
       },
       ...(always
         ? [
@@ -663,12 +693,14 @@ export async function whoCanUse(client: SalesforceClient, userId: string, target
             {
               area: 'Read',
               applies: read.length > 0,
-              text: read.length ? `Read via ${read.join(', ')}` : 'Read: not in the profile or any permission set',
+              text: read.length ? `Read via ${namedHolders(read)}` : 'Read: not in the profile or any permission set',
+              via: viaOf(read),
             },
             {
               area: 'Edit',
               applies: edit.length > 0,
-              text: edit.length ? `Edit via ${edit.join(', ')}` : 'Edit: not in the profile or any permission set',
+              text: edit.length ? `Edit via ${namedHolders(edit)}` : 'Edit: not in the profile or any permission set',
+              via: viaOf(edit),
             },
           ]),
       ...powerSteps,
@@ -717,15 +749,17 @@ export async function whoCanUse(client: SalesforceClient, userId: string, target
       area: 'Access',
       applies: holders.length > 0,
       text: holders.length
-        ? `Given by ${holders.join(', ')}`
+        ? `Given by ${namedHolders(holders)}`
         : `Not in the profile or any permission set (or group) of the user`,
+      via: viaOf(holders),
     },
   ];
   if (author.length)
     steps.push({
       area: 'Author Apex',
       applies: true,
-      text: `Author Apex via ${author.join(', ')} — every class and page`,
+      text: `Author Apex via ${namedHolders(author)} — every class and page`,
+      via: viaOf(author),
     });
   return {
     what: `${kind.label} ${target.name}`,

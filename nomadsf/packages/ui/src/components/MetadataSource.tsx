@@ -410,6 +410,13 @@ export function MetadataSource({ initial }: { initial?: { type: string; fullName
             </div>
           )}
           {members === null && <p className="muted">Loading…</p>}
+          {members?.length === 0 && type === 'ConnectedApp' && (
+            <p className="muted small">
+              {
+                'Connected apps from Salesforce or installed packages (Salesforce CLI, Workbench…) are used here but defined elsewhere, so they are not this org’s metadata: see Org › Connected apps.'
+              }
+            </p>
+          )}
           <ul>
             {shown.map((e) => {
               const st = statusOf(e);

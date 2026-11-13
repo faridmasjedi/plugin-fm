@@ -1,5 +1,5 @@
 import { Select } from '../components/Select';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   SECURITY_TILES,
   describeGlobal,
@@ -183,6 +183,82 @@ export function TimelinePage() {
 // ---------- Security › Who can see this record? ----------
 
 type UserPick = { Id: string; Name: string; Username: string };
+
+/**
+ * A reason of Who can see: a long one (a user with 100 permission sets) shows three lines and "Show all", so it never
+ * runs out of its box or pushes the page wide.
+ */
+function StepText({ area, text }: { area: string; text: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [long, setLong] = useState(false);
+  const [open, setOpen] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el && !open) setLong(el.scrollHeight > el.clientHeight + 2);
+  }, [area, text, open]);
+  return (
+    <>
+      <span ref={ref} className={`who-step-text ${open ? 'open' : ''}`}>
+        <span className="pill">{area}</span> {text}
+      </span>
+      {(long || open) && (
+        <button className="link small" onClick={() => setOpen(!open)}>
+          {open ? 'Show less' : 'Show all'}
+        </button>
+      )}
+    </>
+  );
+}
+
+/**
+ * The profiles and permission sets behind a reason, folded like a type in a package list: "▸ 1 profile and 119
+ * permission sets", opening to the names by kind (a filter when there are many).
+ */
+function HolderList({ via }: { via: string[] }) {
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState('');
+  const kinds = useMemo(() => {
+    const out: Array<[string, string[]]> = [
+      ['Profiles', via.filter((v) => v.startsWith('profile ')).map((v) => v.slice('profile '.length))],
+      [
+        'Permission sets',
+        via.filter((v) => v.startsWith('permission set ')).map((v) => v.slice('permission set '.length)),
+      ],
+      ['Others', via.filter((v) => !v.startsWith('profile ') && !v.startsWith('permission set '))],
+    ];
+    return out.filter(([, names]) => names.length);
+  }, [via]);
+  const f = filter.trim().toLowerCase();
+  return (
+    <div className="who-holders">
+      <button className="group-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span className="tree-toggle">{open ? '▾' : '▸'}</span> {open ? 'Hide the names' : `Which ones (${via.length})`}
+      </button>
+      {open && (
+        <div className="who-holders-body">
+          {via.length > 20 && (
+            <input placeholder="Filter by name" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          )}
+          {kinds.map(([kind, names]) => {
+            const shown = names.filter((n) => !f || n.toLowerCase().includes(f)).sort((a, b) => a.localeCompare(b));
+            return (
+              <div key={kind}>
+                <b className="small">
+                  {kind} ({shown.length === names.length ? names.length : `${shown.length} of ${names.length}`})
+                </b>
+                <ul className="who-holder-names">
+                  {shown.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** What is checked: one record, or — without a record — an object, a field, or a class, page or custom permission. */
 type WhoWhat = 'record' | 'object' | 'field' | 'meta';
@@ -497,7 +573,8 @@ export function WhoCanSeePage() {
           <ol className="who-steps">
             {result.steps.map((s, i) => (
               <li key={i} className={s.applies ? 'applies' : ''}>
-                <span className="pill">{s.area}</span> {s.text}
+                <StepText area={s.area} text={s.text} />
+                {s.via && <HolderList via={s.via} />}
               </li>
             ))}
           </ol>

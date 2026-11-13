@@ -160,26 +160,33 @@
               <tr>
                 <td><b>Develop</b></td>
                 <td>
-                  Code · Execute Apex · Apex tests · Debug logs · Jobs · Save order · Flows · Events · REST Explorer
+                  Code · Execute Apex · Apex tests · Code checks · Debug logs · Jobs · Save order · Flows · Events ·
+                  REST Explorer
                 </td>
               </tr>
               <tr>
                 <td><b>Data</b></td>
                 <td>
-                  Query · Record · Import / Update / Delete · Lookup · Schema · Field usage — then Backup · Lifecycle
+                  Query · Record · Import / Update / Delete · Lookup · Schema · Field usage · Custom settings — then
+                  Backup · Lifecycle
                 </td>
               </tr>
               <tr>
                 <td><b>Access</b></td>
-                <td>Users · Access sets · Groups &amp; queues — then, to review: Object access · Compare</td>
+                <td>
+                  Users · Access sets · Groups &amp; queues · Assign in bulk — then, to review: Object access · Compare
+                </td>
               </tr>
               <tr>
                 <td><b>Security</b></td>
-                <td>Dashboard · Timeline · Event logs · Who can see · Sharing · Org health · Logins &amp; audit</td>
+                <td>
+                  Dashboard · Timeline · Event logs · Who can see · Integration check · Sharing · Org health · Logins
+                  &amp; audit
+                </td>
               </tr>
               <tr>
                 <td><b>Org</b></td>
-                <td>Company · Limits · Licenses · Connected apps · Metadata · Deployments</td>
+                <td>Company · Limits · Licenses · Connected apps · Apps &amp; credentials · Metadata · Deployments</td>
               </tr>
               <tr>
                 <td><b>Compare &amp; Deploy</b></td>
@@ -454,6 +461,33 @@
               </ul>
             </div>
           </section>
+          <section class="tool" data-title="Code checks">
+            <h3 id="codechecks">Code checks</h3>
+            <p class="tool-lead">
+              Well-known mistakes in Apex, triggers, Visualforce, LWC and Aura — of the org or the project — each with
+              why it matters and how to fix it.
+            </p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <ul class="parts">
+              <li>
+                <b>High</b>: queries built from text (SOQL injection), secrets written in the code, unescaped output in
+                Visualforce and Aura, HTML or code made from a string in LWC and Aura (XSS).
+              </li>
+              <li>
+                <b>Medium</b>: <code>without sharing</code>, methods called from a page or the API whose queries skip
+                the user’s access (no <code>WITH USER_MODE</code>), hard-coded record Ids, queries and DML inside loops.
+              </li>
+              <li>
+                <b>Low</b>: hard-coded endpoints (use a named credential), empty <code>catch</code> blocks,
+                <code>lwc:dom="manual"</code>.
+              </li>
+              <li>Click a finding: the line, why, and the fix. Test classes are left out of most rules.</li>
+            </ul>
+            <p class="muted">
+              Pattern rules, read line by line and query by query: a place to look, not a verdict — and not a full scan
+              like Salesforce Code Analyzer or Checkmarx.
+            </p>
+          </section>
           <section class="tool" data-title="Debug logs">
             <h3 id="logs">Debug logs</h3>
             <p class="tool-lead">Capture debug logs of what you do in the org, then read them.</p>
@@ -477,6 +511,12 @@
             <div class="good-to-know">
               <h4>Good to know</h4>
               <ul>
+                <li>
+                  A log opens on <b>Insights</b>: errors and limits close to their maximum first, the same query or DML
+                  run many times (a loop), <b>what ran</b> as a tree (triggers, flows, validation rules, classes), the
+                  slowest methods, and every query and DML grouped with its lines. No AI needed; ✦ Explain is still
+                  there.
+                </li>
                 <li><b>On 30 min / On 1 h</b> adds a trace flag for your user (it asks first); it ends by itself.</li>
                 <li><b>Only mine</b> hides other people’s logs; <b>Auto-refresh</b> lists new ones as they come.</li>
                 <li>
@@ -1008,6 +1048,25 @@
               </ul>
             </div>
           </section>
+          <section class="tool" data-title="Custom settings">
+            <h3 id="customsettings">Custom settings</h3>
+            <p class="tool-lead">
+              Every custom setting with its values — edit, add, delete — and a new custom setting with its fields.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <ul class="parts">
+              <li>
+                <b>Hierarchy</b> settings show a value per level: the organization default, a profile, a user (the
+                closest one wins). <b>+ Add a level</b> picks the level.
+              </li>
+              <li><b>List</b> settings show rows by name; <b>+ Add a row</b> names a new one.</li>
+              <li><b>Edit</b> and <b>Delete</b> on each row; every change asks for the org name.</li>
+              <li>
+                <b>+ New custom setting</b>: label, API name, kind, visibility and fields (text, number, checkbox, URL,
+                e-mail), deployed in one go.
+              </li>
+            </ul>
+          </section>
           <section class="tool" data-title="Backup">
             <h3 id="backup">Backup</h3>
             <p class="tool-lead">
@@ -1320,6 +1379,27 @@
               </li>
             </ul>
           </section>
+          <section class="tool" data-title="Assign in bulk">
+            <h3 id="bulkaccess">Assign in bulk</h3>
+            <p class="tool-lead">
+              Permission sets, permission set groups, public groups and queues — to or from many users at once.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <ol class="steps">
+              <li>
+                <b>Users</b>: by name, username, profile, role, a query (<code>Profile.Name LIKE '%Sales%'</code>) or a
+                CSV / Excel file with an Id, Username or Email column; untick who should not get it.
+              </li>
+              <li>
+                <b>What</b>: pick any number of permission sets, permission set groups, public groups and queues (type
+                to find them).
+              </li>
+              <li>
+                <b>Add</b> or <b>Remove</b> (an expiry date is possible for permission sets): one confirmation, then a
+                line per user and item — added, removed, already had it, did not have it, or why it failed.
+              </li>
+            </ol>
+          </section>
           <section class="tool" data-title="Object access">
             <h3 id="objectaccess">Object access</h3>
             <p class="tool-lead">Who can use an object (or a field), and through what.</p>
@@ -1557,6 +1637,10 @@
               </li>
               <li>When the user can read but not edit, it says what Edit would need.</li>
               <li>
+                Many profiles and permission sets behind one reason fold into “Which ones (120)”: open it for the names
+                by kind, with a filter.
+              </li>
+              <li>
                 <b>A record</b>: paste its Id or a Salesforce link, or choose an object and type part of a name (the
                 last changed records show first).
               </li>
@@ -1573,6 +1657,32 @@
                 Apex, which opens every class and page).
               </li>
             </ul>
+          </section>
+          <section class="tool" data-title="Integration check">
+            <h3 id="integration">Integration check</h3>
+            <p class="tool-lead">
+              Why an integration fails: its user, its logins, its connected app and the certificates — each problem with
+              what to do.
+            </p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <ul class="parts">
+              <li><b>User</b>: active, frozen, locked out after failed logins.</li>
+              <li><b>Permissions</b>: API Enabled (and from where), API Only User, a password that can expire.</li>
+              <li>
+                <b>Logins</b> of the last 7, 30 or 90 days: the last success, and each kind of failure with Salesforce’s
+                own reason, when and from where — and what it usually means (wrong password or secret, IP outside the
+                ranges, not approved for the app, JWT certificate…).
+              </li>
+              <li>
+                <b>Connected app</b>: whether only admin-approved users may use it and the user is one of them; its
+                tokens; refresh-token policy.
+              </li>
+              <li><b>Certificates</b> expired or expiring within 30 days; inactive <b>remote sites</b>.</li>
+            </ul>
+            <p class="muted">
+              Read from the org only: a login that never shows up never reached Salesforce (check the caller’s URL and
+              network).
+            </p>
           </section>
           <section class="tool" data-title="Sharing">
             <h3 id="sharing">Sharing</h3>
@@ -1796,6 +1906,31 @@
               </ul>
             </div>
           </section>
+          <section class="tool" data-title="Apps &amp; credentials">
+            <h3 id="appconfig">Apps &amp; credentials</h3>
+            <p class="tool-lead">
+              Every setting of the connected apps, external client apps, named credentials and external credentials
+              defined in the org — to read and change.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <ul class="parts">
+              <li>
+                An <b>external client app</b> is shown with all its parts: OAuth settings, global OAuth settings
+                (callback URL, PKCE, flows), OAuth policies (permitted users, IP relaxation, refresh tokens, session
+                level) and app policies.
+              </li>
+              <li>
+                <b>Edit settings</b>: every value in place — switches for true/false, a list for values Salesforce
+                limits (permitted users, IP relaxation…), text for the rest — then <b>Deploy N change(s)</b>.
+              </li>
+              <li><b>Edit a file…</b>: the whole file in the editor, deployed as it is.</li>
+              <li>
+                Apps from Salesforce or installed packages (Salesforce CLI, Workbench…) are used in the org but defined
+                elsewhere: their policies are in <a href="#apps">Connected apps</a>. Client secrets, passwords and keys
+                are never read or written: they stay in Setup.
+              </li>
+            </ul>
+          </section>
           <section class="tool" data-title="Metadata">
             <h3 id="metadata">Metadata</h3>
             <p class="tool-lead">Build a package (or a delete package) from any metadata of the org.</p>
@@ -1993,10 +2128,12 @@
               </li>
             </ul>
           </section>
-          <section class="tool" data-title="Connected apps">
-            <h3 id="orgapps">Connected apps</h3>
-            <p class="tool-lead">Connected apps in two orgs, and the people who use them in each.</p>
-            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+          <section class="tool" data-title="Compare apps">
+            <h3 id="orgapps">Compare apps</h3>
+            <p class="tool-lead">
+              Connected apps and credentials in two orgs: who uses them, and every setting side by side.
+            </p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
               <video
                 src="media/orgapps.mp4"
@@ -2013,6 +2150,13 @@
               and for apps in both, their settings (admin-approved users, refresh-token and session policies, start
               URL…) and the profiles and permission sets that may use them. Click an app for the people who use it in A
               and in B (matched by username); click someone in both to compare the two users in full.
+            </p>
+            <p>
+              <b>Settings of apps &amp; credentials</b> (the switch at the top): the connected apps, external client
+              apps, named credentials and external credentials defined in A and B — same, different, only in one. Click
+              one for every setting side by side (or only the differences); <b>Deploy A’s version to B</b> copies it,
+              after you type B’s name. Consumer keys and org-specific links are never a difference and never copied;
+              secrets are not in these files.
             </p>
           </section>
           <section class="tool" data-title="Copy records">

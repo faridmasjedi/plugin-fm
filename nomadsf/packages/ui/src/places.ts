@@ -189,6 +189,41 @@ export const PLACES: StudioPlace[] = [
       'perms.tab': 'assigned',
     }
   ),
+  P(
+    'appconfig',
+    'change the settings of a connected app',
+    'connected app oauth callback url scopes pkce ip relaxation refresh token policy permitted users external client app'
+  ),
+  P(
+    'appconfig',
+    'see or change a named credential',
+    'named credential external credential endpoint url callout authentication'
+  ),
+  P(
+    'codechecks',
+    'find security problems in my code',
+    'security scan vulnerability soql injection xss checkmarx code analyzer'
+  ),
+  P('codechecks', 'find queries in loops', 'soql in loop dml in loop governor limits bulkify'),
+  P(
+    'customsettings',
+    'change a custom setting value',
+    'custom setting hierarchy list org default profile user value edit'
+  ),
+  P('customsettings', 'create a custom setting', 'new custom setting fields hierarchy list'),
+  P(
+    'integration',
+    'why is my integration failing',
+    'integration user api login failed connected app jwt oauth invalid password'
+  ),
+  P('integration', 'check an integration user', 'api enabled locked frozen password expire certificate'),
+  P(
+    'bulkaccess',
+    'assign a permission set to many users',
+    'bulk mass several users list csv query permission set group'
+  ),
+  P('bulkaccess', 'add many users to a public group or queue', 'bulk mass members queue group several users'),
+  P('bulkaccess', 'remove a permission set from many users', 'bulk unassign take back revoke'),
   P('objectaccess', 'who can edit an object', 'why cant user edit read create delete object records access users'),
   P('objectaccess', 'who can see a field on an object', 'field visibility users'),
 

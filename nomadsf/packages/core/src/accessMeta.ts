@@ -52,7 +52,20 @@ const FOLDERS: Record<string, [string, string]> = {
   RemoteSiteSetting: ['remoteSiteSettings', 'remoteSite'],
   SharingRules: ['sharingRules', 'sharingRules'],
   CustomObject: ['objects', 'object'],
+  ConnectedApp: ['connectedApps', 'connectedApp'],
+  NamedCredential: ['namedCredentials', 'namedCredential'],
+  ExternalCredential: ['externalCredentials', 'externalCredential'],
+  ExternalClientApplication: ['externalClientApps', 'eca'],
+  ExtlClntAppOauthSettings: ['extlClntAppOauthSettings', 'ecaOauth'],
+  ExtlClntAppGlobalOauthSettings: ['extlClntAppGlobalOauthSets', 'ecaGlblOauth'],
+  ExtlClntAppOauthConfigurablePolicies: ['extlClntAppOauthPolicies', 'ecaOauthPlcy'],
+  ExtlClntAppConfigurablePolicies: ['extlClntAppPolicies', 'ecaPlcy'],
 };
+
+/** Folder and file suffix of a type, for a zip of files to deploy. */
+export function metadataFolder(type: string): [string, string] | undefined {
+  return FOLDERS[type];
+}
 
 /** Deploys whole files of one type (test level Default: none without Apex, allowed in production). */
 export async function deployFiles(
