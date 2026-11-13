@@ -42,6 +42,17 @@ export function EventLogsPage() {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // The dates follow what the org keeps of the kind chosen: its last week of logs (a quiet org may have only old ones)
+  useEffect(() => {
+    const kept = types?.find((t) => t.type === type);
+    if (!kept?.last) return;
+    const last = String(kept.last).slice(0, 10);
+    const weekBefore = new Date(Date.parse(last) - 6 * 86_400_000).toISOString().slice(0, 10);
+    const first = String(kept.first).slice(0, 10);
+    setTo(last);
+    setFrom(first > weekBefore ? first : weekBefore);
+  }, [types, type]);
+
   // The kinds of logs this org has (one small query); the files themselves only on Read
   useEffect(() => {
     setTypes(null);

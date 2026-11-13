@@ -433,6 +433,11 @@ function UserPicker({
           {matches &&
             (matches.length === 0 ? (
               <span className="muted">no user found</span>
+            ) : matches.length === 1 ? (
+              // One match: one click (or Enter) takes them
+              <button onClick={() => onChange(matches[0])}>
+                Use {matches[0].Name} <span className="muted">({matches[0].Username})</span>
+              </button>
             ) : (
               <Select value="" onChange={(e) => onChange(matches.find((m) => m.Id === e.target.value) ?? null)}>
                 <option value="">

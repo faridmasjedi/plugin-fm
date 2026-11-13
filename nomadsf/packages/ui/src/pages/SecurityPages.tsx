@@ -249,6 +249,7 @@ export function WhoCanSeePage() {
         ) : (
           <span className="who-pick">
             <input
+              style={{ minWidth: 260 }}
               placeholder="User: name, username or email"
               value={typed}
               onChange={(e) => setTyped(e.target.value)}

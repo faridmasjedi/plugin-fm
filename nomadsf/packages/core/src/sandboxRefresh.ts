@@ -206,7 +206,7 @@ export async function sandboxBefore(
       optional(
         query(
           client,
-          'SELECT QualifiedApiName, InternalSharingModel, ExternalSharingModel FROM EntityDefinition WHERE IsCustomizable = true AND InternalSharingModel != null',
+          'SELECT QualifiedApiName, InternalSharingModel, ExternalSharingModel FROM EntityDefinition WHERE IsCustomizable = true AND IsCustomSetting = false AND InternalSharingModel != null',
           { maxRows: 5000 }
         )
       )
@@ -378,6 +378,17 @@ export async function sandboxAfter(client: SalesforceClient, tables: FileTable[]
       });
     }
   }
+  // A custom setting has no sharing model (a workbook saved before they were left out may list them)
+  const settingObjects = new Set(
+    (await optional(query(client, 'SELECT QualifiedApiName FROM EntityDefinition WHERE IsCustomSetting = true'))).map(
+      (r) => text(r.QualifiedApiName)
+    )
+  );
+  for (const i of items)
+    if (i.section === 'sharingDefaults' && settingObjects.has(i.key)) {
+      i.restorable = false;
+      i.how = 'a custom setting has no sharing model';
+    }
   // A standard object the org lacks (a feature or license it does not have): nothing to put back
   for (const i of items)
     if (

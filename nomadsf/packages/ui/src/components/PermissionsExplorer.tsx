@@ -44,6 +44,7 @@ type Tab =
   | 'assigned'
   | 'assign';
 const yes = (v: boolean): string => (v ? '✓' : '');
+const KIND_ORDER = ['Profile', 'Permission set group', 'Permission set'];
 /** What the kind switch shows: everything, one kind of holder, or custom permissions. */
 type Shown = 'all' | PermissionHolder['kind'] | 'custom';
 
@@ -220,7 +221,10 @@ export function PermissionsExplorer({ reloadKey = 0 }: { reloadKey?: number } = 
       {kindShown !== 'custom' && !holder && holders.length > 0 && (
         <DataTable
           columns={['name', 'kind', 'api']}
-          rows={shownHolders.map((h) => ({ id: h.id, name: h.name, kind: h.kind, api: h.api ?? '' }))}
+          // Profiles and groups first: a long list of permission sets is the one cut at the first 1,000 rows
+          rows={[...shownHolders]
+            .sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind))
+            .map((h) => ({ id: h.id, name: h.name, kind: h.kind, api: h.api ?? '' }))}
           rowKey="id"
           name={`${org.label}-access-sets`}
           groupBy={kindShown === 'all' ? 'kind' : undefined}

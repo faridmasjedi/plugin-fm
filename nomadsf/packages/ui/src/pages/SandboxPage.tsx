@@ -214,6 +214,7 @@ function Before() {
         {by === 'name' && (
           <>
             <input
+              style={{ minWidth: 240 }}
               placeholder="Name, username or e-mail"
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
@@ -614,6 +615,7 @@ function After() {
             files={NO_FILES}
             extra={settingsNeeds}
             forWhat="these settings and jobs"
+            preferFrom={about?.org}
             onChanged={() => tables && void sandboxAfter(client, tables).then(setItems)}
           />
           {unavailable.length > 0 && (
@@ -688,7 +690,13 @@ function After() {
             </div>
           )}
           {kept.users.length > 0 && (
-            <UsersFromWorkbook key={file.name} users={kept.users} metadata={kept.metadata} source={file.name} />
+            <UsersFromWorkbook
+              key={file.name}
+              users={kept.users}
+              metadata={kept.metadata}
+              source={file.name}
+              preferFrom={about?.org}
+            />
           )}
           {more && <UsersFromWorkbook key={more.name} users={more.users} metadata={more.metadata} source={more.name} />}
           <div className="form">

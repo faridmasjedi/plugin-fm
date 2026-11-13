@@ -613,7 +613,8 @@ export function QueryPage() {
       {project.aiReady && (
         <div className="form ai-ask">
           <input
-            placeholder="✦ Ask in plain English, e.g. accounts in Sydney created this year with their open opportunities"
+            placeholder="✦ Ask in plain English, e.g. Sydney accounts created this year"
+            title="e.g. accounts in Sydney created this year with their open opportunities"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && question.trim() && void askSoql()}

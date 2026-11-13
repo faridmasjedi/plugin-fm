@@ -703,6 +703,7 @@ button.inspect {
 }
 .usage {
   position: relative;
+  min-width: 64px;
   height: 16px;
   border-radius: 4px;
   background: var(--panel-2);
@@ -4774,4 +4775,14 @@ button.chip.on {
 .unavailable-list {
   overflow-wrap: anywhere;
   margin: 4px 0 8px 26px;
+}
+
+/* Code: in the narrow list, the filter and Compare content share the row and wrap, never cut */
+.code-project .form {
+  flex-wrap: wrap;
+}
+.code-project .form .search-select,
+.code-project .form select {
+  flex: 1 1 140px;
+  min-width: 130px;
 }

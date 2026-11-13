@@ -22,11 +22,14 @@ export function UsersFromWorkbook({
   users: given,
   metadata,
   source,
+  preferFrom,
 }: {
   users: UserCopy[];
   metadata: AccessFile[];
   /** Where they come from (the file's name). */
   source: string;
+  /** The org to take what they need from first (the org the workbook was saved in), by label. */
+  preferFrom?: string;
 }) {
   const { client, org, confirmChange, logActivity } = useStudio();
   const users = useMemo(() => managersFirst(given), [given]);
@@ -157,6 +160,7 @@ export function UsersFromWorkbook({
             files={toCreate}
             extra={peopleNeeds}
             forWhat="these users and permission sets"
+            preferFrom={preferFrom}
             onChanged={() => void load()}
           />
           <div className="form">

@@ -3,6 +3,8 @@ import {
   folderBytes,
   packageXml,
   projectMetadataZip,
+  projectFiles,
+  resolveComponent,
   neededToo,
   piecesZip,
   rolesToo,
@@ -50,6 +52,7 @@ export function SchemaGaps({
   onChanged,
   extra = NONE,
   forWhat = 'these permission sets',
+  preferFrom,
 }: {
   /** The org the users and permission sets go into. */
   target: { id: string; label: string; client: SalesforceClient };
@@ -61,6 +64,8 @@ export function SchemaGaps({
   extra?: Array<{ name: string } & SchemaWant>;
   /** What the pieces are for, in the heading ("these permission sets", "these settings"). */
   forWhat?: string;
+  /** The org to take them from first, by label (the org a workbook was saved in), when it is connected. */
+  preferFrom?: string;
 }) {
   const studio = useStudio();
   const project = useProject();
@@ -99,8 +104,32 @@ export function SchemaGaps({
   // Where the components come from: the org the users came from when it is connected, else the project
   useEffect(() => {
     if (from) return;
-    setFrom(project.source ? 'project' : others[0]?.id ?? '');
-  }, [from, project.source, others]);
+    // The org they came from (connected), else the project, else another org
+    const preferred = others.find((o) => o.label === preferFrom);
+    setFrom(preferred?.id ?? (project.source ? 'project' : others[0]?.id ?? ''));
+  }, [from, project.source, others, preferFrom]);
+  // From the project: which pieces it has (the rest cannot come from there)
+  const [inProject, setInProject] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    setInProject(null);
+    if (from !== 'project' || !project.info || !project.source || !plan) return undefined;
+    let canceled = false;
+    const info = project.info;
+    const dirs = info.packageDirectories.map((d) => d.path);
+    void projectFiles(project.source.fs, info)
+      .then((files) => {
+        const keys = new Set<string>();
+        for (const f of files) {
+          const c = resolveComponent(f, dirs);
+          if (c && !c.labels) keys.add(`${c.type}:${c.name}`);
+        }
+        if (!canceled) setInProject(keys);
+      })
+      .catch(() => undefined);
+    return () => {
+      canceled = true;
+    };
+  }, [from, project.info, project.source, plan]);
 
   // From an org: follow what each piece uses there (a class using another class, an object…)
   useEffect(() => {
@@ -220,6 +249,23 @@ export function SchemaGaps({
         </p>
       )}
       {also === null && <p className="muted small">Reading what they use in {sourceLabel(from)}…</p>}
+      {from === 'project' && inProject && (
+        <p className="muted small">
+          {(() => {
+            const absent = all.filter(
+              (c) =>
+                !inProject.has(keyOf(c)) &&
+                !(c.type === 'CustomField' && inProject.has(`CustomObject:${c.name.split('.')[0]}`))
+            );
+            return absent.length
+              ? `⚠ Not in the project (they cannot come from there — choose an org): ${absent
+                  .map((c) => c.name)
+                  .join(', ')}. `
+              : '';
+          })()}
+          What these use in turn is followed when they come from an org.
+        </p>
+      )}
       {failedTicked.length > 0 && (
         <div className="form">
           <span className="bad">❌ {failedTicked.length} failed in the last deploy (their errors are below).</span>

@@ -74,7 +74,8 @@ export function RestPage() {
       </div>
       <AiAsk
         task="rest-request"
-        placeholder="✦ Describe the call, e.g. create a contact Ann Lee for Acme, or the last 10 cases with their owner"
+        placeholder="✦ Describe the call, e.g. the last 10 cases"
+        title="e.g. create a contact Ann Lee for Acme, or the last 10 cases with their owner"
         button="Build the request"
         what="your request and this org's object names"
         build={async () => ({
