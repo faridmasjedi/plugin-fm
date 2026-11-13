@@ -197,7 +197,9 @@ export const PLACES: StudioPlace[] = [
   P(
     'apps',
     'see or change a named credential',
-    'named credential external credential endpoint url callout authentication'
+    'named credential external credential endpoint url callout authentication',
+    'Credentials',
+    { 'apps.view3': 'credentials' }
   ),
   P(
     'codechecks',
@@ -211,6 +213,7 @@ export const PLACES: StudioPlace[] = [
     'custom setting hierarchy list org default profile user value edit'
   ),
   P('customsettings', 'create a custom setting', 'new custom setting fields hierarchy list'),
+  P('logs', 'find queries in a loop in a debug log', 'log insights soql limit slow what ran'),
   P(
     'integration',
     'why is my integration failing',
@@ -224,6 +227,7 @@ export const PLACES: StudioPlace[] = [
   ),
   P('bulkaccess', 'add many users to a public group or queue', 'bulk mass members queue group several users'),
   P('bulkaccess', 'remove a permission set from many users', 'bulk unassign take back revoke'),
+  P('bulkaccess', 'give everyone with a profile a permission set', 'all users of a profile role query csv'),
   P('objectaccess', 'who can edit an object', 'why cant user edit read create delete object records access users'),
   P('objectaccess', 'who can see a field on an object', 'field visibility users'),
 
@@ -274,7 +278,8 @@ export const PLACES: StudioPlace[] = [
   }),
   P('limits', 'see org limits', 'api calls daily limits remaining', 'Limits', { 'limits.tab': 'limits' }),
   P('limits', 'see data and file storage', 'storage usage space full', 'Storage', { 'limits.tab': 'storage' }),
-  P('apps', 'see connected apps', 'oauth connected app external client app policies'),
+  P('apps', 'see connected apps', 'oauth connected app external client app policies', 'Apps', { 'apps.view3': 'apps' }),
+  P('apps', 'revoke an oauth token', 'sign out a user from an app tokens', 'OAuth tokens', { 'apps.view3': 'tokens' }),
   P('apps', 'who uses a connected app', 'oauth tokens users revoke'),
   P('audit', 'see login history', 'logins failed login ip', 'Login history', { 'audit.tab': 'login' }),
   P(
@@ -341,6 +346,11 @@ export const PLACES: StudioPlace[] = [
   P('secdash', 'how many failed logins', 'failed login wrong password locked blocked today'),
   P('timeline', 'what changed in setup this week', 'audit trail setup changes who changed what timeline history'),
   P('timeline', 'what happened in the org', 'everything that happened logins changes deployments one place timeline'),
+  P(
+    'whocansee',
+    'can this user use an object, a field or an apex class',
+    'object permission field level security class access custom permission'
+  ),
   P('whocansee', 'why can a user see this record', 'record access why can see edit sharing reason who can see'),
   P('whocansee', "why can't a user see a record", 'cannot see record access denied sharing missing'),
   P('sharing', 'how is an object shared', 'sharing rules org wide defaults owd private public read write tree'),

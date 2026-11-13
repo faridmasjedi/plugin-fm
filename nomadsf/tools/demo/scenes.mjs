@@ -95,6 +95,8 @@ const hubTour = (id, hub, hash, intro, tabs, { folder = false, other, init } = {
   init,
   run: async (h) => {
     for (const [tab, text] of tabs) {
+      // The last tab's line goes before the next tab opens: a page never shows under another tab's subtitle
+      await h.say('');
       await h.tab(hub, tab);
       await h.settle(20000);
       // Real content on every tab: the other org chosen once (B, read only here), the project folder opened once
@@ -164,7 +166,7 @@ export const scenes = [
     ['Company', 'Company: Id, edition, locale, fiscal year'],
     ['Limits', 'Limits: every limit and the storage'],
     ['Licenses', 'Licenses: used, and held without being used'],
-    ['Connected apps', 'Connected apps: the apps and their use'],
+    ['Apps & credentials', 'Apps & credentials: every app and credential — who uses it, every setting'],
     ['Metadata', 'Metadata: every component — retrieve, package, deploy'],
     ['Deployments', 'Deployments: the history, and quick deploy'],
   ]),
@@ -859,12 +861,30 @@ export const scenes = [
   },
   {
     name: 'apps',
-    intro: 'Org › Connected apps: the apps connected to the org and how they are used',
+    intro: 'Org › Apps & credentials: every app the org uses or defines, and its credentials',
     hash: 'apps',
     run: async (h) => {
-      await h.say('Each app: its policies and who uses it');
+      await h.until('this org', 120000);
       await h.settle();
-      await h.pause(1600);
+      await h.say('One list: “defined this org” can be changed here; “elsewhere” came from Salesforce or a package');
+      await h.press(h.row('Salesforce CLI'));
+      await h.say('Who uses it — tick tokens to revoke them');
+      await h.pause(1200);
+      await h.press(h.row('NomadSF Demo'));
+      await h.press(h.page.locator('.app-detail button', { hasText: /^Settings/ }).first());
+      await h.until('The app');
+      await h.say('Every setting, a folding group per part: OAuth settings, policies…');
+      await h.click('Edit settings');
+      await h.say('Edit in place — switches, lists of allowed values — then deploy (it asks for the org name)');
+      await h.look(h.page.locator('.config-table tr', { hasText: 'permittedUsersPolicyType' }).first());
+      await h.pause(1400);
+      await h.click('Cancel');
+      await h.say('Credentials: named and external credentials, the same way');
+      await h.press(h.page.locator('button.metric', { hasText: 'credentials' }));
+      await h.press(h.row('Named credential'));
+      await h.until('parameterValue');
+      await h.settle();
+      await h.pause(1800);
     },
   },
   {
@@ -1094,21 +1114,34 @@ export const scenes = [
   },
   {
     name: 'orgapps',
-    intro: 'Compare & Deploy › Compare apps: the connected apps of two orgs',
+    intro: 'Compare & Deploy › Compare apps: apps and credentials of two orgs, side by side',
     hash: 'orgapps',
     run: async (h) => {
-      await h.say('Choose the other org: the apps of both, side by side');
+      await h.press(h.page.locator('.view-switch button', { hasText: /^Apps$/ }));
+      await h.say('Choose the other org: who uses each app in both');
       await h.select(
         h.page
           .locator('.pane-body select')
           .filter({ has: h.page.locator('option', { hasText: 'Choose the other org' }) })
           .first(),
-        'acme-dev'
+        'acme-new'
       );
       await h.settle();
-      await h.pause(1600);
+      await h.waiting(() => h.page.locator('.config-compare table').first().waitFor({ timeout: 300000 }));
+      await h.say('Below: the settings of the apps defined in A or B');
+      await h.press(h.page.locator('.config-compare table').first().locator('tbody tr', { hasText: 'NomadSF_Demo' }));
+      await h.look(h.page.locator('.config-diff').first());
+      await h.say('Only the differences — or every setting; Deploy A’s version to B asks for B’s name');
+      await h.pause(1400);
+      await h.press(h.page.locator('.view-switch button', { hasText: 'Credentials' }));
+      await h.waiting(() => h.page.locator('.card table').first().waitFor({ timeout: 300000 }));
+      await h.say('Credentials the same way: Billing points elsewhere in B');
+      await h.press(h.page.locator('.card table').first().locator('tbody tr', { hasText: 'Named credential' }));
+      await h.look(h.page.locator('.config-diff').first());
+      await h.pause(1800);
     },
   },
+
   {
     name: 'settings',
     intro: 'Settings › Orgs: the orgs you are logged in to',
@@ -1551,11 +1584,10 @@ export const scenes = [
       await h.click('Find');
       await h.until('active user(s) found');
       await h.say('What to give: any number of permission sets, groups and queues');
-      await h.type(h.page.locator('input[placeholder^="Find permission sets"]'), 'Report Builder');
-      await h.press(h.page.locator('.bulk-pick .chip', { hasText: /^\+ Report Builder$/ }).first());
+      await h.type(h.page.locator('input[placeholder^="Find permission sets"]'), 'report');
+      await h.press(h.page.locator('.bulk-matches button', { hasText: /Report Builder/ }).first());
       await h.press(h.page.locator('.segmented button', { hasText: /^Public groups/ }));
-      await h.type(h.page.locator('input[placeholder^="Find public groups"]'), 'Sales Leads');
-      await h.press(h.page.locator('.bulk-pick .chip', { hasText: /Sales Leads/ }).first());
+      await h.press(h.page.locator('.bulk-matches button', { hasText: /Sales Leads/ }).first());
       await h.say('Add them — one confirmation, then a line per user and item');
       await h.click(/^Add 2 to 1/);
       await h.confirm('acme-uat');

@@ -269,7 +269,15 @@ export function BulkAccessPage() {
             <div className="form">
               <div className="segmented" role="group" aria-label="Kind">
                 {KINDS.map((k) => (
-                  <button key={k} className={kind === k ? 'active' : ''} onClick={() => setKind(k)}>
+                  <button
+                    key={k}
+                    className={kind === k ? 'active' : ''}
+                    onClick={() => {
+                      // Another kind: a fresh search (what was typed for permission sets rarely names a queue)
+                      setKind(k);
+                      setFind('');
+                    }}
+                  >
                     {k}s ({count(k)})
                   </button>
                 ))}

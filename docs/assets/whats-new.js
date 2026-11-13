@@ -3,6 +3,7 @@
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
   next: [
+    'Guide: videos with subtitles for Apps & credentials, Compare apps, Assign in bulk, Integration check, Code checks, Custom settings, Who can see and Debug logs, and every hub walk-through again; ⌘K finds credentials, tokens and bulk access',
     'Connected apps and Apps & credentials are one tool, Org › Apps & credentials: every app the org uses or defines in one list (defined here or elsewhere), each with who uses it, its policies and every setting; credentials in their own tab. Compare apps follows: Apps and Credentials',
     'Who can see moves to the Access hub, next to Object access (old links still open it)',
     'Assign in bulk: part of a profile, role or username is enough; example conditions for a query; permission sets and groups are searched, not listed by the hundred',
