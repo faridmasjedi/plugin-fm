@@ -180,7 +180,7 @@ export function TimelinePage() {
   );
 }
 
-// ---------- Security › Who can see this record? ----------
+// ---------- Access › Who can see ----------
 
 type UserPick = { Id: string; Name: string; Username: string };
 

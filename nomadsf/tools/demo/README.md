@@ -21,7 +21,7 @@ sf apex run -o nomadsf-demo -f seed-groups.apex                # roles Support M
 sf apex run -o nomadsf-demo -f seed-groups-members.apex        # a group and roles inside Support Team and Tier 1 Support
 sf project deploy start -o nomadsf-demo --metadata-dir sharing-1-private  # Invoices private (starts a sharing recalculation)
 sf project deploy start -o nomadsf-demo --metadata-dir sharing-2-rules    # after it: two sharing rules on Invoices
-sf apex run -o nomadsf-demo -f seed-sharing-owners.apex        # Bob owns a few invoices (Security › Who can see, Sharing)
+sf apex run -o nomadsf-demo -f seed-sharing-owners.apex        # Bob owns a few invoices (Access › Who can see, Security › Sharing)
 sf apex run -o nomadsf-demo -f seed-northwind.apex             # an account no other org has (Record › Related copies it)
 ```
 

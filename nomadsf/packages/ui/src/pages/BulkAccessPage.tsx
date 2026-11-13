@@ -3,6 +3,7 @@ import {
   bulkAccess,
   bulkItems,
   findUsers,
+  usersContaining,
   readTableFile,
   usersByValues,
   usersWhere,
@@ -24,6 +25,18 @@ const BY: Array<[By, string]> = [
   ['query', 'By a query'],
   ['file', 'From a CSV / Excel file'],
 ];
+/** Conditions people often need, ready to change. */
+const QUERY_EXAMPLES: Array<[string, string]> = [
+  ["Profile.Name LIKE '%Sales%'", 'everyone whose profile has Sales in its name'],
+  ["UserRole.Name = 'Support Manager'", 'one role'],
+  ["Department = 'Finance' AND Title LIKE '%Analyst%'", 'two fields together'],
+  ['CreatedDate = LAST_N_DAYS:30', 'users created in the last 30 days'],
+  ['LastLoginDate < LAST_N_DAYS:90', 'no login for 90 days'],
+  ["Email LIKE '%@acme.com'", 'an e-mail domain'],
+];
+/** A kind with more than this many items is searched, not listed. */
+const LIST_ALL_UP_TO = 12;
+
 const KINDS: BulkKind[] = ['Permission set', 'Permission set group', 'Public group', 'Queue'];
 const RESULT_TONE: Record<BulkLine['result'], string> = {
   added: '✓ ',
@@ -76,13 +89,13 @@ export function BulkAccessPage() {
       show(
         by === 'query'
           ? await usersWhere(client, value)
-          : await findUsers(
+          : by === 'names'
+          ? await findUsers(client, { names: value.split(/[,;\n]+/).filter((n) => n.trim()) })
+          : // Part of a username, profile or role is enough (any case); several separated by commas
+            await usersContaining(
               client,
-              by === 'names'
-                ? { names: value.split(/[,;\n]+/).filter((n) => n.trim()) }
-                : by === 'usernames'
-                ? { usernames: value.split(/[\s,;]+/).filter(Boolean) }
-                : { [by]: value }
+              by === 'usernames' ? 'Username' : by === 'profile' ? 'Profile.Name' : 'UserRole.Name',
+              value.split(by === 'usernames' ? /[\s,;]+/ : /[,;\n]+/)
             )
       );
     } catch (e) {
@@ -113,9 +126,10 @@ export function BulkAccessPage() {
   const shown = useMemo(() => {
     const f = find.trim().toLowerCase();
     const have = new Set(chosen.map((c) => c.id));
-    return (items ?? [])
-      .filter((i) => i.kind === kind && !have.has(i.id) && (!f || i.label.toLowerCase().includes(f)))
-      .slice(0, 200);
+    const ofKind = (items ?? []).filter((i) => i.kind === kind && !have.has(i.id));
+    // A short list is shown whole; a long one (hundreds of permission sets) only as it is searched
+    if (!f && ofKind.length > LIST_ALL_UP_TO) return [];
+    return ofKind.filter((i) => !f || i.label.toLowerCase().includes(f)).slice(0, 25);
   }, [items, kind, find, chosen]);
   const count = (k: BulkKind) => (items ?? []).filter((i) => i.kind === k).length;
 
@@ -209,12 +223,12 @@ export function BulkAccessPage() {
                 by === 'names'
                   ? 'Names or parts of names: Ann, Bob Ray'
                   : by === 'usernames'
-                  ? 'Usernames, separated by commas or spaces'
+                  ? 'Usernames or parts of them: ann.lee, @acme.com'
                   : by === 'profile'
-                  ? 'Profile name, e.g. Standard User'
+                  ? 'Profile or part of it: Standard, Sales'
                   : by === 'role'
-                  ? 'Role name, e.g. Support Manager'
-                  : "A condition on User, e.g. Profile.Name LIKE '%Sales%' AND Department = 'Support'"
+                  ? 'Role or part of it: Manager, Support'
+                  : "Only the condition (after WHERE): Department = 'Sales'"
               }
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -223,6 +237,16 @@ export function BulkAccessPage() {
             <button onClick={() => void findUsersNow()} disabled={!text.trim()}>
               Find
             </button>
+          </div>
+        )}
+        {by === 'query' && (
+          <div className="query-examples">
+            <span className="muted small">Only the condition on User — for example:</span>
+            {QUERY_EXAMPLES.map(([q, what]) => (
+              <button key={q} className="chip" title={what} onClick={() => setText(q)}>
+                <span className="mono">{q}</span>
+              </button>
+            ))}
           </div>
         )}
         {users.length > 0 && (
@@ -259,14 +283,26 @@ export function BulkAccessPage() {
                 onChange={(e) => setFind(e.target.value)}
               />
             </div>
-            <div className="bulk-pick">
-              {shown.map((i) => (
-                <button key={i.id} className="chip" onClick={() => setChosen([...chosen, i])}>
-                  + {i.label}
-                </button>
-              ))}
-              {!shown.length && <span className="muted small">Nothing else matches.</span>}
-            </div>
+            {shown.length > 0 ? (
+              <ul className="bulk-matches" role="listbox" aria-label={`${kind}s`}>
+                {shown.map((i) => (
+                  <li key={i.id}>
+                    <button onClick={() => setChosen([...chosen, i])}>
+                      <span className="bulk-plus">+</span> {i.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted small">
+                {find.trim()
+                  ? 'Nothing else matches.'
+                  : `Type part of a name to find one of the ${count(kind)} ${kind.toLowerCase()}s.`}
+              </p>
+            )}
+            {find.trim() && shown.length === 25 && (
+              <p className="muted small">The first 25 matches — type more to narrow them.</p>
+            )}
             {chosen.length > 0 && (
               <>
                 <h4>Chosen ({chosen.length})</h4>

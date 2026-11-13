@@ -97,6 +97,19 @@ export function AppConfigPage({ onOpen }: { onOpen?: (tool: string) => void }) {
   const f = filter.trim().toLowerCase();
   const shown = rows.filter((r) => !f || r.shown.toLowerCase().includes(f) || r.value.toLowerCase().includes(f));
   const changed = rows.filter((r) => edits[r.key] !== undefined && edits[r.key] !== r.value);
+  // An app with parts: one folding group per part (OAuth settings, policies…), the app's own file first
+  const [closed, setClosed] = useState<Set<string>>(new Set());
+  const groups = useMemo(() => {
+    const out = new Map<string, Row[]>();
+    for (const r of shown) {
+      const part =
+        r.file.type === 'ExternalClientApplication' || (item?.files.length ?? 0) < 2
+          ? 'The app'
+          : configTypeLabel(r.file.type);
+      out.set(part, [...(out.get(part) ?? []), r]);
+    }
+    return [...out.entries()];
+  }, [shown, item]);
 
   const open = (key: string) => {
     setName(key);
@@ -207,7 +220,7 @@ export function AppConfigPage({ onOpen }: { onOpen?: (tool: string) => void }) {
       )}
       {item && (
         <div className="card section">
-          <div className="form">
+          <div className="form item-head">
             <span className="pill">{item.kind}</span>
             <b>{item.label}</b>
             <span className="muted mono small">{item.name}</span>
@@ -282,22 +295,40 @@ export function AppConfigPage({ onOpen }: { onOpen?: (tool: string) => void }) {
                   </>
                 )}
               </div>
-              <table className="config-table">
-                <thead>
-                  <tr>
-                    <th>Setting</th>
-                    <th>Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {shown.map((r) => (
-                    <tr key={r.key} className={edits[r.key] !== undefined && edits[r.key] !== r.value ? 'changed' : ''}>
-                      <td className="mono small">{r.shown}</td>
-                      <td>{editing ? input(r) : <span className="config-value">{r.value}</span>}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {groups.map(([part, list]) => (
+                <div key={part} className="config-group">
+                  {groups.length > 1 && (
+                    <button
+                      className="config-group-head"
+                      aria-expanded={!closed.has(part)}
+                      onClick={() => {
+                        const next = new Set(closed);
+                        if (next.has(part)) next.delete(part);
+                        else next.add(part);
+                        setClosed(next);
+                      }}
+                    >
+                      <span className="tree-toggle">{closed.has(part) ? '▸' : '▾'}</span> {part}{' '}
+                      <span className="muted small">({list.length})</span>
+                    </button>
+                  )}
+                  {!closed.has(part) && (
+                    <table className="config-table">
+                      <tbody>
+                        {list.map((r) => (
+                          <tr
+                            key={r.key}
+                            className={edits[r.key] !== undefined && edits[r.key] !== r.value ? 'changed' : ''}
+                          >
+                            <td className="mono small">{r.path}</td>
+                            <td>{editing ? input(r) : <span className="config-value">{r.value}</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              ))}
             </>
           )}
         </div>

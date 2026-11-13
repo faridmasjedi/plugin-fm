@@ -180,8 +180,7 @@
               <tr>
                 <td><b>Security</b></td>
                 <td>
-                  Dashboard · Timeline · Event logs · Who can see · Integration check · Sharing · Org health · Logins
-                  &amp; audit
+                  Dashboard · Timeline · Event logs · Integration check · Sharing · Org health · Logins &amp; audit
                 </td>
               </tr>
               <tr>
@@ -1433,6 +1432,56 @@
               </ul>
             </div>
           </section>
+          <section class="tool" data-title="Who can see">
+            <h3 id="whocansee">Who can see this?</h3>
+            <p class="tool-lead">
+              A user and a record, an object, a field, or an Apex class, Visualforce page or custom permission: what
+              they can do with it — and why.
+            </p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/whocansee.mp4"
+                poster="media/whocansee.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ul class="parts">
+              <li>
+                <b>The answer</b> is Salesforce's own (Read, Edit, Delete, Transfer), for that user and that record.
+              </li>
+              <li>
+                <b>Why</b>, step by step: the object permission (from which profile or permission set), View/Modify All,
+                the owner and the role hierarchy (is the user's role above the owner's?), and the record's sharing
+                (rules, teams, manual shares) — the ones that reach the user stand out.
+              </li>
+              <li>When the user can read but not edit, it says what Edit would need.</li>
+              <li>
+                Many profiles and permission sets behind one reason fold into “Which ones (120)”: open it for the names
+                by kind, with a filter.
+              </li>
+              <li>
+                <b>A record</b>: paste its Id or a Salesforce link, or choose an object and type part of a name (the
+                last changed records show first).
+              </li>
+              <li>
+                <b>An object</b>: Read, Create, Edit, Delete, View all and Modify all, each with the profile or
+                permission set that gives it, View/Modify All Data, and the object's org-wide default.
+              </li>
+              <li>
+                <b>A field</b>: its field-level security (Read, Edit) and from where; a required or system field follows
+                the object.
+              </li>
+              <li>
+                <b>A class, page or permission</b>: whether the user's profile or a permission set gives it (and Author
+                Apex, which opens every class and page).
+              </li>
+            </ul>
+          </section>
           <section class="tool" data-title="Compare">
             <h3 id="compare">Compare</h3>
             <p class="tool-lead">Two users, profiles, permission sets or groups side by side.</p>
@@ -1607,56 +1656,6 @@
                 <li>For who changed setup, see <a href="#audit">Logins &amp; audit</a>.</li>
               </ul>
             </div>
-          </section>
-          <section class="tool" data-title="Who can see">
-            <h3 id="whocansee">Who can see this?</h3>
-            <p class="tool-lead">
-              A user and a record, an object, a field, or an Apex class, Visualforce page or custom permission: what
-              they can do with it — and why.
-            </p>
-            <p class="tool-meta"><span class="badge read">Reads only</span></p>
-            <div class="shot">
-              <video
-                src="media/whocansee.mp4"
-                poster="media/whocansee.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <ul class="parts">
-              <li>
-                <b>The answer</b> is Salesforce's own (Read, Edit, Delete, Transfer), for that user and that record.
-              </li>
-              <li>
-                <b>Why</b>, step by step: the object permission (from which profile or permission set), View/Modify All,
-                the owner and the role hierarchy (is the user's role above the owner's?), and the record's sharing
-                (rules, teams, manual shares) — the ones that reach the user stand out.
-              </li>
-              <li>When the user can read but not edit, it says what Edit would need.</li>
-              <li>
-                Many profiles and permission sets behind one reason fold into “Which ones (120)”: open it for the names
-                by kind, with a filter.
-              </li>
-              <li>
-                <b>A record</b>: paste its Id or a Salesforce link, or choose an object and type part of a name (the
-                last changed records show first).
-              </li>
-              <li>
-                <b>An object</b>: Read, Create, Edit, Delete, View all and Modify all, each with the profile or
-                permission set that gives it, View/Modify All Data, and the object's org-wide default.
-              </li>
-              <li>
-                <b>A field</b>: its field-level security (Read, Edit) and from where; a required or system field follows
-                the object.
-              </li>
-              <li>
-                <b>A class, page or permission</b>: whether the user's profile or a permission set gives it (and Author
-                Apex, which opens every class and page).
-              </li>
-            </ul>
           </section>
           <section class="tool" data-title="Integration check">
             <h3 id="integration">Integration check</h3>

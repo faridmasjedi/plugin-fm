@@ -5296,3 +5296,117 @@ nav.side .nav-width:hover {
 .view-switch {
   margin: 0 0 10px;
 }
+/* The head of one app or credential: its kind, name and API name centred on one line */
+.item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.item-head .pill {
+  line-height: 1.2;
+}
+.app-detail h4 {
+  margin: 14px 0 6px;
+}
+/* The whole-file editor: room between it, its buttons and the card's edge */
+.config-xml .form {
+  margin-top: 12px;
+}
+.config-xml > p {
+  margin: 8px 0;
+}
+/* Who can see: a compact answer — the verdict, then the reasons close under "Why" */
+.who-result .who-verdict {
+  margin-bottom: 4px;
+}
+.who-result h4 {
+  margin: 12px 0 6px;
+}
+.who-result .who-steps {
+  margin: 0;
+}
+.who-result .who-steps li {
+  margin: 4px 0;
+}
+.who-result > p.muted.small {
+  margin: 12px 0 0;
+}
+.who-step-text .pill {
+  margin-right: 4px;
+  vertical-align: 1px;
+}
+/* Settings grouped by part (an app's OAuth settings, policies…): a folding head per group */
+.config-group + .config-group {
+  margin-top: 6px;
+}
+.config-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.config-group-head .tree-toggle {
+  width: 12px;
+}
+.config-group .config-table {
+  margin-top: 4px;
+}
+/* Assign in bulk: example conditions as chips; matches as a short list, like a dropdown */
+.query-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+.query-examples .chip {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.bulk-matches {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 4px;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.bulk-matches button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.bulk-matches button:hover {
+  background: var(--accent-soft);
+}
+.bulk-plus {
+  color: var(--accent);
+  font-weight: 700;
+}
+/* Group heads and match rows read from the left, like a list */
+.config-group-head,
+.bulk-matches button {
+  justify-content: flex-start;
+}

@@ -224,7 +224,7 @@ export const HUBS: Hub[] = [
     id: 'people',
     label: 'Access',
     icon: '⚿',
-    tools: ['access', 'permissions', 'groups', 'bulkaccess', 'objectaccess', 'compare'],
+    tools: ['access', 'permissions', 'groups', 'bulkaccess', 'objectaccess', 'whocansee', 'compare'],
     breakBefore: ['objectaccess'],
   },
   // What happened in the org and how safe it is
@@ -232,7 +232,7 @@ export const HUBS: Hub[] = [
     id: 'security',
     label: 'Security',
     icon: '⛨',
-    tools: ['secdash', 'timeline', 'eventlogs', 'whocansee', 'integration', 'sharing', 'health', 'audit'],
+    tools: ['secdash', 'timeline', 'eventlogs', 'integration', 'sharing', 'health', 'audit'],
   },
   {
     id: 'org',

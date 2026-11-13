@@ -253,3 +253,16 @@ export async function bulkAccess(
   }
   return lines.sort((a, b) => a.user.localeCompare(b.user) || a.item.localeCompare(b.item));
 }
+
+/** Active users whose field contains any of the texts (part of a profile, role or username, any case). */
+export async function usersContaining(
+  client: SalesforceClient,
+  field: 'Profile.Name' | 'UserRole.Name' | 'Username' | 'Email',
+  texts: string[]
+): Promise<Row[]> {
+  const parts = [...new Set(texts.map((t) => t.trim()).filter(Boolean))];
+  if (!parts.length) throw new Error('Type part of a name.');
+  const like = (t: string) =>
+    `${field} LIKE '%${t.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[%_]/g, '\\$&')}%'`;
+  return usersWhere(client, parts.map(like).join(' OR '));
+}

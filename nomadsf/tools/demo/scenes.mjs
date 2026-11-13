@@ -148,13 +148,13 @@ export const scenes = [
     ['Groups & queues', 'Groups & queues: who is in each'],
     ['Assign in bulk', 'Assign in bulk: many permission sets, groups and queues, to many users'],
     ['Object access', 'Object access: who can use an object or a field'],
+    ['Who can see', 'Who can see: a record, object, field or class — and why'],
     ['Compare', 'Compare: two users, profiles or permission sets'],
   ]),
   hubTour('security', 'Security', 'secdash', 'Security: what happened in the org, and how safe it is', [
     ['Dashboard', 'Dashboard: security at a glance'],
     ['Timeline', 'Timeline: everything that happened, in one list'],
     ['Event logs', 'Event logs: logins, API calls, Apex, pages, reports'],
-    ['Who can see', 'Who can see: a record, object, field or class — and why'],
     ['Integration check', 'Integration check: why an integration fails, and what to do'],
     ['Sharing', 'Sharing: an object’s sharing, as a tree'],
     ['Org health', 'Org health: Health Check, what is not used'],
@@ -1708,7 +1708,7 @@ export const scenes = [
   },
   {
     name: 'whocansee',
-    intro: 'Security › Who can see: what a user can do with a record, an object, a field or a class — and why',
+    intro: 'Access › Who can see: what a user can do with a record, an object, a field or a class — and why',
     hash: 'whocansee',
     run: async (h) => {
       await h.say('Choose the user');

@@ -55,7 +55,7 @@ export const STUDIO_PAGES = [
   ['secdash', 'Dashboard', 'Security'],
   ['timeline', 'Timeline', 'Security'],
   ['eventlogs', 'Event logs', 'Security'],
-  ['whocansee', 'Who can see', 'Security'],
+  ['whocansee', 'Who can see', 'Access'],
   ['integration', 'Integration check', 'Security'],
   ['sharing', 'Sharing', 'Security'],
   ['health', 'Org health', 'Security'],

@@ -16,6 +16,7 @@ import { askTyped } from './Dialogs';
 import { Status } from '../statusLog';
 
 type Show = 'all' | ItemComparison['status'];
+const PARTS = ['OAuth settings', 'Global OAuth settings', 'OAuth policies', 'App policies'];
 
 /**
  * The connected apps, external client apps, named and external credentials of A and B: where each is, every setting
@@ -52,7 +53,21 @@ export function ConfigCompare() {
   const count = (s: Show) => (rows ?? []).filter((r) => s === 'all' || r.status === s).length;
   const item = rows?.find((r) => `${r.kind}:${r.name}` === chosen);
   const diff = useMemo(() => (item ? diffItems(item.a, item.b) : []), [item]);
-  const shownDiff = onlyDiff ? diff.filter((d) => !d.same) : diff;
+  // "Only the differences" makes sense when the item is in both; otherwise every setting is shown
+  const both = Boolean(item?.a && item?.b);
+  const shownDiff = onlyDiff && both ? diff.filter((d) => !d.same) : diff;
+  // An app with parts: one folding group per part, the app's own settings first
+  const [closed, setClosed] = useState<Set<string>>(new Set());
+  const groups = useMemo(() => {
+    const out = new Map<string, Array<(typeof diff)[number] & { setting: string }>>();
+    for (const d of shownDiff) {
+      const [head, ...rest] = d.path.split(' › ');
+      const isPart = PARTS.includes(head) && rest.length > 0;
+      const part = isPart ? head : 'The app';
+      out.set(part, [...(out.get(part) ?? []), { ...d, setting: isPart ? rest.join(' › ') : d.path }]);
+    }
+    return [...out.entries()].sort((x, y) => (x[0] === 'The app' ? -1 : y[0] === 'The app' ? 1 : 0));
+  }, [shownDiff]);
 
   const deployToB = async () => {
     if (!item?.a || !clientB || !b) return;
@@ -125,46 +140,66 @@ export function ConfigCompare() {
       )}
       {item && (
         <div className="card section">
-          <div className="form">
+          <div className="form item-head">
             <span className="pill">{item.kind}</span>
             <b>{item.label}</b>
             <span className="muted small">{item.status}</span>
             <span className="grow" />
-            <label className="check">
-              <input type="checkbox" checked={onlyDiff} onChange={(e) => setOnlyDiff(e.target.checked)} /> Only the
-              differences
-            </label>
+            {both && (
+              <label className="check">
+                <input type="checkbox" checked={onlyDiff} onChange={(e) => setOnlyDiff(e.target.checked)} /> Only the
+                differences
+              </label>
+            )}
             {item.a && item.status !== 'same' && (
               <button className="primary" disabled={busy} onClick={() => void deployToB()}>
                 Deploy A’s version to {b?.label ?? 'B'}…
               </button>
             )}
           </div>
-          <table className="config-table config-diff">
-            <thead>
-              <tr>
-                <th>Setting</th>
-                <th>{a?.label ?? 'A'}</th>
-                <th>{b?.label ?? 'B'}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shownDiff.map((d) => (
-                <tr key={d.path} className={d.same ? '' : 'changed'}>
-                  <td className="mono small">{d.path}</td>
-                  <td>{d.a || <span className="muted">—</span>}</td>
-                  <td>{d.b || <span className="muted">—</span>}</td>
-                </tr>
-              ))}
-              {!shownDiff.length && (
-                <tr>
-                  <td colSpan={3} className="muted">
-                    The same in both.
-                  </td>
-                </tr>
+          {!shownDiff.length && <p className="muted">The same in both.</p>}
+          {groups.map(([part, list]) => (
+            <div key={part} className="config-group">
+              {groups.length > 1 && (
+                <button
+                  className="config-group-head"
+                  aria-expanded={!closed.has(part)}
+                  onClick={() => {
+                    const next = new Set(closed);
+                    if (next.has(part)) next.delete(part);
+                    else next.add(part);
+                    setClosed(next);
+                  }}
+                >
+                  <span className="tree-toggle">{closed.has(part) ? '▸' : '▾'}</span> {part}{' '}
+                  <span className="muted small">
+                    ({list.length}
+                    {both ? `, ${list.filter((d) => !d.same).length} different` : ''})
+                  </span>
+                </button>
               )}
-            </tbody>
-          </table>
+              {!closed.has(part) && (
+                <table className="config-table config-diff">
+                  <thead>
+                    <tr>
+                      <th>Setting</th>
+                      <th>{a?.label ?? 'A'}</th>
+                      <th>{b?.label ?? 'B'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {list.map((d) => (
+                      <tr key={d.path} className={both && !d.same ? 'changed' : ''}>
+                        <td className="mono small">{d.setting}</td>
+                        <td>{d.a || <span className="muted">—</span>}</td>
+                        <td>{d.b || <span className="muted">—</span>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          ))}
           <p className="muted small">
             The consumer key differs in every org and is not a difference. Secrets (client secrets, passwords, private
             keys) are not in these files and are never copied: set them in Setup in {b?.label ?? 'B'}.

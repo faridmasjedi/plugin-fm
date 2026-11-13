@@ -3,6 +3,9 @@
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
   next: [
+    'Who can see moves to the Access hub, next to Object access (old links still open it)',
+    'Assign in bulk: part of a profile, role or username is enough; example conditions for a query; permission sets and groups are searched, not listed by the hundred',
+    'Apps & credentials and Compare apps: an app’s settings fold into one group per part (OAuth settings, policies…) instead of a prefix on every row',
     'Org › Apps & credentials: every setting of the connected apps, external client apps (with their OAuth settings and policies), named and external credentials defined in the org — edit values in place or the whole file, then deploy',
     'Compare & Deploy › Compare apps › Settings of apps & credentials: the same in two orgs side by side (or only the differences), and A’s version deployed to B after typing B’s name; consumer keys and org-specific links never count or travel',
     'Metadata and Code › Other metadata: an empty ConnectedApp list says why (apps from Salesforce or packages are defined elsewhere) and where to find them',

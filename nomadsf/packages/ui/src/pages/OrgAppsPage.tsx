@@ -91,8 +91,12 @@ function OrgAppsUsage() {
             }
           />
           {app && (
-            <div className="section">
-              <h3>{app.name}</h3>
+            <div className="card section app-detail">
+              <div className="item-head">
+                <span className="pill">{app.kindA || app.kindB}</span>
+                <b>{app.name}</b>
+                <span className="muted small">{app.status}</span>
+              </div>
               <h4>Users in A and B</h4>
               {!users ? (
                 <p className="muted">Reading the OAuth users of both orgs…</p>
@@ -146,8 +150,8 @@ function OrgAppsUsage() {
             </p>
           )}
           {app && (app.status === 'same' || app.status === 'different') && (
-            <div className="section">
-              <h4>The app in A and in B</h4>
+            <div className="card section app-detail">
+              <h4>Its settings in A and in B</h4>
               <p className="muted">
                 Its OAuth settings (admin-approved users only, refresh-token and session policies, start URL…) and the
                 profiles and permission sets pre-authorized to use it, side by side.
