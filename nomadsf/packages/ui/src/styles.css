@@ -5476,3 +5476,13 @@ nav.side .nav-width:hover {
   padding-top: 0;
   margin-top: 16px;
 }
+/* One app's or credential's settings: buttons, filter and groups spaced, a little room under the tabs */
+.config-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+.config-view > .form {
+  margin: 0;
+}
