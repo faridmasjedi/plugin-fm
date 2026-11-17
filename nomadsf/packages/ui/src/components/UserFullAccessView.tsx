@@ -92,14 +92,6 @@ export function UserFullAccessView({ userId, label }: { userId: string; label: s
   };
   return (
     <div className="user-full-access">
-      <div className="access-sources">
-        <span className="muted small">From</span>
-        {data.holders.map((h) => (
-          <span key={h.id} className={`pill source-${h.kind}`}>
-            {h.via}
-          </span>
-        ))}
-      </div>
       <TableTabs
         active={tab}
         onChange={(id) => {
@@ -141,10 +133,36 @@ export function UserFullAccessView({ userId, label }: { userId: string; label: s
               </div>
             ),
           },
+          {
+            id: 'sources',
+            label: 'Where it comes from',
+            count: data.holders.length,
+            content: table(sourcesSection(data.holders), 'what the other tabs combine; Via names these'),
+          },
         ]}
       />
     </div>
   );
+}
+
+const KIND: Record<AccessHolder['kind'], string> = {
+  profile: 'Profile',
+  permset: 'Permission set',
+  group: 'Permission set group',
+};
+
+/** The profile, permission sets and groups the access comes from, as a table (and a workbook sheet). */
+function sourcesSection(holders: AccessHolder[]): UserAccessSection {
+  return {
+    id: 'sources',
+    title: 'Where it comes from',
+    columns: ['Kind', 'Name', 'API name'],
+    rows: holders.map((h) => ({
+      Kind: KIND[h.kind],
+      Name: h.via.replace(/^(Profile|Group): /, ''),
+      'API name': h.kind === 'permset' ? h.name : '',
+    })),
+  };
 }
 
 /** The access sheets of a user for the Everything workbook (Shared records left out: it counts every object). */
@@ -152,9 +170,9 @@ export async function userAccessSheets(
   client: Parameters<typeof userFullAccess>[0],
   userId: string
 ): Promise<Array<{ name: string; columns: string[]; rows: Row[] }>> {
-  const { sections } = await userFullAccess(client, userId);
-  return sections.map((s) => ({
-    name: `Access - ${s.title}`.slice(0, 31),
+  const { holders, sections } = await userFullAccess(client, userId);
+  return [sourcesSection(holders), ...sections].map((s) => ({
+    name: `Access - ${s.id === 'sources' ? 'Sources' : s.title}`.slice(0, 31),
     columns: s.columns,
     rows: s.note ? [{ [s.columns[0]]: `Not read: ${s.note}` }] : s.rows,
   }));
