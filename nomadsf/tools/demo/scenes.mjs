@@ -1781,7 +1781,7 @@ export const scenes = [
   },
   {
     name: 'sharing',
-    intro: 'Security › Sharing: how an object’s records are shared, as a tree',
+    intro: 'Access › Sharing: who gets which records — every object, or one as a tree',
     hash: 'sharing',
     run: async (h) => {
       await h.type(h.page.locator('input[placeholder^="Object"]'), 'Invoice__c');

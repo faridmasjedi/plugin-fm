@@ -156,7 +156,12 @@ export const TOOLS: Tool[] = [
     icon: '⇌',
     hint: 'why an integration fails: its user, logins, connected app, certificates',
   },
-  { id: 'sharing', label: 'Sharing', icon: '⑂', hint: "an object's defaults and sharing rules, as a tree" },
+  {
+    id: 'sharing',
+    label: 'Sharing',
+    icon: '⑂',
+    hint: 'who gets which records: defaults and sharing rules of every object',
+  },
   { id: 'myaccess', label: 'Your access', icon: '✓', hint: 'what your user may do here' },
   {
     id: 'apps',
@@ -236,7 +241,7 @@ export const HUBS: Hub[] = [
     id: 'people',
     label: 'Access',
     icon: '⚿',
-    tools: ['access', 'permissions', 'groups', 'bulkaccess', 'objectaccess', 'whocansee', 'compare'],
+    tools: ['access', 'permissions', 'groups', 'bulkaccess', 'objectaccess', 'whocansee', 'sharing', 'compare'],
     breakBefore: ['objectaccess'],
   },
   // What happened in the org and how safe it is
@@ -244,7 +249,7 @@ export const HUBS: Hub[] = [
     id: 'security',
     label: 'Security',
     icon: '⛨',
-    tools: ['secdash', 'timeline', 'eventlogs', 'integration', 'sharing', 'health', 'audit'],
+    tools: ['secdash', 'timeline', 'eventlogs', 'integration', 'health', 'audit'],
   },
   {
     id: 'org',

@@ -178,14 +178,13 @@
               <tr>
                 <td><b>Access</b></td>
                 <td>
-                  Users · Access sets · Groups &amp; queues · Assign in bulk — then, to review: Object access · Compare
+                  Users · Access sets · Groups &amp; queues · Assign in bulk — then, to review: Object access · Who can
+                  see · Sharing · Compare
                 </td>
               </tr>
               <tr>
                 <td><b>Security</b></td>
-                <td>
-                  Dashboard · Timeline · Event logs · Integration check · Sharing · Org health · Logins &amp; audit
-                </td>
+                <td>Dashboard · Timeline · Event logs · Integration check · Org health · Logins &amp; audit</td>
               </tr>
               <tr>
                 <td><b>Org</b></td>
@@ -1527,6 +1526,46 @@
               </li>
             </ul>
           </section>
+          <section class="tool" data-title="Sharing">
+            <h3 id="sharing">Sharing</h3>
+            <p class="tool-lead">Who gets which records: every object at once, or one object as a tree.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/sharing.mp4"
+                poster="media/sharing.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              <b>All objects</b>: every object with its org-wide defaults (inside and outside the company) and how many
+              sharing rules it has — filter it (Private only, rules &gt; 0…), export it, click one for its tree.
+              <b>One object</b>:
+            </p>
+            <ul class="parts">
+              <li><b>Defaults</b>: the org-wide default inside the company and outside (portals, Experience Cloud).</li>
+              <li><b>Roles</b>: users above a record's owner see it too.</li>
+              <li>
+                <b>Each sharing rule</b>: which records (owned by a role or group, or matching criteria such as
+                <i>Status equals Overdue</i>), with whom, and how (Read only, Read/Write).
+              </li>
+              <li><b>▸</b> on a group or role opens it to the people inside, one level per click.</li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Manual shares, teams and territories are per record: see <a href="#whocansee">Who can see</a>.</li>
+                <li>
+                  To compare with another org, and copy defaults or rules across, use
+                  <a href="#orgsharing">Compare &amp; Deploy › Compare sharing</a>.
+                </li>
+              </ul>
+            </div>
+          </section>
           <section class="tool" data-title="Compare">
             <h3 id="compare">Compare</h3>
             <p class="tool-lead">Two users, profiles, permission sets or groups side by side.</p>
@@ -1739,46 +1778,6 @@
               Read from the org only: a login that never shows up never reached Salesforce (check the caller’s URL and
               network).
             </p>
-          </section>
-          <section class="tool" data-title="Sharing">
-            <h3 id="sharing">Sharing</h3>
-            <p class="tool-lead">How records are shared: every object at once, or one object as a tree.</p>
-            <p class="tool-meta"><span class="badge read">Reads only</span></p>
-            <div class="shot">
-              <video
-                src="media/sharing.mp4"
-                poster="media/sharing.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <p>
-              <b>All objects</b>: every object with its org-wide defaults (inside and outside the company) and how many
-              sharing rules it has — filter it (Private only, rules &gt; 0…), export it, click one for its tree.
-              <b>One object</b>:
-            </p>
-            <ul class="parts">
-              <li><b>Defaults</b>: the org-wide default inside the company and outside (portals, Experience Cloud).</li>
-              <li><b>Roles</b>: users above a record's owner see it too.</li>
-              <li>
-                <b>Each sharing rule</b>: which records (owned by a role or group, or matching criteria such as
-                <i>Status equals Overdue</i>), with whom, and how (Read only, Read/Write).
-              </li>
-              <li><b>▸</b> on a group or role opens it to the people inside, one level per click.</li>
-            </ul>
-            <div class="good-to-know">
-              <h4>Good to know</h4>
-              <ul>
-                <li>Manual shares, teams and territories are per record: see <a href="#whocansee">Who can see</a>.</li>
-                <li>
-                  To compare with another org, and copy defaults or rules across, use
-                  <a href="#orgsharing">Compare &amp; Deploy › Compare sharing</a>.
-                </li>
-              </ul>
-            </div>
           </section>
           <section class="tool" data-title="Org health">
             <h3 id="health">Org health</h3>

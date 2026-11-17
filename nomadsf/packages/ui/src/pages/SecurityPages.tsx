@@ -593,7 +593,7 @@ export function WhoCanSeePage() {
   );
 }
 
-// ---------- Security › Sharing ----------
+// ---------- Access › Sharing ----------
 
 /**
  * How an object's records are shared, as a tree: org-wide defaults, the role hierarchy, then each sharing rule —
