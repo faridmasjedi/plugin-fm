@@ -49,6 +49,7 @@ export const NEEDS: Partial<Record<ToolId, Need>> = {
   timeline: { read: ['ViewSetup'] },
   whocansee: { read: ['ViewSetup'] },
   sharing: { read: ['ViewSetup'] },
+  orgsharing: { read: ['ViewSetup'] },
   apps: {
     read: ['ViewSetup'],
     change: ['CustomizeApplication', 'ModifyAllData'],

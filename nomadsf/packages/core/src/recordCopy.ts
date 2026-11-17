@@ -258,6 +258,9 @@ export const USER_REPORT_SHEETS = [
   'Login history',
 ];
 
+/** The start of the report's access sheets ("Access - Objects", "Access - Fields"…). */
+export const USER_ACCESS_SHEET = 'Access - ';
+
 /** A value that is a Salesforce Id (a lookup kept as an Id: no use in another org). */
 const SF_ID = /^[a-zA-Z0-9]{15}([a-zA-Z0-9]{3})?$/;
 
@@ -302,7 +305,8 @@ export function fromCopySheets(tables: FileTable[]): {
   const metaSheet = tables.find((t) => t.name === METADATA_SHEET);
   // An Everything workbook: its report sheets are about the user, never records to copy
   const report = userFromReport(tables);
-  if (report) tables = tables.filter((t) => !USER_REPORT_SHEETS.includes(t.name));
+  if (report)
+    tables = tables.filter((t) => !USER_REPORT_SHEETS.includes(t.name) && !t.name.startsWith(USER_ACCESS_SHEET));
   const users: UserCopy[] = [];
   for (const r of usersSheet?.rows ?? []) {
     let u = users.find((x) => x.username === r.User);

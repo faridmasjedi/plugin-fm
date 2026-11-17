@@ -151,6 +151,7 @@ export const scenes = [
     ['Assign in bulk', 'Assign in bulk: many permission sets, groups and queues, to many users'],
     ['Object access', 'Object access: who can use an object or a field'],
     ['Who can see', 'Who can see: a record, object, field or class — and why'],
+    ['Sharing', 'Sharing: who gets which records — every object, or one as a tree'],
     ['Compare', 'Compare: two users, profiles or permission sets'],
   ]),
   hubTour('security', 'Security', 'secdash', 'Security: what happened in the org, and how safe it is', [
@@ -158,7 +159,6 @@ export const scenes = [
     ['Timeline', 'Timeline: everything that happened, in one list'],
     ['Event logs', 'Event logs: logins, API calls, Apex, pages, reports'],
     ['Integration check', 'Integration check: why an integration fails, and what to do'],
-    ['Sharing', 'Sharing: an object’s sharing, as a tree'],
     ['Org health', 'Org health: Health Check, what is not used'],
     ['Logins & audit', 'Logins & audit: login history, setup audit trail'],
   ]),
@@ -178,7 +178,8 @@ export const scenes = [
     [
       ['Compare metadata', 'Org ↔ Org: compare metadata, and deploy the differences'],
       ['Compare access', 'Compare access: users and permissions in two orgs'],
-      ['Compare apps', 'Compare apps: connected apps in two orgs'],
+      ['Compare apps', 'Compare apps: apps and credentials in two orgs'],
+      ['Compare sharing', 'Compare sharing: defaults and sharing rules in two orgs, rule by rule'],
       ['Copy records', 'Copy records: between orgs, every link kept'],
       ['Project', 'Project & git: your project folder against the org'],
       ['Branch ↔ Org', 'Branch ↔ Org: a branch against an org'],
@@ -230,6 +231,44 @@ export const scenes = [
       await h.page.keyboard.type('sche', { delay: 120 });
       await h.pause(800);
       await h.page.keyboard.press('Enter');
+      await h.pause(2000);
+    },
+  },
+  {
+    name: 'tables',
+    intro: 'Every table: filter, choose the columns, sort and export',
+    hash: 'query',
+    run: async (h) => {
+      await h.code('SELECT Name, Industry, Phone, Website, Customer_Tier__c, AnnualRevenue FROM Account ORDER BY Name');
+      await h.page.keyboard.press('Escape');
+      await h.click('Run');
+      await h.until('rows');
+      await h.settle();
+      await h.pause(800);
+      const cond = (i) => h.page.locator('.dt-condition').nth(i);
+      await h.say('Filters: a column, then what to look for — Is not empty hides blank values');
+      await h.press(h.page.locator('.dt-filters-toggle', { hasText: 'Filters' }).first());
+      await h.choose(cond(0).locator('select').first(), /^Website$/);
+      await h.choose(cond(0).locator('select.dt-condition-op'), 'Is not empty');
+      await h.pause(1400);
+      await h.say('More filters: Gold customers, technology companies');
+      await h.click('+ Add a filter');
+      await h.choose(cond(1).locator('select').first(), /^Customer_Tier__c$/);
+      await h.type(cond(1).locator('input').first(), '=Gold');
+      await h.click('+ Add a filter');
+      await h.choose(cond(2).locator('select').first(), /^Industry$/);
+      await h.type(cond(2).locator('input').first(), 'Technology');
+      await h.pause(800);
+      await h.say('Filter logic, as in a list view: 1 AND (2 OR 3)');
+      await h.type(h.page.locator('.dt-logic input'), '1 AND (2 OR 3)');
+      await h.pause(1800);
+      await h.say('Columns: show only what you need — remembered for this kind of table');
+      await h.press(h.page.locator('.dt-filters-toggle', { hasText: 'Columns' }).first());
+      await h.press(h.page.locator('.dt-column-pick', { hasText: 'Phone' }).locator('input'));
+      await h.press(h.page.locator('.dt-column-pick', { hasText: 'AnnualRevenue' }).locator('input'));
+      await h.pause(1400);
+      await h.say('Click a heading to sort; Copy, CSV and JSON take what you see');
+      await h.press(h.page.locator('.dt thead th', { hasText: 'Industry' }).first());
       await h.pause(2000);
     },
   },
@@ -715,20 +754,38 @@ export const scenes = [
   },
   {
     name: 'access',
-    intro: 'Access › Users: one user and everything they have',
+    intro: 'Access › Users: one user — everything they have, and everything they can do',
     hash: 'access',
     run: async (h) => {
       await h.say('Find a user by name, username or e-mail');
-      await h.type(h.page.locator('input[placeholder="Name, username, email or user Id"]'), 'Ann');
+      await h.type(h.page.locator('input[placeholder="Name, username, email or user Id"]'), 'Dina');
       await h.click('Find');
-      await h.until('Sales Manager');
+      await h.until('Dina Patel');
+      await h.settle();
+      await h.pause(800);
+      await h.say('Access: everything they can do, from all their profile, permission sets and groups');
+      await h.press(h.page.locator('.tabs .tab', { hasText: /^Access$/ }).first());
+      await h.waiting(() => h.page.locator('.user-full-access .dt table').first().waitFor({ timeout: 120000 }));
       await h.pause(1200);
-      await h.say('Their permission sets and groups');
+      await h.say('Each row says where it comes from');
+      await h.look(h.page.locator('.user-full-access .dt tbody tr', { hasText: 'Invoice__c' }).first());
+      await h.pause(1600);
+      const sub = (t) => h.page.locator('.user-full-access .table-tabs-bar .tab', { hasText: t }).first();
+      await h.say('Fields, by object — and classes, pages, tabs, record types, layouts');
+      await h.press(sub('Fields'));
+      await h.pause(1400);
+      await h.press(sub('Apex classes'));
+      await h.pause(1400);
+      await h.say('Shared records: owned and shared with them, per object, and why');
+      await h.press(sub('Shared records'));
+      await h.waiting(() => h.page.locator('.shared-records .dt table').waitFor({ timeout: 300000 }));
+      await h.pause(1800);
+      await h.say('Where it comes from: the profile, permission sets and groups');
+      await h.press(sub('Where it comes from'));
+      await h.pause(1600);
+      await h.say('Their permission sets and groups — add or remove');
       await h.click('Permission sets & groups');
-      await h.pause(2000);
-      await h.say('Their system permissions, and where each comes from');
-      await h.click('System permissions');
-      await h.pause(2000);
+      await h.pause(1600);
       await h.say('Everything in one Excel workbook');
       await h.click('Everything (workbook)');
       await h.settle();
@@ -808,6 +865,12 @@ export const scenes = [
       await h.click('Compare');
       await h.settle();
       await h.pause(1600);
+      await h.say('Access (combined): what each can do, from all their access — only the differences');
+      await h.press(h.page.locator('.user-comparison .tab', { hasText: 'Access (combined)' }));
+      await h.waiting(() => h.page.locator('.access-compare .dt table').first().waitFor({ timeout: 200000 }));
+      await h.pause(2200);
+      await h.press(h.page.locator('.user-comparison .tab', { hasText: /^Details/ }));
+      await h.pause(600);
       // Every field of both, in boxes
       await h.say('Every field of both, side by side');
       await h.press(h.page.locator('.dt-group-toggle', { hasText: 'Other fields' }).first());
@@ -1142,6 +1205,34 @@ export const scenes = [
     },
   },
 
+  {
+    // acme-new first gets a different Invoice__c rule (tools/demo/sharing-diff); the scene deploys A's back
+    name: 'orgsharing',
+    intro: 'Compare & Deploy › Compare sharing: defaults and sharing rules of two orgs, rule by rule',
+    hash: 'orgsharing',
+    run: async (h) => {
+      await h.say('Choose the other org: every object’s sharing in both');
+      await h.select(
+        h.page
+          .locator('.pane-body select')
+          .filter({ has: h.page.locator('option', { hasText: 'Choose the other org' }) })
+          .first(),
+        'acme-new'
+      );
+      await h.waiting(() => h.page.locator('.sharing-compare-table table').first().waitFor({ timeout: 300000 }));
+      await h.pause(1400);
+      await h.say('Click one: its defaults, and each rule — only in A, only in B or different');
+      await h.press(h.row('Invoice__c'));
+      await h.look(h.page.locator('.sharing-compare-detail .dt').first());
+      await h.pause(2200);
+      await h.say('Deploy A’s rules to B — after typing B’s name; rules only in B stay');
+      await h.click(/rules to B/);
+      await h.confirm('acme-new');
+      await h.until(/✓ Deployed|❌/, 300000);
+      await h.settle();
+      await h.pause(2000);
+    },
+  },
   {
     name: 'settings',
     intro: 'Settings › Orgs: the orgs you are logged in to',
@@ -1781,12 +1872,24 @@ export const scenes = [
   },
   {
     name: 'sharing',
-    intro: 'Security › Sharing: how an object’s records are shared, as a tree',
+    intro: 'Access › Sharing: who gets which records — every object, or one as a tree',
     hash: 'sharing',
     run: async (h) => {
-      await h.type(h.page.locator('input[placeholder^="Object"]'), 'Invoice__c');
-      await h.say('Defaults, the role hierarchy, then each sharing rule');
-      await h.click('Show');
+      await h.press(h.page.locator('.view-switch button', { hasText: 'All objects' }));
+      await h.waiting(() => h.page.locator('.dt table').first().waitFor({ timeout: 120000 }));
+      await h.say('All objects: each one’s defaults, and how many sharing rules it has');
+      await h.pause(1600);
+      await h.say('Filters: private objects that have rules');
+      await h.press(h.page.locator('.dt-filters-toggle', { hasText: 'Filters' }));
+      const cond = (i) => h.page.locator('.dt-condition').nth(i);
+      await h.choose(cond(0).locator('select').first(), /^Default$/);
+      await h.type(cond(0).locator('input').first(), '=private');
+      await h.click('+ Add a filter');
+      await h.choose(cond(1).locator('select').first(), /^Rules$/);
+      await h.type(cond(1).locator('input').first(), '>0');
+      await h.pause(1400);
+      await h.say('Click one: its defaults, the role hierarchy, then each sharing rule');
+      await h.press(h.row('Invoice__c'));
       await h.until('Private', 120000);
       await h.settle();
       await h.pause(2200);

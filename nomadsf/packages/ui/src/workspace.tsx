@@ -66,6 +66,7 @@ export type ToolId =
   | 'sharing'
   | 'myaccess'
   | 'orgapps'
+  | 'orgsharing'
   | 'settings'
   | 'settingsai'
   | 'settingsproject'
@@ -155,7 +156,12 @@ export const TOOLS: Tool[] = [
     icon: '⇌',
     hint: 'why an integration fails: its user, logins, connected app, certificates',
   },
-  { id: 'sharing', label: 'Sharing', icon: '⑂', hint: "an object's defaults and sharing rules, as a tree" },
+  {
+    id: 'sharing',
+    label: 'Sharing',
+    icon: '⑂',
+    hint: 'who gets which records: defaults and sharing rules of every object',
+  },
   { id: 'myaccess', label: 'Your access', icon: '✓', hint: 'what your user may do here' },
   {
     id: 'apps',
@@ -172,6 +178,7 @@ export const TOOLS: Tool[] = [
   { id: 'activity', label: 'Activity', icon: '⏱', hint: 'what you changed or exported with NomadSF, in every org' },
   { id: 'orgaccess', label: 'Compare access', icon: '⚿', hint: 'users and permissions in two orgs' },
   { id: 'orgapps', label: 'Compare apps', icon: '⚷', hint: 'connected apps in two orgs' },
+  { id: 'orgsharing', label: 'Compare sharing', icon: '⑂', hint: 'org-wide defaults and sharing rules in two orgs' },
   { id: 'settings', label: 'Orgs', icon: '◈', hint: 'the orgs you are logged in to' },
   { id: 'settingsai', label: 'AI', icon: '✦', hint: 'the AI the ✦ buttons use' },
   {
@@ -234,7 +241,7 @@ export const HUBS: Hub[] = [
     id: 'people',
     label: 'Access',
     icon: '⚿',
-    tools: ['access', 'permissions', 'groups', 'bulkaccess', 'objectaccess', 'whocansee', 'compare'],
+    tools: ['access', 'permissions', 'groups', 'bulkaccess', 'objectaccess', 'whocansee', 'sharing', 'compare'],
     breakBefore: ['objectaccess'],
   },
   // What happened in the org and how safe it is
@@ -242,7 +249,7 @@ export const HUBS: Hub[] = [
     id: 'security',
     label: 'Security',
     icon: '⛨',
-    tools: ['secdash', 'timeline', 'eventlogs', 'integration', 'sharing', 'health', 'audit'],
+    tools: ['secdash', 'timeline', 'eventlogs', 'integration', 'health', 'audit'],
   },
   {
     id: 'org',
@@ -259,6 +266,7 @@ export const HUBS: Hub[] = [
       'orgdiff',
       'orgaccess',
       'orgapps',
+      'orgsharing',
       'migrate',
       'project',
       'branchorg',

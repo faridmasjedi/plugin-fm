@@ -2,7 +2,14 @@
 // New changes go under "next"; the newest release without its own entry shows them.
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
-  next: [],
+  next: [
+    'Guide: a video for tables (Filters, Is not empty, Filter logic, Columns); new videos for Users (its Access tab), Sharing, Compare two users and Compare sharing; every video of the Access, Security and Compare & Deploy hubs made again',
+    'Access › Users › a user › Access: everything they can do, combined from their profile, permission sets and permission set groups — objects, fields, Apex classes, Visualforce pages, custom permissions, apps, connected apps, tabs, record types and page layouts — each row saying where it comes from; Shared records counts, per object, what they own and what is shared with them (directly, through groups and queues, through their role) and why. In the Everything workbook too, and Compare two users has Access (combined)',
+    'Every table: Columns chooses the columns shown (all at first, remembered for that kind of table; Copy, CSV and JSON follow)',
+    'Every table’s Filters: Is empty / Is not empty, and Filter logic to combine numbered filters as in Salesforce list views — 1 OR 2 OR (3 AND 4), NOT 3',
+    'Sharing moves from Security to the Access hub, next to Who can see (old links still open it). Its new All objects view: every object’s org-wide defaults and how many sharing rules it has; click one for its tree',
+    'Compare & Deploy › Compare sharing: defaults and sharing rules of every object in two orgs, rule by rule, and A’s defaults or rules deployed to B after typing B’s name',
+  ],
   '3.1.0': [
     'Guide: videos with subtitles for Apps & credentials, Compare apps, Assign in bulk, Integration check, Code checks, Custom settings, Who can see and Debug logs, and every hub walk-through again; ⌘K finds credentials, tokens and bulk access',
     'Connected apps and Apps & credentials are one tool, Org › Apps & credentials: every app the org uses or defines in one list (defined here or elsewhere), each with who uses it, its policies and every setting; credentials in their own tab. Compare apps follows: Apps and Credentials',

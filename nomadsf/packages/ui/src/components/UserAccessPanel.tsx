@@ -28,14 +28,16 @@ import { storage, useStudio } from '../context';
 import { TableTabs } from './TableTabs';
 import { DataTable, EmptyHint } from './DataTable';
 import { ManagedList } from './ManagedList';
+import { UserFullAccessView, userAccessSheets } from './UserFullAccessView';
 import { Status } from '../statusLog';
 
 const fail = (r: { errors: string[] }): void => {
   if (r.errors.length) throw new Error(r.errors.join('; '));
 };
 
-type Tab = 'perms' | 'system' | 'groups' | 'licenses' | 'oauth' | 'logins';
+type Tab = 'access' | 'perms' | 'system' | 'groups' | 'licenses' | 'oauth' | 'logins';
 const TABS: Array<[Tab, string]> = [
+  ['access', 'Access'],
   ['perms', 'Permission sets & groups'],
   ['system', 'System permissions'],
   ['groups', 'Groups & queues'],
@@ -58,7 +60,7 @@ const LOGIN_COLUMNS = [
 
 /** Every tab of a user, a sheet each (Details, permission sets… login history): ⤓ takes only the open one. */
 export async function userWorkbook(client: SalesforceClient, userId: string, orgLabel = ''): Promise<Sheet[]> {
-  const [record, access, system, logins, restore] = await Promise.all([
+  const [record, access, system, logins, restore, accessSheets] = await Promise.all([
     inspectRecord(client, userId),
     userAccess(client, userId),
     effectivePermissions(client, userId),
@@ -66,6 +68,8 @@ export async function userWorkbook(client: SalesforceClient, userId: string, org
     // The same user by names (profile, role, manager…) and their permission set files: Data › Record › Open a
     // saved copy reads it to create or complete the user in another org (a new sandbox)
     usersBundle(client, [userId], orgLabel),
+    // Everything they can do, combined: objects, fields, classes, pages… (one sheet each)
+    userAccessSheets(client, userId),
   ]);
   const value = (v: unknown): string =>
     v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
@@ -86,6 +90,7 @@ export async function userWorkbook(client: SalesforceClient, userId: string, org
     { name: 'Licenses', columns: ['Label', 'Name', 'Status', 'ExpirationDate'], rows: access.licenses },
     { name: 'OAuth apps', columns: ['App', 'Uses', 'LastUsed', 'Connected'], rows: access.oauthApps },
     { name: 'Login history', columns: LOGIN_COLUMNS, rows: logins },
+    ...accessSheets,
     ...copySheets({ records: {}, ...restore }),
   ];
 }
@@ -169,6 +174,8 @@ export function UserAccessPanel({ userId, label, details }: { userId: string; la
       </div>
       {tab === 'details' ? (
         details
+      ) : tab === 'access' ? (
+        <UserFullAccessView userId={userId} label={label} />
       ) : tab === 'perms' ? (
         !access ? (
           loading

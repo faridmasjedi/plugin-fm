@@ -86,9 +86,9 @@
                 the org), like Salesforce Inspector does; it stores no password or token.
               </li>
               <li>
-                <b>Open the Studio</b> from any Salesforce page: click the NomadSF icon, or the small <b>N</b> tab on
-                the right edge of the page (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd>). It opens for the org of that
-                page.
+                <b>Open the Studio</b> from any Salesforce page: click the NomadSF icon in the toolbar, or the small
+                NomadSF tab (its logo) on the right edge of the page (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd>). It
+                opens for the org of that page.
               </li>
               <li>
                 <b>Settings → Org</b> lists every org you are logged in to in this browser; switch between them there or
@@ -145,13 +145,29 @@
               </li>
               <li>
                 <b>Tables</b> work the same everywhere. <b>Filters</b> opens conditions: choose a column (or
-                <i>Any column</i>), then pick a value from its list or type one; add as many as you need. Tables with
-                tick boxes also filter on <i>Ticked</i> / <i>Not ticked</i>. Long lists of the same thing come in
-                <b>boxes</b> — one per type, object or kind — that you open and close (<b>Open all</b> /
-                <b>Close all</b>). Related tables are <b>tabs</b> of one table, not a stack of tables. <b>Copy</b>,
-                <b>CSV</b> and <b>JSON</b> take the rows as shown.
+                <i>Any column</i>), then <i>Matches</i> and a value from its list or typed (<code>=exact</code>,
+                <code>!not</code>, <code>&gt;10</code>, <code>&lt;5</code>), or <i>Is empty</i> / <i>Is not empty</i>
+                to keep or hide blank values; add as many as you need. With two or more, each has a number and
+                <b>Filter logic</b> combines them as in Salesforce list views — <code>1 OR 2 OR (3 AND 4)</code>,
+                <code>(1 OR 2) AND NOT 3</code>; empty means all of them. Tables with tick boxes also filter on
+                <i>Ticked</i> / <i>Not ticked</i>. <b>Columns</b> chooses the columns shown (all at first; remembered
+                for that kind of table). Long lists of the same thing come in <b>boxes</b> — one per type, object or
+                kind — that you open and close (<b>Open all</b> / <b>Close all</b>). Related tables are <b>tabs</b> of
+                one table, not a stack of tables. <b>Copy</b>, <b>CSV</b> and <b>JSON</b> take the rows and columns as
+                shown.
               </li>
             </ul>
+            <div class="shot">
+              <video
+                src="media/tables.mp4"
+                poster="media/tables.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
             <table class="hub-table">
               <tr>
                 <th>Hub</th>
@@ -173,14 +189,13 @@
               <tr>
                 <td><b>Access</b></td>
                 <td>
-                  Users · Access sets · Groups &amp; queues · Assign in bulk — then, to review: Object access · Compare
+                  Users · Access sets · Groups &amp; queues · Assign in bulk — then, to review: Object access · Who can
+                  see · Sharing · Compare
                 </td>
               </tr>
               <tr>
                 <td><b>Security</b></td>
-                <td>
-                  Dashboard · Timeline · Event logs · Integration check · Sharing · Org health · Logins &amp; audit
-                </td>
+                <td>Dashboard · Timeline · Event logs · Integration check · Org health · Logins &amp; audit</td>
               </tr>
               <tr>
                 <td><b>Org</b></td>
@@ -189,9 +204,9 @@
               <tr>
                 <td><b>Compare &amp; Deploy</b></td>
                 <td>
-                  Org ↔ Org (Compare metadata · Compare access · Compare apps · Copy records) · Project &amp; git
-                  (Project · Branch ↔ Org · Branch ↔ Branch) · Org ↔ File (Open a file · Check a manifest · Compare with
-                  CSV) · Sandbox refresh
+                  Org ↔ Org (Compare metadata · Compare access · Compare apps · Compare sharing · Copy records) ·
+                  Project &amp; git (Project · Branch ↔ Org · Branch ↔ Branch) · Org ↔ File (Open a file · Check a
+                  manifest · Compare with CSV) · Sandbox refresh
                 </td>
               </tr>
               <tr>
@@ -1216,7 +1231,7 @@
           <section class="tool" data-title="Users">
             <h3 id="access">Users</h3>
             <p class="tool-lead">
-              A user and everything they have: details, permission sets, permissions, groups, licenses, apps and logins.
+              A user and everything they have — and everything they can do, combined from all their access.
             </p>
             <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
             <div class="shot">
@@ -1232,9 +1247,16 @@
             </div>
             <p>
               Find a user by name, username, email or Id. <b>Details</b> edits any field; Freeze, Deactivate, Log in as.
-              Beside it: their <b>Permission sets &amp; groups</b>, <b>System permissions</b> (every permission they
-              have, and the profile, permission set or group that gives it), <b>Groups &amp; queues</b> (public groups,
-              queues, personal groups), <b>Licenses</b>, <b>OAuth apps</b> and <b>Login history</b>.
+              <b>Access</b> is everything they can do, combined from their profile, permission sets and permission set
+              groups — objects (read, create, edit, delete, view all, modify all), fields, Apex classes, Visualforce
+              pages, custom permissions, apps, connected apps, tabs, record types and page layouts — each row saying
+              where it comes from (<i>Profile: Sales (Read) · Finance (Read, Edit)</i>). Its <b>Shared records</b> tab
+              counts, per object they can read, the org-wide default, the records they own and the records shared with
+              them — directly, through their groups and queues, or through their role — and why (sharing rule, manual,
+              team…). <b>Where it comes from</b> lists the profile, permission sets and permission set groups behind it
+              all. Beside it: their <b>Permission sets &amp; groups</b>, <b>System permissions</b> (every permission
+              they have, and the profile, permission set or group that gives it), <b>Groups &amp; queues</b> (public
+              groups, queues, personal groups), <b>Licenses</b>, <b>OAuth apps</b> and <b>Login history</b>.
             </p>
             <p>
               Change them right there: <b>Remove</b> a permission set, group, membership or license, or <b>Add</b> one
@@ -1254,10 +1276,11 @@
             </p>
             <p>
               <b>Everything (workbook)</b> next to a user saves every tab — details, permission sets and groups, system
-              permissions, groups and queues, licenses, OAuth apps and login history — a sheet each (⤓ takes only the
-              tab on screen). It also carries the user by names (profile, role, manager) and their permission sets'
-              files: open it in another org with <a href="#record">Data › Record › Open a saved copy</a>, untick what
-              the user should not get, and <b>Copy</b> — a user already there is completed, a missing one is created.
+              permissions, groups and queues, licenses, OAuth apps, login history and their combined access (objects,
+              fields, classes, pages, tabs, record types, layouts…) — a sheet each (⤓ takes only the tab on screen). It
+              also carries the user by names (profile, role, manager) and their permission sets' files: open it in
+              another org with <a href="#record">Data › Record › Open a saved copy</a>, untick what the user should not
+              get, and <b>Copy</b> — a user already there is completed, a missing one is created.
             </p>
             <p>
               <b>Users of a role, license or group</b> (third tab): the users of a role, permission set license, public
@@ -1514,6 +1537,46 @@
               </li>
             </ul>
           </section>
+          <section class="tool" data-title="Sharing">
+            <h3 id="sharing">Sharing</h3>
+            <p class="tool-lead">Who gets which records: every object at once, or one object as a tree.</p>
+            <p class="tool-meta"><span class="badge read">Reads only</span></p>
+            <div class="shot">
+              <video
+                src="media/sharing.mp4"
+                poster="media/sharing.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <p>
+              <b>All objects</b>: every object with its org-wide defaults (inside and outside the company) and how many
+              sharing rules it has — filter it (Private only, rules &gt; 0…), export it, click one for its tree.
+              <b>One object</b>:
+            </p>
+            <ul class="parts">
+              <li><b>Defaults</b>: the org-wide default inside the company and outside (portals, Experience Cloud).</li>
+              <li><b>Roles</b>: users above a record's owner see it too.</li>
+              <li>
+                <b>Each sharing rule</b>: which records (owned by a role or group, or matching criteria such as
+                <i>Status equals Overdue</i>), with whom, and how (Read only, Read/Write).
+              </li>
+              <li><b>▸</b> on a group or role opens it to the people inside, one level per click.</li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Manual shares, teams and territories are per record: see <a href="#whocansee">Who can see</a>.</li>
+                <li>
+                  To compare with another org, and copy defaults or rules across, use
+                  <a href="#orgsharing">Compare &amp; Deploy › Compare sharing</a>.
+                </li>
+              </ul>
+            </div>
+          </section>
           <section class="tool" data-title="Compare">
             <h3 id="compare">Compare</h3>
             <p class="tool-lead">Two users, profiles, permission sets or groups side by side.</p>
@@ -1532,12 +1595,13 @@
             <ul>
               <li>
                 <b>Two users</b> side by side, in tabs — <i>Details</i> (every field of the user, in boxes: main,
-                settings &amp; feature licences, other fields; a lookup by its name); <i>Licenses</i> (permission set
-                licenses and managed package licenses); <i>Profile</i>, <i>Permission sets</i> and
-                <i>Permission set groups</i> with everything each allows (object, field and system permissions, Apex
-                classes, Visualforce pages, apps, custom permissions, connected apps, tab settings, record types, page
-                layouts); <i>Groups &amp; queues</i> and <i>Role</i> with the records shared with them;
-                <i>OAuth apps</i>; <i>Login history</i>.
+                settings &amp; feature licences, other fields; a lookup by its name);
+                <i>Access (combined)</i> (everything each can do from all their access, section by section, only the
+                differences at first); <i>Licenses</i> (permission set licenses and managed package licenses);
+                <i>Profile</i>, <i>Permission sets</i> and <i>Permission set groups</i> with everything each allows
+                (object, field and system permissions, Apex classes, Visualforce pages, apps, custom permissions,
+                connected apps, tab settings, record types, page layouts); <i>Groups &amp; queues</i> and
+                <i>Role</i> with the records shared with them; <i>OAuth apps</i>; <i>Login history</i>.
               </li>
               <li>
                 Two <b>profiles</b>, two <b>permission sets</b> or two <b>permission set groups</b> (each on its own
@@ -1725,37 +1789,6 @@
               Read from the org only: a login that never shows up never reached Salesforce (check the caller’s URL and
               network).
             </p>
-          </section>
-          <section class="tool" data-title="Sharing">
-            <h3 id="sharing">Sharing</h3>
-            <p class="tool-lead">How an object's records are shared, as a tree.</p>
-            <p class="tool-meta"><span class="badge read">Reads only</span></p>
-            <div class="shot">
-              <video
-                src="media/sharing.mp4"
-                poster="media/sharing.jpg"
-                muted
-                loop
-                playsinline
-                preload="none"
-                controls
-              ></video>
-            </div>
-            <ul class="parts">
-              <li><b>Defaults</b>: the org-wide default inside the company and outside (portals, Experience Cloud).</li>
-              <li><b>Roles</b>: users above a record's owner see it too.</li>
-              <li>
-                <b>Each sharing rule</b>: which records (owned by a role or group, or matching criteria such as
-                <i>Status equals Overdue</i>), with whom, and how (Read only, Read/Write).
-              </li>
-              <li><b>▸</b> on a group or role opens it to the people inside, one level per click.</li>
-            </ul>
-            <div class="good-to-know">
-              <h4>Good to know</h4>
-              <ul>
-                <li>Manual shares, teams and territories are per record: see <a href="#whocansee">Who can see</a>.</li>
-              </ul>
-            </div>
           </section>
           <section class="tool" data-title="Org health">
             <h3 id="health">Org health</h3>
@@ -2199,6 +2232,46 @@
               after you type B’s name. Consumer keys and org-specific links are never a difference and never copied;
               secrets are not in these files.
             </p>
+          </section>
+          <section class="tool" data-title="Compare sharing">
+            <h3 id="orgsharing">Compare sharing</h3>
+            <p class="tool-lead">Org-wide defaults and sharing rules of every object in two orgs, rule by rule.</p>
+            <p class="tool-meta"><span class="badge ask">Can change the org — asks for its name first</span></p>
+            <div class="shot">
+              <video
+                src="media/orgsharing.mp4"
+                poster="media/orgsharing.jpg"
+                muted
+                loop
+                playsinline
+                preload="none"
+                controls
+              ></video>
+            </div>
+            <ul class="parts">
+              <li>
+                Every object in A and B: <i>Different</i>, <i>Only in A</i>, <i>Only in B</i> or <i>Same</i> — its
+                defaults inside and outside the company and its number of rules in each org.
+              </li>
+              <li>
+                Click one: its defaults side by side, and every sharing rule (by API name) — which records, with whom
+                and how — only in A, only in B or different.
+              </li>
+              <li>
+                <b>Deploy A’s defaults to B</b> or <b>Deploy A’s rules to B</b> for one object, or tick several and
+                <b>Deploy ticked to B</b>; you type B’s name first.
+              </li>
+            </ul>
+            <div class="good-to-know">
+              <h4>Good to know</h4>
+              <ul>
+                <li>Rules that are only in B stay: deploying A’s rules adds and updates, it does not delete.</li>
+                <li>
+                  A changed default makes Salesforce recalculate sharing in B, which can take a while in a big org.
+                </li>
+                <li>Roles and groups a rule names must exist in B; if not, the deploy says which.</li>
+              </ul>
+            </div>
           </section>
           <section class="tool" data-title="Copy records">
             <h3 id="migrate">Migrate</h3>

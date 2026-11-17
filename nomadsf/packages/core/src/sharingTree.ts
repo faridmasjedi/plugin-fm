@@ -31,7 +31,7 @@ export type SharingRule = {
 
 export type ObjectSharing = { object: string; internal: string; external: string; rules: SharingRule[]; note?: string };
 
-const MODEL: Record<string, string> = {
+export const SHARING_MODEL: Record<string, string> = {
   Private: 'Private',
   Read: 'Public Read Only',
   ReadWrite: 'Public Read/Write',
@@ -103,8 +103,8 @@ export async function objectSharing(client: SalesforceClient, object: string): P
     )
   ).rows[0];
   if (!entity) throw new Error(`No object ${object}.`);
-  const internal = MODEL[String(entity.InternalSharingModel)] ?? String(entity.InternalSharingModel ?? '');
-  const external = MODEL[String(entity.ExternalSharingModel)] ?? String(entity.ExternalSharingModel ?? '');
+  const internal = SHARING_MODEL[String(entity.InternalSharingModel)] ?? String(entity.InternalSharingModel ?? '');
+  const external = SHARING_MODEL[String(entity.ExternalSharingModel)] ?? String(entity.ExternalSharingModel ?? '');
 
   const retrieved = await retrieveZip(client, [{ type: 'SharingRules', fullName: object }]);
   const files = retrieved.zipFile ? await readZip(fromBase64(retrieved.zipFile)) : new Map<string, Uint8Array>();

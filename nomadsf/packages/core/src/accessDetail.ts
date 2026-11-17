@@ -29,7 +29,7 @@ async function section(title: string, read: () => Promise<AccessRow[]>): Promise
 }
 
 /** Names of Ids of one object (Id → label). */
-async function namesOf(
+export async function namesOf(
   client: SalesforceClient,
   object: string,
   field: string,

@@ -15,14 +15,16 @@ import {
   type UserSharing,
 } from '@nomadsf/core';
 import { storage } from '../context';
+import { CombinedAccessCompare } from './CombinedAccessCompare';
 import { TableTabs } from './TableTabs';
 import { DataTable, EmptyHint } from './DataTable';
 import { DiffTable } from './DiffTable';
 import { Status } from '../statusLog';
 
-type Tab = 'details' | 'profile' | 'sets' | 'groups' | 'licenses' | 'queues' | 'role' | 'oauth' | 'logins';
+type Tab = 'details' | 'access' | 'profile' | 'sets' | 'groups' | 'licenses' | 'queues' | 'role' | 'oauth' | 'logins';
 const TABS: Array<[Tab, string]> = [
   ['details', 'Details'],
+  ['access', 'Access (combined)'],
   ['profile', 'Profile'],
   ['sets', 'Permission sets'],
   ['groups', 'Permission set groups'],
@@ -145,6 +147,9 @@ export function UserComparison({ userA, userB, ...sides }: Sides & { userA: stri
       </div>
 
       {tab === 'details' && <DetailsTab result={result} note={note} />}
+      {tab === 'access' && (
+        <CombinedAccessCompare client={client} clientB={clientB} userA={userA} userB={userB} note={note} />
+      )}
       {tab === 'profile' &&
         (profile ? (
           <>
