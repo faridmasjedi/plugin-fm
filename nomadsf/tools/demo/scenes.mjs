@@ -235,6 +235,44 @@ export const scenes = [
     },
   },
   {
+    name: 'tables',
+    intro: 'Every table: filter, choose the columns, sort and export',
+    hash: 'query',
+    run: async (h) => {
+      await h.code('SELECT Name, Industry, Phone, Website, Customer_Tier__c, AnnualRevenue FROM Account ORDER BY Name');
+      await h.page.keyboard.press('Escape');
+      await h.click('Run');
+      await h.until('rows');
+      await h.settle();
+      await h.pause(800);
+      const cond = (i) => h.page.locator('.dt-condition').nth(i);
+      await h.say('Filters: a column, then what to look for — Is not empty hides blank values');
+      await h.press(h.page.locator('.dt-filters-toggle', { hasText: 'Filters' }).first());
+      await h.choose(cond(0).locator('select').first(), /^Website$/);
+      await h.choose(cond(0).locator('select.dt-condition-op'), 'Is not empty');
+      await h.pause(1400);
+      await h.say('More filters: Gold customers, technology companies');
+      await h.click('+ Add a filter');
+      await h.choose(cond(1).locator('select').first(), /^Customer_Tier__c$/);
+      await h.type(cond(1).locator('input').first(), '=Gold');
+      await h.click('+ Add a filter');
+      await h.choose(cond(2).locator('select').first(), /^Industry$/);
+      await h.type(cond(2).locator('input').first(), 'Technology');
+      await h.pause(800);
+      await h.say('Filter logic, as in a list view: 1 AND (2 OR 3)');
+      await h.type(h.page.locator('.dt-logic input'), '1 AND (2 OR 3)');
+      await h.pause(1800);
+      await h.say('Columns: show only what you need — remembered for this kind of table');
+      await h.press(h.page.locator('.dt-filters-toggle', { hasText: 'Columns' }).first());
+      await h.press(h.page.locator('.dt-column-pick', { hasText: 'Phone' }).locator('input'));
+      await h.press(h.page.locator('.dt-column-pick', { hasText: 'AnnualRevenue' }).locator('input'));
+      await h.pause(1400);
+      await h.say('Click a heading to sort; Copy, CSV and JSON take what you see');
+      await h.press(h.page.locator('.dt thead th', { hasText: 'Industry' }).first());
+      await h.pause(2000);
+    },
+  },
+  {
     name: 'query',
     intro: 'Data › Query: SOQL with a table you can filter, sort and export',
     hash: 'query',

@@ -3,7 +3,7 @@
 // After publishing a release, rename "next" to that version (e.g. "2.2.0").
 window.NOMADSF_WHATS_NEW = {
   next: [
-    'Guide: new videos for Users (its Access tab), Sharing, Compare two users and Compare sharing, and the Access, Security and Compare & Deploy walk-throughs again',
+    'Guide: a video for tables (Filters, Is not empty, Filter logic, Columns); new videos for Users (its Access tab), Sharing, Compare two users and Compare sharing; every video of the Access, Security and Compare & Deploy hubs made again',
     'Access › Users › a user › Access: everything they can do, combined from their profile, permission sets and permission set groups — objects, fields, Apex classes, Visualforce pages, custom permissions, apps, connected apps, tabs, record types and page layouts — each row saying where it comes from; Shared records counts, per object, what they own and what is shared with them (directly, through groups and queues, through their role) and why. In the Everything workbook too, and Compare two users has Access (combined)',
     'Every table: Columns chooses the columns shown (all at first, remembered for that kind of table; Copy, CSV and JSON follow)',
     'Every table’s Filters: Is empty / Is not empty, and Filter logic to combine numbered filters as in Salesforce list views — 1 OR 2 OR (3 AND 4), NOT 3',

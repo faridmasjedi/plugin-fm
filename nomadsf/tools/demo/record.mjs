@@ -415,6 +415,34 @@ function helpers(page, clock) {
   return h;
 }
 
+/** True when the last rows of the video are Chrome's flat gray (128) at several moments. */
+function grayStrip(video) {
+  const length = Number(
+    execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', video], {
+      encoding: 'utf8',
+    })
+  );
+  const at = (t) =>
+    execFileSync('ffmpeg', [
+      '-v',
+      'error',
+      '-ss',
+      t.toFixed(2),
+      '-i',
+      video,
+      '-vf',
+      `crop=${SIZE.width}:4:0:${SIZE.height - 4},scale=1:1`,
+      '-frames:v',
+      '1',
+      '-f',
+      'rawvideo',
+      '-pix_fmt',
+      'gray',
+      '-',
+    ])[0];
+  return [0.3, 0.6, 0.9].every((p) => Math.abs(at(length * p) - 128) <= 3);
+}
+
 async function record(scene, browser) {
   mkdirSync(work, { recursive: true });
   const context = await browser.newContext({
@@ -468,6 +496,9 @@ async function record(scene, browser) {
   }
   const video = await page.video().path();
   await context.close();
+  // Chrome now and then sends frames shorter than the page: the video gets a flat gray strip at the bottom.
+  // Such a recording is not kept (the scene is recorded again)
+  if (!error && grayStrip(video)) error = new Error('gray strip at the bottom of the video');
   // A scene that went wrong keeps the video it had: a stuck recording never replaces a good one
   if (error) {
     rmSync(video, { force: true });
@@ -544,7 +575,9 @@ const only = process.argv.slice(2);
 const browser = await chromium.launch({ channel: 'chrome' });
 const results = [];
 for (const scene of scenes.filter((s) => !only.length || only.includes(s.name))) {
-  const r = await record(scene, browser);
+  let r = await record(scene, browser);
+  // The gray strip comes and goes: once more
+  if (r.error?.startsWith('gray strip')) r = await record(scene, browser);
   results.push(r);
   console.log(`${r.error ? '✗' : '✓'} ${r.name} ${r.seconds}s${r.error ? ` — ${r.error}` : ''}`);
 }

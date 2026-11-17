@@ -103,7 +103,7 @@ cd nomadsf && yarn install && yarn build
 ```
 
 - Chrome / Edge → `chrome://extensions` → Developer mode → **Load unpacked** → `nomadsf/apps/extension/dist`.
-- Open any Salesforce page (Lightning, Setup, Classic) and click the NomadSF icon, or the small **N** tab on the right edge of the page (Alt+Shift+N).
+- Open any Salesforce page (Lightning, Setup, Classic) and click the NomadSF icon in the toolbar, or the small NomadSF tab (its logo) on the right edge of the page (Alt+Shift+N).
 - `nomadsf/apps/extension/nomadsf-extension.zip` (the version is in its manifest — the same as the release) is the package for the Chrome Web Store / Edge Add-ons. Every GitHub release has it attached.
 
 The extension asks for `cookies`, access to `127.0.0.1` / `localhost` (the local NomadSF app) and to Salesforce domains only (`*.salesforce.com`, `*.force.com`, `*.salesforce-setup.com`, `*.cloudforce.com`, `*.site.com`). It reads the `sid` cookie of the org you are on and calls the Salesforce API with it, like Salesforce Inspector does. Nothing is sent anywhere else.
