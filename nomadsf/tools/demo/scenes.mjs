@@ -99,6 +99,10 @@ const hubTour = (id, hub, hash, intro, tabs, { folder = false, other, init } = {
       await h.say('');
       await h.tab(hub, tab);
       await h.settle(20000);
+      // Pages that read first (Your access) show their answer, not "Reading…"
+      await h.page
+        .waitForFunction(() => !/Reading your permissions/.test(document.body.innerText), null, { timeout: 20000 })
+        .catch(() => {});
       // Real content on every tab: the other org chosen once (B, read only here), the project folder opened once
       if (other) {
         const pick = h.page
@@ -560,7 +564,10 @@ export const scenes = [
       await h.click(/^Execute ⌘/);
       await h.confirm('acme-uat');
       await h.settle();
-      await h.pause(1600);
+      // Down to the result: the log opens on its debug lines
+      await h.say('The result: the debug line, and the whole log in tabs');
+      await h.look(h.page.locator('text=/Gold customers: \\d+/').locator('visible=true').first());
+      await h.pause(2600);
     },
   },
   {
@@ -1358,19 +1365,24 @@ export const scenes = [
       await h.pause(1600);
       await h.press(h.page.locator('.quick-jump li button').first());
       await h.settle();
+      await h.say('Develop › Jobs, on Apex jobs: tick one and stop it');
       await h.pause(1800);
+      await h.say('Compare two profiles?');
       await h.press(h.page.locator('.header-search'));
       await h.type(h.page.locator('.quick-jump input'), 'compare two profiles');
       await h.pause(1600);
       await h.press(h.page.locator('.quick-jump li button').first());
       await h.settle();
+      await h.say('Access › Compare, on Profiles');
       await h.pause(1800);
+      await h.say('Or a question in your own words — Enter opens the first place');
       await h.press(h.page.locator('.header-search'));
       await h.type(h.page.locator('.quick-jump input'), 'why cant ann edit cases');
       await h.pause(2000);
       await h.page.keyboard.press('Enter');
       await h.settle();
-      await h.pause(1800);
+      await h.say('Access › Object access: who can read or edit cases, and through what');
+      await h.pause(2200);
     },
   },
   {
