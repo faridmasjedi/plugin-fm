@@ -1,6 +1,9 @@
 import { Select } from '../components/Select';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+  orgSharing,
+  sharingModelLabel,
+  type OrgObjectSharing,
   SECURITY_TILES,
   describeGlobal,
   findUsers,
@@ -610,6 +613,30 @@ export function SharingPage() {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<'tree' | 'table'>(() => storage.get<'tree' | 'table'>('sharing.view', 'tree'));
+  // All objects (defaults and rule counts) or one object's tree
+  const [mode, setMode] = useState<'all' | 'one'>(() =>
+    storage.get<string>('sharing.mode', 'all') === 'one' ? 'one' : 'all'
+  );
+  const [all, setAll] = useState<OrgObjectSharing[] | null>(null);
+  const [allStatus, setAllStatus] = useState('');
+  const chooseMode = (m: 'all' | 'one') => {
+    setMode(m);
+    storage.set('sharing.mode', m);
+  };
+  useEffect(() => {
+    setAll(null);
+    setAllStatus('');
+  }, [client]);
+  useEffect(() => {
+    if (mode !== 'all' || all || allStatus) return;
+    setAllStatus('Reading every object’s defaults and sharing rules…');
+    orgSharing(client)
+      .then((list) => {
+        setAll(list);
+        setAllStatus('');
+      })
+      .catch((e: Error) => setAllStatus(`❌ ${e.message}`));
+  }, [mode, all, allStatus, client]);
   const pick = (v: 'tree' | 'table') => {
     setView(v);
     storage.set('sharing.view', v);
@@ -619,8 +646,10 @@ export function SharingPage() {
       .then((list) => setObjects(list.sort((a, b) => a.name.localeCompare(b.name))))
       .catch(() => undefined);
   }, [client]);
-  const show = async () => {
-    const name = objects.find((o) => o.name.toLowerCase() === typed.trim().toLowerCase())?.name ?? typed.trim();
+  const show = async (object?: string) => {
+    const want = object ?? typed;
+    const name = objects.find((o) => o.name.toLowerCase() === want.trim().toLowerCase())?.name ?? want.trim();
+    if (object) setTyped(object);
     setBusy(true);
     setResult(null);
     setStatus(`Reading how ${name} is shared…`);
@@ -649,102 +678,144 @@ export function SharingPage() {
     <div className="page">
       <div className="toolbar">
         <h2>Sharing</h2>
-        <span className="muted">How an object's records are shared in {org.label}, as a tree or a table</span>
+        <span className="muted">How records are shared in {org.label}: every object, or one as a tree or a table</span>
       </div>
-      <div className="form">
-        <ComboInput
-          options={objectChoices(objects)}
-          placeholder="Object, e.g. Case"
-          value={typed}
-          onChange={(e) => setTyped(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && void show()}
-        />
-        <button className="primary" disabled={busy || !typed.trim()} onClick={() => void show()}>
-          Show
-        </button>
-      </div>
-      {status && <Status text={status} block />}
-      {result && (
-        <div className="tabs">
+      <div className="form view-switch">
+        <div className="segmented" role="group" aria-label="Show">
           {(
             [
-              ['tree', 'Tree'],
-              ['table', 'Table'],
-            ] as Array<['tree' | 'table', string]>
+              ['all', 'All objects'],
+              ['one', 'One object'],
+            ] as Array<['all' | 'one', string]>
           ).map(([id, label]) => (
-            <button key={id} className={`tab ${view === id ? 'active' : ''}`} onClick={() => pick(id)}>
+            <button key={id} className={mode === id ? 'active' : ''} onClick={() => chooseMode(id)}>
               {label}
             </button>
           ))}
         </div>
-      )}
-      {result && view === 'table' && (
+      </div>
+      {mode === 'all' && (
         <div className="section">
-          <p>
-            <b>{result.object}</b> defaults: inside the company <b>{result.internal}</b> · outside (portals, Experience
-            Cloud) <b>{result.external}</b>
-          </p>
-          {result.rules.length === 0 ? (
-            <p className="muted small">{result.note ?? 'No sharing rules.'}</p>
-          ) : (
+          {allStatus && <Status text={allStatus} block />}
+          {all && (
             <DataTable
-              columns={['Rule', 'Kind', 'Which records', 'Shared with', 'Access']}
-              rows={result.rules.map((r) => ({
-                Rule: r.label,
-                Kind: r.kind,
-                'Which records': r.from ? `owned by ${targetText(r.from)}` : r.which,
-                'Shared with': targetText(r.to),
-                Access: r.access,
+              columns={['Object', 'Default', 'External default', 'Rules', 'Label']}
+              rows={all.map((o) => ({
+                Object: o.object,
+                Label: o.label,
+                Default: sharingModelLabel(o.internal),
+                'External default': sharingModelLabel(o.external),
+                Rules: o.rules,
               }))}
-              rowKey="Rule"
-              name={`sharing-${result.object}`}
-              note={<span>· open the Tree to see the people inside a group or role</span>}
+              rowKey="Object"
+              name={`${org.label}-sharing`}
+              onRowClick={(r) => {
+                chooseMode('one');
+                void show(String(r.Object));
+              }}
+              note={<span>· click one for its rules</span>}
             />
           )}
         </div>
       )}
-      {result && view === 'tree' && (
-        <div className="card section sharing-tree">
-          <div className="auto-node-row">
-            <span className="pill">Default</span>
-            <b>{result.object}</b>
-            <span>
-              inside the company: <b>{result.internal}</b> · outside (portals, Experience Cloud):{' '}
-              <b>{result.external}</b>
-            </span>
+      {mode === 'one' && (
+        <>
+          <div className="form">
+            <ComboInput
+              options={objectChoices(objects)}
+              placeholder="Object, e.g. Case"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void show()}
+            />
+            <button className="primary" disabled={busy || !typed.trim()} onClick={() => void show()}>
+              Show
+            </button>
           </div>
-          <div className="auto-node-children">
-            <div className="auto-node-row">
-              <span className="pill">Roles</span>
-              <span className="muted">users above a record's owner in the role hierarchy see it too</span>
+          {status && <Status text={status} block />}
+          {result && (
+            <div className="tabs">
+              {(
+                [
+                  ['tree', 'Tree'],
+                  ['table', 'Table'],
+                ] as Array<['tree' | 'table', string]>
+              ).map(([id, label]) => (
+                <button key={id} className={`tab ${view === id ? 'active' : ''}`} onClick={() => pick(id)}>
+                  {label}
+                </button>
+              ))}
             </div>
-            {result.rules.length === 0 && <p className="muted small">{result.note ?? 'No sharing rules.'}</p>}
-            {result.rules.map((r) => (
-              <div key={r.name} className="auto-node sharing-rule">
-                <div className="auto-node-row">
-                  <span className="pill">{r.kind} rule</span>
-                  <b>{r.label}</b>
-                  <span className="muted small">{r.which}</span>
-                  <span className="pill good">{r.access}</span>
-                </div>
-                <div className="auto-node-children">
-                  {r.from && (
-                    <>
-                      <span className="muted small">records owned by</span>
-                      {who(r.from, `${r.name}-from`)}
-                    </>
-                  )}
-                  <span className="muted small">shared with</span>
-                  {who(r.to, `${r.name}-to`)}
-                </div>
+          )}
+          {result && view === 'table' && (
+            <div className="section">
+              <p>
+                <b>{result.object}</b> defaults: inside the company <b>{result.internal}</b> · outside (portals,
+                Experience Cloud) <b>{result.external}</b>
+              </p>
+              {result.rules.length === 0 ? (
+                <p className="muted small">{result.note ?? 'No sharing rules.'}</p>
+              ) : (
+                <DataTable
+                  columns={['Rule', 'Kind', 'Which records', 'Shared with', 'Access']}
+                  rows={result.rules.map((r) => ({
+                    Rule: r.label,
+                    Kind: r.kind,
+                    'Which records': r.from ? `owned by ${targetText(r.from)}` : r.which,
+                    'Shared with': targetText(r.to),
+                    Access: r.access,
+                  }))}
+                  rowKey="Rule"
+                  name={`sharing-${result.object}`}
+                  note={<span>· open the Tree to see the people inside a group or role</span>}
+                />
+              )}
+            </div>
+          )}
+          {result && view === 'tree' && (
+            <div className="card section sharing-tree">
+              <div className="auto-node-row">
+                <span className="pill">Default</span>
+                <b>{result.object}</b>
+                <span>
+                  inside the company: <b>{result.internal}</b> · outside (portals, Experience Cloud):{' '}
+                  <b>{result.external}</b>
+                </span>
               </div>
-            ))}
-          </div>
-          <p className="muted small">
-            ▸ opens a group or role to the people inside. Manual shares, teams and territories are per record: see{' '}
-            <b>Who can see</b>.
-          </p>
-        </div>
+              <div className="auto-node-children">
+                <div className="auto-node-row">
+                  <span className="pill">Roles</span>
+                  <span className="muted">users above a record's owner in the role hierarchy see it too</span>
+                </div>
+                {result.rules.length === 0 && <p className="muted small">{result.note ?? 'No sharing rules.'}</p>}
+                {result.rules.map((r) => (
+                  <div key={r.name} className="auto-node sharing-rule">
+                    <div className="auto-node-row">
+                      <span className="pill">{r.kind} rule</span>
+                      <b>{r.label}</b>
+                      <span className="muted small">{r.which}</span>
+                      <span className="pill good">{r.access}</span>
+                    </div>
+                    <div className="auto-node-children">
+                      {r.from && (
+                        <>
+                          <span className="muted small">records owned by</span>
+                          {who(r.from, `${r.name}-from`)}
+                        </>
+                      )}
+                      <span className="muted small">shared with</span>
+                      {who(r.to, `${r.name}-to`)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="muted small">
+                ▸ opens a group or role to the people inside. Manual shares, teams and territories are per record: see{' '}
+                <b>Who can see</b>.
+              </p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

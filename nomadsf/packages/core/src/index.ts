@@ -73,6 +73,8 @@ export * from './soqlHelp.js';
 export * from './eventLogs.js';
 export * from './security.js';
 export * from './sharingTree.js';
+export * from './userFullAccess.js';
+export * from './sharingCompare.js';
 export * from './flowHousekeeping.js';
 export * from './sandboxRefresh.js';
 export * from './schemaDeps.js';

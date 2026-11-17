@@ -66,6 +66,7 @@ export type ToolId =
   | 'sharing'
   | 'myaccess'
   | 'orgapps'
+  | 'orgsharing'
   | 'settings'
   | 'settingsai'
   | 'settingsproject'
@@ -172,6 +173,7 @@ export const TOOLS: Tool[] = [
   { id: 'activity', label: 'Activity', icon: '⏱', hint: 'what you changed or exported with NomadSF, in every org' },
   { id: 'orgaccess', label: 'Compare access', icon: '⚿', hint: 'users and permissions in two orgs' },
   { id: 'orgapps', label: 'Compare apps', icon: '⚷', hint: 'connected apps in two orgs' },
+  { id: 'orgsharing', label: 'Compare sharing', icon: '⑂', hint: 'org-wide defaults and sharing rules in two orgs' },
   { id: 'settings', label: 'Orgs', icon: '◈', hint: 'the orgs you are logged in to' },
   { id: 'settingsai', label: 'AI', icon: '✦', hint: 'the AI the ✦ buttons use' },
   {
@@ -259,6 +261,7 @@ export const HUBS: Hub[] = [
       'orgdiff',
       'orgaccess',
       'orgapps',
+      'orgsharing',
       'migrate',
       'project',
       'branchorg',

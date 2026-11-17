@@ -371,6 +371,29 @@ export const PLACES: StudioPlace[] = [
     'remote site named credential custom setting scheduled apex sharing refresh'
   ),
   P('orgapps', 'compare connected apps of two orgs', 'connected app settings two orgs oauth policies'),
+  P(
+    'orgsharing',
+    'compare sharing settings of two orgs',
+    'org wide defaults owd sharing rules difference deploy two orgs'
+  ),
+  P('sharing', 'sharing settings of every object', 'all objects org wide defaults owd sharing rules count list'),
+  P(
+    'access',
+    'everything a user can access',
+    'user object field access apex class page layout record type tab combined profile permission set group via',
+    'Access',
+    { 'user.tab': 'access', 'user.access.tab': 'objects' }
+  ),
+  P(
+    'access',
+    'records shared with a user',
+    'owned shared sharing rule manual team role group count user',
+    'Access › Shared records',
+    {
+      'user.tab': 'access',
+      'user.access.tab': 'sharing',
+    }
+  ),
   P('csvcompare', 'make the org match a spreadsheet', 'csv excel compare differences update org match file'),
   P('compare', 'compare two permission sets', 'permission set difference profile difference two'),
   P('permissions', 'create a custom permission', 'new custom permission grant', 'Custom permissions', {

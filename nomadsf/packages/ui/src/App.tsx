@@ -57,6 +57,7 @@ import { ProjectStateContext, useProjectState } from './project';
 import { PairContext, type OrgPair } from './pair';
 import { OrgAccessPage } from './pages/OrgAccessPage';
 import { OrgAppsPage } from './pages/OrgAppsPage';
+import { SharingComparePage } from './pages/SharingComparePage';
 import { HubNav, OPEN_JUMP, Panes, QuickJump, canonicalTool, isTool, useWorkspace, type ToolId } from './workspace';
 
 const host = detectHost();
@@ -372,6 +373,7 @@ export function App() {
               {tool === 'apextests' && <ApexTestsPage />}
               {tool === 'orgaccess' && <OrgAccessPage />}
               {tool === 'orgapps' && <OrgAppsPage />}
+              {tool === 'orgsharing' && <SharingComparePage />}
               {tool === 'licenses' && <LicensesPage />}
               {tool === 'flows' && <FlowsPage />}
               {tool === 'files' && <FilesPage />}

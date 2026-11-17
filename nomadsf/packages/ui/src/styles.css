@@ -383,6 +383,40 @@ table.limits {
   border-color: var(--accent);
   color: var(--accent);
 }
+/* Columns: a tick per column (all shown at first), remembered per table */
+.dt-columns-all {
+  display: inline-flex;
+  gap: 10px;
+}
+.dt-columns-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 44vh;
+  overflow: auto;
+  margin: 0 -4px;
+}
+.dt-panel label.dt-column-pick {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px;
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+}
+.dt-panel label.dt-column-pick:hover {
+  background: var(--panel-2);
+}
+.dt-panel label.dt-column-pick input {
+  width: auto;
+  flex: none;
+  margin: 0;
+}
+.dt-panel label.dt-column-pick > span {
+  font-weight: 400;
+  min-width: 0;
+}
 /* A filter: the column, then what to look for (with that column's values to choose) */
 .dt-condition {
   display: flex;
@@ -5504,4 +5538,86 @@ nav.side .nav-width:hover {
 }
 .field-row .api-hint {
   max-width: 100%;
+}
+
+/* Users › a user › Access: where it comes from (the profile, permission sets, groups), then a tab per kind */
+.access-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 14px;
+}
+.access-sources .pill {
+  font-weight: 500;
+}
+.access-sources .pill.source-profile {
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+  color: var(--accent);
+}
+.access-sources .pill.source-group {
+  background: color-mix(in srgb, #8b5cf6 16%, var(--panel));
+  color: color-mix(in srgb, #8b5cf6 80%, var(--text));
+}
+.user-full-access .table-tabs-bar .tabs {
+  row-gap: 2px;
+}
+.shared-records > p.muted {
+  margin: 4px 0 12px;
+  max-width: 980px;
+}
+/* Compare sharing: the bar above the table, the defaults of A and B, the deploy buttons */
+.sharing-compare-bar {
+  margin-bottom: 10px;
+}
+.sharing-compare-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sharing-compare-detail .item-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sharing-defaults {
+  width: auto;
+  min-width: min(640px, 100%);
+}
+.sharing-defaults th {
+  text-align: left;
+  font-weight: 600;
+  padding: 6px 12px;
+  color: var(--muted);
+}
+.sharing-defaults td {
+  padding: 6px 12px;
+}
+
+.sharing-compare-detail .dt td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.sharing-compare .pill.warn,
+.sharing-compare-detail .pill.warn,
+.sharing-compare-table .pill.warn {
+  background: color-mix(in srgb, #f59e0b 20%, var(--panel));
+  color: color-mix(in srgb, #b45309 75%, var(--text));
+}
+
+/* A table in a narrow pane: its Filters or Columns panel goes under the bar, full width */
+.dt.narrow {
+  --dt-narrow: 1;
+}
+@media all {
+  .dt.narrow .dt-main.with-panel {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .dt.narrow .dt-main.with-panel .dt-panel {
+    flex-basis: auto;
+    width: 100%;
+    box-sizing: border-box;
+    max-height: 40vh;
+  }
 }

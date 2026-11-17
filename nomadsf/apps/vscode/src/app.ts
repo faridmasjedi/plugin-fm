@@ -69,6 +69,7 @@ export const STUDIO_PAGES = [
   ['orgdiff', 'Compare metadata (two orgs)', 'Compare & Deploy'],
   ['orgaccess', 'Compare access (two orgs)', 'Compare & Deploy'],
   ['orgapps', 'Compare apps (two orgs)', 'Compare & Deploy'],
+  ['orgsharing', 'Compare sharing (two orgs)', 'Compare & Deploy'],
   ['migrate', 'Copy records (two orgs)', 'Compare & Deploy'],
   ['project', 'Project (org ↔ project)', 'Compare & Deploy'],
   ['branchorg', 'Branch ↔ Org', 'Compare & Deploy'],
