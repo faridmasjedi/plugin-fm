@@ -5618,6 +5618,37 @@ nav.side .nav-width:hover {
     flex-basis: auto;
     width: 100%;
     box-sizing: border-box;
-    max-height: 40vh;
+    max-height: 55vh;
   }
+}
+
+/* Filters: a number per filter (for the logic), what to look for, and how they combine */
+.dt-condition-n {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  color: var(--accent);
+}
+.dt-panel .dt-condition-row .dt-condition-op,
+.dt-panel .dt-condition-row select.dt-condition-op {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 48%;
+}
+.dt-panel .dt-condition-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.dt-panel .dt-logic small {
+  font-size: 11px;
+  line-height: 1.35;
+}
+.dt-panel .dt-logic input.bad {
+  border-color: var(--bad, #dc2626);
 }

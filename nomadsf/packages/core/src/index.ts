@@ -75,6 +75,7 @@ export * from './security.js';
 export * from './sharingTree.js';
 export * from './userFullAccess.js';
 export * from './sharingCompare.js';
+export * from './filterLogic.js';
 export * from './flowHousekeeping.js';
 export * from './sandboxRefresh.js';
 export * from './schemaDeps.js';

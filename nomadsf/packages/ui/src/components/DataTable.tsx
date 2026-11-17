@@ -1,4 +1,5 @@
 import { useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { parseFilterLogic } from '@nomadsf/core';
 import { Select } from './Select';
 import { InspectContext } from '../context';
 import { useRegisterTable } from '../pageTables';
@@ -59,7 +60,12 @@ export type DataTableProps = {
 const SUGGEST_MAX = 200;
 
 /** A filter: a column ('' = any column) and what to look for (same syntax as before: =exact !not >10 <5). */
-type Condition = { column: string; value: string };
+type Condition = { column: string; value: string; op?: Op };
+/** has: the value typed (contains, =exact, !not, >n, <n) · empty: blank or null · filled: has a value. */
+type Op = 'has' | 'empty' | 'filled';
+const blank = (v: unknown): boolean => text(v).trim() === '';
+const isOn = (c: Condition): boolean => (c.op ?? 'has') !== 'has' || c.value !== '';
+const NEW: Condition = { column: '', value: '', op: 'has' };
 
 /**
  * The columns hidden in a table, remembered in this browser by its set of columns: the same kind of table (another
@@ -96,6 +102,15 @@ export function DataTable({
   const selectable = Boolean(selected && onSelectedChange);
   const keyOf = (r: Row): string => String(r[rowKey] ?? '');
   const [conditions, setConditions] = useState<Condition[]>([]);
+  // How the filters combine: "1 OR (2 AND 3)"; empty = all of them
+  const [logic, setLogic] = useState('');
+  const logicCheck = useMemo(() => {
+    try {
+      return { run: parseFilterLogic(logic, conditions.length), error: '' };
+    } catch (e) {
+      return { run: (r: boolean[]) => r.every(Boolean), error: (e as Error).message };
+    }
+  }, [logic, conditions.length]);
   const [ticked, setTicked] = useState<'all' | 'ticked' | 'unticked'>('all');
   const [panel, setPanel] = useState<'filters' | 'columns' | null>(null);
   // Columns the user chose not to see (all are shown at first); exports follow what is shown
@@ -122,12 +137,14 @@ export function DataTable({
 
   const visible = useMemo(() => {
     let out = rows;
-    for (const { column, value } of conditions) {
-      if (!value) continue;
-      out = column
-        ? out.filter((r) => matches(r[column], value))
-        : out.filter((r) => columns.some((c) => matches(r[c], value)));
-    }
+    // Each filter on a row; one not filled in counts as passed
+    const test = (c: Condition, r: Row): boolean => {
+      const op = c.op ?? 'has';
+      if (op === 'empty') return c.column ? blank(r[c.column]) : columns.some((col) => blank(r[col]));
+      if (op === 'filled') return c.column ? !blank(r[c.column]) : columns.every((col) => !blank(r[col]));
+      return c.column ? matches(r[c.column], c.value) : columns.some((col) => matches(r[col], c.value));
+    };
+    if (conditions.some(isOn)) out = out.filter((r) => logicCheck.run(conditions.map((c) => !isOn(c) || test(c, r))));
     if (selectable && ticked !== 'all') out = out.filter((r) => selected!.has(keyOf(r)) === (ticked === 'ticked'));
     if (sort || groupBy) {
       out = [...out].sort((a, b) => {
@@ -150,7 +167,7 @@ export function DataTable({
     return out;
     // keyOf reads rowKey, selected is read through ticked
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, columns, conditions, ticked, selected, sort, groupBy]);
+  }, [rows, columns, conditions, logicCheck, ticked, selected, sort, groupBy]);
 
   // The values of the columns being filtered, for their dropdowns: only those columns, at most SUGGEST_MAX each
   const suggestions = useMemo(() => {
@@ -167,7 +184,7 @@ export function DataTable({
     }
     return out;
   }, [conditions, rows]);
-  const active = conditions.filter((c) => c.value).length + (ticked !== 'all' ? 1 : 0);
+  const active = conditions.filter(isOn).length + (ticked !== 'all' ? 1 : 0);
   const setCondition = (i: number, next: Partial<Condition>): void =>
     setConditions(conditions.map((c, j) => (j === i ? { ...c, ...next } : c)));
 
@@ -375,7 +392,7 @@ export function DataTable({
             className={`dt-filters-toggle ${panel === 'filters' || active ? 'active' : ''}`}
             title="Filter: choose a column, then type or choose a value"
             onClick={() => {
-              if (panel !== 'filters' && !conditions.length) setConditions([{ column: '', value: '' }]);
+              if (panel !== 'filters' && !conditions.length) setConditions([NEW]);
               setPanel(panel === 'filters' ? null : 'filters');
             }}
           >
@@ -448,9 +465,10 @@ export function DataTable({
               <b>Filters</b>
               <button
                 className="link"
-                disabled={!active && conditions.length <= 1}
+                disabled={!active && conditions.length <= 1 && !logic}
                 onClick={() => {
-                  setConditions([{ column: '', value: '' }]);
+                  setConditions([NEW]);
+                  setLogic('');
                   setTicked('all');
                 }}
               >
@@ -460,6 +478,11 @@ export function DataTable({
             {conditions.map((c, i) => (
               <div key={i} className="dt-condition">
                 <div className="dt-condition-row">
+                  {conditions.length > 1 && (
+                    <span className="dt-condition-n" title={`Filter ${i + 1} (for the logic below)`}>
+                      {i + 1}
+                    </span>
+                  )}
                   <Select value={c.column} onChange={(e) => setCondition(i, { column: e.target.value, value: '' })}>
                     <option value="">Any column</option>
                     {columns.map((col, ci) => (
@@ -471,17 +494,35 @@ export function DataTable({
                   <button
                     className="link"
                     title="Remove this filter"
-                    onClick={() => setConditions(conditions.filter((_, j) => j !== i))}
+                    onClick={() => {
+                      setConditions(conditions.filter((_, j) => j !== i));
+                      // The numbers after it move up: the logic is written again by hand
+                      if (logic) setLogic('');
+                    }}
                   >
                     ✕
                   </button>
                 </div>
-                <input
-                  list={c.column ? `${listId}-${c.column}` : undefined}
-                  placeholder={c.column ? 'Type or choose a value…' : 'Text in any column…'}
-                  value={c.value}
-                  onChange={(e) => setCondition(i, { value: e.target.value })}
-                />
+                <div className="dt-condition-row">
+                  <Select
+                    className="dt-condition-op"
+                    value={c.op ?? 'has'}
+                    onChange={(e) => setCondition(i, { op: e.target.value as Op })}
+                    title={c.column ? undefined : 'With Any column: empty = some column is empty; not empty = none is'}
+                  >
+                    <option value="has">Matches</option>
+                    <option value="filled">Is not empty</option>
+                    <option value="empty">Is empty</option>
+                  </Select>
+                  {(c.op ?? 'has') === 'has' && (
+                    <input
+                      list={c.column ? `${listId}-${c.column}` : undefined}
+                      placeholder={c.column ? 'Type or choose a value…' : 'Text in any column…'}
+                      value={c.value}
+                      onChange={(e) => setCondition(i, { value: e.target.value })}
+                    />
+                  )}
+                </div>
                 {c.column && (
                   <datalist id={`${listId}-${c.column}`}>
                     {(suggestions[c.column] ?? []).map((v) => (
@@ -493,7 +534,24 @@ export function DataTable({
                 )}
               </div>
             ))}
-            <button onClick={() => setConditions([...conditions, { column: '', value: '' }])}>+ Add a filter</button>
+            <button onClick={() => setConditions([...conditions, NEW])}>+ Add a filter</button>
+            {conditions.length > 1 && (
+              <label className="dt-logic">
+                <span>Filter logic</span>
+                <input
+                  className={logicCheck.error ? 'bad' : ''}
+                  placeholder={conditions.map((_, i) => i + 1).join(' AND ')}
+                  value={logic}
+                  spellCheck={false}
+                  onChange={(e) => setLogic(e.target.value)}
+                />
+                {logicCheck.error ? (
+                  <small className="bad-text">{logicCheck.error} Using AND for now.</small>
+                ) : (
+                  <small>e.g. 1 OR 2 OR (3 AND 4) · NOT 2 · empty = all of them</small>
+                )}
+              </label>
+            )}
             {selectable && (
               <label>
                 <span>Ticked</span>
@@ -504,7 +562,10 @@ export function DataTable({
                 </Select>
               </label>
             )}
-            <p className="muted small">Plain text finds rows that contain it · =exact · !not · &gt;10 · &lt;5</p>
+            <p className="muted small">
+              Matches: plain text finds rows that contain it · =exact · !not · &gt;10 · &lt;5 · Is empty / Is not empty:
+              blank or null
+            </p>
           </aside>
         )}
       </div>
