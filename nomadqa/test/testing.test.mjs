@@ -131,3 +131,47 @@ test('bypass: a custom setting at the user level is put back exactly', async () 
     ['PATCH', '/sobjects/Bypass__c/a0X3', { Validation__c: false }],
   ]);
 });
+
+test('a recipe from another org is fitted: missing objects, fields, links and record types', async () => {
+  const { fitRecipe } = await import('../extension/core/plan.js');
+  const f = (name, type, extra = {}) => ({ name, label: name, type, createable: true, nillable: true, ...extra });
+  const describes = {
+    Account: { name: 'Account', fields: [f('Name', 'string', { nillable: false })], recordTypeInfos: [] },
+    Contact: {
+      name: 'Contact',
+      fields: [f('LastName', 'string'), f('Company__c', 'reference', { referenceTo: ['Account'] })],
+    },
+  };
+  const recipe = {
+    nodes: [
+      {
+        id: 'a',
+        object: 'Account',
+        count: 2,
+        recordType: 'Customer',
+        rules: { Name: { kind: 'auto' }, Tier__c: { kind: 'auto' } },
+      },
+      {
+        id: 'c',
+        object: 'Contact',
+        count: 1,
+        parentId: 'a',
+        parentField: 'AccountId',
+        rules: { LastName: { kind: 'auto' } },
+      },
+      { id: 'i', object: 'Invoice__c', count: 1, parentId: 'a', parentField: 'Account__c', rules: {} },
+      { id: 'l', object: 'Line__c', count: 1, parentId: 'i', parentField: 'Invoice__c', rules: {} },
+    ],
+  };
+  const { nodes, changes } = fitRecipe(recipe, describes);
+  assert.deepEqual(
+    nodes.map((n) => n.id),
+    ['a', 'c']
+  );
+  assert.equal(nodes[0].recordType, undefined);
+  assert.deepEqual(Object.keys(nodes[0].rules), ['Name']);
+  assert.equal(nodes[1].parentField, 'Company__c');
+  assert.equal(changes.length, 4);
+  assert.match(changes.join(' '), /Invoice__c is not in this org: left out, with what was under it/);
+  assert.match(changes.join(' '), /linked to Account by Company__c/);
+});

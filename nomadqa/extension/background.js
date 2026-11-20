@@ -2,18 +2,26 @@
 // on or off on the Salesforce page in front.
 import { apiHostFor } from './core/salesforce.js';
 
-chrome.action.onClicked.addListener(async (tab) => {
+/** Opens NomadQA next to `tab`, for the org of its page. */
+async function openFor(tab) {
   let host = '';
   try {
-    host = apiHostFor(new URL(tab.url ?? '').host) ?? '';
+    host = apiHostFor(new URL(tab?.url ?? '').host) ?? '';
   } catch {
     host = '';
   }
   await chrome.tabs.create({
     url: chrome.runtime.getURL(`app.html${host ? `?host=${encodeURIComponent(host)}` : ''}`),
-    index: (tab.index ?? 0) + 1,
+    index: (tab?.index ?? 0) + 1,
   });
+}
+
+// The tab on Salesforce pages (content/tab.js)
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (msg?.type === 'nomadqa:open') void openFor(sender.tab);
 });
+
+chrome.action.onClicked.addListener((tab) => void openFor(tab));
 
 /** Puts the engine and NomadQA's page script in a tab (once; they stay until the page reloads). */
 export async function prepare(tabId) {

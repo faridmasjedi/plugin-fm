@@ -1,5 +1,5 @@
 // NomadQA › Test data: plan the records, preview and check them, create them, and clean them up again.
-import { h, select, askTyped, toast, download } from './core/ui.js';
+import { h, select, searchSelect, askTyped, toast, download } from './core/ui.js';
 import { browserOrgs, sessionFor, Salesforce } from './core/salesforce.js';
 import { makeFaker } from './core/fake.js';
 import {
@@ -11,6 +11,7 @@ import {
   orderNodes,
   querySoqls,
   checkSoql,
+  fitRecipe,
 } from './core/plan.js';
 import { checkScripts, readCheck, factoryClass } from './core/apex.js';
 import { createRecords, deleteBatch, stillThere, csvFiles } from './core/create.js';
@@ -59,10 +60,11 @@ const S = {
   batches: [],
   recipes: [],
   counts: {},
+  shown: {},
   busy: '',
   progress: null,
   notice: null,
-  bypass: { switches: null, chosen: '', coverage: null, use: false },
+  bypass: { switches: null, all: false, coverage: {}, use: new Set() },
 };
 
 const label = () => S.orgs.find((o) => o.host === S.host)?.label ?? S.host;
@@ -268,77 +270,143 @@ function leaveFailedOut() {
 
 const switchKey = (x) => (x.kind === 'setting' ? `${x.object}.${x.field}` : `perm:${x.name}`);
 
-/** Find the org's automation switch, see what checks it, and choose to use it while creating. */
-function bypassBox() {
+/** The org's own automation switches: looked for on request (reads only), used only when ticked. */
+function automationCard() {
   const B = S.bypass;
-  if (!B.switches)
-    return h(
-      'button',
-      {
-        class: 'link',
-        disabled: Boolean(S.busy),
-        onclick: () =>
-          void run('Looking for an automation switch…', async () => {
-            B.switches = await findSwitches(S.sf);
-            B.chosen = B.switches[0] ? switchKey(B.switches[0]) : '';
-            if (B.chosen) await readCoverage();
-          }),
-      },
-      'Switch automation off for me while creating…'
-    );
-  if (!B.switches.length)
-    return h(
-      'p',
-      { class: 'muted small' },
-      'No automation switch here (a hierarchy custom setting or a custom permission named like “bypass”). Validation rules and triggers run as usual.'
-    );
-  const cov = B.coverage;
+  const objects = [...new Set(S.plan.nodes.map((x) => x.object))];
+  const look = (all) =>
+    run('Looking for automation switches (reading only)…', async () => {
+      B.all = all;
+      B.switches = await findSwitches(S.sf, { all });
+      B.coverage = {};
+      // What checks each one (a few: the ones named like a switch; on request when every one is listed)
+      if (!all) for (const sw of B.switches) B.coverage[switchKey(sw)] = await coverage(S.sf, sw, objects);
+    });
+  const seeCoverage = (sw) =>
+    run('Reading what checks it…', async () => {
+      B.coverage[switchKey(sw)] = await coverage(S.sf, sw, objects);
+    });
   const n = (list) => `${list.filter((x) => x.checks).length} of ${list.length}`;
   return h(
-    'div',
-    { class: 'notice', style: 'display: flex; flex-direction: column; gap: 6px; width: 100%' },
-    select(
-      B.chosen,
-      B.switches.map((x) => [switchKey(x), x.label]),
-      (v) => {
-        B.chosen = v;
-        void run('Reading what checks it…', readCoverage);
-      },
-      { 'aria-label': 'Automation switch' }
-    ),
-    cov
-      ? h(
-          'span',
-          { class: 'small' },
-          `Checked by ${n(cov.rules)} active validation rules and ${n(cov.triggers)} triggers on these objects.`,
-          cov.rules.concat(cov.triggers).some((x) => !x.checks)
-            ? h(
-                'span',
-                { class: 'sub' },
-                `Not checked by: ${cov.rules
-                  .concat(cov.triggers)
-                  .filter((x) => !x.checks)
-                  .map((x) => `${x.object}.${x.name}`)
-                  .slice(0, 6)
-                  .join(', ')} — those still run. Flows: check by hand.`
-              )
-            : null
-        )
-      : null,
+    'section',
+    { class: 'card' },
+    h('div', { class: 'row' }, h('h2', {}, 'Automation while creating'), h('span', { class: 'pill' }, 'optional')),
     h(
-      'label',
-      { class: 'check' },
-      h('input', { type: 'checkbox', checked: B.use, onchange: (e) => (B.use = e.target.checked) }),
-      'Turn it on for me while creating, then back as it was'
-    )
+      'p',
+      { class: 'muted small' },
+      'Some orgs have their own switch to turn validation rules, triggers or flows off for one user: a hierarchy custom setting checkbox, or a custom permission. NomadQA looks for ones named like ',
+      h('i', {}, 'bypass, skip, disable, override'),
+      ', then reads which active validation rules and triggers on ',
+      objects.join(', ') || 'these objects',
+      ' mention them. Looking changes nothing; a ticked switch is turned on for you only while creating, then put back exactly as it was.'
+    ),
+    B.switches === null
+      ? h(
+          'div',
+          { class: 'row' },
+          h('button', { disabled: Boolean(S.busy), onclick: () => void look(false) }, 'Look for switches')
+        )
+      : [
+          B.switches.length
+            ? h(
+                'div',
+                { class: 'table-box' },
+                h(
+                  'table',
+                  {},
+                  h(
+                    'thead',
+                    {},
+                    h(
+                      'tr',
+                      {},
+                      h('th', {}, 'Switch'),
+                      h('th', {}, 'Kind'),
+                      h('th', {}, 'What checks it'),
+                      h('th', {}, 'Use while creating')
+                    )
+                  ),
+                  h(
+                    'tbody',
+                    {},
+                    B.switches.map((sw) => {
+                      const key = switchKey(sw);
+                      const cov = B.coverage[key];
+                      const missing = cov ? [...cov.rules, ...cov.triggers].filter((x) => !x.checks) : [];
+                      return h(
+                        'tr',
+                        {},
+                        h(
+                          'td',
+                          {},
+                          h('b', {}, sw.label),
+                          h('span', { class: 'sub mono' }, sw.kind === 'setting' ? `${sw.object}.${sw.field}` : sw.name)
+                        ),
+                        h(
+                          'td',
+                          { class: 'muted' },
+                          sw.kind === 'setting'
+                            ? 'Custom setting (your user level)'
+                            : 'Custom permission (a permission set)'
+                        ),
+                        h(
+                          'td',
+                          {},
+                          cov
+                            ? [
+                                h('span', {}, `${n(cov.rules)} validation rules · ${n(cov.triggers)} triggers`),
+                                missing.length
+                                  ? h(
+                                      'span',
+                                      { class: 'sub' },
+                                      `Still run: ${missing
+                                        .map((x) => `${x.object}.${x.name}`)
+                                        .slice(0, 5)
+                                        .join(', ')}${missing.length > 5 ? '…' : ''}`
+                                    )
+                                  : null,
+                              ]
+                            : h('button', { class: 'link', onclick: () => void seeCoverage(sw) }, 'See what checks it')
+                        ),
+                        h(
+                          'td',
+                          {},
+                          h(
+                            'label',
+                            { class: 'check' },
+                            h('input', {
+                              type: 'checkbox',
+                              checked: B.use.has(key),
+                              onchange: (e) => (e.target.checked ? B.use.add(key) : B.use.delete(key), render()),
+                            }),
+                            'Use'
+                          )
+                        )
+                      );
+                    })
+                  )
+                )
+              )
+            : h(
+                'p',
+                { class: 'muted' },
+                B.all
+                  ? 'This org has no hierarchy custom setting checkbox or custom permission.'
+                  : 'Nothing named like a switch here: validation rules, triggers and flows run as usual.'
+              ),
+          h(
+            'div',
+            { class: 'row' },
+            h(
+              'label',
+              { class: 'check' },
+              h('input', { type: 'checkbox', checked: B.all, onchange: (e) => void look(e.target.checked) }),
+              'List every custom setting checkbox and custom permission'
+            ),
+            h('span', { class: 'muted small' }, 'Flows are not read: check them by hand.')
+          ),
+        ]
   );
-}
-
-async function readCoverage() {
-  const B = S.bypass;
-  const sw = B.switches.find((x) => switchKey(x) === B.chosen);
-  const objects = [...new Set(S.plan.nodes.map((x) => x.object))];
-  B.coverage = sw ? await coverage(S.sf, sw, objects) : null;
 }
 
 async function createInOrg() {
@@ -359,8 +427,9 @@ async function createInOrg() {
     S.progress = { done: 0, total: records.length };
     const started = Date.now();
     // The org's own automation switch, on for this user only while creating, then exactly as before
-    const sw = S.bypass.use ? S.bypass.switches?.find((x) => switchKey(x) === S.bypass.chosen) : null;
-    const undo = sw ? await turnOn(S.sf, sw, S.facts.userId) : null;
+    const used = (S.bypass.switches ?? []).filter((x) => S.bypass.use.has(switchKey(x)));
+    const undo = [];
+    for (const sw of used) undo.push(await turnOn(S.sf, sw, S.facts.userId));
     let result;
     try {
       result = await createRecords(S.sf, records, {
@@ -371,7 +440,7 @@ async function createInOrg() {
         },
       });
     } finally {
-      if (undo) await turnOff(S.sf, undo);
+      for (const u of undo.reverse()) await turnOff(S.sf, u);
     }
     const order = [];
     for (const n of orderNodes(S.plan.nodes)) if (!order.includes(n.object)) order.push(n.object);
@@ -433,23 +502,32 @@ const READY = [
 
 async function openRecipe(recipe) {
   await run('Opening the recipe…', async () => {
-    const ids = new Map(recipe.nodes.map((n) => [n.id, newId()]));
-    const nodes = [];
+    // The objects this org has (a recipe may come from another org)
+    const describes = {};
     for (const n of recipe.nodes) {
-      const d = await ensure(n.object);
-      nodes.push({
-        ...n,
-        id: ids.get(n.id),
-        parentId: n.parentId ? ids.get(n.parentId) : undefined,
-        rules: n.rules ?? defaultRules(d, { parentField: n.parentField }),
-      });
+      if (describes[n.object] !== undefined) continue;
+      const known = S.objects?.some((o) => o.name === n.object);
+      describes[n.object] = known ? await ensure(n.object).catch(() => undefined) : undefined;
     }
+    for (const k of Object.keys(describes)) if (!describes[k]) delete describes[k];
+    const { nodes: fitted, changes } = fitRecipe(recipe, describes);
+    const ids = new Map(fitted.map((n) => [n.id, newId()]));
+    const nodes = fitted.map((n) => ({
+      ...n,
+      id: ids.get(n.id),
+      parentId: n.parentId ? ids.get(n.parentId) : undefined,
+    }));
     S.plan = { name: recipe.name ?? '', seed: recipe.seed ?? 1, nodes };
     S.selected = nodes[0]?.id ?? null;
     S.preview = null;
     S.view = 'plan';
     savePlan();
-    setNotice('good', `Opened “${S.plan.name || summary(S.plan)}”.`);
+    setNotice(
+      changes.length ? 'warn' : 'good',
+      changes.length
+        ? `Opened “${S.plan.name || summary(S.plan)}”, fitted to ${label()}: ${changes.join(' ')}`
+        : `Opened “${S.plan.name || summary(S.plan)}”: everything it needs is in ${label()}.`
+    );
   });
 }
 
@@ -698,24 +776,16 @@ function adder() {
   if (!S.adding) return null;
   const cancel = h('button', { onclick: () => ((S.adding = null), render()) }, 'Cancel');
   if (S.adding.type === 'object') {
-    const input = h('input', {
-      list: 'nomadqa-objects',
-      placeholder: 'Object, e.g. Account or Invoice__c',
-      value: S.adding.value,
-    });
-    const add = () => void addObject(input.value);
-    input.addEventListener('keydown', (e) => e.key === 'Enter' && add());
-    setTimeout(() => input.focus(), 0);
+    // A short list you can type in (all the org's objects), as in NomadSF
     return h(
       'div',
       { class: 'adder' },
-      input,
-      h(
-        'datalist',
-        { id: 'nomadqa-objects' },
-        (S.objects ?? []).map((o) => h('option', { value: o.name }, o.label))
+      searchSelect(
+        '',
+        (S.objects ?? []).map((o) => [o.name, o.label, o.name]),
+        (v) => void addObject(v),
+        { placeholder: 'Choose an object…', open: true, 'aria-label': 'Object' }
       ),
-      h('button', { class: 'primary', onclick: add }, 'Add'),
       cancel
     );
   }
@@ -1017,6 +1087,24 @@ function previewView() {
   const types = typesOf()[node.object] ?? {};
   const failedBy = new Map((p.check?.failed ?? []).map((f) => [f.key, f.message]));
   const n = included().length;
+  // Which parent record a child goes under: any record of the parent object in this preview
+  const parents = node.parentId ? p.records.filter((x) => x.nodeId === node.parentId) : [];
+  const parentPick = (r) =>
+    select(
+      r.parentKey,
+      parents.map((x) => [
+        x.key,
+        `${x.values.Name ?? x.values.LastName ?? x.values.Subject ?? x.key}`,
+        `${objectLabel(x.object)} ${x.n}`,
+      ]),
+      (v) => {
+        r.parentKey = v;
+        r.values[node.parentField] = { $ref: v };
+        if (S.preview.check) S.preview.check = null;
+        render();
+      },
+      { 'aria-label': `Parent of ${r.key}` }
+    );
   const parentName = (key) => {
     const parent = keys.get(key);
     return parent ? parent.values.Name ?? parent.values.LastName ?? parent.key : key;
@@ -1160,7 +1248,7 @@ function previewView() {
                 'tr',
                 { class: failedBy.has(r.key) || p.excluded.has(r.key) ? 'bad' : '' },
                 h('td', { class: 'muted' }, r.n),
-                node.parentId ? h('td', {}, parentName(r.parentKey)) : null,
+                node.parentId ? h('td', { class: 'cell' }, parentPick(r)) : null,
                 fields.map((f) => editCell(r, f)),
                 h(
                   'td',
@@ -1180,6 +1268,7 @@ function previewView() {
       ),
       recs.length > SHOW_MAX ? h('p', { class: 'muted small' }, `Showing ${SHOW_MAX} of ${recs.length}.`) : null
     ),
+    automationCard(),
     h(
       'section',
       { class: 'card' },
@@ -1202,11 +1291,19 @@ function previewView() {
         h(
           'div',
           { class: 'use main' },
-          h('b', {}, `Create in ${label()}`),
+          h('b', {}, 'Create in an org'),
+          S.orgs.length > 1
+            ? select(
+                S.host,
+                S.orgs.map((o) => [o.host, o.label]),
+                (v) => void createElsewhere(v),
+                { 'aria-label': 'Org to create in' }
+              )
+            : h('span', { class: 'mono small' }, label()),
           h(
             'p',
             {},
-            `${n} records, parents first. Asks you to type the org’s name; kept as a batch you can delete in one click.`
+            `${n} records, parents first. You type the org’s name to confirm; they are kept as a batch you can delete in one click.`
           ),
           h(
             'label',
@@ -1218,7 +1315,9 @@ function previewView() {
             }),
             'Save even when a duplicate rule matches'
           ),
-          bypassBox(),
+          S.bypass.use.size
+            ? h('span', { class: 'pill accent' }, `${S.bypass.use.size} automation switch(es) on while creating`)
+            : null,
           h(
             'button',
             { class: 'primary', disabled: !n || Boolean(S.busy), onclick: () => void createInOrg() },
@@ -1234,7 +1333,9 @@ function previewView() {
             'button',
             {
               onclick: () =>
-                Object.entries(csvFiles(included())).forEach(([name, text]) => download(name, `﻿${text}`, 'text/csv')),
+                Object.entries(csvFiles(included())).forEach(([name, text]) =>
+                  download(name, `\uFEFF${text}`, 'text/csv')
+                ),
             },
             'Download'
           )
@@ -1243,7 +1344,13 @@ function previewView() {
           'div',
           { class: 'use' },
           h('b', {}, 'Apex test data factory'),
-          h('p', {}, 'An @IsTest class that builds the same records inside your Apex tests.'),
+          h(
+            'p',
+            {},
+            'An @IsTest class with these records. Add it to your project, then call ',
+            h('code', {}, 'NomadQATestData.make()'),
+            ' in a test method: the records exist only while that test runs.'
+          ),
           h(
             'button',
             { onclick: () => download('NomadQATestData.cls', factoryClass(included(), typesOf())) },
@@ -1254,12 +1361,30 @@ function previewView() {
           'div',
           { class: 'use' },
           h('b', {}, 'Recipe'),
-          h('p', {}, 'Keep the plan to make the same kind of data again, here or in another org.'),
+          h(
+            'p',
+            {},
+            'The plan, not the records: open it again here or in another org, and it is checked against that org’s objects and fields.'
+          ),
           h('button', { onclick: () => void saveRecipe() }, 'Save recipe')
         )
       )
     ),
   ];
+}
+
+/** Creating in another org: the same plan, made again from that org's fields (and checked there). */
+async function createElsewhere(host) {
+  if (host === S.host) return;
+  const to = S.orgs.find((o) => o.host === host)?.label ?? host;
+  const ok = await askTyped(
+    `Make the preview again in ${to}? The plan stays; values come from ${to}’s fields, and records found by a query are looked up there.`,
+    to,
+    { ok: 'Switch' }
+  );
+  if (!ok) return render();
+  await chooseOrg(host);
+  if (S.sf) await preparePreview();
 }
 
 function batchesView() {
@@ -1291,6 +1416,73 @@ function batchesView() {
       if (b.host !== S.host) throw new Error(`That batch is in ${b.org}: choose it above first.`);
       S.counts[b.id] = await stillThere(S.sf, b);
     });
+  // The batch's records by name, each opening in Salesforce
+  const showRecords = (b) => {
+    if (S.shown[b.id]) {
+      delete S.shown[b.id];
+      return render();
+    }
+    if (b.host !== S.host) return setNotice('warn', `That batch is in ${b.org}: choose it above first.`), render();
+    void run('Reading the records…', async () => {
+      const rows = [];
+      for (const object of b.order) {
+        const ids = (b.ids[object] ?? []).slice(0, 200);
+        if (!ids.length) continue;
+        const d = await ensure(object);
+        const nameField = d.fields.find((f) => f.nameField)?.name ?? 'Id';
+        const found = await S.sf.query(
+          `SELECT Id, ${nameField} FROM ${object} WHERE Id IN (${ids.map((x) => `'${x}'`).join(',')})`
+        );
+        const names = new Map(found.map((r) => [r.Id, r[nameField]]));
+        for (const id of ids) rows.push({ object, id, name: names.get(id), gone: !names.has(id) });
+      }
+      S.shown[b.id] = rows;
+    });
+  };
+  const recordsOf = (b) =>
+    h(
+      'div',
+      { class: 'batch-records' },
+      h(
+        'div',
+        { class: 'row' },
+        h('span', { class: 'muted small grow' }, 'First 200 per object · deleted ones are marked'),
+        h(
+          'button',
+          {
+            onclick: () =>
+              download(
+                `batch-${b.id}-ids.csv`,
+                `Object,Id\n${b.order.flatMap((o) => (b.ids[o] ?? []).map((id) => `${o},${id}`)).join('\n')}\n`,
+                'text/csv'
+              ),
+          },
+          'Ids as CSV'
+        )
+      ),
+      h(
+        'ul',
+        { class: 'record-list' },
+        S.shown[b.id].map((r) =>
+          h(
+            'li',
+            {},
+            h('span', { class: 'pill' }, objectLabel(r.object)),
+            r.gone
+              ? h('span', { class: 'muted' }, `${r.id} · deleted`)
+              : h(
+                  'a',
+                  {
+                    href: `https://${b.host}/lightning/r/${r.object}/${r.id}/view`,
+                    target: '_blank',
+                    rel: 'noreferrer',
+                  },
+                  r.name ?? r.id
+                )
+          )
+        )
+      )
+    );
   const forget = async (b) => {
     S.batches = S.batches.filter((x) => x.id !== b.id);
     await store.set('nomadqa.batches', S.batches);
@@ -1331,7 +1523,7 @@ function batchesView() {
               h(
                 'tbody',
                 {},
-                S.batches.map((b) =>
+                S.batches.flatMap((b) => [
                   h(
                     'tr',
                     {},
@@ -1359,20 +1551,17 @@ function batchesView() {
                         { class: 'row', style: 'justify-content: flex-end; flex-wrap: nowrap' },
                         h(
                           'button',
-                          {
-                            onclick: () => (
-                              navigator.clipboard.writeText(Object.values(b.ids).flat().join('\n')), toast('Ids copied')
-                            ),
-                          },
-                          'Copy Ids'
+                          { onclick: () => void showRecords(b) },
+                          S.shown[b.id] ? 'Hide records' : 'Show records'
                         ),
                         b.deletedAt || S.counts[b.id] === 0
                           ? h('button', { onclick: () => void forget(b) }, 'Remove from the list')
                           : h('button', { class: 'danger', onclick: () => void del(b) }, 'Delete the batch…')
                       )
                     )
-                  )
-                )
+                  ),
+                  S.shown[b.id] ? h('tr', {}, h('td', { colspan: '6' }, recordsOf(b))) : null,
+                ])
               )
             )
           )

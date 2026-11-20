@@ -37,5 +37,28 @@
       },
       "description": "Inspector on this Salesforce page: what each part is"
     }
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.lightning.force.com/*",
+        "https://*.my.salesforce.com/*",
+        "https://*.salesforce-setup.com/*",
+        "https://*.force.com/*"
+      ],
+      "js": ["content/tab.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/48.png"],
+      "matches": [
+        "https://*.salesforce.com/*",
+        "https://*.force.com/*",
+        "https://*.salesforce-setup.com/*",
+        "https://*.cloudforce.com/*"
+      ]
+    }
+  ]
 }

@@ -282,3 +282,63 @@ export function checkSoql(soql) {
   if (!/^SELECT\s+Id\s+FROM\s+\w+/i.test(s)) throw new Error('A query rule starts with SELECT Id FROM …');
   return s;
 }
+
+/**
+ * A recipe made in one org, fitted to another: objects it lacks are left out (with what is under them), fields it
+ * lacks are dropped, a link field it lacks is replaced by another lookup to the same parent (or the records are made
+ * on their own), a record type it lacks falls back to the default. `describes` holds the objects this org has.
+ * Returns { nodes, changes: [text] }.
+ */
+export function fitRecipe(recipe, describes) {
+  const changes = [];
+  const kept = [];
+  const gone = new Set();
+  for (const n of orderNodes(recipe.nodes)) {
+    if (n.parentId && gone.has(n.parentId)) {
+      gone.add(n.id);
+      continue;
+    }
+    const d = describes[n.object];
+    if (!d) {
+      gone.add(n.id);
+      changes.push(
+        `${n.object} is not in this org: left out${
+          recipe.nodes.some((x) => x.parentId === n.id) ? ', with what was under it' : ''
+        }.`
+      );
+      continue;
+    }
+    const writable = new Map(writableFields(d).map((f) => [f.name, f]));
+    const node = { ...n, rules: { ...(n.rules ?? defaultRules(d, { parentField: n.parentField })) } };
+    const dropped = Object.keys(node.rules).filter((f) => !writable.has(f));
+    for (const f of dropped) delete node.rules[f];
+    if (dropped.length) changes.push(`${n.object}: ${dropped.join(', ')} not here (or not writable): left out.`);
+    if (n.parentId) {
+      const parent = kept.find((x) => x.id === n.parentId);
+      const link = (name) => {
+        const f = writable.get(name);
+        return f?.type === 'reference' && (f.referenceTo ?? []).includes(parent.object) ? f : null;
+      };
+      if (!link(n.parentField)) {
+        const other = [...writable.values()].find(
+          (f) => f.type === 'reference' && (f.referenceTo ?? []).includes(parent.object)
+        );
+        if (other) {
+          changes.push(`${n.object}: no ${n.parentField} here; linked to ${parent.object} by ${other.name} instead.`);
+          node.parentField = other.name;
+          delete node.rules[other.name];
+        } else {
+          changes.push(`${n.object}: nothing links it to ${parent.object} here, so its records are made on their own.`);
+          delete node.parentId;
+          delete node.parentField;
+        }
+      }
+    }
+    if (n.recordType && !(d.recordTypeInfos ?? []).some((r) => r.developerName === n.recordType && r.available)) {
+      changes.push(`${n.object}: no record type ${n.recordType} here; the default is used.`);
+      delete node.recordType;
+    }
+    kept.push(node);
+  }
+  return { nodes: kept, changes };
+}

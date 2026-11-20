@@ -7,8 +7,11 @@ const tooling = (sf, soql) =>
   sf.rest('GET', `/tooling/query?q=${encodeURIComponent(soql)}`).then((r) => r.records ?? []);
 const quoted = (list) => list.map((x) => `'${String(x).replace(/'/g, "\\'")}'`).join(',');
 
-/** Switches that look like a bypass: [{ kind: 'setting', object, field, label } | { kind: 'permission', id, name, label }]. */
-export async function findSwitches(sf) {
+/**
+ * Switches that look like a bypass — or, with `all`, every hierarchy custom setting checkbox and custom permission:
+ * [{ kind: 'setting', object, field, label } | { kind: 'permission', id, name, label }]. Reads only.
+ */
+export async function findSwitches(sf, { all = false } = {}) {
   const out = [];
   const settings = await sf.query('SELECT QualifiedApiName, Label FROM EntityDefinition WHERE IsCustomSetting = true', {
     max: 2000,
@@ -16,7 +19,7 @@ export async function findSwitches(sf) {
   for (const s of settings) {
     const d = await sf.describe(s.QualifiedApiName).catch(() => null);
     if (!d || !d.fields.some((f) => f.name === 'SetupOwnerId')) continue; // hierarchy settings only (per user)
-    const named = LIKE.test(s.QualifiedApiName) || LIKE.test(s.Label);
+    const named = all || LIKE.test(s.QualifiedApiName) || LIKE.test(s.Label);
     for (const f of d.fields)
       if (f.custom && f.type === 'boolean' && (named || LIKE.test(f.name) || LIKE.test(f.label)))
         out.push({ kind: 'setting', object: s.QualifiedApiName, field: f.name, label: `${s.Label} › ${f.label}` });
@@ -25,7 +28,7 @@ export async function findSwitches(sf) {
     .query('SELECT Id, DeveloperName, MasterLabel FROM CustomPermission', { max: 2000 })
     .catch(() => []);
   for (const p of perms)
-    if (LIKE.test(p.DeveloperName) || LIKE.test(p.MasterLabel))
+    if (all || LIKE.test(p.DeveloperName) || LIKE.test(p.MasterLabel))
       out.push({ kind: 'permission', id: p.Id, name: p.DeveloperName, label: `Custom permission ${p.MasterLabel}` });
   return out;
 }
