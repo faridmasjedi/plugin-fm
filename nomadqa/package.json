@@ -1,0 +1,12 @@
+{
+  "name": "nomadqa",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NomadQA: testing for Salesforce (test data first). No dependencies.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "icons": "node scripts/icons.mjs",
+    "pack": "node scripts/pack.mjs"
+  }
+}
