@@ -197,6 +197,14 @@ test('marker at the start of names or every text field', async () => {
   assert.equal(all.Description, 'Nomad Big');
   assert.equal(all.Email, 'a@b.c');
   assert.equal(all.Code__c, 'X1');
+  // Only the pattern: the made-up value is replaced; no double pattern when it is already there
+  assert.deepEqual(markValues(v(), fields, { text: 'Nomad', where: 'text', mode: 'only' }), {
+    Name: 'Nomad',
+    Description: 'Nomad',
+    Email: 'a@b.c',
+    Code__c: 'X1',
+  });
+  assert.equal(markValues({ Name: 'Nomad X' }, fields, { text: 'Nomad', where: 'names' }).Name, 'Nomad X');
 });
 
 test('clone: search, copies with children, another org', async () => {

@@ -737,36 +737,60 @@ function noticeEl() {
   );
 }
 
-/** A marker at the start of names (or all text) so the test records are easy to find later. */
+/** The pattern's controls: its text, whether a made-up value follows it, and which fields get it. */
+function markerParts(m, set) {
+  const opts = (list, cur) => list.map(([v, l]) => h('option', { value: v, selected: v === cur }, l));
+  return [
+    h('span', { class: 'muted small' }, 'Pattern'),
+    h('input', {
+      value: m.text,
+      placeholder: 'e.g. Nomad',
+      style: 'width: 120px',
+      'aria-label': 'Pattern',
+      onchange: (e) => set({ text: e.target.value }),
+    }),
+    h(
+      'select',
+      { 'aria-label': 'What the value is', onchange: (e) => set({ mode: e.target.value }) },
+      opts(
+        [
+          ['then', 'then a made-up value'],
+          ['only', 'only the pattern'],
+        ],
+        m.mode ?? 'then'
+      )
+    ),
+    h(
+      'select',
+      { 'aria-label': 'Which fields get the pattern', onchange: (e) => set({ where: e.target.value }) },
+      opts(
+        [
+          ['names', 'in names'],
+          ['text', 'in every text field'],
+        ],
+        m.where ?? 'names'
+      )
+    ),
+  ];
+}
+
+/** A pattern in names (or all text) so the test records are easy to find later. */
 function markerControl() {
-  const m = S.plan.marker ?? { text: '', where: 'names' };
+  const m = S.plan.marker ?? { text: '', where: 'names', mode: 'then' };
   const set = (patch) => {
     S.plan.marker = { ...m, ...patch };
     if (!S.plan.marker.text) delete S.plan.marker;
     savePlan();
+    render();
   };
   return h(
     'div',
     {
       class: 'row marker',
-      title: 'Puts this at the start of the values, so you can find the records by searching for it.',
+      title:
+        'Gives the values this pattern — alone, or followed by a made-up value — so you can find the records by searching for it.',
     },
-    h('span', { class: 'muted small' }, 'Start values with'),
-    h('input', {
-      value: m.text,
-      placeholder: 'e.g. Nomad ',
-      style: 'width: 120px',
-      'aria-label': 'Marker',
-      onchange: (e) => (set({ text: e.target.value }), render()),
-    }),
-    h(
-      'select',
-      { 'aria-label': 'Where the marker goes', onchange: (e) => set({ where: e.target.value }) },
-      [
-        ['names', 'in names'],
-        ['text', 'in every text field'],
-      ].map(([v, l]) => h('option', { value: v, selected: v === m.where }, l))
-    )
+    markerParts(m, set)
   );
 }
 
@@ -1572,7 +1596,7 @@ async function previewClones() {
 
 function cloneView() {
   const c = S.clone;
-  const marker = c.marker ?? S.plan.marker ?? { text: '', where: 'names' };
+  const marker = c.marker ?? S.plan.marker ?? { text: '', where: 'names', mode: 'then' };
   const picked = c.rows?.filter((r) => c.picked.has(r.Id)).length ?? 0;
   const kids = c.object && S.describes[c.object] ? childChoices(c.object) : [];
   const total = picked * Math.max(1, c.copies);
@@ -1714,25 +1738,7 @@ function cloneView() {
               'aria-label': 'Copies of each',
               onchange: (e) => ((c.copies = Math.min(50, Math.max(1, Number(e.target.value) || 1))), render()),
             }),
-            h('b', {}, 'Start values with'),
-            h('input', {
-              value: marker.text,
-              placeholder: 'e.g. Nomad ',
-              style: 'width: 120px',
-              'aria-label': 'Marker',
-              onchange: (e) => (c.marker = { ...marker, text: e.target.value }),
-            }),
-            h(
-              'select',
-              {
-                'aria-label': 'Where the marker goes',
-                onchange: (e) => (c.marker = { ...marker, where: e.target.value }),
-              },
-              [
-                ['names', 'in names'],
-                ['text', 'in every text field'],
-              ].map(([v, l]) => h('option', { value: v, selected: v === marker.where }, l))
-            )
+            markerParts(marker, (patch) => ((c.marker = { ...marker, ...patch }), render()))
           ),
           h(
             'p',
@@ -1815,17 +1821,15 @@ function batchesView() {
           ))
             names.set(r.Id, r[nameField]);
         }
-        ids
-          .slice(0, 2000)
-          .forEach((id) =>
-            rows.push({
-              Object: objectLabel(object),
-              Name: names.get(id) ?? '',
-              Id: id,
-              State: names.has(id) ? 'in the org' : 'deleted',
-              api: object,
-            })
-          );
+        ids.slice(0, 2000).forEach((id) =>
+          rows.push({
+            Object: objectLabel(object),
+            Name: names.get(id) ?? '',
+            Id: id,
+            State: names.has(id) ? 'in the org' : 'deleted',
+            api: object,
+          })
+        );
       }
       S.shown[b.id] = rows;
     });

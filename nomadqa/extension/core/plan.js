@@ -268,17 +268,19 @@ export function generate(plan, describes, faker, { lookups = {}, picklists = {} 
 
 const NAMEISH = new Set(['LastName', 'Subject', 'Title']);
 /**
- * Puts a marker (e.g. "Nomad ") at the start of the name fields — or every text field — so test records are easy to
- * find in the org (search, list views, reports). `marker`: { text, where: 'names' | 'text' }.
+ * Gives the name fields — or every text field — a pattern (e.g. "Nomad"), so test records are easy to find in the org
+ * (search, list views, reports): the pattern then the made-up value ("Nomad Patel"), or only the pattern ("Nomad").
+ * `marker`: { text, where: 'names' | 'text', mode: 'then' | 'only' }.
  */
 export function markValues(values, fields, marker) {
   for (const [name, v] of Object.entries(values)) {
     const f = fields.get(name);
-    if (!f || typeof v !== 'string' || v.startsWith(marker.text)) continue;
+    if (!f || typeof v !== 'string') continue;
     const isText = f.type === 'string' || f.type === 'textarea' || f.type === 'combobox';
     const isName = f.nameField || NAMEISH.has(name);
     if (!isText || (marker.where !== 'text' && !isName) || f.unique || f.externalId) continue;
-    values[name] = clip(marker.text + v, f);
+    if (marker.mode === 'only') values[name] = clip(marker.text.trim() || marker.text, f);
+    else if (!v.startsWith(marker.text.trim())) values[name] = clip(`${marker.text.trimEnd()} ${v}`, f);
   }
   return values;
 }

@@ -17,7 +17,8 @@ that the browser loads as they are.
   Salesforce's own message; leave those out or change the rules.
 - **Use it**: create in the org (after typing its name), CSV files per object, an `@IsTest` test data factory class,
   or a recipe to make the same kind of data again.
-- **Marker**: start names (or every text field) with a word such as `Nomad ` so test records are easy to find.
+- **Pattern**: give names (or every text field) a word such as `Nomad` — followed by a made-up value (`Nomad Patel`)
+  or alone (`Nomad`) — so test records are easy to find.
 - **Find & clone**: find records (words in the name, or a condition), pick them, add objects under them, choose how
   many copies — they become a preview like a plan's, so Check, Create, batches and Delete work the same. Cloning into
   another org leaves out fields it lacks and links to records of the first org.
