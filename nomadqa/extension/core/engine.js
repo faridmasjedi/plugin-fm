@@ -370,6 +370,10 @@
 
   const fieldLabelOf = (el) => {
     for (const a of ancestors(el)) {
+      if (a.matches?.('records-highlights-details-item, records-record-layout-item, force-record-layout-item')) {
+        const leaf = [...a.querySelectorAll('*')].find((x) => x.children.length === 0 && x.textContent.trim());
+        if (leaf) return leaf.textContent.replace(/\s+/g, ' ').trim();
+      }
       if (
         a.matches?.(
           'lightning-input, lightning-textarea, lightning-combobox, lightning-grouped-combobox, lightning-input-field, lightning-lookup, .slds-form-element'

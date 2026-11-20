@@ -1,20 +1,41 @@
 {
   "manifest_version": 3,
   "name": "NomadQA",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Testing for Salesforce: test data that looks real, checked before it is saved, and cleaned up after.",
-  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
   "action": {
     "default_title": "NomadQA",
-    "default_icon": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png" }
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png",
+      "48": "icons/48.png"
+    }
   },
-  "background": { "service_worker": "background.js", "type": "module" },
-  "permissions": ["cookies", "storage"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["cookies", "storage", "scripting", "tabs"],
   "host_permissions": [
     "https://*.salesforce.com/*",
     "https://*.force.com/*",
     "https://*.salesforce-setup.com/*",
     "https://*.cloudforce.com/*",
     "https://*.site.com/*"
-  ]
+  ],
+  "optional_host_permissions": ["https://*/*"],
+  "commands": {
+    "toggle-inspector": {
+      "suggested_key": {
+        "default": "Alt+Shift+I"
+      },
+      "description": "Inspector on this Salesforce page: what each part is"
+    }
+  }
 }

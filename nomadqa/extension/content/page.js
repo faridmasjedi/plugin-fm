@@ -39,7 +39,7 @@
   const box = root.querySelector('.box');
   const tip = root.querySelector('.tip');
   const bar = root.querySelector('.bar');
-  const ours = (el) => el === host || host.contains(el);
+  const ours = (el) => el === host || host.contains(el) || el?.getRootNode?.() === root;
   const mount = () => document.documentElement.appendChild(host);
 
   const esc = (s) =>
@@ -57,16 +57,39 @@
   }
 
   // ---------- inspector ----------
+  const apiNames = {};
+  async function apiName(object, label) {
+    if (!object || !label) return '';
+    if (!apiNames[object])
+      apiNames[object] = chrome.runtime.sendMessage({ type: 'nomadqa:fields', object }).catch(() => ({}));
+    const fields = await apiNames[object];
+    if (!Array.isArray(fields)) return '';
+    const want = label.toLowerCase();
+    // The page may show a shorter label than the field's own ("Type" for "Account Type")
+    const hit =
+      fields.find((f) => f.label.toLowerCase() === want) ??
+      fields.find((f) => f.name.toLowerCase() === want.replace(/\s+/g, '')) ??
+      fields.find((f) => f.label.toLowerCase().endsWith(` ${want}`));
+    return hit?.name ?? '';
+  }
+  const short = (t) => (t.length > 34 ? `${t.slice(0, 32)}…` : t);
   function showInfo(el, x, y) {
     const d = Q.describe(el);
+    if (!d.fieldApi && d.field && d.record)
+      void apiName(d.record.object, d.field).then((api) => {
+        if (api && (state.pinned === el || state.hover === el)) {
+          const row = tip.querySelector('[data-field]');
+          if (row) row.innerHTML = `<code>${esc(d.record.object)}.${esc(api)}</code> · ${esc(d.field)}`;
+        }
+      });
     const rows = [];
     if (d.custom) rows.push(['Yours', `<code>${esc(d.custom.tag)}</code><br><code>${esc(d.custom.path)}</code>`]);
     if (d.packaged) rows.push(['Package', `<code>${esc(d.packaged)}</code>`]);
     if (d.fieldApi) rows.push(['Field', `<code>${esc(d.fieldApi)}</code>`]);
-    else if (d.field) rows.push(['Field', esc(d.field)]);
+    else if (d.field) rows.push(['Field', `<span data-field>${esc(d.field)}</span>`]);
     if (d.name) rows.push(['Says', esc(d.name)]);
     if (d.aura) rows.push(['Aura', `<code>${esc(d.aura)}</code>`]);
-    rows.push(['Built from', `<code>${esc(d.components.slice(0, 4).join(' › ') || d.tag)}</code>`]);
+    rows.push(['Built from', `<code>${esc(d.components.slice(0, 4).map(short).join(' › ') || d.tag)}</code>`]);
     if (d.record) rows.push(['Record', `${esc(d.record.object)} <code>${esc(d.record.id)}</code>`]);
     tip.innerHTML =
       rows.map(([k, v]) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('') +
@@ -97,6 +120,7 @@
     if (state.pinned || state.mode !== 'inspect') return;
     const el = e.composedPath?.()[0] ?? e.target;
     if (!el?.tagName || ours(el)) return;
+    state.hover = el;
     outline(el);
     showInfo(el, e.clientX, e.clientY);
   };
@@ -164,7 +188,7 @@
   function onClick(e) {
     if (state.mode !== 'record' && state.mode !== 'inspect') return;
     const el = e.composedPath?.()[0] ?? e.target;
-    if (!el?.tagName || ours(el)) return;
+    if (!el?.tagName || ours(el) || e.composedPath?.().includes(host)) return;
     if (state.mode === 'inspect') {
       e.preventDefault();
       e.stopPropagation();
@@ -227,7 +251,7 @@
     if (now === state.path) return;
     state.path = now;
     // A page opened by a click is the click's doing; otherwise it is a step of its own
-    if (Date.now() - state.lastClickAt > 2500) add({ action: 'open', path: location.pathname });
+    if (Date.now() - state.lastClickAt > 6000) add({ action: 'open', path: location.pathname });
   }, 400);
 
   bar.querySelector('.check').addEventListener('click', () => {
@@ -288,7 +312,7 @@
 
   chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     if (msg?.type !== 'nomadqa:mode') return;
-    reply(setMode(msg.mode, msg));
+    reply(setMode(msg.mode === 'toggle-inspect' ? (state.mode === 'inspect' ? 'off' : 'inspect') : msg.mode, msg));
   });
   globalThis.__nomadqaPage = { setMode, state };
 })();

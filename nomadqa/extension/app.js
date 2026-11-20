@@ -14,6 +14,8 @@ import {
 } from './core/plan.js';
 import { checkScripts, readCheck, factoryClass } from './core/apex.js';
 import { createRecords, deleteBatch, stillThere, csvFiles } from './core/create.js';
+import { findSwitches, coverage, turnOn, turnOff } from './core/bypass.js';
+import { testingViews } from './views/testing.js';
 
 const CHECK_MAX = 500;
 const SHOW_MAX = 200;
@@ -60,6 +62,7 @@ const S = {
   busy: '',
   progress: null,
   notice: null,
+  bypass: { switches: null, chosen: '', coverage: null, use: false },
 };
 
 const label = () => S.orgs.find((o) => o.host === S.host)?.label ?? S.host;
@@ -263,6 +266,81 @@ function leaveFailedOut() {
   render();
 }
 
+const switchKey = (x) => (x.kind === 'setting' ? `${x.object}.${x.field}` : `perm:${x.name}`);
+
+/** Find the org's automation switch, see what checks it, and choose to use it while creating. */
+function bypassBox() {
+  const B = S.bypass;
+  if (!B.switches)
+    return h(
+      'button',
+      {
+        class: 'link',
+        disabled: Boolean(S.busy),
+        onclick: () =>
+          void run('Looking for an automation switch…', async () => {
+            B.switches = await findSwitches(S.sf);
+            B.chosen = B.switches[0] ? switchKey(B.switches[0]) : '';
+            if (B.chosen) await readCoverage();
+          }),
+      },
+      'Switch automation off for me while creating…'
+    );
+  if (!B.switches.length)
+    return h(
+      'p',
+      { class: 'muted small' },
+      'No automation switch here (a hierarchy custom setting or a custom permission named like “bypass”). Validation rules and triggers run as usual.'
+    );
+  const cov = B.coverage;
+  const n = (list) => `${list.filter((x) => x.checks).length} of ${list.length}`;
+  return h(
+    'div',
+    { class: 'notice', style: 'display: flex; flex-direction: column; gap: 6px; width: 100%' },
+    select(
+      B.chosen,
+      B.switches.map((x) => [switchKey(x), x.label]),
+      (v) => {
+        B.chosen = v;
+        void run('Reading what checks it…', readCoverage);
+      },
+      { 'aria-label': 'Automation switch' }
+    ),
+    cov
+      ? h(
+          'span',
+          { class: 'small' },
+          `Checked by ${n(cov.rules)} active validation rules and ${n(cov.triggers)} triggers on these objects.`,
+          cov.rules.concat(cov.triggers).some((x) => !x.checks)
+            ? h(
+                'span',
+                { class: 'sub' },
+                `Not checked by: ${cov.rules
+                  .concat(cov.triggers)
+                  .filter((x) => !x.checks)
+                  .map((x) => `${x.object}.${x.name}`)
+                  .slice(0, 6)
+                  .join(', ')} — those still run. Flows: check by hand.`
+              )
+            : null
+        )
+      : null,
+    h(
+      'label',
+      { class: 'check' },
+      h('input', { type: 'checkbox', checked: B.use, onchange: (e) => (B.use = e.target.checked) }),
+      'Turn it on for me while creating, then back as it was'
+    )
+  );
+}
+
+async function readCoverage() {
+  const B = S.bypass;
+  const sw = B.switches.find((x) => switchKey(x) === B.chosen);
+  const objects = [...new Set(S.plan.nodes.map((x) => x.object))];
+  B.coverage = sw ? await coverage(S.sf, sw, objects) : null;
+}
+
 async function createInOrg() {
   const records = included();
   const production = S.facts && !S.facts.isSandbox;
@@ -280,13 +358,21 @@ async function createInOrg() {
   await run('Creating…', async () => {
     S.progress = { done: 0, total: records.length };
     const started = Date.now();
-    const result = await createRecords(S.sf, records, {
-      allowDuplicates: S.allowDuplicates,
-      progress: (done, total) => {
-        S.progress = { done, total };
-        render();
-      },
-    });
+    // The org's own automation switch, on for this user only while creating, then exactly as before
+    const sw = S.bypass.use ? S.bypass.switches?.find((x) => switchKey(x) === S.bypass.chosen) : null;
+    const undo = sw ? await turnOn(S.sf, sw, S.facts.userId) : null;
+    let result;
+    try {
+      result = await createRecords(S.sf, records, {
+        allowDuplicates: S.allowDuplicates,
+        progress: (done, total) => {
+          S.progress = { done, total };
+          render();
+        },
+      });
+    } finally {
+      if (undo) await turnOff(S.sf, undo);
+    }
     const order = [];
     for (const n of orderNodes(S.plan.nodes)) if (!order.includes(n.object)) order.push(n.object);
     const batch = {
@@ -453,7 +539,6 @@ function side() {
       },
       text
     );
-  const later = (text) => h('button', { disabled: true }, text, h('span', { class: 'later' }, 'later'));
   return h(
     'nav',
     { class: 'side', 'aria-label': 'NomadQA' },
@@ -464,10 +549,13 @@ function side() {
     ),
     item('recipes', 'Recipes'),
     h('hr'),
-    later('Inspector'),
-    later('Recorder'),
-    later('Tests & runs'),
-    later('Agent')
+    item('inspector', 'Inspector'),
+    item('recorder', 'Recorder'),
+    item('tests', 'Tests'),
+    item('runs', 'Runs'),
+    item('agent', 'Agent'),
+    h('hr'),
+    item('settings', 'Settings')
   );
 }
 
@@ -1130,6 +1218,7 @@ function previewView() {
             }),
             'Save even when a duplicate rule matches'
           ),
+          bypassBox(),
           h(
             'button',
             { class: 'primary', disabled: !n || Boolean(S.busy), onclick: () => void createInOrg() },
@@ -1407,12 +1496,19 @@ function render() {
       ? batchesView()
       : S.view === 'recipes'
       ? recipesView()
+      : TESTING.views[S.view]
+      ? TESTING.views[S.view]()
       : planView();
   root.replaceChildren(top(), h('div', { class: 'layout' }, side(), h('main', {}, view)));
   window.scrollTo(0, y);
 }
 
+const TESTING = testingViews({ S, render, run, setNotice, label, store, noticeEl });
+
 async function start() {
+  await TESTING.load();
+  const view = new URLSearchParams(location.search).get('view');
+  if (view) S.view = view;
   S.batches = await store.get('nomadqa.batches', []);
   S.recipes = await store.get('nomadqa.recipes', []);
   S.plan = await store.get('nomadqa.plan', S.plan);
