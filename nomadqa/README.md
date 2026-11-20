@@ -19,6 +19,37 @@ that the browser loads as they are.
   or a recipe to make the same kind of data again.
 - **Batches**: every record NomadQA created, by run; count what is still there and delete a batch (children first).
 
+## Tests
+
+Steps name things the way a person sees them — buttons by what they say, fields by their label — never CSS or ids,
+so they survive Salesforce's releases. One step engine (`extension/core/engine.js`) runs them in the browser and in
+headless Chrome alike.
+
+- **Inspector** (Alt + Shift + I on any Salesforce page): what you point at — your own LWC and its folder in the
+  project, a packaged component, the field's API name, the Aura component, the record.
+- **Recorder**: do it once in Salesforce; clicks, typing, list choices and lookups become steps. **+ Check** on the
+  page's bar, then a message or a value, adds a check. Passwords are never recorded.
+- **Tests**: edit steps, run them in a tab of the org, see each step pass or fail; download the test file.
+  Steps: open, click, fill, pick, lookup, check, wait, press, expect (text, message, field, title, address), data
+  (make records from a Test data recipe — `{{a-1}}` is then its Id, `{{a-1.Name}}` a value; deleted after the test)
+  and query (a SOQL that must find the right number of rows).
+- **Runs**: every run with its steps, and a JUnit file.
+- **Agent**: say what to test; your own AI (Settings) writes the steps, NomadQA checks every step, you review and run.
+  Only your sentence and the org's object names are sent to the AI.
+- **Automation switch** (Test data): the org's own bypass — a hierarchy custom setting or a custom permission named
+  like “bypass” — found, with which validation rules and triggers check it, turned on for you only while creating,
+  then put back exactly as it was. NomadQA never changes automation itself.
+
+### Headless (CI)
+
+```sh
+node nomadqa/runner/run.mjs nomadqa/examples/new-contact.nomadqa.json --org my-sandbox --out reports
+```
+
+Node 22 and Chrome; nothing to install. `--org` asks the Salesforce CLI for a one-time login link (or give one with
+`--login-url` / `NOMADQA_LOGIN_URL`). Writes a JUnit report and a screenshot of a failed step; exits 1 when a test
+fails. `--headed` shows the browser.
+
 ## Try it
 
 1. `chrome://extensions` (or `edge://extensions`) › Developer mode › **Load unpacked** › choose
@@ -37,5 +68,9 @@ npm run icons       # draws extension/icons/*.png
 npm run pack        # nomadqa-extension.zip (the system zip tool)
 ```
 
-- `extension/core/` — Salesforce client, fake values, plans, the Apex check, create and delete.
-- `extension/app.js`, `app.css` — the screens.
+- `extension/core/` — Salesforce client, fake values, plans, the Apex check, create and delete, the step engine,
+  steps and the test runner, the Agent, the automation switch.
+- `extension/content/page.js` — the Inspector and the Recorder on Salesforce pages.
+- `extension/app.js`, `views/`, `app.css` — the screens.
+- `runner/run.mjs` — the headless runner (Chrome DevTools Protocol over Node's own WebSocket).
+- `examples/` — a test to start from.
