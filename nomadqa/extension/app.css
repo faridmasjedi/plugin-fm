@@ -452,6 +452,13 @@ td.example {
 .setting input {
   flex: 1 1 auto;
 }
+.setting label.check {
+  flex: none;
+  white-space: nowrap;
+}
+.setting label.check input {
+  flex: none;
+}
 .setting input.short {
   flex: 0 1 90px;
 }

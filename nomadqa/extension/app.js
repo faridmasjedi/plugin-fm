@@ -588,7 +588,7 @@ async function openRecipe(recipe) {
       id: ids.get(n.id),
       parentId: n.parentId ? ids.get(n.parentId) : undefined,
     }));
-    S.plan = { name: recipe.name ?? '', seed: recipe.seed ?? 1, marker: recipe.marker, nodes };
+    S.plan = { name: recipe.name ?? '', seed: recipe.seed ?? 1, nodes };
     S.selected = nodes[0]?.id ?? null;
     S.preview = null;
     S.view = 'plan';
@@ -644,7 +644,6 @@ async function saveRecipe() {
     version: 1,
     name,
     seed: S.plan.seed,
-    ...(S.plan.marker?.text ? { marker: S.plan.marker } : {}),
     nodes: S.plan.nodes.map(({ recordTypeId, ...n }) => n),
   };
   S.recipes = [recipe, ...S.recipes.filter((r) => r.name !== name)];
@@ -737,11 +736,10 @@ function noticeEl() {
   );
 }
 
-/** The pattern's controls: its text, whether a made-up value follows it, and which fields get it. */
+/** Clone screen: a pattern for the names of the copies, alone or with the copied value after it. */
 function markerParts(m, set) {
-  const opts = (list, cur) => list.map(([v, l]) => h('option', { value: v, selected: v === cur }, l));
   return [
-    h('span', { class: 'muted small' }, 'Pattern'),
+    h('b', {}, 'Pattern in names'),
     h('input', {
       value: m.text,
       placeholder: 'e.g. Nomad',
@@ -750,48 +748,16 @@ function markerParts(m, set) {
       onchange: (e) => set({ text: e.target.value }),
     }),
     h(
-      'select',
-      { 'aria-label': 'What the value is', onchange: (e) => set({ mode: e.target.value }) },
-      opts(
-        [
-          ['then', 'then a made-up value'],
-          ['only', 'only the pattern'],
-        ],
-        m.mode ?? 'then'
-      )
-    ),
-    h(
-      'select',
-      { 'aria-label': 'Which fields get the pattern', onchange: (e) => set({ where: e.target.value }) },
-      opts(
-        [
-          ['names', 'in names'],
-          ['text', 'in every text field'],
-        ],
-        m.where ?? 'names'
-      )
+      'label',
+      { class: 'check' },
+      h('input', {
+        type: 'checkbox',
+        checked: (m.mode ?? 'then') === 'then',
+        onchange: (e) => set({ mode: e.target.checked ? 'then' : 'only' }),
+      }),
+      'with the copied value added'
     ),
   ];
-}
-
-/** A pattern in names (or all text) so the test records are easy to find later. */
-function markerControl() {
-  const m = S.plan.marker ?? { text: '', where: 'names', mode: 'then' };
-  const set = (patch) => {
-    S.plan.marker = { ...m, ...patch };
-    if (!S.plan.marker.text) delete S.plan.marker;
-    savePlan();
-    render();
-  };
-  return h(
-    'div',
-    {
-      class: 'row marker',
-      title:
-        'Gives the values this pattern — alone, or followed by a made-up value — so you can find the records by searching for it.',
-    },
-    markerParts(m, set)
-  );
 }
 
 function planView() {
@@ -821,8 +787,6 @@ function planView() {
       ? h(
           'div',
           { class: 'row', style: 'justify-content: flex-end' },
-          markerControl(),
-          h('span', { class: 'grow' }),
           h(
             'button',
             { title: 'Same plan, other values', onclick: () => ((S.plan.seed += 1), savePlan(), render()) },
@@ -1022,7 +986,19 @@ function setting(node, f, rule) {
       return h(
         'div',
         { class: 'setting' },
-        input('value', { placeholder: 'INV-{0000} · {parent.Name}', 'aria-label': 'Pattern' })
+        input('value', { placeholder: 'Nomad · INV-{0000} · {parent.Name}', 'aria-label': 'Pattern' }),
+        /url|phone/.test(f.type)
+          ? null
+          : h(
+              'label',
+              { class: 'check', title: 'The pattern, then a value NomadQA makes up: “Nomad Oakline Logistics”' },
+              h('input', {
+                type: 'checkbox',
+                checked: Boolean(rule.random),
+                onchange: (e) => set({ random: e.target.checked }),
+              }),
+              'with random added'
+            )
       );
     case 'range':
       return h(
@@ -1576,7 +1552,7 @@ async function previewClones() {
       const names = [...new Set([ch.field, ...copyable(d).map((f) => f.name)])];
       children.push({ ...ch, describe: d, rows: kidIds.length ? await readWide(S.sf, ch.object, names, kidIds) : [] });
     }
-    const { nodes, records } = buildClones({ parent, children, copies: c.copies, marker: c.marker ?? S.plan.marker });
+    const { nodes, records } = buildClones({ parent, children, copies: c.copies, marker: c.marker });
     S.preview = {
       records,
       nodes,
@@ -1596,7 +1572,7 @@ async function previewClones() {
 
 function cloneView() {
   const c = S.clone;
-  const marker = c.marker ?? S.plan.marker ?? { text: '', where: 'names', mode: 'then' };
+  const marker = c.marker ?? { text: '', where: 'names', mode: 'then' };
   const picked = c.rows?.filter((r) => c.picked.has(r.Id)).length ?? 0;
   const kids = c.object && S.describes[c.object] ? childChoices(c.object) : [];
   const total = picked * Math.max(1, c.copies);

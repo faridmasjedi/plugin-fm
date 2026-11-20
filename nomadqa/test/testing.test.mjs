@@ -251,3 +251,19 @@ test('clone: search, copies with children, another org', async () => {
   assert.deepEqual(fit.records[0].values, { Name: 'Nomad Acme' });
   assert.equal(fit.changes.length, 2);
 });
+
+test('pattern rule: alone, or with a made-up value added', async () => {
+  const { valueOf } = await import('../extension/core/plan.js');
+  const { makeFaker } = await import('../extension/core/fake.js');
+  const ctx = { faker: makeFaker(1), values: {}, object: 'Account', label: 'Account', n: 7 };
+  const name = { name: 'Name', type: 'string', nameField: true, length: 255 };
+  assert.equal(valueOf({ kind: 'pattern', value: 'Nomad' }, name, ctx), 'Nomad');
+  assert.equal(valueOf({ kind: 'pattern', value: 'INV-{000}' }, name, ctx), 'INV-007');
+  assert.match(valueOf({ kind: 'pattern', value: 'Nomad', random: true }, name, ctx), /^Nomad \S+/);
+  const mail = valueOf(
+    { kind: 'pattern', value: 'Nomad QA', random: true },
+    { name: 'Email', type: 'email', length: 80 },
+    { ...ctx, values: { FirstName: 'Leila', LastName: 'Patel' } }
+  );
+  assert.match(mail, /^nomad\.qa\.[a-z.]+@example\.com$/);
+});

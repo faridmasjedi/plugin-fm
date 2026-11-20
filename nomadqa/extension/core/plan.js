@@ -192,8 +192,19 @@ export function valueOf(rule, f, ctx) {
       );
     case 'weighted':
       return x.weighted(rule.value ?? '');
-    case 'pattern':
-      return fillPattern(rule.value ?? '', ctx.n, ctx.parent ?? {});
+    case 'pattern': {
+      const fixed = fillPattern(rule.value ?? '', ctx.n, ctx.parent ?? {});
+      if (!rule.random) return fixed;
+      // The pattern, then a made-up value (an e-mail keeps its shape: nomad.leila.patel@example.com)
+      const made = autoValue(f, ctx);
+      if (made === undefined || made === null || made === '') return fixed;
+      if (f.type === 'email')
+        return `${String(fixed)
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '.')
+          .replace(/^\.|\.$/g, '')}.${made}`;
+      return `${fixed}${/\s$/.test(fixed) ? '' : ' '}${made}`;
+    }
     case 'range': {
       const from = Number(rule.from ?? 0);
       const to = Number(rule.to ?? from);
@@ -254,7 +265,6 @@ export function generate(plan, describes, faker, { lookups = {}, picklists = {} 
           const v = clip(valueOf(node.rules[name], f, ctx), f);
           if (v !== undefined && v !== null && v !== '') values[name] = v;
         }
-        if (plan.marker?.text) markValues(values, fields, plan.marker);
         if (node.recordTypeId) values.RecordTypeId = node.recordTypeId;
         if (parent && node.parentField) values[node.parentField] = { $ref: parent.key };
         const rec = { nodeId: node.id, object: node.object, key: `${node.id}-${n}`, parentKey: parent?.key, n, values };
