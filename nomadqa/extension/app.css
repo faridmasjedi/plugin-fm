@@ -1007,29 +1007,3 @@ button.job {
   color: var(--faint);
   font-size: 12px;
 }
-
-/* The objects a top-level object can go under */
-.parents {
-  display: grid;
-  gap: 6px;
-  margin-top: 10px;
-  padding: 10px 12px;
-  border: 1px dashed var(--border-strong);
-  border-radius: 10px;
-}
-.parents .row {
-  flex-wrap: wrap;
-  gap: 6px;
-}
-button.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 13px;
-}
-button.chip .pill {
-  font-size: 11px;
-  padding: 0 6px;
-}

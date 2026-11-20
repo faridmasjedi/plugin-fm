@@ -830,9 +830,16 @@ function makeCard(total, all) {
             { onclick: () => ((S.adding = { type: 'child', parentId: sel.id }), render()) },
             `+ Records under ${objectLabel(sel.object)}`
           )
+        : null,
+      // Only an object at the top can get a parent: one parent per object in a plan
+      sel && !sel.parentId
+        ? h(
+            'button',
+            { onclick: () => ((S.adding = { type: 'parent', nodeId: sel.id }), render()) },
+            `+ Records above ${objectLabel(sel.object)}`
+          )
         : null
     ),
-    sel && !sel.parentId ? parentsBox(sel) : null,
     all
       ? h(
           'p',
@@ -884,6 +891,7 @@ async function addParent(node, object, field) {
     delete node.rules[field]; // the link is filled in from the new parent
     S.plan.nodes.splice(S.plan.nodes.indexOf(node), 0, parent);
     S.selected = parent.id;
+    S.adding = null;
     savePlan();
     setNotice(
       'good',
@@ -892,52 +900,6 @@ async function addParent(node, object, field) {
       } ${objectLabel(node.object)} each. Change the numbers as you like.`
     );
   });
-}
-
-/** For a top-level object: the objects it can go under, to make those parent records too. */
-function parentsBox(node) {
-  const all = parentChoices(node.object);
-  if (!all.length) return null;
-  const main = all.filter((p) => p.required || !p.many).slice(0, 8);
-  const rest = all.filter((p) => !main.includes(p));
-  const text = (p) => `${objectLabel(p.object)} · ${p.field}`;
-  return h(
-    'div',
-    { class: 'parents' },
-    h(
-      'span',
-      { class: 'muted small' },
-      `${objectLabel(node.object)} can go under — add one to make those records too:`
-    ),
-    h(
-      'div',
-      { class: 'row' },
-      main.map((p) =>
-        h(
-          'button',
-          {
-            class: `chip${p.required ? ' required' : ''}`,
-            title: `${p.fieldLabel} (${p.field})${p.required ? ' — required' : ''}`,
-            disabled: Boolean(S.busy),
-            onclick: () => void addParent(node, p.object, p.field),
-          },
-          `+ ${text(p)}`,
-          p.required ? h('span', { class: 'pill bad' }, 'required') : null
-        )
-      ),
-      rest.length
-        ? searchSelect(
-            '',
-            rest.map((p) => [`${p.object}|${p.field}`, text(p), p.fieldLabel]),
-            (v) => {
-              const [o, f] = v.split('|');
-              void addParent(node, o, f);
-            },
-            { placeholder: `More (${rest.length})…`, 'aria-label': 'More parents' }
-          )
-        : null
-    )
-  );
 }
 
 function nodeRow(n, depth) {
@@ -990,6 +952,33 @@ function adder() {
         (v) => void addObject(v),
         { placeholder: 'Choose an object…', open: true, 'aria-label': 'Object' }
       ),
+      cancel
+    );
+  }
+  if (S.adding.type === 'parent') {
+    // The objects it can go under: its lookups, required ones first
+    const node = S.plan.nodes.find((n) => n.id === S.adding.nodeId);
+    const ups = parentChoices(node.object);
+    const key = (p) => `${p.object}|${p.field}`;
+    let up = ups[0];
+    return h(
+      'div',
+      { class: 'adder' },
+      ups.length
+        ? select(
+            key(up),
+            ups.map((p) => [
+              key(p),
+              `${objectLabel(p.object)} · ${p.field}${p.required ? ' (required)' : ''}`,
+              p.fieldLabel,
+            ]),
+            (v) => (up = ups.find((p) => key(p) === v)),
+            { 'aria-label': 'Records above it' }
+          )
+        : h('span', { class: 'muted' }, `${objectLabel(node.object)} has no lookup to an object that can be created.`),
+      ups.length
+        ? h('button', { class: 'primary', onclick: () => void addParent(node, up.object, up.field) }, 'Add')
+        : null,
       cancel
     );
   }
