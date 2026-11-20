@@ -1,0 +1,254 @@
+#!/usr/bin/env node
+// NomadQA headless runner: runs NomadQA test files in Chrome, with nothing to install (Node 22+, Chrome).
+//
+//   node nomadqa/runner/run.mjs my-test.nomadqa.json [more.json] --org uat [--headed] [--out reports]
+//
+// Login: --org <alias> asks the Salesforce CLI for a one-time login link (sf org open --url-only); or give that link
+// yourself with --login-url or NOMADQA_LOGIN_URL (CI). The session stays in the browser and in memory: nothing is
+// written but the reports (JUnit XML, and a screenshot of each failed step).
+import { spawn, execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { Salesforce } from '../extension/core/salesforce.js';
+import { runTest, stepText, junit } from '../extension/core/steps.js';
+
+const ENGINE = readFileSync(fileURLToPath(new URL('../extension/core/engine.js', import.meta.url)), 'utf8');
+
+function args(argv) {
+  const out = { files: [], headed: false, out: 'nomadqa-reports' };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--org') out.org = argv[++i];
+    else if (a === '--login-url') out.loginUrl = argv[++i];
+    else if (a === '--out') out.out = argv[++i];
+    else if (a === '--chrome') out.chrome = argv[++i];
+    else if (a === '--headed') out.headed = true;
+    else if (a === '--help' || a === '-h') out.help = true;
+    else out.files.push(a);
+  }
+  return out;
+}
+
+function chromePath(given) {
+  const list = [
+    given,
+    process.env.CHROME_PATH,
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+  ].filter(Boolean);
+  const found = list.find((p) => existsSync(p));
+  if (!found) throw new Error('Chrome not found: give --chrome <path> or set CHROME_PATH.');
+  return found;
+}
+
+/** A small Chrome DevTools Protocol client over Node's own WebSocket. */
+class Cdp {
+  constructor(url) {
+    this.ws = new WebSocket(url);
+    this.id = 0;
+    this.waiting = new Map();
+    this.listeners = [];
+    this.opened = new Promise((ok, fail) => {
+      this.ws.addEventListener('open', ok);
+      this.ws.addEventListener('error', fail);
+    });
+    this.ws.addEventListener('message', (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.id && this.waiting.has(msg.id)) {
+        const { ok, fail } = this.waiting.get(msg.id);
+        this.waiting.delete(msg.id);
+        msg.error ? fail(new Error(msg.error.message)) : ok(msg.result);
+      } else for (const l of this.listeners) l(msg);
+    });
+  }
+  send(method, params = {}, sessionId) {
+    const id = ++this.id;
+    this.ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
+    return new Promise((ok, fail) => this.waiting.set(id, { ok, fail }));
+  }
+  once(method, sessionId, timeout = 60000) {
+    return new Promise((ok, fail) => {
+      const t = setTimeout(() => {
+        this.listeners = this.listeners.filter((l) => l !== fn);
+        fail(new Error(`Timed out waiting for ${method}`));
+      }, timeout);
+      const fn = (msg) => {
+        if (msg.method === method && (!sessionId || msg.sessionId === sessionId)) {
+          clearTimeout(t);
+          this.listeners = this.listeners.filter((l) => l !== fn);
+          ok(msg.params);
+        }
+      };
+      this.listeners.push(fn);
+    });
+  }
+  close() {
+    this.ws.close();
+  }
+}
+
+async function launch(opts) {
+  const profile = mkdtempSync(join(tmpdir(), 'nomadqa-'));
+  const chrome = spawn(
+    chromePath(opts.chrome),
+    [
+      ...(opts.headed ? [] : ['--headless=new']),
+      '--remote-debugging-port=0',
+      `--user-data-dir=${profile}`,
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--window-size=1440,900',
+      'about:blank',
+    ],
+    { stdio: ['ignore', 'ignore', 'pipe'] }
+  );
+  const wsUrl = await new Promise((ok, fail) => {
+    let buf = '';
+    const t = setTimeout(() => fail(new Error('Chrome did not start.')), 30000);
+    chrome.stderr.on('data', (d) => {
+      buf += d;
+      const m = /DevTools listening on (ws:\/\/\S+)/.exec(buf);
+      if (m) {
+        clearTimeout(t);
+        ok(m[1]);
+      }
+    });
+    chrome.on('exit', () => fail(new Error('Chrome closed at start.')));
+  });
+  const cdp = new Cdp(wsUrl);
+  await cdp.opened;
+  const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
+  const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
+  await cdp.send('Page.enable', {}, sessionId);
+  await cdp.send('Runtime.enable', {}, sessionId);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  /** Evaluates in NomadQA's own isolated world (where Lightning's components are plain DOM). */
+  async function inPage(expression, tries = 6) {
+    for (let i = 0; ; i++) {
+      try {
+        const tree = await cdp.send('Page.getFrameTree', {}, sessionId);
+        const world = await cdp.send(
+          'Page.createIsolatedWorld',
+          { frameId: tree.frameTree.frame.id, worldName: 'nomadqa' },
+          sessionId
+        );
+        await cdp.send('Runtime.evaluate', { contextId: world.executionContextId, expression: ENGINE }, sessionId);
+        const r = await cdp.send(
+          'Runtime.evaluate',
+          { contextId: world.executionContextId, expression, awaitPromise: true, returnByValue: true },
+          sessionId
+        );
+        if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? 'page error');
+        return r.result.value;
+      } catch (e) {
+        if (i >= tries || !/context|navigat|destroyed|not found|Cannot find/i.test(e.message)) throw e;
+        await sleep(1000);
+      }
+    }
+  }
+
+  const driver = {
+    async open(url) {
+      const loaded = cdp.once('Page.loadEventFired', sessionId, 90000);
+      await cdp.send('Page.navigate', { url }, sessionId);
+      await loaded;
+      await inPage('__nomadqa.ready(90000)');
+    },
+    step: (s) => inPage(`__nomadqa.run(${JSON.stringify(s)})`),
+    async shot() {
+      const r = await cdp.send('Page.captureScreenshot', { format: 'png' }, sessionId);
+      return `data:image/png;base64,${r.data}`;
+    },
+  };
+  async function session(host) {
+    const { cookies } = await cdp.send('Network.getCookies', { urls: [`https://${host}`] }, sessionId);
+    return cookies.find((c) => c.name === 'sid')?.value;
+  }
+  return {
+    cdp,
+    driver,
+    session,
+    async login(url) {
+      const loaded = cdp.once('Page.loadEventFired', sessionId, 120000);
+      await cdp.send('Page.navigate', { url }, sessionId);
+      await loaded;
+      await inPage('__nomadqa.ready(120000)');
+    },
+    async close() {
+      cdp.close();
+      chrome.kill();
+      await sleep(500);
+      rmSync(profile, { recursive: true, force: true });
+    },
+  };
+}
+
+async function main() {
+  const opts = args(process.argv.slice(2));
+  if (opts.help || !opts.files.length) {
+    console.log('Usage: node nomadqa/runner/run.mjs <test.nomadqa.json…> --org <alias> [--headed] [--out <folder>]');
+    process.exit(opts.help ? 0 : 2);
+  }
+  const loginUrl =
+    opts.loginUrl ??
+    process.env.NOMADQA_LOGIN_URL ??
+    (opts.org
+      ? JSON.parse(execFileSync('sf', ['org', 'open', '--url-only', '--json', '-o', opts.org], { encoding: 'utf8' }))
+          .result.url
+      : undefined);
+  if (!loginUrl) throw new Error('Give --org <alias> (Salesforce CLI) or --login-url.');
+  const host = new URL(loginUrl).host;
+  const tests = opts.files.map((f) => ({ file: f, test: JSON.parse(readFileSync(f, 'utf8')) }));
+  mkdirSync(opts.out, { recursive: true });
+  const browser = await launch(opts);
+  let failedTests = 0;
+  try {
+    console.log(`Logging in to ${host}…`);
+    await browser.login(loginUrl);
+    const sid = await browser.session(host);
+    if (!sid) throw new Error('Logged in, but no session was found for the API.');
+    const sf = new Salesforce(host, sid);
+    for (const { file, test } of tests) {
+      if (test.nomadqa !== 'test' || !Array.isArray(test.steps)) throw new Error(`${file} is not a NomadQA test.`);
+      console.log(`\n${test.name ?? basename(file)}`);
+      const run = await runTest(test, {
+        driver: browser.driver,
+        sf,
+        onStep: (i, r) => {
+          const mark = r.ok ? '✓' : r.ok === null ? '·' : '✕';
+          console.log(`  ${mark} ${i + 1}. ${stepText(test.steps[i])}${r.ok === false ? `\n      ${r.message}` : ''}`);
+        },
+      });
+      const stem = basename(file).replace(/\.json$/, '');
+      writeFileSync(join(opts.out, `${stem}.junit.xml`), junit(test, run));
+      run.results.forEach((r, i) => {
+        if (r.shot)
+          writeFileSync(join(opts.out, `${stem}-step${i + 1}.png`), Buffer.from(r.shot.split(',')[1], 'base64'));
+      });
+      console.log(
+        `  ${run.ok ? 'passed' : 'FAILED'} in ${(run.ms / 1000).toFixed(1)} s${
+          run.cleaned ? ` · ${run.cleaned} test record(s) deleted` : ''
+        }`
+      );
+      if (!run.ok) failedTests++;
+    }
+  } finally {
+    await browser.close();
+  }
+  console.log(`\n${tests.length - failedTests} of ${tests.length} test(s) passed · reports in ${opts.out}`);
+  process.exit(failedTests ? 1 : 0);
+}
+
+main().catch((e) => {
+  console.error(`NomadQA: ${e.message}`);
+  process.exit(2);
+});
