@@ -832,6 +832,7 @@ function makeCard(total, all) {
           )
         : null
     ),
+    sel && !sel.parentId ? parentsBox(sel) : null,
     all
       ? h(
           'p',
@@ -845,6 +846,97 @@ function makeCard(total, all) {
           '. Parents are made first and every link is filled in.'
         )
       : null
+  );
+}
+
+// The objects a record can sit under: its lookups to objects that can be created (not users, owners, record types)
+const NOT_PARENTS = new Set(['User', 'Group', 'RecordType', 'Profile', 'UserRole', 'Organization', 'BusinessHours']);
+const NOT_PARENT_FIELDS = new Set(['OwnerId', 'CreatedById', 'LastModifiedById', 'RecordTypeId', 'MasterRecordId']);
+
+function parentChoices(object) {
+  const d = S.describes[object];
+  if (!d || !S.objects) return [];
+  const creatable = new Set(S.objects.map((o) => o.name));
+  const out = [];
+  for (const f of d.fields) {
+    if (f.type !== 'reference' || !f.createable || NOT_PARENT_FIELDS.has(f.name)) continue;
+    const targets = (f.referenceTo ?? []).filter((t) => creatable.has(t) && !NOT_PARENTS.has(t));
+    for (const t of targets)
+      out.push({
+        object: t,
+        field: f.name,
+        required: !f.nillable && !f.defaultedOnCreate,
+        many: targets.length > 1,
+        fieldLabel: f.label,
+      });
+  }
+  return out.sort(
+    (a, b) => b.required - a.required || a.many - b.many || objectLabel(a.object).localeCompare(objectLabel(b.object))
+  );
+}
+
+async function addParent(node, object, field) {
+  await run(`Reading ${objectLabel(object)}…`, async () => {
+    const d = await ensure(object);
+    const parent = { id: newId(), object, count: 1, rules: defaultRules(d) };
+    node.parentId = parent.id;
+    node.parentField = field;
+    delete node.rules[field]; // the link is filled in from the new parent
+    S.plan.nodes.splice(S.plan.nodes.indexOf(node), 0, parent);
+    S.selected = parent.id;
+    savePlan();
+    setNotice(
+      'good',
+      `${objectLabel(node.object)} now goes under ${objectLabel(object)} (by ${field}): 1 ${objectLabel(object)} with ${
+        node.count
+      } ${objectLabel(node.object)} each. Change the numbers as you like.`
+    );
+  });
+}
+
+/** For a top-level object: the objects it can go under, to make those parent records too. */
+function parentsBox(node) {
+  const all = parentChoices(node.object);
+  if (!all.length) return null;
+  const main = all.filter((p) => p.required || !p.many).slice(0, 8);
+  const rest = all.filter((p) => !main.includes(p));
+  const text = (p) => `${objectLabel(p.object)} · ${p.field}`;
+  return h(
+    'div',
+    { class: 'parents' },
+    h(
+      'span',
+      { class: 'muted small' },
+      `${objectLabel(node.object)} can go under — add one to make those records too:`
+    ),
+    h(
+      'div',
+      { class: 'row' },
+      main.map((p) =>
+        h(
+          'button',
+          {
+            class: `chip${p.required ? ' required' : ''}`,
+            title: `${p.fieldLabel} (${p.field})${p.required ? ' — required' : ''}`,
+            disabled: Boolean(S.busy),
+            onclick: () => void addParent(node, p.object, p.field),
+          },
+          `+ ${text(p)}`,
+          p.required ? h('span', { class: 'pill bad' }, 'required') : null
+        )
+      ),
+      rest.length
+        ? searchSelect(
+            '',
+            rest.map((p) => [`${p.object}|${p.field}`, text(p), p.fieldLabel]),
+            (v) => {
+              const [o, f] = v.split('|');
+              void addParent(node, o, f);
+            },
+            { placeholder: `More (${rest.length})…`, 'aria-label': 'More parents' }
+          )
+        : null
+    )
   );
 }
 

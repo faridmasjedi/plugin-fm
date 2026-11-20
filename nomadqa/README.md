@@ -8,6 +8,8 @@ that the browser loads as they are.
 
 - **Plan**: objects and how many, and what goes under each (10 accounts, 3 contacts and 2 opportunities each…). Parents
   are made first and every link is filled in.
+- **Parents too**: choose a top-level object and NomadQA lists the objects it can go under (its lookups, required ones
+  first); one click adds that parent above it, so those records are made too.
 - **Field rules**: Auto (from the field's type and name: companies, people, e-mails, phones, cities, dates, amounts,
   valid picklist values), Leave empty, a fixed value, one of a list, a weighted list (`Gold 20%, Silver 80%`), a
   pattern (`INV-{0000}`, `{parent.Name}`), a range, days from today, or records found by a query. E-mails and websites
