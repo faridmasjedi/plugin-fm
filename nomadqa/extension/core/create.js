@@ -1,17 +1,25 @@
 // Creating the records in the org (parents first), deleting a batch, and CSV files of a plan.
 
 /**
- * Creates the records node by node; a child gets its parent's new Id, and is not tried when its parent failed.
- * `progress(done, total)` is called as it goes. Returns { ids: {object: [ids]}, created, failed: [{key, message}] }.
+ * Creates the records object by object (parents first); a child gets its parent's new Id, and is not tried when its
+ * parent failed. Up to `parallel` calls of 200 records go at once. `progress(done, total)` after each call,
+ * `saved(object, ids)` with the Ids each call made (to keep the batch as it grows), `stop()` true ends it early.
+ * Returns { ids: {object: [ids]}, created, failed: [{key, object, message}], stopped }.
  */
-export async function createRecords(sf, records, { allowDuplicates = false, progress = () => {} } = {}) {
+export async function createRecords(
+  sf,
+  records,
+  { allowDuplicates = false, parallel = 4, progress = () => {}, saved = () => {}, stop = () => false } = {}
+) {
   const idOf = new Map();
   const ids = {};
   const failed = [];
   const nodes = [];
   for (const r of records) if (!nodes.includes(r.nodeId)) nodes.push(r.nodeId);
   let done = 0;
+  let stopped = false;
   for (const nodeId of nodes) {
+    if (stopped) break;
     const list = records.filter((r) => r.nodeId === nodeId);
     const object = list[0].object;
     const ready = [];
@@ -24,27 +32,59 @@ export async function createRecords(sf, records, { allowDuplicates = false, prog
           else values[k] = idOf.get(v.$ref);
         } else values[k] = v;
       }
-      if (missing) failed.push({ key: r.key, message: 'its parent was not created' });
+      if (missing) failed.push({ key: r.key, object, message: 'its parent was not created' });
       else ready.push({ r, values });
     }
-    // eslint-disable-next-line no-await-in-loop
-    const res = ready.length
-      ? await sf.insert(
-          object,
-          ready.map((x) => x.values),
-          { allowDuplicates }
-        )
-      : [];
-    res.forEach((x, i) => {
-      if (x.id) {
-        idOf.set(ready[i].r.key, x.id);
-        (ids[object] ??= []).push(x.id);
-      } else failed.push({ key: ready[i].r.key, message: x.error });
-    });
-    done += list.length;
+    done += list.length - ready.length;
+    const chunks = [];
+    for (let i = 0; i < ready.length; i += 200) chunks.push(ready.slice(i, i + 200));
+    let next = 0;
+    const worker = async () => {
+      while (next < chunks.length && !stopped) {
+        if (stop()) {
+          stopped = true;
+          break;
+        }
+        const chunk = chunks[next++];
+        let res;
+        try {
+          res = await sf.insert(
+            object,
+            chunk.map((x) => x.values),
+            { allowDuplicates }
+          );
+        } catch (e) {
+          res = chunk.map(() => ({ error: e.message }));
+        }
+        const made = [];
+        res.forEach((x, i) => {
+          if (x.id) {
+            idOf.set(chunk[i].r.key, x.id);
+            made.push(x.id);
+          } else failed.push({ key: chunk[i].r.key, object, message: x.error });
+        });
+        if (made.length) {
+          (ids[object] ??= []).push(...made);
+          saved(object, made);
+        }
+        done += chunk.length;
+        progress(done, records.length);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(parallel, chunks.length) }, worker));
     progress(done, records.length);
   }
-  return { ids, created: idOf.size, failed };
+  return { ids, idByKey: Object.fromEntries(idOf), created: idOf.size, failed, stopped };
+}
+
+/** Failures counted by object and message: [{ object, message, count }]. */
+export function failureSummary(failed) {
+  const by = new Map();
+  for (const f of failed) {
+    const k = `${f.object}\u0000${f.message}`;
+    by.set(k, { object: f.object, message: f.message, count: (by.get(k)?.count ?? 0) + 1 });
+  }
+  return [...by.values()].sort((a, b) => b.count - a.count);
 }
 
 /** Deletes a batch: children before parents (the reverse of how it was made). */

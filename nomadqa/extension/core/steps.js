@@ -162,11 +162,7 @@ export async function runTest(test, { driver, sf, onStep = () => {}, describes =
         const order = [];
         for (const rec of records) if (!order.includes(rec.object)) order.push(rec.object);
         batches.push({ order, ids: made.ids });
-        // Ids come back per object in creation order: map them by object
-        const byObject = {};
-        for (const rec of records) (byObject[rec.object] ??= []).push(rec);
-        for (const [object, list] of Object.entries(byObject))
-          list.forEach((rec, i2) => (vars[rec.key] = { id: made.ids[object][i2], values: rec.values }));
+        for (const rec of records) vars[rec.key] = { id: made.idByKey[rec.key], values: rec.values };
         r = { ok: true, message: `${made.created} record(s) made` };
       } else if (s.action === 'query') {
         const soql = String(s.soql).trim();

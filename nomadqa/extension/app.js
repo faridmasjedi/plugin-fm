@@ -14,7 +14,10 @@ import {
   fitRecipe,
 } from './core/plan.js';
 import { checkScripts, readCheck, factoryClass } from './core/apex.js';
-import { createRecords, deleteBatch, stillThere, csvFiles } from './core/create.js';
+import { createRecords, deleteBatch, stillThere, csvFiles, failureSummary } from './core/create.js';
+import { dataTable } from './core/table.js';
+import { whereOf, readWide, childIds, buildClones, fitClones, copyable } from './core/clone.js';
+import { log, mountLog } from './core/log.js';
 import { findSwitches, coverage, turnOn, turnOff } from './core/bypass.js';
 import { testingViews } from './views/testing.js';
 
@@ -61,6 +64,8 @@ const S = {
   recipes: [],
   counts: {},
   shown: {},
+  job: null,
+  clone: { object: '', where: '', rows: null, picked: new Set(), children: [], copies: 1, marker: null },
   busy: '',
   progress: null,
   notice: null,
@@ -77,12 +82,30 @@ function setNotice(kind, text) {
   S.notice = text ? { kind, text } : null;
 }
 
+const AREA = {
+  plan: 'Test data',
+  preview: 'Test data',
+  clone: 'Clone',
+  batches: 'Batches',
+  recipes: 'Recipes',
+  inspector: 'Inspector',
+  recorder: 'Recorder',
+  tests: 'Tests',
+  runs: 'Runs',
+  agent: 'Agent',
+  settings: 'Settings',
+};
+
 async function run(what, fn) {
   S.busy = what;
+  const quiet = what === 'Creating…';
+  const entry = quiet ? null : log(AREA[S.view] ?? 'NomadQA', what, { status: 'working' });
   render();
   try {
     await fn();
+    entry?.done(`${what.replace(/…$/, '')} — done`);
   } catch (e) {
+    entry?.problem(e.message);
     setNotice('bad', e.message);
   } finally {
     S.busy = '';
@@ -409,66 +432,114 @@ function automationCard() {
   );
 }
 
+/** The objects of what is being previewed (a plan, or records found to clone). */
+const previewNodes = () => S.preview?.nodes ?? S.plan.nodes;
+const previewName = () => S.preview?.name ?? (S.plan.name || summary(S.plan));
+
 async function createInOrg() {
   const records = included();
   const production = S.facts && !S.facts.isSandbox;
+  const calls = Math.ceil(records.length / 200);
   const ok = await askTyped(
-    `Create ${records.length} records in ${label()}? They are kept as a batch you can delete later.`,
+    `Create ${records.length.toLocaleString()} records in ${label()}? About ${calls.toLocaleString()} calls to Salesforce${
+      calls > 50 ? ' (they count towards the org’s daily API limit; this takes a few minutes)' : ''
+    }. They are kept as a batch you can delete later.`,
     label(),
     {
-      ok: `Create ${records.length}`,
+      ok: `Create ${records.length.toLocaleString()}`,
       extra: production
         ? `${label()} is a PRODUCTION org. Test data there is seen by real users and reports.`
         : undefined,
     }
   );
   if (!ok) return;
+  const order = [];
+  for (const n of orderNodes(previewNodes())) if (!order.includes(n.object)) order.push(n.object);
+  // The batch exists from the start and grows as records are made: leaving the page or stopping keeps it
+  const batch = {
+    id: newId(),
+    at: new Date().toISOString(),
+    host: S.host,
+    org: label(),
+    recipe: previewName(),
+    order,
+    ids: {},
+    status: 'running',
+    total: records.length,
+  };
+  S.batches = [batch, ...S.batches];
+  S.job = { batchId: batch.id, done: 0, total: records.length, stop: false };
+  let lastSave = 0;
+  const keep = async (force = false) => {
+    if (!force && Date.now() - lastSave < 1500) return;
+    lastSave = Date.now();
+    await store.set('nomadqa.batches', S.batches);
+  };
+  await keep(true);
+  const entry = log('Test data', `Creating ${records.length.toLocaleString()} records in ${label()}…`, {
+    status: 'working',
+  });
   await run('Creating…', async () => {
     S.progress = { done: 0, total: records.length };
     const started = Date.now();
-    // The org's own automation switch, on for this user only while creating, then exactly as before
+    // The org's own automation switches: on for this user only while creating, then exactly as before
     const used = (S.bypass.switches ?? []).filter((x) => S.bypass.use.has(switchKey(x)));
     const undo = [];
-    for (const sw of used) undo.push(await turnOn(S.sf, sw, S.facts.userId));
+    for (const sw of used) {
+      undo.push(await turnOn(S.sf, sw, S.facts.userId));
+      log('Test data', `Automation switch ${sw.label} on for you`);
+    }
     let result;
     try {
       result = await createRecords(S.sf, records, {
         allowDuplicates: S.allowDuplicates,
+        stop: () => S.job?.stop,
+        saved: (object, made) => {
+          (batch.ids[object] ??= []).push(...made);
+          void keep();
+        },
         progress: (done, total) => {
           S.progress = { done, total };
+          if (S.job) S.job.done = done;
+          entry.update(`Creating in ${label()}: ${done.toLocaleString()} of ${total.toLocaleString()}…`);
           render();
         },
       });
     } finally {
       for (const u of undo.reverse()) await turnOff(S.sf, u);
+      if (used.length) log('Test data', `Automation switch${used.length > 1 ? 'es' : ''} put back as before`);
     }
-    const order = [];
-    for (const n of orderNodes(S.plan.nodes)) if (!order.includes(n.object)) order.push(n.object);
-    const batch = {
-      id: newId(),
-      at: new Date().toISOString(),
-      host: S.host,
-      org: label(),
-      recipe: S.plan.name || summary(S.plan),
-      order,
-      ids: result.ids,
-      created: result.created,
-      failed: result.failed.length,
-    };
-    if (result.created) {
-      S.batches = [batch, ...S.batches];
-      await store.set('nomadqa.batches', S.batches);
-    }
+    batch.status = result.stopped ? 'stopped' : 'done';
+    batch.created = result.created;
+    batch.failed = result.failed.length;
+    if (!result.created) S.batches = S.batches.filter((b) => b !== batch);
+    S.job = null;
+    await keep(true);
     const secs = Math.round((Date.now() - started) / 1000);
-    setNotice(
-      result.failed.length ? 'warn' : 'good',
-      `Created ${result.created} of ${records.length} records in ${label()} in ${secs} s` +
-        (result.failed.length
-          ? ` — ${result.failed.length} failed: ${[...new Set(result.failed.map((f) => f.message))]
-              .slice(0, 3)
-              .join(' · ')}`
-          : '.')
-    );
+    // What each object gave, and why records failed (Salesforce's own words)
+    const fails = failureSummary(result.failed);
+    for (const object of order) {
+      const made = (result.ids[object] ?? []).length;
+      const want = records.filter((r) => r.object === object).length;
+      const why = fails.filter((f) => f.object === object);
+      log('Test data', `${object}: ${made.toLocaleString()} of ${want.toLocaleString()} made`, {
+        status: made < want ? 'problem' : 'done',
+        detail: why.length ? why.map((f) => `${f.count} × ${f.message}`).join('\n') : undefined,
+      });
+    }
+    const text =
+      `${
+        result.stopped ? 'Stopped: made' : 'Made'
+      } ${result.created.toLocaleString()} of ${records.length.toLocaleString()} records in ${label()} in ${secs} s` +
+      (fails.length
+        ? ` — ${result.failed.length.toLocaleString()} not made: ${fails
+            .slice(0, 3)
+            .map((f) => `${f.object}: ${f.message}`)
+            .join(' · ')}. The Log has every reason.`
+        : '.');
+    if (fails.length || result.stopped) entry.problem(text);
+    else entry.done(text);
+    setNotice(fails.length || result.stopped ? 'warn' : 'good', text);
     S.view = 'batches';
   });
 }
@@ -517,7 +588,7 @@ async function openRecipe(recipe) {
       id: ids.get(n.id),
       parentId: n.parentId ? ids.get(n.parentId) : undefined,
     }));
-    S.plan = { name: recipe.name ?? '', seed: recipe.seed ?? 1, nodes };
+    S.plan = { name: recipe.name ?? '', seed: recipe.seed ?? 1, marker: recipe.marker, nodes };
     S.selected = nodes[0]?.id ?? null;
     S.preview = null;
     S.view = 'plan';
@@ -573,6 +644,7 @@ async function saveRecipe() {
     version: 1,
     name,
     seed: S.plan.seed,
+    ...(S.plan.marker?.text ? { marker: S.plan.marker } : {}),
     nodes: S.plan.nodes.map(({ recordTypeId, ...n }) => n),
   };
   S.recipes = [recipe, ...S.recipes.filter((r) => r.name !== name)];
@@ -603,7 +675,21 @@ function top() {
       : null,
     S.facts?.user ? h('span', { class: 'muted small' }, `${S.facts.user} · ${S.facts.name}`) : null,
     h('span', { class: 'grow' }),
-    S.busy ? h('span', { class: 'pill accent', role: 'status' }, S.busy) : null
+    // Creating goes on on any page: its progress stays here, and opens its batch
+    S.job
+      ? h(
+          'button',
+          { class: 'job', title: 'Open its batch', onclick: () => ((S.view = 'batches'), render()) },
+          h(
+            'span',
+            { class: 'job-bar' },
+            h('span', { style: `width: ${Math.round((100 * S.job.done) / Math.max(1, S.job.total))}%` })
+          ),
+          `Creating ${S.job.done.toLocaleString()} of ${S.job.total.toLocaleString()}`
+        )
+      : S.busy
+      ? h('span', { class: 'pill accent', role: 'status' }, S.busy)
+      : null
   );
 }
 
@@ -612,8 +698,10 @@ function side() {
     h(
       'button',
       {
-        class: S.view === view || (view === 'plan' && S.view === 'preview') ? 'on' : '',
-        onclick: () => ((S.view = view === 'plan' && S.preview && S.view === 'preview' ? 'preview' : view), render()),
+        class: S.view === view || (S.view === 'preview' && (S.preview?.back ?? 'plan') === view) ? 'on' : '',
+        onclick: () => (
+          (S.view = S.view === 'preview' && (S.preview?.back ?? 'plan') === view ? 'preview' : view), render()
+        ),
       },
       text
     );
@@ -621,6 +709,7 @@ function side() {
     'nav',
     { class: 'side', 'aria-label': 'NomadQA' },
     item('plan', 'Test data'),
+    item('clone', 'Find & clone'),
     item(
       'batches',
       h('span', {}, 'Batches ', S.batches.length ? h('span', { class: 'pill' }, S.batches.length) : null)
@@ -645,6 +734,39 @@ function noticeEl() {
     S.notice.text,
     ' ',
     h('button', { class: 'link', onclick: () => (setNotice(), render()) }, 'Dismiss')
+  );
+}
+
+/** A marker at the start of names (or all text) so the test records are easy to find later. */
+function markerControl() {
+  const m = S.plan.marker ?? { text: '', where: 'names' };
+  const set = (patch) => {
+    S.plan.marker = { ...m, ...patch };
+    if (!S.plan.marker.text) delete S.plan.marker;
+    savePlan();
+  };
+  return h(
+    'div',
+    {
+      class: 'row marker',
+      title: 'Puts this at the start of the values, so you can find the records by searching for it.',
+    },
+    h('span', { class: 'muted small' }, 'Start values with'),
+    h('input', {
+      value: m.text,
+      placeholder: 'e.g. Nomad ',
+      style: 'width: 120px',
+      'aria-label': 'Marker',
+      onchange: (e) => (set({ text: e.target.value }), render()),
+    }),
+    h(
+      'select',
+      { 'aria-label': 'Where the marker goes', onchange: (e) => set({ where: e.target.value }) },
+      [
+        ['names', 'in names'],
+        ['text', 'in every text field'],
+      ].map(([v, l]) => h('option', { value: v, selected: v === m.where }, l))
+    )
   );
 }
 
@@ -675,6 +797,8 @@ function planView() {
       ? h(
           'div',
           { class: 'row', style: 'justify-content: flex-end' },
+          markerControl(),
+          h('span', { class: 'grow' }),
           h(
             'button',
             { title: 'Same plan, other values', onclick: () => ((S.plan.seed += 1), savePlan(), render()) },
@@ -1077,7 +1201,7 @@ function rulesCard() {
 
 function previewView() {
   const p = S.preview;
-  const nodes = orderNodes(S.plan.nodes);
+  const nodes = orderNodes(previewNodes());
   const node = nodes.find((n) => n.id === p.tab) ?? nodes[0];
   const recs = p.records.filter((r) => r.nodeId === node.id);
   const keys = new Map(p.records.map((r) => [r.key, r]));
@@ -1138,7 +1262,11 @@ function previewView() {
     h(
       'div',
       { class: 'head' },
-      h('button', { class: 'link', onclick: () => ((S.view = 'plan'), render()) }, '← Plan'),
+      h(
+        'button',
+        { class: 'link', onclick: () => ((S.view = p.back ?? 'plan'), render()) },
+        p.back === 'clone' ? '← Find & clone' : '← Plan'
+      ),
       h('h1', {}, `Preview · ${n.toLocaleString()} records`),
       h('span', { class: 'muted' }, 'Nothing is in the org yet'),
       p.excluded.size ? h('span', { class: 'pill warn' }, `${p.excluded.size} left out`) : null
@@ -1202,7 +1330,9 @@ function previewView() {
                 { onclick: leaveFailedOut },
                 `Leave the ${p.check.failed.length} failing out (and what is under them)`
               ),
-              h('button', { onclick: () => ((S.view = 'plan'), render()) }, 'Change the rules')
+              p.back === 'clone'
+                ? null
+                : h('button', { onclick: () => ((S.view = 'plan'), render()) }, 'Change the rules')
             )
           )
         : null
@@ -1222,51 +1352,34 @@ function previewView() {
           )
         )
       ),
-      h(
-        'div',
-        { class: 'table-box' },
-        h(
-          'table',
-          { class: 'records' },
-          h(
-            'thead',
-            {},
-            h(
-              'tr',
-              {},
-              h('th', {}, '#'),
-              node.parentId ? h('th', {}, `Under (${node.parentField})`) : null,
-              fields.map((f) => h('th', {}, f)),
-              h('th', {}, 'Check')
-            )
-          ),
-          h(
-            'tbody',
-            {},
-            recs.slice(0, SHOW_MAX).map((r) =>
-              h(
-                'tr',
-                { class: failedBy.has(r.key) || p.excluded.has(r.key) ? 'bad' : '' },
-                h('td', { class: 'muted' }, r.n),
-                node.parentId ? h('td', { class: 'cell' }, parentPick(r)) : null,
-                fields.map((f) => editCell(r, f)),
-                h(
-                  'td',
-                  {},
-                  p.excluded.has(r.key)
-                    ? h('span', { class: 'muted' }, 'left out')
-                    : failedBy.has(r.key)
-                    ? h('span', { class: 'bad', style: 'color: var(--bad)' }, '✕')
-                    : p.check
-                    ? h('span', { style: 'color: var(--good)' }, '✓')
-                    : ''
-                )
-              )
-            )
-          )
-        )
-      ),
-      recs.length > SHOW_MAX ? h('p', { class: 'muted small' }, `Showing ${SHOW_MAX} of ${recs.length}.`) : null
+      dataTable({
+        name: `preview-${node.object}`,
+        columns: [
+          ['#', '#'],
+          ...(node.parentId ? [['__parent', `Under (${node.parentField})`]] : []),
+          ...fields.map((f) => [f, f]),
+          ['__check', 'Check'],
+        ],
+        rows: recs,
+        maxShown: SHOW_MAX,
+        note: 'Type in a cell to change a value.',
+        value: (k, r) =>
+          k === '#'
+            ? r.n
+            : k === '__parent'
+            ? parentName(r.parentKey)
+            : k === '__check'
+            ? p.excluded.has(r.key)
+              ? 'left out'
+              : failedBy.has(r.key)
+              ? `✕ ${failedBy.get(r.key)}`
+              : p.check
+              ? '✓'
+              : ''
+            : r.values[k],
+        cell: (k, r) =>
+          k === '__parent' ? parentPick(r) : k === '#' || k === '__check' ? null : editCell(r, k).firstChild,
+      })
     ),
     automationCard(),
     h(
@@ -1378,13 +1491,266 @@ async function createElsewhere(host) {
   if (host === S.host) return;
   const to = S.orgs.find((o) => o.host === host)?.label ?? host;
   const ok = await askTyped(
-    `Make the preview again in ${to}? The plan stays; values come from ${to}’s fields, and records found by a query are looked up there.`,
+    S.preview?.back === 'clone'
+      ? `Make these clones in ${to}? Fields ${to} lacks, links to other records and record types are left out.`
+      : `Make the preview again in ${to}? The plan stays; values come from ${to}’s fields, and records found by a query are looked up there.`,
     to,
     { ok: 'Switch' }
   );
   if (!ok) return render();
+  const clones = S.preview?.back === 'clone' ? S.preview : null;
   await chooseOrg(host);
-  if (S.sf) await preparePreview();
+  if (!S.sf) return;
+  if (!clones) return void (await preparePreview());
+  await run('Fitting the clones to this org…', async () => {
+    for (const n of clones.nodes) await ensure(n.object).catch(() => null);
+    const fit = fitClones(clones, S.describes);
+    S.preview = { ...clones, ...fit, excluded: new Set(), check: null, tab: fit.nodes[0]?.id };
+    S.view = 'preview';
+    if (fit.changes.length) setNotice('warn', fit.changes.join(' '));
+  });
+}
+
+// ---------- find & clone ----------
+
+const nameFieldOf = (d) => d.fields.find((f) => f.nameField)?.name ?? 'Id';
+
+async function findToClone() {
+  const c = S.clone;
+  await run(`Finding ${objectLabel(c.object)} records…`, async () => {
+    const d = await ensure(c.object);
+    const name = nameFieldOf(d);
+    const where = whereOf(c.where, name);
+    const soql = `SELECT Id${name !== 'Id' ? `, ${name}` : ''}, CreatedDate, LastModifiedDate FROM ${c.object}${
+      where ? ` WHERE ${where}` : ''
+    } ORDER BY LastModifiedDate DESC LIMIT 200`;
+    c.rows = (await S.sf.query(soql, { max: 200 })).map((r) => ({ ...r, Name: r[name] ?? r.Id }));
+    c.picked = new Set();
+    log('Find & clone', `Found ${c.rows.length} ${objectLabel(c.object)}`, { detail: soql });
+  });
+}
+
+async function previewClones() {
+  const c = S.clone;
+  const ids = c.rows.filter((r) => c.picked.has(r.Id)).map((r) => r.Id);
+  await run(`Reading ${ids.length} records and what is under them…`, async () => {
+    const pd = await ensure(c.object);
+    const parent = {
+      object: c.object,
+      describe: pd,
+      rows: await readWide(
+        S.sf,
+        c.object,
+        copyable(pd).map((f) => f.name),
+        ids
+      ),
+    };
+    const children = [];
+    for (const ch of c.children) {
+      const d = await ensure(ch.object);
+      const kidIds = await childIds(S.sf, ch.object, ch.field, ids);
+      const names = [...new Set([ch.field, ...copyable(d).map((f) => f.name)])];
+      children.push({ ...ch, describe: d, rows: kidIds.length ? await readWide(S.sf, ch.object, names, kidIds) : [] });
+    }
+    const { nodes, records } = buildClones({ parent, children, copies: c.copies, marker: c.marker ?? S.plan.marker });
+    S.preview = {
+      records,
+      nodes,
+      excluded: new Set(),
+      tab: 'p',
+      check: null,
+      back: 'clone',
+      name: `Clones of ${ids.length} ${objectLabel(c.object)}${c.copies > 1 ? ` ×${c.copies}` : ''}`,
+    };
+    S.view = 'preview';
+    setNotice();
+    log('Find & clone', `Previewing ${records.length} clones`, {
+      detail: nodes.map((n) => `${n.object}: ${records.filter((r) => r.nodeId === n.id).length}`).join('\n'),
+    });
+  });
+}
+
+function cloneView() {
+  const c = S.clone;
+  const marker = c.marker ?? S.plan.marker ?? { text: '', where: 'names' };
+  const picked = c.rows?.filter((r) => c.picked.has(r.Id)).length ?? 0;
+  const kids = c.object && S.describes[c.object] ? childChoices(c.object) : [];
+  const total = picked * Math.max(1, c.copies);
+  return [
+    h(
+      'div',
+      { class: 'head' },
+      h('h1', {}, 'Find & clone'),
+      h(
+        'span',
+        { class: 'muted' },
+        'Copy real records (and what is under them) as test data — nothing changes until you create'
+      )
+    ),
+    noticeEl(),
+    !S.sf
+      ? h('div', { class: 'card empty' }, 'Choose an org above.')
+      : h(
+          'section',
+          { class: 'card' },
+          h('h2', {}, '1 · Find'),
+          h(
+            'div',
+            { class: 'row' },
+            searchSelect(
+              c.object,
+              (S.objects ?? []).map((o) => [o.name, o.label, o.name]),
+              (v) => {
+                Object.assign(c, { object: v, rows: null, picked: new Set(), children: [] });
+                void run('Reading the object…', () => ensure(v));
+              },
+              { placeholder: 'Choose an object…', 'aria-label': 'Object' }
+            ),
+            h('input', {
+              class: 'grow',
+              value: c.where,
+              placeholder: "Words in the name — or a condition, e.g. Industry = 'Energy' AND CreatedDate = THIS_YEAR",
+              'aria-label': 'What to find',
+              oninput: (e) => (c.where = e.target.value),
+              onkeydown: (e) => e.key === 'Enter' && c.object && void findToClone(),
+            }),
+            h(
+              'button',
+              { class: 'primary', disabled: !c.object || Boolean(S.busy), onclick: () => void findToClone() },
+              'Find'
+            )
+          ),
+          h('p', { class: 'muted small' }, 'Shows the 200 changed last. Only reads.')
+        ),
+    c.rows
+      ? h(
+          'section',
+          { class: 'card' },
+          h(
+            'div',
+            { class: 'row' },
+            h('h2', { class: 'grow' }, '2 · Pick'),
+            h('span', { class: 'pill' }, `${picked} picked`),
+            h('button', { onclick: () => ((c.picked = new Set(c.rows.map((r) => r.Id))), render()) }, 'Pick all'),
+            h('button', { onclick: () => ((c.picked = new Set()), render()) }, 'None')
+          ),
+          c.rows.length
+            ? dataTable({
+                name: `clone-${c.object}`,
+                columns: [
+                  ['__pick', '✓'],
+                  ['Name', 'Name'],
+                  ['Id', 'Id'],
+                  ['LastModifiedDate', 'Last changed'],
+                ],
+                rows: c.rows,
+                value: (k, r) => (k === '__pick' ? (c.picked.has(r.Id) ? 'yes' : '') : r[k]),
+                cell: (k, r) =>
+                  k === '__pick'
+                    ? h('input', {
+                        type: 'checkbox',
+                        checked: c.picked.has(r.Id),
+                        'aria-label': `Pick ${r.Name}`,
+                        onchange: (e) => (e.target.checked ? c.picked.add(r.Id) : c.picked.delete(r.Id), render()),
+                      })
+                    : k === 'Name'
+                    ? h('a', { href: `https://${S.host}/${r.Id}`, target: '_blank' }, r.Name)
+                    : null,
+              })
+            : h('p', { class: 'muted' }, 'Nothing found.')
+        )
+      : null,
+    picked
+      ? h(
+          'section',
+          { class: 'card' },
+          h('h2', {}, '3 · Clone'),
+          h(
+            'div',
+            { class: 'row' },
+            h('b', {}, 'With the records under them'),
+            kids.length
+              ? searchSelect(
+                  '',
+                  kids
+                    .filter((k) => !c.children.some((x) => x.field === k.field && x.object === k.object))
+                    .map((k) => [`${k.object}.${k.field}`, k.text]),
+                  (v) => {
+                    const k = kids.find((x) => `${x.object}.${x.field}` === v);
+                    if (k) c.children.push({ object: k.object, field: k.field, text: k.text });
+                    render();
+                  },
+                  { placeholder: 'Add an object under them…', 'aria-label': 'Records under them' }
+                )
+              : h('span', { class: 'muted small' }, 'None'),
+            c.children.map((k, i) =>
+              h(
+                'span',
+                { class: 'pill accent' },
+                k.text,
+                ' ',
+                h(
+                  'button',
+                  {
+                    class: 'link',
+                    'aria-label': `Remove ${k.text}`,
+                    onclick: () => (c.children.splice(i, 1), render()),
+                  },
+                  '✕'
+                )
+              )
+            )
+          ),
+          h(
+            'div',
+            { class: 'row' },
+            h('b', {}, 'Copies of each'),
+            h('input', {
+              type: 'number',
+              min: 1,
+              max: 50,
+              value: c.copies,
+              style: 'width: 80px',
+              'aria-label': 'Copies of each',
+              onchange: (e) => ((c.copies = Math.min(50, Math.max(1, Number(e.target.value) || 1))), render()),
+            }),
+            h('b', {}, 'Start values with'),
+            h('input', {
+              value: marker.text,
+              placeholder: 'e.g. Nomad ',
+              style: 'width: 120px',
+              'aria-label': 'Marker',
+              onchange: (e) => (c.marker = { ...marker, text: e.target.value }),
+            }),
+            h(
+              'select',
+              {
+                'aria-label': 'Where the marker goes',
+                onchange: (e) => (c.marker = { ...marker, where: e.target.value }),
+              },
+              [
+                ['names', 'in names'],
+                ['text', 'in every text field'],
+              ].map(([v, l]) => h('option', { value: v, selected: v === marker.where }, l))
+            )
+          ),
+          h(
+            'p',
+            { class: 'muted small' },
+            'Every writable field is copied, except ones that must be unique. Records under them are copied one level down and linked to the new copy. You see them all in the preview, can check them without saving, and create them as a batch — in this org or another.'
+          ),
+          h(
+            'div',
+            { class: 'row', style: 'justify-content: flex-end' },
+            h(
+              'button',
+              { class: 'primary', disabled: Boolean(S.busy), onclick: () => void previewClones() },
+              `Preview ${total} clone${total === 1 ? '' : 's'}${c.children.length ? ' and what is under them' : ''} →`
+            )
+          )
+        )
+      : null,
+  ];
 }
 
 function batchesView() {
@@ -1393,7 +1759,7 @@ function batchesView() {
   const del = async (b) => {
     if (b.host !== S.host) return setNotice('warn', `That batch is in ${b.org}: choose it above first.`), render();
     const ok = await askTyped(
-      `Delete the ${total(b)} records of this batch from ${b.org}? Children go first, then parents.`,
+      `Delete the ${total(b).toLocaleString()} records of this batch from ${b.org}? Children go first, then parents.`,
       b.org,
       { ok: 'Delete', danger: true }
     );
@@ -1401,12 +1767,18 @@ function batchesView() {
     await run('Deleting…', async () => {
       const r = await deleteBatch(S.sf, b);
       S.counts[b.id] = 0;
+      delete S.shown[b.id];
       setNotice(
         r.problems.length ? 'warn' : 'good',
-        `Deleted ${r.deleted} records from ${b.org}.${
+        `Deleted ${r.deleted.toLocaleString()} records from ${b.org}.${
           r.problems.length ? ` ${r.problems.length} could not be deleted: ${r.problems.slice(0, 2).join(' · ')}` : ''
         }`
       );
+      if (r.problems.length)
+        log('Batches', `${r.problems.length} record(s) not deleted`, {
+          status: 'problem',
+          detail: r.problems.join('\n'),
+        });
       b.deletedAt = new Date().toISOString();
       await store.set('nomadqa.batches', S.batches);
     });
@@ -1416,7 +1788,12 @@ function batchesView() {
       if (b.host !== S.host) throw new Error(`That batch is in ${b.org}: choose it above first.`);
       S.counts[b.id] = await stillThere(S.sf, b);
     });
-  // The batch's records by name, each opening in Salesforce
+  const forget = async (b) => {
+    S.batches = S.batches.filter((x) => x.id !== b.id);
+    await store.set('nomadqa.batches', S.batches);
+    render();
+  };
+  // The batch's records by name, a box per object (opened like a dropdown), each opening in Salesforce
   const showRecords = (b) => {
     if (S.shown[b.id]) {
       delete S.shown[b.id];
@@ -1426,68 +1803,49 @@ function batchesView() {
     void run('Reading the records…', async () => {
       const rows = [];
       for (const object of b.order) {
-        const ids = (b.ids[object] ?? []).slice(0, 200);
+        const ids = b.ids[object] ?? [];
         if (!ids.length) continue;
         const d = await ensure(object);
         const nameField = d.fields.find((f) => f.nameField)?.name ?? 'Id';
-        const found = await S.sf.query(
-          `SELECT Id, ${nameField} FROM ${object} WHERE Id IN (${ids.map((x) => `'${x}'`).join(',')})`
-        );
-        const names = new Map(found.map((r) => [r.Id, r[nameField]]));
-        for (const id of ids) rows.push({ object, id, name: names.get(id), gone: !names.has(id) });
+        const names = new Map();
+        for (let i = 0; i < ids.length && i < 2000; i += 300) {
+          const chunk = ids.slice(i, i + 300);
+          for (const r of await S.sf.query(
+            `SELECT Id, ${nameField} FROM ${object} WHERE Id IN (${chunk.map((x) => `'${x}'`).join(',')})`
+          ))
+            names.set(r.Id, r[nameField]);
+        }
+        ids
+          .slice(0, 2000)
+          .forEach((id) =>
+            rows.push({
+              Object: objectLabel(object),
+              Name: names.get(id) ?? '',
+              Id: id,
+              State: names.has(id) ? 'in the org' : 'deleted',
+              api: object,
+            })
+          );
       }
       S.shown[b.id] = rows;
     });
   };
   const recordsOf = (b) =>
-    h(
-      'div',
-      { class: 'batch-records' },
-      h(
-        'div',
-        { class: 'row' },
-        h('span', { class: 'muted small grow' }, 'First 200 per object · deleted ones are marked'),
-        h(
-          'button',
-          {
-            onclick: () =>
-              download(
-                `batch-${b.id}-ids.csv`,
-                `Object,Id\n${b.order.flatMap((o) => (b.ids[o] ?? []).map((id) => `${o},${id}`)).join('\n')}\n`,
-                'text/csv'
-              ),
-          },
-          'Ids as CSV'
-        )
-      ),
-      h(
-        'ul',
-        { class: 'record-list' },
-        S.shown[b.id].map((r) =>
-          h(
-            'li',
-            {},
-            h('span', { class: 'pill' }, objectLabel(r.object)),
-            r.gone
-              ? h('span', { class: 'muted' }, `${r.id} · deleted`)
-              : h(
-                  'a',
-                  {
-                    href: `https://${b.host}/lightning/r/${r.object}/${r.id}/view`,
-                    target: '_blank',
-                    rel: 'noreferrer',
-                  },
-                  r.name ?? r.id
-                )
-          )
-        )
-      )
-    );
-  const forget = async (b) => {
-    S.batches = S.batches.filter((x) => x.id !== b.id);
-    await store.set('nomadqa.batches', S.batches);
-    render();
-  };
+    dataTable({
+      name: `batch-${b.id}`,
+      columns: ['Object', 'Name', 'Id', 'State'],
+      rows: S.shown[b.id],
+      groupBy: 'Object',
+      note: '· up to 2,000 per object · click a name to open it',
+      cell: (k, r) =>
+        k === 'Name' && r.State !== 'deleted'
+          ? h(
+              'a',
+              { href: `https://${b.host}/lightning/r/${r.api}/${r.Id}/view`, target: '_blank', rel: 'noreferrer' },
+              r.Name || r.Id
+            )
+          : undefined,
+    });
   return [
     h(
       'div',
@@ -1496,81 +1854,99 @@ function batchesView() {
       h('span', { class: 'muted' }, 'Every record NomadQA created, by run — so test data never gets lost in an org')
     ),
     noticeEl(),
-    h(
-      'section',
-      { class: 'card' },
-      S.batches.length
-        ? h(
-            'div',
-            { class: 'table-box' },
+    S.batches.length
+      ? S.batches.map((b) => {
+          const running = S.job?.batchId === b.id;
+          const made = total(b);
+          return h(
+            'section',
+            { class: 'card batch' },
             h(
-              'table',
-              {},
+              'div',
+              { class: 'row' },
               h(
-                'thead',
-                {},
-                h(
-                  'tr',
-                  {},
-                  h('th', {}, 'When'),
-                  h('th', {}, 'Org'),
-                  h('th', {}, 'Recipe'),
-                  h('th', {}, 'Records'),
-                  h('th', {}, 'Still there'),
-                  h('th', {}, '')
-                )
+                'div',
+                { class: 'grow' },
+                h('b', {}, b.recipe),
+                h('span', { class: 'sub' }, `${when(b.at)} · ${b.org}`)
               ),
-              h(
-                'tbody',
-                {},
-                S.batches.flatMap((b) => [
+              running
+                ? h('span', { class: 'pill accent' }, 'creating…')
+                : b.status === 'stopped'
+                ? h('span', { class: 'pill warn' }, 'stopped')
+                : b.status === 'running'
+                ? h('span', { class: 'pill warn' }, 'interrupted')
+                : null,
+              b.failed
+                ? h(
+                    'span',
+                    { class: 'pill bad', title: 'The Log has the reasons' },
+                    `${b.failed.toLocaleString()} not made`
+                  )
+                : null
+            ),
+            running
+              ? h(
+                  'div',
+                  {},
                   h(
-                    'tr',
-                    {},
-                    h('td', {}, when(b.at)),
-                    h('td', {}, b.org),
-                    h('td', {}, b.recipe),
-                    h(
-                      'td',
-                      {},
-                      total(b),
-                      h('span', { class: 'sub' }, b.order.map((o) => `${(b.ids[o] ?? []).length} ${o}`).join(' · '))
-                    ),
-                    h(
-                      'td',
-                      {},
-                      S.counts[b.id] !== undefined
-                        ? String(S.counts[b.id])
-                        : h('button', { class: 'link', onclick: () => void count(b) }, 'Count')
-                    ),
-                    h(
-                      'td',
-                      { style: 'text-align: right' },
-                      h(
-                        'div',
-                        { class: 'row', style: 'justify-content: flex-end; flex-wrap: nowrap' },
-                        h(
-                          'button',
-                          { onclick: () => void showRecords(b) },
-                          S.shown[b.id] ? 'Hide records' : 'Show records'
-                        ),
-                        b.deletedAt || S.counts[b.id] === 0
-                          ? h('button', { onclick: () => void forget(b) }, 'Remove from the list')
-                          : h('button', { class: 'danger', onclick: () => void del(b) }, 'Delete the batch…')
-                      )
-                    )
+                    'div',
+                    { class: 'bar' },
+                    h('div', { style: `width: ${Math.round((100 * S.job.done) / S.job.total)}%` })
                   ),
-                  S.shown[b.id] ? h('tr', {}, h('td', { colspan: '6' }, recordsOf(b))) : null,
-                ])
-              )
-            )
-          )
-        : h('p', { class: 'empty' }, 'No batches yet: records you create from Test data show here.'),
-      h(
-        'p',
-        { class: 'muted small' },
-        'Batches are kept in this browser, by record Id. Delete asks for the org’s name and removes children before parents.'
-      )
+                  h(
+                    'p',
+                    { class: 'muted small' },
+                    `${S.job.done.toLocaleString()} of ${S.job.total.toLocaleString()} done · ${made.toLocaleString()} made so far`
+                  )
+                )
+              : null,
+            h(
+              'p',
+              { class: 'small' },
+              h('b', {}, `${made.toLocaleString()} records`),
+              ' — ',
+              b.order.map((o) => `${(b.ids[o] ?? []).length.toLocaleString()} ${objectLabel(o)}`).join(' · ')
+            ),
+            h(
+              'div',
+              { class: 'row' },
+              running
+                ? h(
+                    'button',
+                    {
+                      class: 'danger',
+                      onclick: () => ((S.job.stop = true), toast('Stopping after the calls on their way…'), render()),
+                    },
+                    'Stop'
+                  )
+                : [
+                    h(
+                      'button',
+                      { disabled: !made, onclick: () => void showRecords(b) },
+                      S.shown[b.id] ? 'Hide records' : 'Show records'
+                    ),
+                    S.counts[b.id] !== undefined
+                      ? h('span', { class: 'muted small' }, `${S.counts[b.id].toLocaleString()} still in the org`)
+                      : h('button', { disabled: !made, onclick: () => void count(b) }, 'Count what is still there'),
+                    h('span', { class: 'grow' }),
+                    b.deletedAt || S.counts[b.id] === 0 || !made
+                      ? h('button', { onclick: () => void forget(b) }, 'Remove from the list')
+                      : h('button', { class: 'danger', onclick: () => void del(b) }, 'Delete the batch…'),
+                  ]
+            ),
+            S.shown[b.id] && !running ? recordsOf(b) : null
+          );
+        })
+      : h(
+          'section',
+          { class: 'card' },
+          h('p', { class: 'empty' }, 'No batches yet: records you create from Test data show here.')
+        ),
+    h(
+      'p',
+      { class: 'muted small' },
+      'Batches are kept in this browser, by record Id. A batch is saved while it is being made, so stopping or closing the page keeps what was made. Delete asks for the org’s name and removes children before parents.'
     ),
   ];
 }
@@ -1685,6 +2061,8 @@ function render() {
       ? batchesView()
       : S.view === 'recipes'
       ? recipesView()
+      : S.view === 'clone'
+      ? cloneView()
       : TESTING.views[S.view]
       ? TESTING.views[S.view]()
       : planView();
@@ -1695,6 +2073,7 @@ function render() {
 const TESTING = testingViews({ S, render, run, setNotice, label, store, noticeEl });
 
 async function start() {
+  mountLog();
   await TESTING.load();
   const view = new URLSearchParams(location.search).get('view');
   if (view) S.view = view;

@@ -732,3 +732,271 @@ td .search-select,
 .setting .search-select {
   width: 100%;
 }
+
+/* ---------- tables (as in NomadSF) ---------- */
+.dt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.dt-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.dt-bar button {
+  padding: 5px 10px;
+  font-size: 13px;
+}
+.dt-bar button.on {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.dt-main {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-width: 0;
+}
+.dt-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.dt-panel {
+  flex: 0 0 250px;
+  max-height: 62vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+}
+.dt-panel select,
+.dt-panel input:not([type='checkbox']) {
+  width: 100%;
+  min-width: 0;
+  font-size: 12.5px;
+  padding: 4px 8px;
+}
+.dt-condition {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.dt-n {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.dt-logic {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dt-logic span {
+  font-weight: 600;
+}
+.dt-logic input.bad {
+  border-color: var(--bad);
+}
+.dt-cols {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 44vh;
+  overflow: auto;
+}
+.dt-cols label.check {
+  color: var(--text);
+}
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+th.sortable:hover {
+  color: var(--text);
+}
+.dt-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dt-group {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.dt-group.open {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.dt-group-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: 9px 12px;
+  text-align: left;
+}
+.dt-group.open .dt-group-head {
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+.dt-group-head .caret {
+  width: 12px;
+  color: var(--muted);
+}
+.dt-group .table-box {
+  border: 0;
+  border-radius: 0;
+}
+@media (max-width: 900px) {
+  .dt-main.with-panel {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .dt-panel {
+    flex-basis: auto;
+    width: 100%;
+  }
+}
+
+/* ---------- the Log (as in NomadSF) ---------- */
+body {
+  padding-bottom: 44px;
+}
+footer.log {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -2px 10px rgba(20, 24, 40, 0.05);
+}
+.log-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: 8px 18px;
+  text-align: left;
+  font-size: 13px;
+}
+.log-head .caret {
+  color: var(--muted);
+  width: 12px;
+}
+.log-last {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-left: 3px solid var(--border-strong);
+}
+.log-last.done {
+  border-left-color: var(--good);
+}
+.log-last.problem {
+  border-left-color: var(--bad);
+  color: var(--bad);
+}
+.log-last.working {
+  border-left-color: var(--accent);
+}
+.log .area {
+  color: var(--muted);
+  margin-right: 4px;
+}
+.log-list {
+  max-height: 40vh;
+  overflow: auto;
+  padding: 4px 18px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-top: 1px solid var(--border);
+}
+.log-row {
+  display: grid;
+  grid-template-columns: 74px 16px 120px minmax(0, 1fr);
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--border);
+}
+.log-row .when {
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.log-row.problem .mark,
+.log-row.problem .what {
+  color: var(--bad);
+}
+.log-row.done .mark {
+  color: var(--good);
+}
+.log-row pre {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  background: var(--panel-2);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  font-size: 12px;
+  color: var(--text);
+  max-height: 200px;
+  overflow: auto;
+}
+
+/* the job in the top bar, and a batch */
+button.job {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  font-size: 13px;
+}
+.job-bar {
+  width: 70px;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--accent-soft);
+  overflow: hidden;
+}
+.job-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.card.batch .sub {
+  display: block;
+  color: var(--faint);
+  font-size: 12px;
+}

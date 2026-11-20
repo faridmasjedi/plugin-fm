@@ -254,6 +254,7 @@ export function generate(plan, describes, faker, { lookups = {}, picklists = {} 
           const v = clip(valueOf(node.rules[name], f, ctx), f);
           if (v !== undefined && v !== null && v !== '') values[name] = v;
         }
+        if (plan.marker?.text) markValues(values, fields, plan.marker);
         if (node.recordTypeId) values.RecordTypeId = node.recordTypeId;
         if (parent && node.parentField) values[node.parentField] = { $ref: parent.key };
         const rec = { nodeId: node.id, object: node.object, key: `${node.id}-${n}`, parentKey: parent?.key, n, values };
@@ -263,6 +264,23 @@ export function generate(plan, describes, faker, { lookups = {}, picklists = {} 
     byNode[node.id] = made;
   }
   return out;
+}
+
+const NAMEISH = new Set(['LastName', 'Subject', 'Title']);
+/**
+ * Puts a marker (e.g. "Nomad ") at the start of the name fields — or every text field — so test records are easy to
+ * find in the org (search, list views, reports). `marker`: { text, where: 'names' | 'text' }.
+ */
+export function markValues(values, fields, marker) {
+  for (const [name, v] of Object.entries(values)) {
+    const f = fields.get(name);
+    if (!f || typeof v !== 'string' || v.startsWith(marker.text)) continue;
+    const isText = f.type === 'string' || f.type === 'textarea' || f.type === 'combobox';
+    const isName = f.nameField || NAMEISH.has(name);
+    if (!isText || (marker.where !== 'text' && !isName) || f.unique || f.externalId) continue;
+    values[name] = clip(marker.text + v, f);
+  }
+  return values;
 }
 
 /** The query rules of a plan (to run before generating). */

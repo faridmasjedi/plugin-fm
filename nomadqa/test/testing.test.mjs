@@ -175,3 +175,71 @@ test('a recipe from another org is fitted: missing objects, fields, links and re
   assert.match(changes.join(' '), /Invoice__c is not in this org: left out, with what was under it/);
   assert.match(changes.join(' '), /linked to Account by Company__c/);
 });
+
+test('marker at the start of names or every text field', async () => {
+  const { markValues } = await import('../extension/core/plan.js');
+  const fields = new Map(
+    [
+      { name: 'Name', type: 'string', nameField: true, length: 10 },
+      { name: 'Description', type: 'textarea', length: 100 },
+      { name: 'Email', type: 'email', length: 80 },
+      { name: 'Code__c', type: 'string', unique: true, length: 20 },
+    ].map((f) => [f.name, f])
+  );
+  const v = () => ({ Name: 'Acme Corporation', Description: 'Big', Email: 'a@b.c', Code__c: 'X1' });
+  assert.deepEqual(markValues(v(), fields, { text: 'Nomad ', where: 'names' }), {
+    Name: 'Nomad Acme',
+    Description: 'Big',
+    Email: 'a@b.c',
+    Code__c: 'X1',
+  });
+  const all = markValues(v(), fields, { text: 'Nomad ', where: 'text' });
+  assert.equal(all.Description, 'Nomad Big');
+  assert.equal(all.Email, 'a@b.c');
+  assert.equal(all.Code__c, 'X1');
+});
+
+test('clone: search, copies with children, another org', async () => {
+  const { whereOf, buildClones, fitClones } = await import('../extension/core/clone.js');
+  assert.equal(whereOf('acme', 'Name'), "Name LIKE '%acme%'");
+  assert.equal(whereOf("Industry = 'Energy'"), "Industry = 'Energy'");
+  assert.throws(() => whereOf('x = 1; DELETE'), /;/);
+  const f = (name, type = 'string', extra = {}) => ({
+    name,
+    type,
+    createable: true,
+    nillable: true,
+    length: 80,
+    ...extra,
+  });
+  const acc = {
+    fields: [
+      f('Name', 'string', { nameField: true }),
+      f('Ext__c', 'string', { externalId: true }),
+      f('OwnerId', 'reference'),
+    ],
+  };
+  const con = { fields: [f('LastName'), f('AccountId', 'reference')] };
+  const { nodes, records } = buildClones({
+    parent: { object: 'Account', describe: acc, rows: [{ Id: 'A1', Name: 'Acme', Ext__c: 'E', OwnerId: '005' }] },
+    children: [
+      { object: 'Contact', field: 'AccountId', describe: con, rows: [{ Id: 'C1', LastName: 'Lee', AccountId: 'A1' }] },
+    ],
+    copies: 2,
+    marker: { text: 'Nomad ', where: 'names' },
+  });
+  assert.equal(nodes.length, 2);
+  assert.deepEqual(
+    records.map((r) => [r.key, r.parentKey, r.values]),
+    [
+      ['p-1', undefined, { Name: 'Nomad Acme', OwnerId: '005' }],
+      ['c0-1', 'p-1', { LastName: 'Nomad Lee', AccountId: { $ref: 'p-1' } }],
+      ['p-2', undefined, { Name: 'Nomad Acme', OwnerId: '005' }],
+      ['c0-2', 'p-2', { LastName: 'Nomad Lee', AccountId: { $ref: 'p-2' } }],
+    ]
+  );
+  const fit = fitClones({ nodes, records }, { Account: acc });
+  assert.equal(fit.nodes.length, 1);
+  assert.deepEqual(fit.records[0].values, { Name: 'Nomad Acme' });
+  assert.equal(fit.changes.length, 2);
+});

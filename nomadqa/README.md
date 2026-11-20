@@ -17,7 +17,14 @@ that the browser loads as they are.
   Salesforce's own message; leave those out or change the rules.
 - **Use it**: create in the org (after typing its name), CSV files per object, an `@IsTest` test data factory class,
   or a recipe to make the same kind of data again.
-- **Batches**: every record NomadQA created, by run; count what is still there and delete a batch (children first).
+- **Marker**: start names (or every text field) with a word such as `Nomad ` so test records are easy to find.
+- **Find & clone**: find records (words in the name, or a condition), pick them, add objects under them, choose how
+  many copies — they become a preview like a plan's, so Check, Create, batches and Delete work the same. Cloning into
+  another org leaves out fields it lacks and links to records of the first org.
+- **Batches**: every record NomadQA created, by run, saved while it is made (Stop keeps what was made); the button at
+  the top goes back to the running one. Show records per object (filters, columns, CSV/JSON), count what is still
+  there and delete a batch (children first).
+- **Log**: the bar at the bottom lists every action with Salesforce's own reasons for records that were not made.
 
 ## Tests
 
