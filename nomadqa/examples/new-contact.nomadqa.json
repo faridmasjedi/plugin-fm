@@ -1,0 +1,38 @@
+{
+  "nomadqa": "test",
+  "version": 1,
+  "name": "Add a contact to an account",
+  "cleanup": true,
+  "steps": [
+    {
+      "action": "data",
+      "recipe": {
+        "name": "One account",
+        "nodes": [
+          {
+            "id": "a",
+            "object": "Account",
+            "count": 1,
+            "rules": {
+              "Name": { "kind": "pattern", "value": "NomadQA Test Account {0000}" },
+              "Industry": { "kind": "fixed", "value": "Energy" }
+            }
+          }
+        ]
+      }
+    },
+    { "action": "open", "record": "{{a-1}}" },
+    { "action": "expect", "kind": "title", "value": "{{a-1.Name}}" },
+    { "action": "expect", "kind": "field", "field": "Industry", "value": "Energy" },
+    { "action": "click", "label": "New Contact" },
+    { "action": "fill", "field": "First Name", "value": "Robin" },
+    { "action": "fill", "field": "Last Name", "value": "Tester" },
+    { "action": "click", "label": "Save" },
+    { "action": "expect", "kind": "toast", "value": "was created" },
+    {
+      "action": "query",
+      "soql": "SELECT Id FROM Contact WHERE AccountId = '{{a-1}}' AND LastName = 'Tester'",
+      "count": 1
+    }
+  ]
+}
