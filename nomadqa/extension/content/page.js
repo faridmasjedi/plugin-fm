@@ -24,7 +24,7 @@
     .tip{position:fixed;max-width:420px;background:#1d2433;color:#fff;border-radius:10px;padding:10px 12px;box-shadow:0 8px 30px rgba(0,0,0,.3);pointer-events:auto;display:none}
     .tip .row{display:flex;gap:8px;margin:2px 0}.tip .k{color:#a6adbe;min-width:76px}.tip .v{word-break:break-all}
     .tip code{font:12px ui-monospace,Menlo,monospace;color:#c4b8ff}
-    .tip button{margin-top:6px;margin-right:6px}
+    .tip button{margin-top:6px;margin-right:6px}.tip .group{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 6px;margin-top:6px}.tip .group .k{min-width:96px}.tip button.step{border-color:#5b3fd1;color:#432bb0}
     .bar{position:fixed;right:18px;bottom:18px;background:#fff;color:#1d2433;border:1px solid #e3e6ee;border-radius:12px;box-shadow:0 8px 30px rgba(20,24,40,.18);padding:10px 12px;display:none;gap:10px;align-items:center;pointer-events:auto}
     .dot{width:10px;height:10px;border-radius:50%;background:#d12b2b;box-shadow:0 0 0 0 rgba(209,43,43,.5);animation:p 1.4s infinite}
     @keyframes p{70%{box-shadow:0 0 0 8px rgba(209,43,43,0)}}
@@ -73,6 +73,50 @@
     return hit?.name ?? '';
   }
   const short = (t) => (t.length > 34 ? `${t.slice(0, 32)}…` : t);
+
+  // Test steps for what is pinned, by what a person sees (as the Recorder writes them)
+  const CLICKS = 'button, a, [role="button"], [role="tab"], [role="menuitem"], [role="link"], [role="option"]';
+  function stepsFor(el, d) {
+    const out = [];
+    const line = (t) =>
+      String(t ?? '')
+        .split('\n')
+        .map((x) => x.trim())
+        .find(Boolean) ?? '';
+    if (d.field) {
+      const input = [...Q.ancestors(el)].find((a) => a.matches?.('input, textarea'));
+      if (input && !input.readOnly && !input.disabled)
+        out.push({
+          button: 'Type into it',
+          step: { action: 'fill', field: d.field, value: input.value ?? '' },
+          text: `Type “${input.value ?? ''}” in ${d.field}`,
+        });
+      const value = Q.fieldValue(d.field);
+      if (value !== null && value !== undefined)
+        out.push({
+          button: 'Check its value',
+          step: { action: 'expect', kind: 'field', field: d.field, value },
+          text: `Check ${d.field} is “${value}”`,
+        });
+    }
+    const click = [...Q.ancestors(el)].find((a) => a.matches?.(CLICKS));
+    const name = click ? line(click.getAttribute('aria-label') || click.getAttribute('title') || click.innerText) : '';
+    if (name && name.length <= 60)
+      out.push({ button: `Click “${short(name)}”`, step: { action: 'click', label: name }, text: `Click “${name}”` });
+    const text = line(el.innerText);
+    if (!d.field && text && text.length <= 120 && text !== name)
+      out.push({
+        button: 'Check this text shows',
+        step: { action: 'expect', kind: 'text', value: text },
+        text: `Check the page shows “${text}”`,
+      });
+    out.push({
+      button: 'Start on this page',
+      step: { action: 'open', path: location.pathname + location.search },
+      text: `Open ${location.pathname}`,
+    });
+    return out;
+  }
   function showInfo(el, x, y) {
     const d = Q.describe(el);
     if (!d.fieldApi && d.field && d.record)
@@ -80,8 +124,14 @@
         if (api && (state.pinned === el || state.hover === el)) {
           const row = tip.querySelector('[data-field]');
           if (row) row.innerHTML = `<code>${esc(d.record.object)}.${esc(api)}</code> · ${esc(d.field)}`;
+          // Found by the label: copy it like a named one
+          d.fieldApi = `${d.record.object}.${api}`;
+          const copy = tip.querySelector('[data-copy="tag"]');
+          if (copy && !tip.querySelector('[data-copy="field"]'))
+            copy.insertAdjacentHTML('beforebegin', '<button data-copy="field">Copy field</button>'), wire();
         }
       });
+    const suggested = state.pinned ? stepsFor(el, d) : [];
     const rows = [];
     if (d.custom) rows.push(['Yours', `<code>${esc(d.custom.tag)}</code><br><code>${esc(d.custom.path)}</code>`]);
     if (d.packaged) rows.push(['Package', `<code>${esc(d.packaged)}</code>`]);
@@ -94,19 +144,41 @@
     tip.innerHTML =
       rows.map(([k, v]) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('') +
       (state.pinned
-        ? `<div>${d.custom ? '<button data-copy="path">Copy path</button>' : ''}${
+        ? `<div class="group"><span class="k">Copy</span>${
+            d.custom ? '<button data-copy="path">Copy path</button>' : ''
+          }${
             d.fieldApi ? '<button data-copy="field">Copy field</button>' : ''
-          }<button data-copy="tag">Copy tag</button><button data-close>Close</button></div>`
+          }<button data-copy="tag" title="The component's tag, e.g. c-invoice-list">Copy tag</button></div>${
+            suggested.length
+              ? `<div class="group"><span class="k">Add to a test</span>${suggested
+                  .map(
+                    (x, i) => `<button class="step" data-step="${i}" title="${esc(x.text)}">${esc(x.button)}</button>`
+                  )
+                  .join('')}</div>`
+              : ''
+          }<div><button data-close>Close</button></div>`
         : '<div class="k" style="margin-top:4px">Click to pin · Esc to stop</div>');
-    tip.querySelectorAll('[data-copy]').forEach((b) =>
-      b.addEventListener('click', () => {
-        const what = b.getAttribute('data-copy');
-        navigator.clipboard.writeText(
-          what === 'path' ? d.custom.path : what === 'field' ? d.fieldApi : d.components[0] ?? d.tag
-        );
-        b.textContent = 'Copied';
-      })
-    );
+    function wire() {
+      tip.querySelectorAll('[data-copy]').forEach((b) => {
+        b.onclick = () => {
+          const what = b.getAttribute('data-copy');
+          navigator.clipboard.writeText(
+            what === 'path' ? d.custom.path : what === 'field' ? d.fieldApi : d.components[0] ?? d.tag
+          );
+          b.textContent = 'Copied';
+        };
+      });
+      tip.querySelectorAll('[data-step]').forEach((b) => {
+        b.onclick = async () => {
+          const x = suggested[Number(b.getAttribute('data-step'))];
+          const { 'nomadqa.picked': list = [] } = await chrome.storage.local.get('nomadqa.picked');
+          list.push({ step: x.step, text: x.text, page: location.pathname, at: Date.now() });
+          await chrome.storage.local.set({ 'nomadqa.picked': list });
+          b.textContent = `Added ✓ (${list.length} waiting in Tests)`;
+        };
+      });
+    }
+    wire();
     tip.querySelector('[data-close]')?.addEventListener('click', () => {
       state.pinned = null;
       tip.style.display = 'none';

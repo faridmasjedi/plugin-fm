@@ -1035,3 +1035,14 @@ button.job {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+
+/* Tests: steps from the Inspector */
+ol.picked {
+  margin: 8px 0 0;
+  padding-left: 22px;
+  display: grid;
+  gap: 4px;
+}
+ol.picked button.link {
+  margin-left: 8px;
+}

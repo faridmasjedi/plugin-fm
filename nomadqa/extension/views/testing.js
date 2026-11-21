@@ -71,6 +71,7 @@ export function testingViews(ctx) {
     results: null,
     recording: null,
     tabs: [],
+    picked: [],
     agent: { words: '', result: null },
   });
 
@@ -79,6 +80,7 @@ export function testingViews(ctx) {
     T.runs = await store.get('nomadqa.runs', []);
     T.ai = { ...T.ai, ...(await store.get('nomadqa.ai', {})) };
     T.recording = await store.get('nomadqa.recording', null);
+    T.picked = await store.get('nomadqa.picked', []);
     // The Inspector's list follows the browser: tabs opened, moved to another page, or closed
     let soon;
     const again = () => {
@@ -89,6 +91,10 @@ export function testingViews(ctx) {
     chrome.tabs.onRemoved.addListener(again);
     chrome.tabs.onUpdated.addListener((id, change) => (change.url || change.status === 'complete') && again());
     chrome.storage.onChanged.addListener((changes) => {
+      if (changes['nomadqa.picked']) {
+        T.picked = changes['nomadqa.picked'].newValue ?? [];
+        if (S.view === 'tests') render();
+      }
       if (changes['nomadqa.recording']) {
         T.recording = changes['nomadqa.recording'].newValue ?? null;
         if (S.view === 'recorder') render();
@@ -403,6 +409,7 @@ export function testingViews(ctx) {
         h('label', { class: 'btn' }, 'Upload…', h('span', { style: 'display: none' }, upload))
       ),
       noticeEl(),
+      pickedCard(test),
       h(
         'div',
         { class: 'grid' },
@@ -434,6 +441,81 @@ export function testingViews(ctx) {
         test ? editor(test) : h('section', { class: 'card empty' }, 'Pick a test on the left.')
       ),
     ];
+  }
+
+  // Steps added from the Inspector's pinned panel, waiting to go into a test
+  function pickedCard(test) {
+    if (!T.picked.length) return null;
+    const clear = () => store.set('nomadqa.picked', []);
+    const take = async (t) => {
+      const n = T.picked.length;
+      t.steps.push(...T.picked.map((p) => p.step));
+      await saveTests();
+      await clear();
+      T.selected = t.id;
+      T.results = null;
+      T.picked = [];
+      setNotice('good', `Added ${n} step${n === 1 ? '' : 's'} to “${t.name}”.`);
+      render();
+    };
+    return h(
+      'section',
+      { class: 'card' },
+      h(
+        'div',
+        { class: 'row' },
+        h('h2', { class: 'grow' }, `From the Inspector · ${T.picked.length} step${T.picked.length === 1 ? '' : 's'}`),
+        test ? h('button', { class: 'primary', onclick: () => void take(test) }, `Add to “${test.name}”`) : null,
+        h(
+          'button',
+          {
+            class: test ? '' : 'primary',
+            onclick: async () => {
+              const first = T.picked[0];
+              const t = {
+                id: newId(),
+                nomadqa: 'test',
+                version: 1,
+                name: 'Test from the Inspector',
+                cleanup: true,
+                steps: [],
+              };
+              // Starts where the first step was picked, unless it already opens a page
+              if (first.step.action !== 'open') t.steps.push({ action: 'open', path: first.page });
+              T.tests = [t, ...T.tests];
+              await take(t);
+            },
+          },
+          'New test from them'
+        ),
+        h('button', { onclick: () => void clear() }, 'Clear')
+      ),
+      h(
+        'ol',
+        { class: 'picked' },
+        T.picked.map((p, i) =>
+          h(
+            'li',
+            {},
+            stepText(p.step),
+            h('span', { class: 'muted small' }, ` · ${p.page}`),
+            h(
+              'button',
+              {
+                class: 'link',
+                'aria-label': `Remove step ${i + 1}`,
+                onclick: () =>
+                  void store.set(
+                    'nomadqa.picked',
+                    T.picked.filter((_, j) => j !== i)
+                  ),
+              },
+              '✕'
+            )
+          )
+        )
+      )
+    );
   }
 
   async function newTest() {
