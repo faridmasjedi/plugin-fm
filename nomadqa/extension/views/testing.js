@@ -2,10 +2,16 @@
 import { h, select, askTyped, toast, download } from '../core/ui.js';
 import { ACTIONS, stepText, problem, runTest, junit } from '../core/steps.js';
 import { PROVIDERS, stepsFromWords } from '../core/ai.js';
+import { apiHostFor } from '../core/salesforce.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const newId = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-const SF_TABS = ['https://*.salesforce.com/*', 'https://*.force.com/*'];
+const SF_TABS = [
+  'https://*.salesforce.com/*',
+  'https://*.force.com/*',
+  'https://*.salesforce-setup.com/*',
+  'https://*.cloudforce.com/*',
+];
 
 // ---------- running in a browser tab ----------
 
@@ -73,6 +79,15 @@ export function testingViews(ctx) {
     T.runs = await store.get('nomadqa.runs', []);
     T.ai = { ...T.ai, ...(await store.get('nomadqa.ai', {})) };
     T.recording = await store.get('nomadqa.recording', null);
+    // The Inspector's list follows the browser: tabs opened, moved to another page, or closed
+    let soon;
+    const again = () => {
+      clearTimeout(soon);
+      soon = setTimeout(() => S.view === 'inspector' && void salesforceTabs().then(render), 400);
+    };
+    chrome.tabs.onCreated.addListener(again);
+    chrome.tabs.onRemoved.addListener(again);
+    chrome.tabs.onUpdated.addListener((id, change) => (change.url || change.status === 'complete') && again());
     chrome.storage.onChanged.addListener((changes) => {
       if (changes['nomadqa.recording']) {
         T.recording = changes['nomadqa.recording'].newValue ?? null;
@@ -112,38 +127,7 @@ export function testingViews(ctx) {
           h('b', {}, 'Alt + Shift + I'),
           ' — or pick a tab here. Hover to see, click to pin and copy, Esc to stop.'
         ),
-        T.tabs.length
-          ? h(
-              'div',
-              { class: 'table-box' },
-              h(
-                'table',
-                {},
-                h(
-                  'tbody',
-                  {},
-                  T.tabs.map((t) =>
-                    h(
-                      'tr',
-                      {},
-                      h(
-                        'td',
-                        {},
-                        h('b', {}, t.title || 'Salesforce'),
-                        h('span', { class: 'sub' }, new URL(t.url).host)
-                      ),
-                      h(
-                        'td',
-                        { style: 'text-align: right' },
-                        h('button', { class: 'primary', onclick: () => void inspect(t) }, 'Inspect this tab')
-                      )
-                    )
-                  )
-                )
-              )
-            )
-          : h('p', { class: 'muted' }, 'No Salesforce tab is open in this browser.'),
-        h('button', { onclick: () => void salesforceTabs().then(render) }, 'Look again')
+        orgTabs()
       ),
       h(
         'section',
@@ -175,6 +159,64 @@ export function testingViews(ctx) {
         )
       ),
     ];
+  }
+  // Every org logged in to in this browser, with its open tabs (any page: an app from the App Launcher, a record,
+  // Setup…); an org without a tab can be opened right here. Tabs of orgs without a session come last.
+  function orgTabs() {
+    const byOrg = new Map((S.orgs ?? []).map((o) => [o.host, { label: o.label, host: o.host, tabs: [] }]));
+    const other = [];
+    for (const t of T.tabs) {
+      const host = apiHostFor(new URL(t.url).host);
+      (byOrg.get(host)?.tabs ?? other).push(t);
+    }
+    const tabRow = (t) =>
+      h(
+        'div',
+        { class: 'org-tab' },
+        h('span', { class: 'grow' }, t.title || 'Salesforce', h('span', { class: 'sub' }, new URL(t.url).pathname)),
+        h('button', { class: 'primary', onclick: () => void inspect(t) }, 'Inspect this tab')
+      );
+    const groups = [...byOrg.values()];
+    if (!groups.length && !other.length)
+      return h(
+        'p',
+        { class: 'muted' },
+        'Not logged in to any org in this browser. Log in to Salesforce, then come back.'
+      );
+    return h(
+      'div',
+      { class: 'org-tabs' },
+      groups.map((g) =>
+        h(
+          'div',
+          { class: 'org-group' },
+          h(
+            'div',
+            { class: 'row' },
+            h('b', { class: 'grow' }, g.label),
+            h('span', { class: 'pill' }, `${g.tabs.length} tab${g.tabs.length === 1 ? '' : 's'}`),
+            h(
+              'button',
+              { class: g.tabs.length ? '' : 'primary', onclick: () => void openAndInspect(g.host) },
+              g.tabs.length ? 'Open another and inspect' : 'Open and inspect'
+            )
+          ),
+          g.tabs.map(tabRow)
+        )
+      ),
+      other.length ? h('div', { class: 'org-group' }, h('b', {}, 'Other Salesforce tabs'), other.map(tabRow)) : null
+    );
+  }
+  async function openAndInspect(host) {
+    try {
+      const tab = await chrome.tabs.create({ url: `https://${host}/lightning/page/home`, active: true });
+      await waitTab(tab.id);
+      await inTab(tab.id, () => globalThis.__nomadqa.ready(90000));
+      await pageMode(tab.id, 'inspect');
+    } catch (e) {
+      setNotice('bad', `Could not start there: ${e.message}`);
+      render();
+    }
   }
   async function inspect(tab) {
     try {

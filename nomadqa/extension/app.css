@@ -1007,3 +1007,31 @@ button.job {
   color: var(--faint);
   font-size: 12px;
 }
+
+/* Inspector: orgs and their open tabs */
+.org-tabs {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0;
+}
+.org-group {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.org-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0 0;
+  border-top: 1px solid var(--border);
+}
+.org-tab .sub {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
