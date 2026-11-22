@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 // NomadQA headless runner: runs NomadQA test files in Chrome, with nothing to install (Node 22+, Chrome).
 //
-//   node nomadqa/runner/run.mjs my-test.nomadqa.json [more.json | a-group.nomadqa-group.json | a.junit.xml]
-//        --org uat [--logins logins.json] [--parallel 4] [--headed] [--out reports]
+//   node nomadqa/runner/run.mjs my-test.nomadqa.json [more.json | a-group.nomadqa-group.json | a.junit.xml | tests/]
+//        --org uat [--group Smoke] [--logins logins.json] [--parallel 4] [--headed] [--out reports]
+//
+// A folder: every *.nomadqa.json and *.nomadqa-group.json in it (and its folders). --group runs only that group's
+// tests. Reports in --out: report.html (for people: why each test failed, with a picture of the page), summary.md,
+// a JUnit file per test (and per group) for CI, and a small picture of each failed step. On GitHub Actions the
+// summary shows on the job's page and each failure is marked as an error.
 //
 // --parallel N runs N tests at the same time, each in a browser context of its own (its own cookies: a test that
 // logs in as someone else does not change the others).
@@ -10,16 +15,28 @@
 // "Log in" steps take their username and password from --logins (or NOMADQA_LOGINS, the same JSON):
 //   { "sales-user": { "url": "https://test.salesforce.com", "username": "…", "password": "…" } }
 //
-// Login: --org <alias> asks the Salesforce CLI for a one-time login link (sf org open --url-only); or give that link
-// yourself with --login-url or NOMADQA_LOGIN_URL (CI). The session stays in the browser and in memory: nothing is
+// Login: --org <alias> asks the Salesforce CLI for a one-time login link (sf org open --url-only); or, in CI without
+// the CLI, --auth-url / SF_AUTH_URL: the org's SFDX auth URL (sf org display --verbose; keep it in a secret);
+// or a login link itself with --login-url or NOMADQA_LOGIN_URL. The session stays in the browser and in memory: nothing is
 // written but the reports (JUnit XML, and a screenshot of each failed step).
 import { spawn, execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Salesforce } from '../extension/core/salesforce.js';
 import { runTest, stepText, junit, groupJunit, testsFromFile } from '../extension/core/steps.js';
+import { htmlReport, markdownSummary, failureLine } from '../extension/core/report.js';
 
 const ENGINE = readFileSync(fileURLToPath(new URL('../extension/core/engine.js', import.meta.url)), 'utf8');
 
@@ -29,6 +46,8 @@ function args(argv) {
     const a = argv[i];
     if (a === '--org') out.org = argv[++i];
     else if (a === '--login-url') out.loginUrl = argv[++i];
+    else if (a === '--auth-url') out.authUrl = argv[++i];
+    else if (a === '--group') out.group = argv[++i];
     else if (a === '--out') out.out = argv[++i];
     else if (a === '--logins') out.logins = argv[++i];
     else if (a === '--chrome') out.chrome = argv[++i];
@@ -284,8 +303,9 @@ async function tab(cdp, browserContextId) {
       }
     },
     async shot() {
-      const r = await cdp.send('Page.captureScreenshot', { format: 'png' }, sessionId);
-      return `data:image/png;base64,${r.data}`;
+      // A small picture (JPEG): only failed steps take one
+      const r = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 60 }, sessionId);
+      return `data:image/jpeg;base64,${r.data}`;
     },
   };
   async function session(host) {
@@ -304,35 +324,86 @@ async function tab(cdp, browserContextId) {
   };
 }
 
+/** Test files given, or found in the folders given: *.nomadqa.json, *.nomadqa-group.json (and JUnit files given). */
+function testFiles(paths) {
+  const out = [];
+  const walk = (dir) => {
+    for (const name of readdirSync(dir).sort()) {
+      if (name === 'node_modules' || name.startsWith('.')) continue;
+      const p = join(dir, name);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (/\.nomadqa(-group)?\.json$/.test(name)) out.push(p);
+    }
+  };
+  for (const p of paths) {
+    if (!existsSync(p)) throw new Error(`No file or folder “${p}”.`);
+    if (statSync(p).isDirectory()) walk(p);
+    else out.push(p);
+  }
+  return out;
+}
+
+/** A one-time login link from an SFDX auth URL (force://clientId:secret:refreshToken@instance): no CLI needed. */
+async function fromAuthUrl(authUrl) {
+  const m = /^force:\/\/([^:]+):([^:]*):(.+)@([^@]+)$/.exec(String(authUrl).trim());
+  if (!m) throw new Error('The auth URL should look like force://…@your-domain.my.salesforce.com.');
+  const [, clientId, secret, refresh, instance] = m;
+  const base = instance.startsWith('http') ? instance : `https://${instance}`;
+  const body = new URLSearchParams({
+    grant_type: 'refresh_token',
+    client_id: clientId,
+    refresh_token: refresh,
+    ...(secret ? { client_secret: secret } : {}),
+  });
+  const res = await fetch(`${base}/services/oauth2/token`, { method: 'POST', body });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || !j.access_token)
+    throw new Error(`Salesforce did not accept the auth URL: ${j.error_description ?? j.error ?? res.status}`);
+  return `${j.instance_url}/secur/frontdoor.jsp?sid=${encodeURIComponent(j.access_token)}`;
+}
+
+const gh = (s) =>
+  String(s ?? '')
+    .replace(/%/g, '%25')
+    .replace(/\r/g, '%0D')
+    .replace(/\n/g, '%0A');
+
 async function main() {
   const opts = args(process.argv.slice(2));
+  opts.group = opts.group || process.env.NOMADQA_GROUP || '';
   if (opts.help || !opts.files.length) {
     console.log(
-      'Usage: node nomadqa/runner/run.mjs <test.nomadqa.json | group.json | report.junit.xml…> --org <alias> [--logins logins.json] [--parallel N] [--headed] [--out <folder>]'
+      'Usage: node nomadqa/runner/run.mjs <test.nomadqa.json | group.json | report.junit.xml | folder…> (--org <alias> | --auth-url <sfdx auth url>) [--group <name>] [--logins logins.json] [--parallel N] [--headed] [--out <folder>]'
     );
     process.exit(opts.help ? 0 : 2);
   }
+  const authUrl = opts.authUrl ?? process.env.SF_AUTH_URL ?? process.env.NOMADQA_AUTH_URL;
   const loginUrl =
     opts.loginUrl ??
     process.env.NOMADQA_LOGIN_URL ??
-    (opts.org
+    (authUrl
+      ? await fromAuthUrl(authUrl)
+      : opts.org
       ? JSON.parse(execFileSync('sf', ['org', 'open', '--url-only', '--json', '-o', opts.org], { encoding: 'utf8' }))
           .result.url
       : undefined);
-  if (!loginUrl) throw new Error('Give --org <alias> (Salesforce CLI) or --login-url.');
+  if (!loginUrl) throw new Error('Give --org <alias> (Salesforce CLI), --auth-url (SF_AUTH_URL) or --login-url.');
   const host = new URL(loginUrl).host;
   // A test, a group of tests, or a JUnit report NomadQA wrote: every test in it
-  const tests = opts.files.flatMap((f) => {
-    const text = readFileSync(f, 'utf8');
-    const list = testsFromFile(text);
-    const group = /^\s*\{/.test(text) && JSON.parse(text).nomadqa === 'group' ? JSON.parse(text).name : '';
-    return list.map((test, i) => ({
-      file: list.length > 1 ? `${f.replace(/\.(json|xml)$/, '')}-${i + 1}.json` : f,
-      test,
-      group,
-    }));
-  });
-  const logins = JSON.parse(opts.logins ? readFileSync(opts.logins, 'utf8') : process.env.NOMADQA_LOGINS ?? '{}');
+  const tests = testFiles(opts.files)
+    .flatMap((f) => {
+      const text = readFileSync(f, 'utf8');
+      const list = testsFromFile(text);
+      const group = /^\s*\{/.test(text) && JSON.parse(text).nomadqa === 'group' ? JSON.parse(text).name : '';
+      return list.map((test, i) => ({
+        file: list.length > 1 ? `${f.replace(/\.(json|xml)$/, '')}-${i + 1}.json` : f,
+        test,
+        group: group || test.group || '',
+      }));
+    })
+    .filter((t) => !opts.group || t.group.toLowerCase() === opts.group.toLowerCase());
+  if (!tests.length) throw new Error(opts.group ? `No test in the group “${opts.group}”.` : 'No tests found.');
+  const logins = JSON.parse(opts.logins ? readFileSync(opts.logins, 'utf8') : process.env.NOMADQA_LOGINS || '{}');
   const groups = new Map();
   mkdirSync(opts.out, { recursive: true });
   const browser = await launch(opts);
@@ -361,8 +432,11 @@ async function main() {
       writeFileSync(join(opts.out, `${stem}.junit.xml`), junit(test, run));
       run.results.forEach((r, i) => {
         if (r.shot)
-          writeFileSync(join(opts.out, `${stem}-step${i + 1}.png`), Buffer.from(r.shot.split(',')[1], 'base64'));
+          writeFileSync(join(opts.out, `${stem}-step${i + 1}.jpg`), Buffer.from(r.shot.split(',')[1], 'base64'));
       });
+      // On GitHub Actions: the failure shows as an error on the run's page
+      if (!run.ok && process.env.GITHUB_ACTIONS)
+        console.log(`::error title=${gh(`NomadQA: ${test.name ?? stem}`)}::${gh(failureLine(test, run))}`);
       say(
         `  ${run.ok ? 'passed' : 'FAILED'} in ${(run.ms / 1000).toFixed(1)} s${
           run.cleaned ? ` · ${run.cleaned} test record(s) deleted` : ''
@@ -392,8 +466,17 @@ async function main() {
         })
       );
     }
-    for (const { group, test, run } of results.filter(Boolean))
+    const done = results.filter(Boolean);
+    for (const { group, test, run } of done)
       if (group) groups.set(group, [...(groups.get(group) ?? []), { test, run }]);
+    // For people: one page with every test, why each failure failed, and a picture of the page
+    const names = [...new Set(done.map((x) => x.group).filter(Boolean))];
+    const title = names.length === 1 && done.every((x) => x.group) ? `Group “${names[0]}”` : 'NomadQA tests';
+    const items = done.map(({ group, test, run }) => ({ test: { ...test, group }, run }));
+    writeFileSync(join(opts.out, 'report.html'), htmlReport({ title, org: host, items }));
+    const md = markdownSummary({ title, org: host, items });
+    writeFileSync(join(opts.out, 'summary.md'), md);
+    if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
     // One report for each group as well
     for (const [name, list] of groups)
       writeFileSync(

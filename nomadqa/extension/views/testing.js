@@ -1,10 +1,9 @@
 // NomadQA pages for tests: Inspector, Recorder, Tests (edit and run), Runs, Agent, Settings (AI).
-import { h, select, askTyped, toast, download } from '../core/ui.js';
+import { h, select, askTyped, askYes, toast, download } from '../core/ui.js';
+import { htmlReport, failureOf } from '../core/report.js';
 import {
   ACTIONS,
-  KINDS,
-  OPS,
-  COUNT_WHAT,
+  FIELDS,
   stepText,
   problem,
   runTest,
@@ -190,18 +189,42 @@ async function tabDriver(host, { tabId, window: place } = {}) {
       chrome.tabs.onCreated.removeListener(onCreated);
       if (win) await chrome.windows.remove(win.id).catch(() => {});
     },
-    // What the tab shows (the test's tab is in front while it runs)
+    // What the tab shows (the test's tab is in front while it runs): a small JPEG
     async shot() {
       if (!(await chrome.permissions.contains({ origins: ['<all_urls>'] }))) return undefined;
       const t = await chrome.tabs.get(cur.id);
-      return chrome.tabs.captureVisibleTab(t.windowId, { format: 'png' });
+      return smaller(await chrome.tabs.captureVisibleTab(t.windowId, { format: 'jpeg', quality: 80 }));
     },
   };
 }
 
+/** A screenshot made small: at most 1280 pixels wide, JPEG at 60% (about 100 KB instead of a few MB). */
+async function smaller(dataUrl, width = 1280) {
+  try {
+    const img = await createImageBitmap(await (await fetch(dataUrl)).blob());
+    const k = Math.min(1, width / img.width);
+    const c = new OffscreenCanvas(Math.round(img.width * k), Math.round(img.height * k));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const blob = await c.convertToBlob({ type: 'image/jpeg', quality: 0.6 });
+    return await new Promise((ok) => {
+      const r = new FileReader();
+      r.onload = () => ok(r.result);
+      r.readAsDataURL(blob);
+    });
+  } catch {
+    return dataUrl;
+  }
+}
+
+/** Every step of a test, the steps of its groups too. */
+const allSteps = (t) => t.steps.flatMap((s) => (s.action === 'group' ? s.steps ?? [] : [s]));
+
 /** Puts the engine and the page script in a tab, then sets its mode (inspect, record, off). */
 async function pageMode(tabId, mode, extra = {}) {
-  await chrome.scripting.executeScript({ target: { tabId }, files: ['core/engine.js', 'content/page.js'] });
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ['core/engine.js', 'core/words.js', 'content/page.js'],
+  });
   return chrome.tabs.sendMessage(tabId, { type: 'nomadqa:mode', mode, ...extra });
 }
 
@@ -223,6 +246,10 @@ export function testingViews(ctx) {
     groupTabs: {}, // a group's tests at the same time: { name: n }
     closed: {}, // groups folded in the list: { name: true }
     focusStep: -1, // a step just added: the editor scrolls to it
+    clip: [], // steps copied, to paste in any test
+    shots: {}, // pictures of failed steps by run: { runId: { stepIndex: dataUrl } }
+    shotsOk: false, // Chrome lets NomadQA take pictures of a tab
+    sel: null, // steps ticked in the editor: { testId, set }
   });
   const loginsMap = () =>
     Object.fromEntries(
@@ -238,6 +265,9 @@ export function testingViews(ctx) {
     T.recording = await store.get('nomadqa.recording', null);
     T.picked = await store.get('nomadqa.picked', []);
     T.logins = await store.get('nomadqa.logins', []);
+    T.clip = await store.get('nomadqa.clip', []);
+    T.shots = await store.get('nomadqa.shots', {});
+    T.shotsOk = await chrome.permissions.contains({ origins: ['<all_urls>'] }).catch(() => false);
     // A test gone through on the page from an earlier visit cannot go on (its steps' state was here): it is closed
     await store.set('nomadqa.debug', null);
     chrome.runtime.onMessage.addListener((msg, sender, reply) => {
@@ -539,150 +569,7 @@ export function testingViews(ctx) {
   }
 
   // ---------- Tests ----------
-  // What each step asks for: [key, label, placeholder, { options, wide }]
-  const KIND_LABELS = {
-    text: 'Text on the page',
-    toast: 'A message (toast)',
-    field: 'A field',
-    title: 'The page title',
-    url: 'The address',
-    'no-text': 'Text is NOT shown',
-    button: 'A button or link is shown',
-    'no-button': 'A button or link is NOT shown',
-    count: 'How many (buttons, tabs, fields…)',
-    place: 'Where a field is (section, row, column)',
-    recordtype: 'The record type',
-    layout: 'The page layout (of who is logged in)',
-  };
-  const FIELD_HINT = 'label or API name: Industry, Account.Industry';
-  const FIELDS = {
-    open: [
-      // One way to open: only the one in use shows (all of them on a new step)
-      ['path', 'Page', '/lightning/o/Account/list', { wide: true, when: (s) => s.path || !(s.record || s.object) }],
-      ['record', 'or a record', '{{found}} or an Id', { when: (s) => s.record || !(s.path || s.object) }],
-      ['object', 'or an object', 'Account', { when: (s) => s.object || !(s.path || s.record) }],
-      ['name', '… by its name', 'Acme', { when: (s) => s.object || !(s.path || s.record) }],
-    ],
-    click: [
-      ['label', 'What it says', 'Save'],
-      ['within', 'In (optional)', 'a section or dialog title'],
-      ['type', 'Then type (optional)', 'in the list it opens'],
-      ['choose', 'Then choose (optional)', 'an item of that list'],
-    ],
-    fill: [
-      ['field', 'Field', 'Last Name or LastName'],
-      ['value', 'Value', 'Smith or {{found.Name}}'],
-    ],
-    pick: [
-      ['field', 'Field', 'Stage or StageName'],
-      ['value', 'Value', 'Closed Won'],
-    ],
-    lookup: [
-      ['field', 'Field', 'Account Name or AccountId'],
-      ['value', 'Record name', 'Acme'],
-    ],
-    search: [
-      ['text', 'Type', 'Mia Brown'],
-      ['box', 'In (optional)', 'empty = Salesforce search at the top'],
-      ['choose', 'Then choose (optional)', 'empty: press Enter'],
-    ],
-    check: [
-      ['field', 'Field', 'Active or Active__c'],
-      [
-        'value',
-        'Ticked',
-        '',
-        {
-          options: [
-            ['true', 'Ticked'],
-            ['false', 'Not ticked'],
-          ],
-        },
-      ],
-    ],
-    wait: [
-      ['text', 'Until this text shows', 'Saved'],
-      ['ms', 'or milliseconds', '1000'],
-    ],
-    press: [['key', 'Key', 'Enter, Escape, Tab…']],
-    expect: [
-      ['kind', 'What to check', '', { options: KINDS.map((k) => [k, KIND_LABELS[k]]) }],
-      ['field', 'Field', FIELD_HINT, { when: (s) => s.kind === 'field' || s.kind === 'place' }],
-      [
-        'what',
-        'Count',
-        '',
-        { options: COUNT_WHAT.map((w) => [w, w[0].toUpperCase() + w.slice(1)]), when: (s) => s.kind === 'count' },
-      ],
-      [
-        'within',
-        'In (optional)',
-        'a section, card or related list title',
-        { when: (s) => ['count', 'button', 'no-button'].includes(s.kind) },
-      ],
-      ['section', 'Section', 'its title, or 1, 2…', { when: (s) => s.kind === 'place' }],
-      ['row', 'Row', '1', { when: (s) => s.kind === 'place' }],
-      ['col', 'Column', '1 = left, 2 = right', { when: (s) => s.kind === 'place' }],
-      [
-        'op',
-        'How',
-        '',
-        {
-          options: (s) =>
-            s.kind === 'count'
-              ? [
-                  ['is', 'is exactly'],
-                  ['more', 'is more than'],
-                  ['less', 'is less than'],
-                  ['not', 'is not'],
-                ]
-              : Object.entries(OPS),
-          when: (s) => ['field', 'toast', 'title', 'url', 'count', 'recordtype', 'layout'].includes(s.kind),
-        },
-      ],
-      [
-        'value',
-        'Value',
-        'Technology',
-        {
-          when: (s) => s.op !== 'empty' && s.op !== 'filled' && s.kind !== 'place',
-          placeholder: (s) =>
-            s.kind === 'count'
-              ? '2'
-              : s.kind === 'recordtype'
-              ? 'Partner'
-              : s.kind === 'layout'
-              ? 'Contact Layout'
-              : 'Technology',
-        },
-      ],
-    ],
-    login: [
-      [
-        'login',
-        'Login (Settings › Logins)',
-        '',
-        {
-          options: () => [
-            ['', T.logins.length ? 'Choose a login…' : 'None yet: add one in Settings'],
-            ...T.logins.filter((l) => l.name).map((l) => [l.name, `${l.name} · ${l.username}`]),
-          ],
-        },
-      ],
-    ],
-    loginas: [['user', 'User (username or name)', 'ann.lee@acme.com or Ann Lee', { wide: true }]],
-    remember: [
-      ['field', 'Field on the page', 'Account Number or AccountNumber'],
-      ['as', 'Remember as', 'number → use {{number}} later'],
-    ],
-    shot: [],
-    query: [
-      ['soql', 'Query', "SELECT Id, Name FROM Account WHERE Name LIKE 'Acme%' LIMIT 1", { wide: true }],
-      ['count', 'Rows it must find', 'empty = at least one'],
-      ['save', 'Save the first row as', 'found → {{found}}, {{found.Name}}'],
-    ],
-    data: [],
-  };
+  // What each step asks for (FIELDS, core/words.js): the same boxes here and in the list on the Salesforce page
 
   function testsView() {
     const test = T.tests.find((t) => t.id === T.selected);
@@ -761,7 +648,21 @@ export function testingViews(ctx) {
           title: r ? (r.ok ? 'Passed last time' : 'Failed last time') : 'Not run yet',
         }),
         h('span', { class: 'name', title: t.name }, t.name),
-        h('span', { class: 'meta' }, `${t.steps.length} step${t.steps.length === 1 ? '' : 's'}`)
+        h('span', { class: 'meta' }, `${t.steps.length} step${t.steps.length === 1 ? '' : 's'}`),
+        h(
+          'button',
+          {
+            class: 'icon row-del',
+            'aria-label': `Delete the test ${t.name}`,
+            title: 'Delete this test',
+            onclick: (e) => {
+              e.stopPropagation();
+              void deleteTest(t);
+            },
+            onkeydown: (e) => e.stopPropagation(),
+          },
+          '✕'
+        )
       );
     };
     const toggle = (g) => {
@@ -854,26 +755,76 @@ export function testingViews(ctx) {
     return h('div', { class: 'test-list' }, names.map(groupEl));
   }
 
+  /** After a group ran: how many passed, and for each test that failed, its step and why (click: see it). */
   function groupResultEl() {
     const g = T.groupResult;
     if (!g) return null;
+    const failedItems = g.items.filter((x) => !x.run.ok);
     return h(
-      'div',
-      { class: `notice ${g.passed === g.total ? 'good' : 'bad'}`, role: 'status' },
-      `Group “${g.name}”: ${g.passed} of ${g.total} passed${g.tabs > 1 ? ` (${g.tabs} at a time)` : ''}.`,
-      g.failed.length ? ` Failed: ${g.failed.join(', ')}.` : '',
-      ' ',
+      'section',
+      { class: `run-result group-result ${failedItems.length ? 'bad' : 'good'}`, role: 'status' },
       h(
-        'button',
-        {
-          class: 'link',
-          onclick: () =>
-            download(`${g.name.replace(/[^\w-]+/g, '-').toLowerCase()}.junit.xml`, g.junit, 'application/xml'),
-        },
-        'JUnit for the group'
+        'div',
+        { class: 'row' },
+        h(
+          'b',
+          { class: 'grow' },
+          `Group “${g.name}”: ${g.passed} of ${g.total} passed${g.tabs > 1 ? ` (${g.tabs} at a time)` : ''}.`
+        ),
+        h(
+          'button',
+          {
+            class: 'small primary',
+            title: 'A page for people: every test and step, why each failure failed, with pictures',
+            onclick: () => downloadReport(`Group ${g.name}`, g.items, g.at),
+          },
+          'Report'
+        ),
+        h(
+          'button',
+          {
+            class: 'small',
+            onclick: () =>
+              download(`${g.name.replace(/[^\w-]+/g, '-').toLowerCase()}.junit.xml`, g.junit, 'application/xml'),
+          },
+          'JUnit'
+        ),
+        h('button', { class: 'small', onclick: () => ((T.groupResult = null), render()) }, 'Dismiss')
       ),
-      ' ',
-      h('button', { class: 'link', onclick: () => ((T.groupResult = null), render()) }, 'Dismiss')
+      failedItems.length
+        ? h(
+            'ul',
+            { class: 'failed-tests' },
+            failedItems.map(({ test, run: out }) => {
+              const f = failureOf(test, out);
+              return h(
+                'li',
+                {},
+                h(
+                  'button',
+                  {
+                    class: 'link',
+                    title: 'Open the test with this run’s results',
+                    onclick: () => {
+                      T.selected = test.id;
+                      T.results = { testId: test.id, ...out };
+                      render();
+                    },
+                  },
+                  test.name
+                ),
+                f
+                  ? h(
+                      'span',
+                      { class: 'muted' },
+                      ` — step ${f.i + 1}, ${stepText(f.step)}: `,
+                      h('span', { class: 'why-text' }, f.result.message ?? 'failed')
+                    )
+                  : null
+              );
+            })
+          )
+        : null
     );
   }
 
@@ -968,45 +919,268 @@ export function testingViews(ctx) {
     render();
   }
 
+  /** Steps copied (⧉, or the ones ticked): pasted into any test, or into a group. Also on the clipboard, as JSON. */
+  async function copySteps(steps) {
+    T.clip = structuredClone(steps);
+    await store.set('nomadqa.clip', T.clip);
+    await navigator.clipboard.writeText(JSON.stringify(steps.length === 1 ? steps[0] : steps, null, 2)).catch(() => {});
+    toast(
+      steps.length === 1
+        ? `Copied “${stepText(steps[0])}”: paste it in any test.`
+        : `Copied ${steps.length} steps: paste them in any test.`
+    );
+    render();
+  }
+  const clipText = () => {
+    if (T.clip?.length !== 1) return `${T.clip?.length ?? 0} steps`;
+    const c = T.clip[0];
+    const name = c.action === 'group' ? c.name || 'the group' : stepText(c);
+    return `“${name.length > 32 ? `${name.slice(0, 31)}…` : name}”`;
+  };
+
+  /** What the page had when the test failed: the step, the reason, what was wanted and what was there, a picture. */
+  function failureBox(test, run, { fix } = {}) {
+    const f = failureOf(test, run);
+    if (!f) return null;
+    const r = f.result;
+    const row = (k, v) => (v ? [h('div', { class: 'k' }, k), h('div', { class: 'v' }, v)] : null);
+    const openShot = async () => {
+      const blob = await (await fetch(r.shot)).blob();
+      await chrome.tabs.create({ url: URL.createObjectURL(blob) });
+    };
+    return h(
+      'div',
+      { class: 'failure' },
+      h(
+        'div',
+        { class: 'failure-head' },
+        h('b', {}, `Failed at step ${f.i + 1}`),
+        h('span', { class: 'muted' }, ` · ${stepText(f.step)}`),
+        h('span', { class: 'grow' }),
+        fix
+          ? h(
+              'button',
+              {
+                class: 'primary small',
+                disabled: Boolean(S.busy),
+                title: `Runs steps 1 to ${f.i} on a Salesforce page, then stops at step ${
+                  f.i + 1
+                }: change it, add a step, or remove it`,
+                onclick: fix,
+              },
+              'Fix it on the page'
+            )
+          : null
+      ),
+      h(
+        'div',
+        { class: 'failure-body' },
+        h(
+          'div',
+          { class: 'failure-grid' },
+          f.inner ? row('In the group', `${r.at + 1}. ${stepText(f.inner)}`) : null,
+          row('Why', r.message),
+          row('Expected', r.expected),
+          row('Got', r.got),
+          row('Salesforce said', r.toasts?.length ? r.toasts.join(' · ') : ''),
+          row('Page', r.url ? h('a', { href: r.url, target: '_blank', class: 'link' }, r.url) : '')
+        ),
+        r.shot
+          ? h(
+              'button',
+              { class: 'shot', title: 'The page when it failed: open it big', onclick: () => void openShot() },
+              h('img', { src: r.shot, alt: `The page when step ${f.i + 1} failed` })
+            )
+          : !T.shotsOk
+          ? h(
+              'div',
+              { class: 'shot none' },
+              h('span', { class: 'muted small' }, 'No picture of the page: Chrome asks once for it.'),
+              h(
+                'button',
+                {
+                  class: 'small',
+                  onclick: async () => {
+                    T.shotsOk = await chrome.permissions.request({ origins: ['<all_urls>'] }).catch(() => false);
+                    if (T.shotsOk) toast('Failed steps get a small picture from the next run.');
+                    render();
+                  },
+                },
+                'Allow pictures of failed steps'
+              )
+            )
+          : null
+      )
+    );
+  }
+
+  /** A report for people: an HTML page with every step, why it failed, and the picture. */
+  function downloadReport(title, items, at = new Date().toISOString()) {
+    download(
+      `${
+        title
+          .replace(/[^\w-]+/g, '-')
+          .replace(/^-|-$/g, '')
+          .toLowerCase() || 'nomadqa'
+      }.report.html`,
+      htmlReport({ title, org: label(), at, items }),
+      'text/html'
+    );
+  }
+
+  /** The group box of a test: a list of the groups there are, or a new one. */
+  function groupPicker(test, changed) {
+    const groups = [...new Set(T.tests.map((t) => t.group).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    if (T.newGroupFor === test.id) {
+      const input = h('input', {
+        placeholder: 'Name of the new group, e.g. Smoke',
+        style: 'width: 240px',
+        'aria-label': 'New group',
+        onkeydown: (e) => {
+          if (e.key === 'Enter') add();
+          if (e.key === 'Escape') (T.newGroupFor = null), render();
+        },
+      });
+      const add = () => {
+        const g = input.value.trim();
+        if (!g) return input.focus();
+        test.group = g;
+        T.newGroupFor = null;
+        changed();
+        render();
+      };
+      requestAnimationFrame(() => input.focus());
+      return [
+        input,
+        h('button', { class: 'primary small', onclick: add }, 'Add'),
+        h('button', { class: 'small', onclick: () => ((T.newGroupFor = null), render()) }, 'Cancel'),
+      ];
+    }
+    return [
+      select(
+        test.group ?? '',
+        [['', 'No group'], ...groups.map((g) => [g, g]), ['\u0000new', '+ New group…']],
+        (v) => {
+          if (v === '\u0000new') T.newGroupFor = test.id;
+          else {
+            if (v) test.group = v;
+            else delete test.group;
+            changed();
+          }
+          render();
+        },
+        { 'aria-label': 'Group', style: 'width: 220px' }
+      ),
+      h(
+        'button',
+        { class: 'small', title: 'A new group for this test', onclick: () => ((T.newGroupFor = test.id), render()) },
+        '+ New group'
+      ),
+    ];
+  }
+
   function editor(test) {
     const changed = () => void saveTests();
     const res = T.results?.testId === test.id ? T.results : null;
-    const stepRow = (s, i) => {
-      const r = res?.results?.[i];
+    const sel = T.sel?.testId === test.id ? T.sel.set : new Set();
+    const tick = (i, on) => {
+      const set = new Set(sel);
+      if (on) set.add(i);
+      else set.delete(i);
+      T.sel = { testId: test.id, set };
+      render();
+    };
+    const foldKey = (i) => `${test.id}:${i}`;
+    T.folded ??= {};
+
+    /** A step's row: of the test (g undefined) or of the group at test.steps[g]; r is its result. */
+    const stepRow = (s, list, i, r, g) => {
+      const inGroup = g !== undefined;
+      const key = inGroup ? `${g}.${i}` : String(i);
+      const isGroup = s.action === 'group';
       const bad = problem(s);
       const set = (k, v) => {
         if (v === '' || v === undefined) delete s[k];
         else s[k] = k === 'ms' || k === 'count' ? Number(v) : k === 'value' && s.action === 'check' ? v === 'true' : v;
         changed();
       };
-      const fields = FIELDS[s.action] ?? [];
+      const fields = isGroup ? [] : FIELDS[s.action] ?? [];
+      const open = isGroup && !T.folded[foldKey(i)];
+      const actions = Object.entries(ACTIONS).filter(([k]) => !inGroup || k !== 'group');
       return h(
         'tr',
         {
           class: [
-            r?.ok === false ? 'bad' : '',
-            T.focusStep === i ? 'new' : '',
-            s.action === 'data' || !(FIELDS[s.action] ?? []).length ? 'no-fields' : '',
+            r?.ok === false && !r.optional ? 'bad' : '',
+            T.focusStep === key ? 'new' : '',
+            s.action === 'data' || (!isGroup && !fields.length) ? 'no-fields' : '',
+            isGroup ? 'group-row' : '',
+            inGroup ? 'child' : '',
+            !inGroup && sel.has(i) ? 'picked' : '',
           ]
             .filter(Boolean)
             .join(' '),
-          'data-step': i,
+          'data-step': key,
         },
-        h('td', { class: 'c-n' }, i + 1),
+        h(
+          'td',
+          { class: 'c-n' },
+          inGroup
+            ? h('span', { class: 'sub-n' }, `${g + 1}.${i + 1}`)
+            : h(
+                'label',
+                { class: 'pick-n', title: 'Tick to group, copy or remove several steps' },
+                h('input', {
+                  type: 'checkbox',
+                  checked: sel.has(i),
+                  'aria-label': `Select step ${i + 1}`,
+                  onchange: (e) => tick(i, e.target.checked),
+                }),
+                h('span', {}, String(i + 1))
+              )
+        ),
         h(
           'td',
           { class: 'c-step' },
           select(
             s.action,
-            Object.entries(ACTIONS).map(([k, a]) => [k, a.say]),
-            (v) => ((test.steps[i] = { action: v }), changed(), render()),
-            { 'aria-label': `Step ${i + 1} action` }
+            actions.map(([k, a]) => [k, a.say]),
+            (v) => {
+              // A step made a group keeps itself as the group's first step
+              list[i] = v === 'group' ? { action: 'group', name: '', steps: [s] } : { action: v };
+              changed();
+              render();
+            },
+            { 'aria-label': `Step ${key} action` }
           )
         ),
         h(
           'td',
           {},
-          s.action === 'data'
+          isGroup
+            ? h(
+                'div',
+                { class: 'group-line' },
+                h(
+                  'button',
+                  {
+                    class: 'icon caret-btn',
+                    'aria-expanded': String(open),
+                    title: open ? 'Fold the group' : 'Show its steps',
+                    onclick: () => ((T.folded = { ...T.folded, [foldKey(i)]: open }), render()),
+                  },
+                  open ? '▾' : '▸'
+                ),
+                h('input', {
+                  class: 'grow',
+                  value: s.name ?? '',
+                  placeholder: 'Name of the group, e.g. Open the Sales app',
+                  'aria-label': 'Name of the group',
+                  onchange: (e) => (set('name', e.target.value.trim()), render()),
+                }),
+                h('span', { class: 'pill' }, `${s.steps?.length ?? 0} step${(s.steps?.length ?? 0) === 1 ? '' : 's'}`)
+              )
+            : s.action === 'data'
             ? h(
                 'div',
                 { class: 'setting' },
@@ -1036,7 +1210,7 @@ export function testingViews(ctx) {
                 fields
                   .filter(([, , , o]) => !o?.when || o.when(s))
                   .map(([k, lab, ph0, o]) => {
-                    const opts = typeof o?.options === 'function' ? o.options(s) : o?.options;
+                    const opts = typeof o?.options === 'function' ? o.options(s, { logins: T.logins }) : o?.options;
                     const ph = typeof o?.placeholder === 'function' ? o.placeholder(s) : ph0;
                     return h(
                       'label',
@@ -1059,7 +1233,7 @@ export function testingViews(ctx) {
                     );
                   })
               ),
-          h('span', { class: 'sub says' }, stepText(s)),
+          isGroup ? null : h('span', { class: 'sub says' }, stepText(s)),
           bad ? h('span', { class: 'sub', style: 'color: var(--bad)' }, bad) : null,
           r?.ok === false ? h('span', { class: 'sub', style: 'color: var(--bad)' }, r.message) : null
         ),
@@ -1099,14 +1273,7 @@ export function testingViews(ctx) {
                       : '✕'
                   )
                 : null,
-              r?.ok && r.message ? h('span', { class: 'sub' }, r.message) : null,
-              r?.shot
-                ? h(
-                    'a',
-                    { class: 'sub', href: r.shot, download: `step-${i + 1}.png`, title: 'Download the screenshot' },
-                    'Screenshot'
-                  )
-                : null
+              r?.ok && r.message && !isGroup ? h('span', { class: 'sub' }, r.message) : null
             ),
             h(
               'div',
@@ -1116,8 +1283,8 @@ export function testingViews(ctx) {
                 {
                   class: 'icon',
                   'aria-label': 'Add a step below',
-                  title: 'Add a step below this one',
-                  onclick: () => addStepAt(i + 1),
+                  title: inGroup ? 'Add a step below this one, in the group' : 'Add a step below this one',
+                  onclick: () => addStepAt(list, i + 1, inGroup ? `${g}.${i + 1}` : String(i + 1)),
                 },
                 '+'
               ),
@@ -1128,7 +1295,7 @@ export function testingViews(ctx) {
                   'aria-label': 'Up',
                   disabled: i === 0,
                   onclick: () => (
-                    ([test.steps[i - 1], test.steps[i]] = [test.steps[i], test.steps[i - 1]]), changed(), render()
+                    ([list[i - 1], list[i]] = [list[i], list[i - 1]]), (T.sel = null), changed(), render()
                   ),
                 },
                 '↑'
@@ -1138,9 +1305,9 @@ export function testingViews(ctx) {
                 {
                   class: 'icon',
                   'aria-label': 'Down',
-                  disabled: i === test.steps.length - 1,
+                  disabled: i === list.length - 1,
                   onclick: () => (
-                    ([test.steps[i + 1], test.steps[i]] = [test.steps[i], test.steps[i + 1]]), changed(), render()
+                    ([list[i + 1], list[i]] = [list[i], list[i + 1]]), (T.sel = null), changed(), render()
                   ),
                 },
                 '↓'
@@ -1149,8 +1316,19 @@ export function testingViews(ctx) {
                 'button',
                 {
                   class: 'icon',
-                  'aria-label': 'Remove step',
-                  onclick: () => (test.steps.splice(i, 1), changed(), render()),
+                  'aria-label': isGroup ? 'Copy the group' : 'Copy the step',
+                  title: isGroup ? 'Copy the group (paste it in any test)' : 'Copy the step (paste it in any test)',
+                  onclick: () => void copySteps([s]),
+                },
+                '⧉'
+              ),
+              h(
+                'button',
+                {
+                  class: 'icon',
+                  'aria-label': isGroup ? 'Remove the group' : 'Remove step',
+                  title: isGroup ? 'Remove the group and its steps' : 'Remove the step',
+                  onclick: () => (list.splice(i, 1), (T.sel = null), changed(), render()),
                 },
                 '✕'
               )
@@ -1159,23 +1337,92 @@ export function testingViews(ctx) {
         )
       );
     };
+    /** Under a group's steps: add one, paste, or take them out of the group. */
+    const groupFoot = (s, i) =>
+      h(
+        'tr',
+        { class: 'group-foot' },
+        h('td', {}),
+        h(
+          'td',
+          { colspan: 3 },
+          h(
+            'div',
+            { class: 'row' },
+            h(
+              'button',
+              { class: 'small', onclick: () => addStepAt(s.steps, s.steps.length, `${i}.${s.steps.length}`) },
+              '+ Step in the group'
+            ),
+            T.clip?.length
+              ? h(
+                  'button',
+                  {
+                    class: 'small',
+                    title: 'Paste what you copied at the end of this group',
+                    onclick: () => {
+                      // A group holds steps only: a copied group gives its steps
+                      s.steps.push(...structuredClone(T.clip).flatMap((x) => (x.action === 'group' ? x.steps : [x])));
+                      changed();
+                      render();
+                    },
+                  },
+                  `Paste ${clipText()} here`
+                )
+              : null,
+            h('span', { class: 'grow' }),
+            h(
+              'button',
+              {
+                class: 'small',
+                title: 'Its steps become steps of the test again, in its place',
+                onclick: () => (test.steps.splice(i, 1, ...s.steps), (T.sel = null), changed(), render()),
+              },
+              'Ungroup'
+            )
+          )
+        )
+      );
+    const rows = [];
+    test.steps.forEach((s, i) => {
+      const r = res?.results?.[i];
+      rows.push(stepRow(s, test.steps, i, r));
+      if (s.action === 'group' && !T.folded[foldKey(i)]) {
+        (s.steps ?? []).forEach((c, j) => rows.push(stepRow(c, s.steps, j, r?.children?.[j], i)));
+        rows.push(groupFoot(s, i));
+      }
+    });
     const file = () => {
       const { id, host, ...rest } = test;
       return JSON.stringify(rest, null, 2);
     };
     const fname = `${test.name.replace(/[^\w-]+/g, '-').toLowerCase()}.nomadqa.json`;
-    /** A new step at `at`; the editor scrolls to it and its first box is ready to type in. */
-    const addStepAt = (at) => {
-      test.steps.splice(at, 0, { action: 'click', label: '' });
-      T.focusStep = at;
+    /** A new step at `at` of `list` (the test's steps, or a group's); the editor scrolls to it, ready to type. */
+    const addStepAt = (list, at, key) => {
+      list.splice(at, 0, { action: 'click', label: '' });
+      T.focusStep = key;
+      T.sel = null;
       changed();
       render();
       requestAnimationFrame(() => {
-        const tr = document.querySelector(`tr[data-step="${at}"]`);
+        const tr = document.querySelector(`tr[data-step="${key}"]`);
         tr?.scrollIntoView({ block: 'center', behavior: 'smooth' });
         tr?.querySelector('.step-fields input')?.focus({ preventScroll: true });
         T.focusStep = -1;
       });
+    };
+    const picked = [...sel].sort((a, b) => a - b).filter((i) => i < test.steps.length);
+    /** The ticked steps as one group, where the first of them was (groups among them give their steps). */
+    const groupPicked = () => {
+      const steps = picked.map((i) => test.steps[i]).flatMap((x) => (x.action === 'group' ? x.steps : [x]));
+      const first = picked[0];
+      for (const i of [...picked].reverse()) test.steps.splice(i, 1);
+      test.steps.splice(first, 0, { action: 'group', name: '', steps });
+      T.sel = null;
+      T.focusStep = String(first);
+      changed();
+      render();
+      requestAnimationFrame(() => document.querySelector(`tr[data-step="${first}"] .group-line input`)?.focus());
     };
     return h(
       'section',
@@ -1219,30 +1466,7 @@ export function testingViews(ctx) {
           `Run in ${label()}`
         )
       ),
-      h(
-        'div',
-        { class: 'row' },
-        h('span', { class: 'muted small' }, 'Group'),
-        h('input', {
-          value: test.group ?? '',
-          list: 'nomadqa-groups',
-          placeholder: 'e.g. Smoke — tests of a group run together',
-          style: 'width: 280px',
-          'aria-label': 'Group',
-          onchange: (e) => {
-            const g = e.target.value.trim();
-            if (g) test.group = g;
-            else delete test.group;
-            changed();
-            render();
-          },
-        }),
-        h(
-          'datalist',
-          { id: 'nomadqa-groups' },
-          [...new Set(T.tests.map((t) => t.group).filter(Boolean))].map((g) => h('option', { value: g }))
-        )
-      ),
+      h('div', { class: 'row' }, h('span', { class: 'muted small' }, 'Group'), ...groupPicker(test, changed)),
       T.debug?.testId === test.id
         ? h(
             'div',
@@ -1266,32 +1490,62 @@ export function testingViews(ctx) {
           )
         : null,
       res?.ms !== undefined
-        ? (() => {
-            const at = res.results.findIndex((r) => r.ok === false && !r.optional);
-            return h(
+        ? h(
+            'div',
+            { class: `run-result ${res.ok ? 'good' : 'bad'}` },
+            h(
               'div',
-              { class: `notice ${res.ok ? 'good' : 'bad'}` },
-              res.ok ? `Passed in ${(res.ms / 1000).toFixed(1)} s.` : `Failed at step ${at + 1}.`,
-              res.cleaned ? ` ${res.cleaned} test record(s) deleted.` : '',
-              res.ok
-                ? null
-                : [
-                    ' ',
-                    h(
-                      'button',
-                      {
-                        class: 'primary',
-                        disabled: Boolean(S.busy),
-                        title: `Runs steps 1 to ${at} on a Salesforce page, then stops at step ${
-                          at + 1
-                        }: change it, add a step, or remove it`,
-                        onclick: () => void startDebug(test, at),
-                      },
-                      'Fix it on the page'
-                    ),
-                  ]
-            );
-          })()
+              { class: 'row' },
+              h(
+                'b',
+                { class: 'grow' },
+                res.ok ? `Passed in ${(res.ms / 1000).toFixed(1)} s.` : `Failed after ${(res.ms / 1000).toFixed(1)} s.`,
+                res.cleaned ? h('span', { class: 'muted' }, ` ${res.cleaned} test record(s) deleted.`) : null
+              ),
+              h(
+                'button',
+                {
+                  class: 'small',
+                  title: 'A page for people: every step, and why it failed (with the picture)',
+                  onclick: () => downloadReport(test.name, [{ test, run: res }]),
+                },
+                'Report'
+              )
+            ),
+            res.ok ? null : failureBox(test, res, { fix: () => void startDebug(test, failureOf(test, res).i) })
+          )
+        : null,
+      picked.length
+        ? h(
+            'div',
+            { class: 'pick-bar' },
+            h('b', {}, `${picked.length} ticked`),
+            h(
+              'button',
+              {
+                class: 'primary small',
+                title: 'They become one step, a group: copy it, run it, fold it',
+                onclick: groupPicked,
+              },
+              'Group them'
+            ),
+            h('button', { class: 'small', onclick: () => void copySteps(picked.map((i) => test.steps[i])) }, 'Copy'),
+            h(
+              'button',
+              {
+                class: 'small danger',
+                onclick: () => {
+                  for (const i of [...picked].reverse()) test.steps.splice(i, 1);
+                  T.sel = null;
+                  changed();
+                  render();
+                },
+              },
+              'Remove'
+            ),
+            h('span', { class: 'grow' }),
+            h('button', { class: 'link', onclick: () => ((T.sel = null), render()) }, 'Untick all')
+          )
         : null,
       // The steps grow with the page (no box of their own to scroll): a change never sends the list to its top
       h(
@@ -1316,8 +1570,8 @@ export function testingViews(ctx) {
           h(
             'tbody',
             {},
-            test.steps.length
-              ? test.steps.map(stepRow)
+            rows.length
+              ? rows
               : h('tr', {}, h('td', { colspan: 4, class: 'muted empty-row' }, 'No steps yet: add one below.'))
           )
         )
@@ -1325,7 +1579,21 @@ export function testingViews(ctx) {
       h(
         'div',
         { class: 'row' },
-        h('button', { onclick: () => addStepAt(test.steps.length) }, '+ Step'),
+        h('button', { onclick: () => addStepAt(test.steps, test.steps.length, String(test.steps.length)) }, '+ Step'),
+        T.clip?.length
+          ? h(
+              'button',
+              {
+                title: 'Paste what you copied (⧉) at the end of this test',
+                onclick: () => {
+                  test.steps.push(...structuredClone(T.clip));
+                  changed();
+                  render();
+                },
+              },
+              `Paste ${clipText()}`
+            )
+          : null,
         h('span', { class: 'grow' }),
         h('button', { onclick: () => download(fname, file(), 'application/json') }, 'Download'),
         h(
@@ -1342,14 +1610,7 @@ export function testingViews(ctx) {
           'button',
           {
             class: 'danger',
-            onclick: async () => {
-              if (!(await askTyped(`Delete the test “${test.name}”?`, 'delete', { ok: 'Delete', danger: true })))
-                return;
-              T.tests = T.tests.filter((t) => t !== test);
-              T.selected = null;
-              await saveTests();
-              render();
-            },
+            onclick: () => void deleteTest(test),
           },
           'Delete test'
         )
@@ -1359,19 +1620,29 @@ export function testingViews(ctx) {
         { class: 'muted small' },
         'Headless (CI): ',
         h('code', {}, `node nomadqa/runner/run.mjs ${fname} --org <alias>`),
-        ' — Chrome and Node 22, nothing to install; a JUnit report and a screenshot of a failed step.'
+        ' — or a folder of tests; Chrome and Node 22, nothing to install; an HTML report, JUnit and a picture of a failed step. GitHub Actions: nomadqa/examples/github-workflow.yml.'
       )
     );
+  }
+
+  async function deleteTest(test) {
+    if (!(await askYes(`Delete the test “${test.name}”? Its runs stay in Runs.`, { ok: 'Delete', danger: true })))
+      return;
+    T.tests = T.tests.filter((t) => t !== test);
+    if (T.selected === test.id) T.selected = null;
+    await saveTests();
+    toast(`Deleted “${test.name}”.`);
+    render();
   }
 
   /** Asks before a test that changes data runs in production; true to go on. */
   async function okToRun(tests, what) {
     // Screenshots of a tab need Chrome's "all sites" permission: asked only for a test that takes them (while the
     // click still counts as the person's), and only once
-    if (tests.some((t) => t.steps.some((x) => x.action === 'shot')))
-      await chrome.permissions.request({ origins: ['<all_urls>'] }).catch(() => false);
+    if (tests.some((t) => allSteps(t).some((x) => x.action === 'shot')))
+      T.shotsOk = await chrome.permissions.request({ origins: ['<all_urls>'] }).catch(() => false);
     const changes = tests.some((t) =>
-      t.steps.some((s) => ['click', 'fill', 'pick', 'lookup', 'check', 'data'].includes(s.action))
+      allSteps(t).some((s) => ['click', 'fill', 'pick', 'lookup', 'check', 'data'].includes(s.action))
     );
     if (changes && S.facts && !S.facts.isSandbox)
       return askTyped(`${label()} is a PRODUCTION org. Run ${what} there anyway? It may change data.`, label(), {
@@ -1384,6 +1655,7 @@ export function testingViews(ctx) {
   /** Keeps a run in Runs (with the test itself, so it can be downloaded again). */
   async function saveRun(test, out, extra = {}) {
     const { id, host, ...file } = test;
+    const strip = ({ shot, children, ...r }) => (children ? { ...r, children: children.map(strip) } : r);
     const entry = {
       id: newId(),
       testId: test.id,
@@ -1392,7 +1664,7 @@ export function testingViews(ctx) {
       org: label(),
       ok: out.ok,
       ms: out.ms,
-      results: out.results.map(({ shot, ...r }) => r),
+      results: out.results.map(strip),
       steps: test.steps.map(stepText),
       test: file,
       junit: junit(test, out),
@@ -1400,7 +1672,26 @@ export function testingViews(ctx) {
     };
     T.runs = [entry, ...T.runs].slice(0, 100);
     await store.set('nomadqa.runs', T.runs);
+    // The pictures of failed steps are kept apart, for the newest 20 runs that have one (about 100 KB each)
+    const shots = Object.fromEntries(out.results.map((r, i) => [i, r.shot]).filter(([, v]) => v));
+    if (Object.keys(shots).length) {
+      const all = { ...T.shots, [entry.id]: shots };
+      const keep = T.runs
+        .map((r) => r.id)
+        .filter((k) => all[k])
+        .slice(0, 20);
+      T.shots = Object.fromEntries(keep.map((k) => [k, all[k]]));
+      await store.set('nomadqa.shots', T.shots);
+    }
+    return entry;
   }
+  /** A kept run's results with their pictures again. */
+  const withShots = (r) => r.results.map((x, i) => (T.shots[r.id]?.[i] ? { ...x, shot: T.shots[r.id][i] } : x));
+  /** A kept run as the report wants it. */
+  const runItem = (r) => ({
+    test: { ...(r.test ?? { steps: [] }), name: r.testName, group: r.group },
+    run: { ok: r.ok, ms: r.ms, results: withShots(r) },
+  });
   const backHere = async () => {
     const me = await chrome.tabs.getCurrent().catch(() => null);
     if (me) await chrome.tabs.update(me.id, { active: true }).catch(() => {});
@@ -1430,7 +1721,7 @@ export function testingViews(ctx) {
   }
 
   /** Tests that log in as someone else change who is logged in for the whole browser: they run alone. */
-  const logsIn = (t) => t.steps.some((x) => x.action === 'login' || x.action === 'loginas');
+  const logsIn = (t) => allSteps(t).some((x) => x.action === 'login' || x.action === 'loginas');
 
   /** Windows for tests side by side: each nearly the whole screen (pages look as usual), a little apart, so each
    * one shows a part of itself (a window fully hidden would be slowed down by the browser). */
@@ -1515,9 +1806,10 @@ export function testingViews(ctx) {
     if (list.length)
       T.groupResult = {
         name,
+        at: new Date().toISOString(),
         passed: list.filter((x) => x.run.ok).length,
         total: tests.length,
-        failed: list.filter((x) => !x.run.ok).map((x) => x.test.name),
+        items: list,
         junit: groupJunit(name, list),
         tabs: n,
       };
@@ -1730,6 +2022,16 @@ export function testingViews(ctx) {
                           },
                           'JUnit'
                         ),
+                        ' ',
+                        h(
+                          'button',
+                          {
+                            title: 'A page for people: every step, why it failed, with the picture',
+                            disabled: !r.test,
+                            onclick: () => downloadReport(r.testName, [runItem(r)], r.at),
+                          },
+                          'Report'
+                        ),
                         r.suite
                           ? [
                               ' ',
@@ -1753,6 +2055,23 @@ export function testingViews(ctx) {
                                   },
                                 },
                                 'Group JUnit'
+                              ),
+                              ' ',
+                              h(
+                                'button',
+                                {
+                                  title: `A page for people with every test of this run of “${r.group}”`,
+                                  onclick: () =>
+                                    downloadReport(
+                                      `Group ${r.group}`,
+                                      T.runs
+                                        .filter((x) => x.suite === r.suite && x.test)
+                                        .reverse()
+                                        .map(runItem),
+                                      r.at
+                                    ),
+                                },
+                                'Group report'
                               ),
                             ]
                           : null
@@ -1779,7 +2098,21 @@ export function testingViews(ctx) {
         ? h(
             'section',
             { class: 'card' },
-            h('h2', {}, open.testName),
+            h(
+              'div',
+              { class: 'row' },
+              h('h2', { class: 'grow' }, open.testName),
+              h(
+                'button',
+                {
+                  class: 'small',
+                  disabled: !open.test,
+                  onclick: () => downloadReport(open.testName, [runItem(open)], open.at),
+                },
+                'Report'
+              )
+            ),
+            open.test && !open.ok ? failureBox(runItem(open).test, runItem(open).run) : null,
             h(
               'ol',
               { class: 'problems' },

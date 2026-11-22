@@ -39,8 +39,8 @@ headless Chrome alike.
   project, a packaged component, the field's API name, the Aura component, the record. Click to pin it: **Copy**
   path / field / tag, and **Add to a test** — check its value, type into it, click it, check this text shows, start on
   this page. **Add and click it** also does the click, so you follow a link (a related record, a tab) and go on
-  picking there. While the Inspector is on, a list at the bottom left shows the steps picked so far: change (✎), move
-  or remove them, **+ Find a record** (by name or a condition: adds “find it” and “open it” and opens it now), and
+  picking there. While the Inspector is on, a list at the bottom left shows the steps picked so far: change (✎ —
+  every box of the step, as in Tests: its kind, then type and choose, how to compare, Optional…), move or remove them, **+ Find a record** (by name or a condition: adds “find it” and “open it” and opens it now), and
   **Open in Tests** to make the test. A button that opens a list (App Launcher, a list view's menu, the gear) has
   **Click, then type and choose…**: one step that clicks it, types in its list and picks an item, the list staying
   open. The panel's **Details** tab shows everything about the element — its components, the tab and section it
@@ -69,6 +69,15 @@ headless Chrome alike.
   row as `{{found}}` / `{{found.Name}}` to open it or use its values); **data** (records from a Test data recipe —
   `{{a-1}}`, `{{a-1.Name}}`; deleted after the test); **screenshot**. Any step can be **optional**: reported, but
   the test goes on. A click that opens another page waits for it.
+  **Groups of steps**: tick steps (the box by their number), **Group them** — one step with a name ("Open the Sales
+  app") that runs its steps one after the other, folds open and closed, and fails with the step inside it that
+  failed. **⧉** copies a step or a group (also onto the clipboard, as JSON); **Paste** puts it in any test, or in a
+  group. **Ungroup** gives the steps back.
+  **When a test fails**: the step, why, what was **expected** and what the page had (**got**), Salesforce's messages,
+  the page's address and a small picture of it (JPEG, about 100 KB, only for a failed step; Chrome asks once, from
+  the failure box, for leave to take it). **Report**: one HTML page for people — every step with its time, and the
+  reasons — for a passed run too; for a group run, one page for all its tests. Runs keeps the pictures of the
+  newest 20 runs that have one.
   More checks: **how many** buttons (the record's own actions), tabs, fields, sections, related lists or rows — on
   the page or in one part of it ("Check there are 2 buttons"); **where a field is** (its section, row and column:
   column 1 is the left); the **record type**; the **page layout** of who is logged in. A field can be given by its
@@ -76,15 +85,17 @@ headless Chrome alike.
   **Log in** (the login page; the username and password come from Settings › Logins, never from the test file) and
   **Log in as a user** (Salesforce's Login-As, for an admin; it needs “Administrators Can Log in as Any User”) —
   test what another user sees; at the end you are yourself again.
-  **Groups**: give tests a group (Smoke, Regression…), then **Run all** — one JUnit report for the group. One at a
+  **Groups**: give tests a group (Smoke, Regression…) from the list of groups there are, or **+ New group**, then
+  **Run all** — one JUnit report and one HTML report for the group, and for each test that failed, its step and why.
+  **✕** in the list deletes a test. One at a
   time (one tab), or 2–8 at a time, each in a window of its own; tests that log in as someone else still run alone,
   after the others (a login is the whole browser's).
   **Step by step on the page** (or **Fix it on the page** after a failed run: the steps before it run first): the
   test's steps show on the Salesforce page; ▶ runs one, ▶▶ to the end, click a step to go to it, change, move or
   remove steps, point at the page to add one before the current step, then **Save to the test**.
   **Just click** in the list on the page lets the page work as usual (menus, tabs) without picking.
-- **Runs**: every run with its steps; download the **test** as it ran, its **JUnit** report, or one for the whole
-  group. A JUnit report NomadQA wrote carries its steps: **Upload** it in Tests to run it again.
+- **Runs**: every run with its steps (and why it failed); download the **test** as it ran, its **Report**, its
+  **JUnit** report, or one for the whole group. A JUnit report NomadQA wrote carries its steps: **Upload** it in Tests to run it again.
 - **Refresh** on every screen opens it again, cleared (what was typed or shown goes; saved plans and tests stay),
   and reads the org and what NomadQA keeps again.
 - **Agent**: say what to test; your own AI (Settings) writes the steps, NomadQA checks every step, you review and run.
@@ -97,11 +108,20 @@ headless Chrome alike.
 
 ```sh
 node nomadqa/runner/run.mjs nomadqa/examples/new-contact.nomadqa.json --org my-sandbox --out reports
+node nomadqa/runner/run.mjs tests/nomadqa --group Smoke --parallel 2 --org my-sandbox
 ```
 
-Node 22 and Chrome; nothing to install. `--org` asks the Salesforce CLI for a one-time login link (or give one with
-`--login-url` / `NOMADQA_LOGIN_URL`). Writes a JUnit report and a screenshot of a failed step; exits 1 when a test
-fails. `--headed` shows the browser. It takes test files, group files and NomadQA's JUnit reports. `--parallel 4`
+Node 22 and Chrome; nothing to install. Give test files, group files, or a folder (every `*.nomadqa.json` and
+`*.nomadqa-group.json` in it); `--group` runs one group's tests. `--org` asks the Salesforce CLI for a one-time login
+link; without the CLI (CI), `--auth-url` or `SF_AUTH_URL` takes the org's SFDX auth URL (`sf org display --verbose`,
+kept in a secret), or give a link with `--login-url` / `NOMADQA_LOGIN_URL`. Writes `report.html` (for people: why
+each test failed, with a picture of the page), `summary.md`, a JUnit report per test and per group, and a small
+picture of each failed step; exits 1 when a test fails.
+
+**GitHub Actions**: copy [examples/github-workflow.yml](examples/github-workflow.yml) to
+`.github/workflows/nomadqa.yml` and add the secret `SF_AUTH_URL`. Engineers run every test (or one group, from
+**Run workflow**) on each pull request; the summary and every failure's reason show on the run's page, and the report
+is kept for 7 days. `--headed` shows the browser. It takes test files, group files and NomadQA's JUnit reports. `--parallel 4`
 runs 4 tests at a time, each in a browser context of its own (its own cookies, so tests that log in run side by side
 too). **Log in** steps
 take their usernames and passwords from `--logins logins.json` (or `NOMADQA_LOGINS`, the same JSON):

@@ -176,6 +176,36 @@ export function askTyped(message, expected, { ok = 'Continue', danger = false, e
   });
 }
 
+/** Yes or no (for what can be undone or is small: removing a test from the list). */
+export function askYes(message, { ok = 'OK', danger = false } = {}) {
+  return new Promise((resolve) => {
+    const okButton = h('button', { class: danger ? 'primary danger' : 'primary' }, ok);
+    const close = (answer) => {
+      backdrop.remove();
+      removeEventListener('keydown', key, true);
+      resolve(answer);
+    };
+    const key = (e) => {
+      if (e.key === 'Escape') close(false);
+      if (e.key === 'Enter') close(true);
+    };
+    addEventListener('keydown', key, true);
+    okButton.addEventListener('click', () => close(true));
+    const backdrop = h(
+      'div',
+      { class: 'backdrop', onmousedown: (e) => e.target === backdrop && close(false) },
+      h(
+        'div',
+        { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true' },
+        h('p', {}, message),
+        h('div', { class: 'actions' }, h('button', { onclick: () => close(false) }, 'Cancel'), okButton)
+      )
+    );
+    document.body.append(backdrop);
+    okButton.focus();
+  });
+}
+
 export function toast(text) {
   const t = h('div', { class: 'toast', role: 'status' }, text);
   document.body.append(t);

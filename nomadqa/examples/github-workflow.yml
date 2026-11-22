@@ -1,0 +1,44 @@
+# NomadQA tests on GitHub Actions: copy this file to .github/workflows/nomadqa.yml in your project.
+#
+# 1. Put your tests in the repository, e.g. tests/nomadqa/ (files downloaded from NomadQA's Tests screen:
+#    *.nomadqa.json or a group's *.nomadqa-group.json), and the nomadqa folder (its runner and core).
+# 2. Add a secret SF_AUTH_URL: the org's auth URL, from `sf org display --verbose --json -o <alias>`
+#    (result.sfdxAuthUrl). Use a sandbox or a test org.
+# 3. Tests that log in as someone else: a secret NOMADQA_LOGINS with
+#    { "sales-user": { "url": "https://test.salesforce.com", "username": "…", "password": "…" } }
+#
+# Chrome and Node are already on GitHub's Ubuntu runners: nothing to install.
+name: NomadQA tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      group:
+        description: 'Only this group (empty: every test)'
+        required: false
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run the tests (headless Chrome)
+        env:
+          SF_AUTH_URL: ${{ secrets.SF_AUTH_URL }}
+          NOMADQA_LOGINS: ${{ secrets.NOMADQA_LOGINS }}
+          NOMADQA_GROUP: ${{ inputs.group }}
+        run: node nomadqa/runner/run.mjs tests/nomadqa --parallel 2 --out nomadqa-reports
+      # The summary is on the run's page either way; the report (report.html, pictures of failed steps, JUnit)
+      # is kept for 7 days. Remove this step if you do not want files kept.
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nomadqa-report
+          path: nomadqa-reports
+          retention-days: 7

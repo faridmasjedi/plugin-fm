@@ -27,7 +27,10 @@ chrome.action.onClicked.addListener((tab) => void openFor(tab));
 
 /** Puts the engine and NomadQA's page script in a tab (once; they stay until the page reloads). */
 export async function prepare(tabId) {
-  await chrome.scripting.executeScript({ target: { tabId }, files: ['core/engine.js', 'content/page.js'] });
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ['core/engine.js', 'core/words.js', 'content/page.js'],
+  });
 }
 
 // The Inspector asks for an object's field API names by label (the page itself does not carry them)

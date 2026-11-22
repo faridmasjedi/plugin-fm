@@ -461,3 +461,70 @@ test('a click that opens a list: type, then choose', () => {
   );
   assert.equal(problem({ action: 'click', label: 'Select a List View', choose: 'All Open Cases' }), '');
 });
+
+test('a group of steps: runs as one step, the first failure stops it, its reason and picture go up', async () => {
+  const { htmlReport, markdownSummary, failureLine } = await import('../extension/core/report.js');
+  const sf = { host: 'x.my.salesforce.com' };
+  const ran = [];
+  const driver = {
+    open: async () => {},
+    url: async () => 'https://x.lightning.force.com/lightning/r/Account/001/view',
+    step: async (s) => {
+      ran.push(s.label ?? s.value);
+      return s.value === 'Energy'
+        ? { ok: false, message: 'Not found', expected: 'Industry contains “Energy”', got: '“Media”', toasts: ['Oops'] }
+        : { ok: true };
+    },
+    shot: async () => 'data:image/jpeg;base64,CCC',
+  };
+  const group = {
+    action: 'group',
+    name: 'Open the Sales app',
+    steps: [
+      { action: 'click', label: 'App Launcher', type: 'Sales', choose: 'Sales' },
+      { action: 'expect', kind: 'field', field: 'Industry', value: 'Energy' },
+      { action: 'click', label: 'Never' },
+    ],
+  };
+  assert.equal(problem(group), '');
+  assert.match(problem({ action: 'group', steps: [] }), /no steps/);
+  assert.match(problem({ action: 'group', steps: [group] }), /another group/);
+  assert.match(problem({ action: 'group', steps: [{ action: 'click' }] }), /step 1 of the group: needs label/);
+  assert.equal(stepText(group), 'Open the Sales app (3 steps)');
+  const test = { name: 'G', steps: [group, { action: 'click', label: 'After' }] };
+  const run = await runTest(test, { driver, sf });
+  assert.equal(run.ok, false);
+  assert.deepEqual(ran, ['App Launcher', 'Energy']);
+  const g = run.results[0];
+  assert.equal(g.ok, false);
+  assert.equal(g.at, 1);
+  assert.equal(g.children.length, 3);
+  assert.equal(g.children[2].ok, null);
+  assert.equal(g.shot, 'data:image/jpeg;base64,CCC');
+  assert.equal(g.children[1].shot, undefined);
+  assert.equal(g.expected, 'Industry contains “Energy”');
+  assert.equal(g.got, '“Media”');
+  assert.match(g.message, /^Step 2 of the group, “Check Industry contains “Energy””: Not found/);
+  assert.equal(run.results[1].ok, null);
+  assert.match(failureLine(test, run), /^Step 1, Open the Sales app \(3 steps\): Step 2 of the group/);
+  const html = htmlReport({ title: 'G', org: 'acme', items: [{ test, run }] });
+  assert.match(html, /Why it failed/);
+  assert.match(html, /<div class="k">Expected<\/div><div class="v">Industry contains “Energy”/);
+  assert.match(html, /<div class="k">Got<\/div><div class="v">“Media”/);
+  assert.match(html, /data:image\/jpeg;base64,CCC/);
+  assert.match(html, /<td class="n">1\.2<\/td>/);
+  const md = markdownSummary({ title: 'G', items: [{ test, run }] });
+  assert.match(md, /0 of 1 passed/);
+  assert.match(md, /\*\*Expected:\*\* Industry contains “Energy”/);
+  assert.doesNotMatch(md, /\n\n\n/);
+});
+
+test('a query that finds the wrong number says what was wanted and what it got', async () => {
+  const sf = { host: 'x', rest: async () => ({ totalSize: 0, records: [] }) };
+  const run = await runTest(
+    { name: 'Q', steps: [{ action: 'query', soql: 'SELECT Id FROM Account', count: 2 }] },
+    { driver: { step: async () => ({ ok: true }) }, sf }
+  );
+  assert.equal(run.results[0].expected, '2 row(s)');
+  assert.equal(run.results[0].got, '0 row(s)');
+});

@@ -1350,3 +1350,203 @@ table.steps tr.no-fields td.c-n {
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 6l4.5 4.5L12.5 6' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
     center / 16px 16px no-repeat;
 }
+
+/* ---------- Tests: delete in the list ---------- */
+.test-row {
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+}
+.test-row .row-del {
+  padding: 2px 6px;
+  color: var(--faint);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.test-row:hover .row-del,
+.test-row.on .row-del,
+.test-row .row-del:focus-visible {
+  opacity: 1;
+}
+.test-row .row-del:hover {
+  color: var(--bad);
+}
+
+/* ---------- Tests: a run's result and why it failed ---------- */
+.run-result {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.run-result.good {
+  border-color: var(--good);
+  background: var(--good-soft, var(--panel-2));
+}
+.run-result.bad {
+  border-color: var(--bad);
+  background: var(--bad-soft);
+}
+.run-result > .row {
+  margin: 0;
+}
+.failure {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.failure-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--bad);
+}
+.failure-head .muted {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.failure-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 12px;
+  padding: 10px 12px;
+}
+.failure-grid {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 5px 12px;
+  align-content: start;
+}
+.failure-grid .k {
+  color: var(--muted);
+}
+.failure-grid .v {
+  word-break: break-word;
+}
+.failure .shot {
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel-2);
+  cursor: zoom-in;
+  align-self: start;
+}
+.failure .shot img {
+  display: block;
+  width: 100%;
+}
+.failure .shot.none {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  cursor: default;
+}
+@media (max-width: 900px) {
+  .failure-body {
+    grid-template-columns: 1fr;
+  }
+}
+.group-result .failed-tests {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.group-result .why-text {
+  color: var(--bad);
+}
+
+/* ---------- Tests: ticking steps, groups of steps ---------- */
+.pick-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin: 8px 0;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+table.steps .pick-n {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+table.steps .pick-n input {
+  margin: 0;
+  opacity: 0.35;
+}
+table.steps tr:hover .pick-n input,
+table.steps tr.picked .pick-n input,
+table.steps .pick-n input:focus-visible {
+  opacity: 1;
+}
+table.steps td.c-n {
+  padding-top: 31px;
+}
+table.steps tr.no-fields td.c-n,
+table.steps tr.group-row td.c-n {
+  padding-top: 11px;
+}
+table.steps tbody tr.picked td {
+  background: var(--accent-soft);
+}
+table.steps tr.group-row td {
+  background: var(--panel-2);
+  border-top: 2px solid var(--border-strong);
+}
+table.steps tr.group-row td.c-step,
+table.steps tr.group-row td.c-side {
+  padding-top: 10px;
+}
+table.steps .group-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+table.steps .group-line input {
+  font-weight: 600;
+  height: 34px;
+}
+table.steps .caret-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--accent);
+  flex: none;
+}
+table.steps tr.child td.c-n {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+table.steps tr.child td:nth-child(2) {
+  padding-left: 22px;
+}
+table.steps .sub-n {
+  font-size: 12px;
+  color: var(--faint);
+}
+table.steps tr.group-foot td {
+  padding: 6px 10px 12px;
+  border-bottom: 2px solid var(--border-strong);
+}
+table.steps tr.group-foot td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+table.steps tr.group-foot .row {
+  margin: 0;
+}

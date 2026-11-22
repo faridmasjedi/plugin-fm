@@ -3,7 +3,7 @@
 // evaluates the same file through Chrome's DevTools protocol. In the isolated world Lightning's components are plain
 // DOM; the few real shadow roots are walked too.
 (() => {
-  if (globalThis.__nomadqa?.version === 5) return;
+  if (globalThis.__nomadqa?.version === 6) return;
 
   const norm = (s) =>
     String(s ?? '')
@@ -686,6 +686,47 @@
       : null);
 
   /** Runs one step; resolves { ok, message, ms }. */
+  /** A failed check: what it wanted, and what the page shows now. */
+  function expectedAndGot(kind, step, want, op, say) {
+    const c = kind === 'count' ? count(step.what ?? 'buttons', step.within) : null;
+    const p = kind === 'place' ? either(placeOf, step) : null;
+    const v = kind === 'field' ? either(fieldValue, step) : null;
+    switch (kind) {
+      case 'toast':
+        return { expected: `a message that ${say}`, got: toasts().join(' · ') || 'no message' };
+      case 'field':
+        return { expected: `${step.field} ${say}`, got: v === null ? 'the field is not on the page' : `“${v}”` };
+      case 'title':
+        return { expected: `the title ${say}`, got: `“${document.title}”` };
+      case 'url':
+        return { expected: `the address ${say}`, got: location.href };
+      case 'button':
+        return { expected: `the button or link “${want}” shown`, got: 'not on the page' };
+      case 'no-button':
+        return { expected: `no button or link “${want}”`, got: 'it is on the page' };
+      case 'count':
+        return {
+          expected: `${step.what ?? 'buttons'} ${OPS[op === 'contains' ? 'is' : op] ?? op} ${want}`,
+          got: c ? `${c.n}${c.names.length ? `: ${c.names.join(', ')}` : ''}` : `no “${step.within}” on the page`,
+        };
+      case 'place':
+        return {
+          expected: [
+            step.section ? `section ${step.section}` : '',
+            step.row ? `row ${step.row}` : '',
+            step.col ? `column ${step.col}` : '',
+          ]
+            .filter(Boolean)
+            .join(', '),
+          got: p ? placeText(p) : 'the field is not on the page',
+        };
+      case 'no-text':
+        return { expected: `“${want}” not shown`, got: 'it is on the page' };
+      default:
+        return { expected: `“${want}” on the page`, got: 'not on the page' };
+    }
+  }
+
   async function run(step) {
     const t0 = Date.now();
     globalThis.__nomadqa.stepId = step.__id ?? '';
@@ -739,74 +780,80 @@
           const op = step.op ?? 'contains';
           const kind = step.kind ?? 'text';
           const say = `${OPS[op] ?? op}${op === 'empty' || op === 'filled' ? '' : ` “${want}”`}`;
-          if (kind === 'toast')
-            await until(() => toasts().find((t) => compare(t, want, op)) ?? null, timeout, `a message that ${say}`);
-          else if (kind === 'field')
-            await until(
-              () => {
-                const v = either(fieldValue, step);
-                return v !== null && compare(v, want, op) ? true : null;
-              },
-              timeout,
-              () => `${step.field} ${say} (now “${either(fieldValue, step) ?? 'not on the page'}”)`
-            );
-          else if (kind === 'title')
-            await until(
-              () => (compare(document.title, want, op) ? true : null),
-              timeout,
-              () => `the title ${say} (now “${document.title}”)`
-            );
-          else if (kind === 'url')
-            await until(() => (compare(location.href, want, op) ? true : null), timeout, `the address ${say}`);
-          else if (kind === 'button')
-            await until(() => findClickable(want, step), timeout, `a button or link “${want}”`);
-          else if (kind === 'no-button')
-            await until(() => (findClickable(want, step) ? null : true), timeout, `no button or link “${want}”`);
-          else if (kind === 'count')
-            await until(
-              () => {
-                const c = count(step.what ?? 'buttons', step.within);
-                return c && compare(String(c.n), want, op === 'contains' ? 'is' : op) ? true : null;
-              },
-              timeout,
-              () => {
-                const c = count(step.what ?? 'buttons', step.within);
-                return `${step.what ?? 'buttons'} ${OPS[op === 'contains' ? 'is' : op] ?? op} ${want}${
-                  step.within ? ` in “${step.within}”` : ''
-                } (now ${
-                  c ? `${c.n}${c.names.length ? `: ${c.names.join(', ')}` : ''}` : `no “${step.within}” on the page`
-                })`;
-              }
-            );
-          else if (kind === 'place') {
-            const fits = (p) =>
-              p &&
-              (!step.section ||
-                (/^\d+$/.test(String(step.section))
-                  ? p.sectionNo === Number(step.section)
-                  : norm(p.section) === norm(step.section))) &&
-              (!step.row || p.row === Number(step.row)) &&
-              (!step.col || p.col === Number(step.col));
-            await until(
-              () => (fits(either(placeOf, step)) ? true : null),
-              timeout,
-              () => {
-                const p = either(placeOf, step);
-                return `${step.field} at the place asked (now ${p ? placeText(p) : 'not on the page'})`;
-              }
-            );
-          } else if (kind === 'no-text')
-            await until(
-              () => (pageText().toLowerCase().includes(want.toLowerCase()) ? null : true),
-              timeout,
-              `“${want}” to be gone`
-            );
-          else
-            await until(
-              () => (pageText().toLowerCase().includes(want.toLowerCase()) ? true : null),
-              timeout,
-              `the text “${want}”`
-            );
+          try {
+            if (kind === 'toast')
+              await until(() => toasts().find((t) => compare(t, want, op)) ?? null, timeout, `a message that ${say}`);
+            else if (kind === 'field')
+              await until(
+                () => {
+                  const v = either(fieldValue, step);
+                  return v !== null && compare(v, want, op) ? true : null;
+                },
+                timeout,
+                () => `${step.field} ${say} (now “${either(fieldValue, step) ?? 'not on the page'}”)`
+              );
+            else if (kind === 'title')
+              await until(
+                () => (compare(document.title, want, op) ? true : null),
+                timeout,
+                () => `the title ${say} (now “${document.title}”)`
+              );
+            else if (kind === 'url')
+              await until(() => (compare(location.href, want, op) ? true : null), timeout, `the address ${say}`);
+            else if (kind === 'button')
+              await until(() => findClickable(want, step), timeout, `a button or link “${want}”`);
+            else if (kind === 'no-button')
+              await until(() => (findClickable(want, step) ? null : true), timeout, `no button or link “${want}”`);
+            else if (kind === 'count')
+              await until(
+                () => {
+                  const c = count(step.what ?? 'buttons', step.within);
+                  return c && compare(String(c.n), want, op === 'contains' ? 'is' : op) ? true : null;
+                },
+                timeout,
+                () => {
+                  const c = count(step.what ?? 'buttons', step.within);
+                  return `${step.what ?? 'buttons'} ${OPS[op === 'contains' ? 'is' : op] ?? op} ${want}${
+                    step.within ? ` in “${step.within}”` : ''
+                  } (now ${
+                    c ? `${c.n}${c.names.length ? `: ${c.names.join(', ')}` : ''}` : `no “${step.within}” on the page`
+                  })`;
+                }
+              );
+            else if (kind === 'place') {
+              const fits = (p) =>
+                p &&
+                (!step.section ||
+                  (/^\d+$/.test(String(step.section))
+                    ? p.sectionNo === Number(step.section)
+                    : norm(p.section) === norm(step.section))) &&
+                (!step.row || p.row === Number(step.row)) &&
+                (!step.col || p.col === Number(step.col));
+              await until(
+                () => (fits(either(placeOf, step)) ? true : null),
+                timeout,
+                () => {
+                  const p = either(placeOf, step);
+                  return `${step.field} at the place asked (now ${p ? placeText(p) : 'not on the page'})`;
+                }
+              );
+            } else if (kind === 'no-text')
+              await until(
+                () => (pageText().toLowerCase().includes(want.toLowerCase()) ? null : true),
+                timeout,
+                `“${want}” to be gone`
+              );
+            else
+              await until(
+                () => (pageText().toLowerCase().includes(want.toLowerCase()) ? true : null),
+                timeout,
+                `the text “${want}”`
+              );
+          } catch (e) {
+            // What was wanted, and what the page had when the time ran out (for the report)
+            Object.assign(e, expectedAndGot(kind, step, want, op, say));
+            throw e;
+          }
           break;
         }
         case 'remember': {
@@ -863,7 +910,15 @@
       }
       return { ok: true, ms: Date.now() - t0 };
     } catch (e) {
-      return { ok: false, message: e.message, ms: Date.now() - t0, url: location.href, toasts: toasts().slice(0, 3) };
+      return {
+        ok: false,
+        message: e.message,
+        expected: e.expected,
+        got: e.got,
+        ms: Date.now() - t0,
+        url: location.href,
+        toasts: toasts().slice(0, 3),
+      };
     }
   }
 
@@ -951,7 +1006,7 @@
   }
 
   globalThis.__nomadqa = {
-    version: 5,
+    version: 6,
     run,
     inSetup,
     changes,

@@ -8,179 +8,29 @@ import { makeFaker } from './fake.js';
 import { generate, querySoqls } from './plan.js';
 import { createRecords, deleteBatch } from './create.js';
 
-export const ACTIONS = {
-  open: {
-    say: 'Open a page',
-    fields: ['path'],
-    also: 'path: /lightning/o/Account/list · or object + name · or record: {{key}}',
-  },
-  click: {
-    say: 'Click',
-    fields: ['label'],
-    also: 'a button, link, tab or menu item, by what it says; within: a section title; type, choose: in the list it opens (App Launcher, a list view menu) type, then choose an item',
-  },
-  fill: { say: 'Type into a field', fields: ['field', 'value'] },
-  pick: { say: 'Choose in a list', fields: ['field', 'value'] },
-  lookup: { say: 'Choose a record in a lookup', fields: ['field', 'value'] },
-  check: { say: 'Tick or untick', fields: ['field', 'value'] },
-  search: {
-    say: 'Search and choose',
-    fields: ['text'],
-    also: 'box: where to type (empty: Salesforce’s search at the top; or a field, or a box by what it shows: Search this list…); choose: the result to click (empty: press Enter)',
-  },
-  wait: { say: 'Wait', fields: [], also: 'text: until it shows · or ms' },
-  press: { say: 'Press a key', fields: ['key'] },
-  expect: {
-    say: 'Check',
-    fields: ['kind', 'value'],
-    also: 'kind: text · toast · field (+ field) · title · url · no-text · button · no-button · count (+ what, within) · place (+ field, section, row, col) · recordtype · layout; op: contains · is · not · starts · empty · filled · more · less · matches',
-  },
-  login: {
-    say: 'Log in (login page)',
-    fields: ['login'],
-    also: 'a login from Settings › Logins: its username and password stay in this browser, the test only names it',
-  },
-  loginas: {
-    say: 'Log in as a user',
-    fields: ['user'],
-    also: 'Salesforce’s Login-As (an admin, no password): the user’s username or name; back to you at the end',
-  },
-  remember: { say: 'Remember a value', fields: ['field', 'as'], also: 'a field on the page, used later as {{as}}' },
-  shot: { say: 'Take a screenshot', fields: [] },
-  data: {
-    say: 'Make test data',
-    fields: ['recipe'],
-    also: 'a Test data recipe; its records are {{a-1}}, {{c-2.Email}}…',
-  },
-  query: {
-    say: 'Find records (SOQL)',
-    fields: ['soql'],
-    also: 'count: how many rows it must find; save: a name for the first row — {{name}} its Id, {{name.Field}} a value',
-  },
-};
+import './words.js';
+
+const W = globalThis.__nomadqaWords;
+export const { ACTIONS, KINDS, COUNT_WHAT, OPS, KIND_LABELS, FIELDS, fieldsFor, stepText } = W;
+const noValue = (s) => s.op === 'empty' || s.op === 'filled';
 
 /** A query that only reads: SELECT … FROM …, one statement. */
 export const isSelect = (soql) =>
   /^\s*SELECT\s[\s\S]+?\sFROM\s+\w+/i.test(String(soql ?? '')) && !/;/.test(String(soql));
-
-export const KINDS = [
-  'text',
-  'toast',
-  'field',
-  'title',
-  'url',
-  'no-text',
-  'button',
-  'no-button',
-  'count',
-  'place',
-  'recordtype',
-  'layout',
-];
-/** What a count check counts. */
-export const COUNT_WHAT = ['buttons', 'tabs', 'fields', 'sections', 'related lists', 'rows'];
-export const OPS = {
-  contains: 'contains',
-  is: 'is',
-  not: 'is not',
-  starts: 'starts with',
-  empty: 'is empty',
-  filled: 'is filled in',
-  more: 'is more than',
-  less: 'is less than',
-  matches: 'matches',
-};
-const noValue = (s) => s.op === 'empty' || s.op === 'filled';
-
-/** One line a person reads. */
-export function stepText(s) {
-  const text = sentence(s);
-  return s.optional ? `${text} (optional)` : text;
-}
-/** A field as written, with its API name when the step knows it: Title (Contact.Title). */
-const fieldName = (s) => (s.api && s.api !== s.field ? `${s.field} (${s.api})` : s.field);
-const where = (s) => (s.within ? ` in “${s.within}”` : '');
-
-function sentence(s) {
-  switch (s.action) {
-    case 'open':
-      return s.record ? `Open the record ${s.record}` : s.object ? `Open ${s.object} “${s.name}”` : `Open ${s.path}`;
-    case 'click':
-      return `Click “${s.label}”${s.within ? ` in ${s.within}` : ''}${s.type ? `, type “${s.type}”` : ''}${
-        s.choose ? `, choose “${s.choose}”` : ''
-      }`;
-    case 'fill':
-      return `Type “${s.value}” in ${fieldName(s)}`;
-    case 'pick':
-      return `Choose “${s.value}” in ${fieldName(s)}`;
-    case 'lookup':
-      return `Choose the record “${s.value}” in ${fieldName(s)}`;
-    case 'search': {
-      const box = s.box ? `“${s.box}”` : 'Salesforce search (at the top)';
-      return s.choose
-        ? `Search “${s.text}” in ${box}, choose “${s.choose}”`
-        : `Search “${s.text}” in ${box}, press Enter`;
-    }
-    case 'check':
-      return `${s.value === false || s.value === 'false' ? 'Untick' : 'Tick'} ${fieldName(s)}`;
-    case 'wait':
-      return s.text ? `Wait for “${s.text}”` : `Wait ${s.ms ?? 1000} ms`;
-    case 'press':
-      return `Press ${s.key ?? 'Enter'}`;
-    case 'expect': {
-      const how = `${OPS[s.op ?? 'contains'] ?? s.op}${noValue(s) ? '' : ` “${s.value}”`}`;
-      if (s.kind === 'count')
-        return `Check the number of ${s.what ?? 'buttons'}${where(s)} ${
-          OPS[!s.op || s.op === 'contains' ? 'is' : s.op] ?? s.op
-        } ${s.value}`;
-      if (s.kind === 'place')
-        return `Check ${fieldName(s)} is ${[
-          s.section ? (/^\d+$/.test(String(s.section)) ? `in section ${s.section}` : `in “${s.section}”`) : '',
-          s.row ? `row ${s.row}` : '',
-          s.col ? `column ${s.col}` : '',
-        ]
-          .filter(Boolean)
-          .join(', ')}`;
-      if (s.kind === 'recordtype') return `Check the record type ${how}`;
-      if (s.kind === 'layout') return `Check the page layout ${how}`;
-      return s.kind === 'field'
-        ? `Check ${fieldName(s)} ${how}`
-        : s.kind === 'toast'
-        ? `Check a message ${how}`
-        : s.kind === 'no-text'
-        ? `Check “${s.value}” is not shown`
-        : s.kind === 'button'
-        ? `Check the button or link “${s.value}” is shown${where(s)}`
-        : s.kind === 'no-button'
-        ? `Check there is no button or link “${s.value}”${where(s)}`
-        : s.kind === 'title' || s.kind === 'url'
-        ? `Check the ${s.kind} ${how}`
-        : `Check the page shows “${s.value}”`;
-    }
-    case 'remember':
-      return `Remember ${fieldName(s)} as {{${s.as}}}`;
-    case 'login':
-      return `Log in on the login page as “${s.login}”`;
-    case 'loginas':
-      return `Log in as ${s.user} (Login-As)`;
-    case 'shot':
-      return 'Take a screenshot';
-    case 'data':
-      return `Make test data: ${s.recipe?.name ?? 'a recipe'}`;
-    case 'query':
-      return s.save
-        ? `Find a record: “${s.soql}” → {{${s.save}}}`
-        : `Check that “${s.soql}” finds ${s.count ?? 'at least one'} row(s)`;
-    default:
-      return s.action;
-  }
-}
 
 /** What is wrong with a step ('' when nothing). */
 export function problem(s) {
   if (!s || typeof s !== 'object') return 'not a step';
   const a = ACTIONS[s.action];
   if (!a) return `unknown action “${s.action}”`;
+  if (s.action === 'group') {
+    if (!Array.isArray(s.steps) || !s.steps.length) return 'the group has no steps';
+    for (const [j, c] of s.steps.entries()) {
+      const bad = c?.action === 'group' ? 'a group cannot hold another group' : problem(c);
+      if (bad) return `step ${j + 1} of the group: ${bad}`;
+    }
+    return '';
+  }
   if (s.action === 'open' && !s.path && !s.record && !(s.object && s.name))
     return 'needs a path, a record, or an object and a name';
   if (s.action === 'expect' && !KINDS.includes(s.kind ?? 'text')) return `unknown check “${s.kind}”`;
@@ -211,6 +61,11 @@ export function withValues(step, vars) {
         })
       : v;
   return Object.fromEntries(Object.entries(step).map(([k, v]) => [k, sub(v)]));
+}
+
+/** A failure that knows what was wanted and what the page had: the report shows both. */
+function failed(message, expected, got) {
+  return Object.assign(new Error(message), { expected, got });
 }
 
 const soqlText = (v) => `'${String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
@@ -344,7 +199,44 @@ export function stepper(test, { driver, sf, describes = {}, logins = {} }) {
     return hit?.Layout?.Name ?? '';
   }
 
+  /** A group's steps one after the other: the first that fails (not optional) stops it, and is the group's reason. */
+  async function runGroup(raw) {
+    const children = [];
+    let bad = -1;
+    for (const [j, c] of raw.steps.entries()) {
+      const r = bad >= 0 ? { ok: null, message: 'not run' } : await runStep(c);
+      if (r.ok === false && !r.optional && bad < 0) bad = j;
+      children.push(r);
+    }
+    if (bad < 0) {
+      const warn = children.filter((r) => r.ok === false).length;
+      return {
+        ok: true,
+        children,
+        message: `${children.length} step(s) passed${warn ? `, ${warn} optional failed` : ''}`,
+      };
+    }
+    const { shot, ...r } = children[bad];
+    children[bad] = r;
+    return {
+      ok: false,
+      children,
+      at: bad,
+      message: `Step ${bad + 1} of the group, “${stepText(raw.steps[bad])}”: ${r.message}`,
+      expected: r.expected,
+      got: r.got,
+      url: r.url,
+      toasts: r.toasts,
+      shot,
+    };
+  }
+
   async function runOne(raw) {
+    if (raw.action === 'group') {
+      const bad = problem(raw);
+      if (bad) throw new Error(bad);
+      return runGroup(raw);
+    }
     const s = withValues(raw, vars);
     const bad = problem(s);
     if (bad) throw new Error(bad);
@@ -383,7 +275,11 @@ export function stepper(test, { driver, sf, describes = {}, logins = {} }) {
       const n = res.totalSize ?? 0;
       const want = s.count === undefined || s.count === '' ? null : Number(s.count);
       if (want === null ? n < 1 : n !== want)
-        throw new Error(`Found ${n} row(s), ${want === null ? 'at least 1' : want} wanted.`);
+        throw failed(
+          `Found ${n} row(s), ${want === null ? 'at least 1' : want} wanted.`,
+          `${want === null ? 'at least 1' : want} row(s)`,
+          `${n} row(s)`
+        );
       if (s.save) {
         // The first row, for later steps: {{name}} its Id, {{name.Field}} a value
         const { attributes, ...row } = res.records?.[0] ?? {};
@@ -473,7 +369,11 @@ export function stepper(test, { driver, sf, describes = {}, logins = {} }) {
       } else actual = await layoutName(object, id);
       const op = s.op ?? 'contains';
       if (!compare(actual, s.value, op))
-        throw new Error(`The ${s.kind === 'layout' ? 'page layout' : 'record type'} is “${actual}”.`);
+        throw failed(
+          `The ${s.kind === 'layout' ? 'page layout' : 'record type'} is “${actual}”.`,
+          `${OPS[op] ?? op} “${s.value}”`,
+          `“${actual}”`
+        );
       return { ok: true, message: `“${actual}”` };
     }
     const step = await withLabel(s);
@@ -482,26 +382,36 @@ export function stepper(test, { driver, sf, describes = {}, logins = {} }) {
     return r;
   }
 
+  /** Runs one step: { ok, message, ms, optional?, shot?, expected?, got?, url?, toasts?, children? }. */
+  async function runStep(raw) {
+    const started = Date.now();
+    let r;
+    try {
+      r = (await runOne(raw)) ?? { ok: false, message: 'No answer from the page.' };
+    } catch (e) {
+      r = { ok: false, message: e.message, expected: e.expected, got: e.got };
+    }
+    r = { ...r, ms: Date.now() - started };
+    for (const k of ['expected', 'got', 'url', 'shot']) if (r[k] === undefined) delete r[k];
+    if (!r.toasts?.length) delete r.toasts;
+    if (r.ok === false) {
+      // An optional step may fail: it is reported, and the test goes on
+      if (raw.optional) r.optional = true;
+      // What the page showed when it failed (a small picture: only for a failed step)
+      if (driver.shot && !r.shot) {
+        const shot = await driver.shot().catch(() => undefined);
+        if (shot) r.shot = shot;
+      }
+      if (!r.url && driver.url) r.url = await driver.url().catch(() => undefined);
+      if (!r.url) delete r.url;
+    }
+    return r;
+  }
+
   return {
     vars,
     who,
-    /** Runs one step: { ok, message, ms, optional?, shot? }. */
-    async run(raw) {
-      const started = Date.now();
-      let r;
-      try {
-        r = (await runOne(raw)) ?? { ok: false, message: 'No answer from the page.' };
-      } catch (e) {
-        r = { ok: false, message: e.message };
-      }
-      r = { ...r, ms: r.ms ?? Date.now() - started };
-      if (!r.ok) {
-        // An optional step may fail: it is reported, and the test goes on
-        if (raw.optional) r.optional = true;
-        if (driver.shot) r.shot = await driver.shot().catch(() => undefined);
-      }
-      return r;
-    },
+    run: runStep,
     /** Deletes what the test made and logs back in as you; returns how many records were deleted. */
     async finish() {
       await backToMe();

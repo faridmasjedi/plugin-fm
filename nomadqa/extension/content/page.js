@@ -68,7 +68,11 @@
     .tray li .acts{display:flex;gap:2px;flex:none}
     .tray .ib{border:0;background:none;padding:2px 5px;color:#5b6475;font-size:13px}.tray .ib:hover{background:#f0f1f7;color:#1d2433}
     .tray .ib:disabled{opacity:.35;cursor:default}
-    .tray .edit{display:flex;gap:6px;margin-top:6px}.tray .edit input{flex:1}
+    .tray .edit{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 2px;padding:10px;border:1px solid #e3e6ee;border-radius:8px;background:#fafbfd}
+    .tray .edit .ef{display:grid;gap:3px;font-size:11.5px;color:#5b6475;min-width:0}.tray .edit .ef.wide{grid-column:1/-1}
+    .tray .edit select{font:inherit;font-size:12.5px;padding:5px 6px;border:1px solid #d5d9e4;border-radius:7px;background:#fff;color:#1d2433;min-width:0}
+    .tray .edit .chk{display:flex;align-items:center;gap:6px;font-size:12px;color:#5b6475;grid-column:1/-1}
+    .tray .edit .b{display:flex;gap:6px;grid-column:1/-1}.tray .edit .says{grid-column:1/-1;font-size:12px;color:#5b6475}
     .tray input{font:inherit;font-size:12.5px;padding:5px 8px;border:1px solid #d5d9e4;border-radius:7px;min-width:0}
     .tray .empty{padding:12px;color:#5b6475}
     .tray footer{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;border-top:1px solid #eef0f5;background:#fafbfd}
@@ -83,6 +87,7 @@
     .tray li .txt[data-a]{cursor:pointer}.tray li .txt[data-a]:hover{text-decoration:underline}
     .tray .mk{flex:none;width:14px;text-align:center;color:#8a93a6}.tray .mk.cur{color:#5b3fd1}.tray .mk.ok{color:#1f7a4d}.tray .mk.bad{color:#c23934}.tray .mk.warn{color:#a86b00}
     .tray .why{margin:4px 0 0 20px;font-size:12px;color:#a3272b;word-break:break-word}
+    .tray .why .eg{display:block;color:#5b6475}.tray .why .eg b{color:#1d2433;font-weight:600}
     .tray .muted{color:#8a93a6}
   </style>
   <div class="box"></div><div class="tray"></div><div class="tip"></div>
@@ -207,6 +212,54 @@
       paintTray();
     }
   }
+  /** Every box of a step (as in Tests): the kind of step, its boxes (some show for one kind of check only), Optional. */
+  function editForm(step, i) {
+    const W = globalThis.__nomadqaWords;
+    const actions = Object.entries(W.ACTIONS).filter(([k]) => k === step.action || (k !== 'data' && k !== 'group'));
+    const box = ([k, lab, ph0, o]) => {
+      const opts = typeof o?.options === 'function' ? o.options(step, { logins: trayState.logins }) : o?.options;
+      const ph = typeof o?.placeholder === 'function' ? o.placeholder(step) : ph0;
+      const v = step[k] === undefined ? '' : String(step[k]);
+      return `<label class="ef${o?.wide ? ' wide' : ''}"><span>${esc(lab)}</span>${
+        opts
+          ? `<select data-ed="${k}">${opts
+              .map(
+                ([val, l]) =>
+                  `<option value="${esc(val)}"${String(step[k] ?? opts[0][0]) === String(val) ? ' selected' : ''}>${esc(
+                    l
+                  )}</option>`
+              )
+              .join('')}</select>`
+          : `<input data-ed="${k}" value="${esc(v)}" placeholder="${esc(ph)}">`
+      }</label>`;
+    };
+    return (
+      `<div class="edit"><label class="ef wide"><span>Step</span><select data-ed="action">${actions
+        .map(([k, a]) => `<option value="${k}"${k === step.action ? ' selected' : ''}>${esc(a.say)}</option>`)
+        .join('')}</select></label>` +
+      W.fieldsFor(step).map(box).join('') +
+      `<label class="chk"><input type="checkbox" data-ed="optional"${
+        step.optional ? ' checked' : ''
+      }> Optional: if it fails, the test still goes on</label>` +
+      `<div class="says">→ ${esc(W.stepText(step))}</div>` +
+      `<div class="b"><button class="primary" data-a="save" data-i="${i}">Save</button><button data-a="edit-x" data-i="${i}">Cancel</button></div></div>`
+    );
+  }
+  /** The step being changed, as it is written: empty boxes left out, numbers as numbers. */
+  function cleanDraft(d) {
+    const out = {};
+    for (const [k, v] of Object.entries(d)) {
+      if (v === '' || v === undefined) continue;
+      out[k] =
+        k === 'ms' || k === 'count'
+          ? Number(v)
+          : k === 'value' && d.action === 'check'
+          ? v === true || v === 'true'
+          : v;
+    }
+    return out;
+  }
+
   function paintTray() {
     if (state.mode !== 'inspect' && !debugging()) return (tray.style.display = 'none');
     const t = trayState;
@@ -241,12 +294,12 @@
         i < list.length - 1 && !busy ? '' : 'disabled'
       }>↓</button>` +
       `<button class="ib" data-a="del" data-i="${i}" title="Remove" ${busy ? 'disabled' : ''}>✕</button></span></div>` +
-      (d && p.result?.ok === false ? `<div class="why">${esc(p.result.message)}</div>` : '') +
-      (t.editing === i
-        ? `<div class="edit"><input data-edit value="${esc(
-            p.step[mainOf(p.step)] ?? ''
-          )}"><button class="primary" data-a="save" data-i="${i}">Save</button></div>`
+      (d && p.result?.ok === false
+        ? `<div class="why">${esc(p.result.message)}${
+            p.result.expected ? `<span class="eg"><b>Expected</b> ${esc(p.result.expected)}</span>` : ''
+          }${p.result.got ? `<span class="eg"><b>Got</b> ${esc(p.result.got)}</span>` : ''}</div>`
         : '') +
+      (t.editing === i && t.draft ? editForm(t.draft, i) : '') +
       '</li>';
     const atEnd = d && d.at >= list.length;
     // The list keeps its place when it is drawn again; a step just added or changed is scrolled to
@@ -308,10 +361,32 @@
       if (li && ((t.focusAt !== undefined && t.focusAt !== null) || d)) li.scrollIntoView({ block: 'nearest' });
       t.focusAt = null;
     }
-    const input = tray.querySelector('[data-edit]');
-    if (input) {
-      input.focus();
-      input.onkeydown = (e) => e.key === 'Enter' && void trayAction('save', t.editing);
+    // The step being changed: typing keeps the draft; a list or a tick draws it again (other boxes may show)
+    tray.querySelectorAll('[data-ed]').forEach((el) => {
+      const k = el.dataset.ed;
+      if (el.type === 'checkbox')
+        el.onchange = () => {
+          if (el.checked) t.draft.optional = true;
+          else delete t.draft.optional;
+          paintTray();
+        };
+      else if (el.tagName === 'SELECT')
+        el.onchange = () => {
+          t.draft = k === 'action' ? { action: el.value } : { ...t.draft, [k]: el.value };
+          paintTray();
+        };
+      else {
+        el.oninput = () => {
+          t.draft[k] = el.value;
+          const says = tray.querySelector('.edit .says');
+          if (says) says.textContent = `→ ${globalThis.__nomadqaWords.stepText(cleanDraft(t.draft))}`;
+        };
+        el.onkeydown = (e) => e.key === 'Enter' && void trayAction('save', t.editing);
+      }
+    });
+    if (t.editFocus) {
+      tray.querySelector('.edit input, .edit select')?.focus();
+      t.editFocus = false;
     }
   }
   /** The list sits in a bottom corner, or where it was dragged to (out of the way of what is under it). */
@@ -397,15 +472,23 @@
       state.pinned = null;
       tip.style.display = 'none';
       outline(null);
-    } else if (a === 'edit') (t.editing = t.editing === i ? -1 : i), (t.focusAt = i);
-    else if (a === 'save') {
-      const v = tray.querySelector('[data-edit]')?.value ?? '';
-      const step = { ...list[i].step, [mainOf(list[i].step)]: v };
-      // The text follows the change: the old value in it is replaced by the new one
-      const old = String(list[i].step[mainOf(list[i].step)] ?? '');
-      const text = old && list[i].text.includes(old) ? list[i].text.replace(old, v) : sentence(step);
-      list[i] = { ...list[i], step, text, result: null };
+    } else if (a === 'edit') {
+      t.editing = t.editing === i ? -1 : i;
+      t.draft = t.editing === i ? structuredClone(list[i].step) : null;
+      t.focusAt = i;
+      t.editFocus = true;
+      // Log in steps choose among Settings › Logins: their names only
+      const stored = (await chrome.storage.local.get('nomadqa.logins').catch(() => ({})))['nomadqa.logins'] ?? [];
+      t.logins = stored.map((l) => ({ name: l.name, username: l.username }));
+    } else if (a === 'edit-x') {
       t.editing = -1;
+      t.draft = null;
+    } else if (a === 'save') {
+      const step = cleanDraft(t.draft ?? list[i].step);
+      const W = globalThis.__nomadqaWords;
+      list[i] = { ...list[i], step, text: W ? W.stepText(step) : sentence(step), result: null };
+      t.editing = -1;
+      t.draft = null;
       t.focusAt = i;
       return writeList(list);
     } else if (a === 'up' || a === 'down') {
