@@ -37,4 +37,6 @@
     if (event.altKey && event.shiftKey && event.code === 'KeyQ') open();
   });
   document.body.append(button);
+  // A tab that was inspecting before the page loaded again (a record opened by "Find a record"): turn it back on
+  chrome.runtime.sendMessage({ type: 'nomadqa:loaded' }).catch(() => {});
 })();

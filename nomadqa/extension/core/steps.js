@@ -5,7 +5,7 @@
 // {{key.Field}} (one of its values).
 
 import { makeFaker } from './fake.js';
-import { generate, querySoqls, checkSoql } from './plan.js';
+import { generate, querySoqls } from './plan.js';
 import { createRecords, deleteBatch } from './create.js';
 
 export const ACTIONS = {
@@ -28,18 +28,46 @@ export const ACTIONS = {
   expect: {
     say: 'Check',
     fields: ['kind', 'value'],
-    also: 'kind: text · toast · field (+ field) · title · url · no-text',
+    also: 'kind: text · toast · field (+ field) · title · url · no-text · button · no-button; op: contains · is · not · starts · empty · filled · more · less · matches',
   },
+  remember: { say: 'Remember a value', fields: ['field', 'as'], also: 'a field on the page, used later as {{as}}' },
+  shot: { say: 'Take a screenshot', fields: [] },
   data: {
     say: 'Make test data',
     fields: ['recipe'],
     also: 'a Test data recipe; its records are {{a-1}}, {{c-2.Email}}…',
   },
-  query: { say: 'Check records (SOQL)', fields: ['soql'], also: 'count: how many rows it must find' },
+  query: {
+    say: 'Find records (SOQL)',
+    fields: ['soql'],
+    also: 'count: how many rows it must find; save: a name for the first row — {{name}} its Id, {{name.Field}} a value',
+  },
 };
+
+/** A query that only reads: SELECT … FROM …, one statement. */
+export const isSelect = (soql) =>
+  /^\s*SELECT\s[\s\S]+?\sFROM\s+\w+/i.test(String(soql ?? '')) && !/;/.test(String(soql));
+
+export const KINDS = ['text', 'toast', 'field', 'title', 'url', 'no-text', 'button', 'no-button'];
+export const OPS = {
+  contains: 'contains',
+  is: 'is',
+  not: 'is not',
+  starts: 'starts with',
+  empty: 'is empty',
+  filled: 'is filled in',
+  more: 'is more than',
+  less: 'is less than',
+  matches: 'matches',
+};
+const noValue = (s) => s.op === 'empty' || s.op === 'filled';
 
 /** One line a person reads. */
 export function stepText(s) {
+  const text = sentence(s);
+  return s.optional ? `${text} (optional)` : text;
+}
+function sentence(s) {
   switch (s.action) {
     case 'open':
       return s.record ? `Open the record ${s.record}` : s.object ? `Open ${s.object} “${s.name}”` : `Open ${s.path}`;
@@ -57,18 +85,32 @@ export function stepText(s) {
       return s.text ? `Wait for “${s.text}”` : `Wait ${s.ms ?? 1000} ms`;
     case 'press':
       return `Press ${s.key ?? 'Enter'}`;
-    case 'expect':
+    case 'expect': {
+      const how = `${OPS[s.op ?? 'contains'] ?? s.op}${noValue(s) ? '' : ` “${s.value}”`}`;
       return s.kind === 'field'
-        ? `Check ${s.field} is “${s.value}”`
+        ? `Check ${s.field} ${how}`
         : s.kind === 'toast'
-        ? `Check the message “${s.value}”`
+        ? `Check a message ${how}`
         : s.kind === 'no-text'
         ? `Check “${s.value}” is not shown`
-        : `Check the ${s.kind ?? 'text'} “${s.value}”`;
+        : s.kind === 'button'
+        ? `Check the button or link “${s.value}” is shown`
+        : s.kind === 'no-button'
+        ? `Check there is no button or link “${s.value}”`
+        : s.kind === 'title' || s.kind === 'url'
+        ? `Check the ${s.kind} ${how}`
+        : `Check the page shows “${s.value}”`;
+    }
+    case 'remember':
+      return `Remember ${s.field} as {{${s.as}}}`;
+    case 'shot':
+      return 'Take a screenshot';
     case 'data':
       return `Make test data: ${s.recipe?.name ?? 'a recipe'}`;
     case 'query':
-      return `Check that “${s.soql}” finds ${s.count ?? 'at least one'} row(s)`;
+      return s.save
+        ? `Find a record: “${s.soql}” → {{${s.save}}}`
+        : `Check that “${s.soql}” finds ${s.count ?? 'at least one'} row(s)`;
     default:
       return s.action;
   }
@@ -81,17 +123,13 @@ export function problem(s) {
   if (!a) return `unknown action “${s.action}”`;
   if (s.action === 'open' && !s.path && !s.record && !(s.object && s.name))
     return 'needs a path, a record, or an object and a name';
-  if (s.action === 'expect' && !['text', 'toast', 'field', 'title', 'url', 'no-text'].includes(s.kind ?? 'text'))
-    return `unknown check “${s.kind}”`;
+  if (s.action === 'expect' && !KINDS.includes(s.kind ?? 'text')) return `unknown check “${s.kind}”`;
+  if (s.action === 'expect' && s.op && !OPS[s.op]) return `unknown way to compare “${s.op}”`;
+  if (s.action === 'expect' && noValue(s)) return s.kind === 'field' && !s.field ? 'needs the field' : '';
+  if (s.action === 'query' && s.save && !/^[\w-]+$/.test(s.save)) return 'the name to save as: letters, digits, - or _';
   if (s.action === 'expect' && s.kind === 'field' && !s.field) return 'needs the field';
   if (s.action === 'data' && !Array.isArray(s.recipe?.nodes)) return 'needs a recipe';
-  if (s.action === 'query') {
-    try {
-      checkSoql(String(s.soql ?? '').replace(/^SELECT\s+COUNT\(\)/i, 'SELECT Id'));
-    } catch {
-      return 'needs a SELECT query';
-    }
-  }
+  if (s.action === 'query' && !isSelect(s.soql)) return 'needs a SELECT query (it only reads)';
   if (s.action === 'open') return '';
   for (const f of a.fields)
     if (s[f] === undefined || s[f] === '') if (!(s.action === 'expect' && f === 'kind')) return `needs ${f}`;
@@ -171,14 +209,29 @@ export async function runTest(test, { driver, sf, onStep = () => {}, describes =
         const want = s.count === undefined || s.count === '' ? null : Number(s.count);
         if (want === null ? n < 1 : n !== want)
           throw new Error(`Found ${n} row(s), ${want === null ? 'at least 1' : want} wanted.`);
-        r = { ok: true, message: `${n} row(s)` };
-      } else r = await driver.step(s);
+        if (s.save) {
+          // The first row, for later steps: {{name}} its Id, {{name.Field}} a value
+          const { attributes, ...row } = res.records?.[0] ?? {};
+          vars[s.save] = { id: row.Id ?? '', values: row };
+        }
+        r = { ok: true, message: s.save ? `${n} row(s); {{${s.save}}} = ${vars[s.save].id}` : `${n} row(s)` };
+      } else if (s.action === 'shot') {
+        const shot = driver.shot ? await driver.shot().catch(() => undefined) : undefined;
+        r = shot
+          ? { ok: true, shot }
+          : { ok: true, message: 'Not taken: screenshots need Chrome’s “all sites” permission' };
+      } else {
+        r = await driver.step(s);
+        if (s.action === 'remember' && r?.ok) vars[s.as] = { id: String(r.value ?? ''), values: {} };
+      }
     } catch (e) {
       r = { ok: false, message: e.message };
     }
     r = { ...r, ms: r.ms ?? Date.now() - started };
     if (!r.ok) {
-      failed = true;
+      // An optional step may fail: it is reported, and the test goes on
+      if (s.optional) r.optional = true;
+      else failed = true;
       if (driver.shot) r.shot = await driver.shot().catch(() => undefined);
     }
     results.push(r);

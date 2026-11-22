@@ -38,14 +38,21 @@ headless Chrome alike.
 - **Inspector** (Alt + Shift + I on any Salesforce page): what you point at — your own LWC and its folder in the
   project, a packaged component, the field's API name, the Aura component, the record. Click to pin it: **Copy**
   path / field / tag, and **Add to a test** — check its value, type into it, click it, check this text shows, start on
-  this page. Those steps wait in Tests (“From the Inspector”) to be added to a test or start a new one. The Inspector
-  page lists every org you are logged in to with its open tabs; **Open and inspect** for an org without one.
+  this page. **Add and click it** also does the click, so you follow a link (a related record, a tab) and go on
+  picking there. While the Inspector is on, a list at the bottom left shows the steps picked so far: change (✎), move
+  or remove them, **+ Find a record** (by name or a condition: adds “find it” and “open it” and opens it now), and
+  **Open in Tests** to make the test. The Inspector page lists every org you are logged in to with its open tabs;
+  **Open and inspect** for an org without one.
 - **Recorder**: do it once in Salesforce; clicks, typing, list choices and lookups become steps. **+ Check** on the
   page's bar, then a message or a value, adds a check. Passwords are never recorded.
 - **Tests**: edit steps, run them in a tab of the org, see each step pass or fail; download the test file.
-  Steps: open, click, fill, pick, lookup, check, wait, press, expect (text, message, field, title, address), data
-  (make records from a Test data recipe — `{{a-1}}` is then its Id, `{{a-1.Name}}` a value; deleted after the test)
-  and query (a SOQL that must find the right number of rows).
+  Steps: open, click, fill, pick, lookup, check, wait, press; **expect** — text, a message, a field, the title, the
+  address, text NOT shown, a button or link shown / NOT shown (permissions) — compared by contains, is, is not,
+  starts with, is empty, is filled in, more than, less than, or matches (a pattern); **remember** a field's value as
+  `{{name}}` for later steps; **query** (a read-only SOQL that must find the right number of rows; **save** the first
+  row as `{{found}}` / `{{found.Name}}` to open it or use its values); **data** (records from a Test data recipe —
+  `{{a-1}}`, `{{a-1.Name}}`; deleted after the test); **screenshot**. Any step can be **optional**: reported, but
+  the test goes on. A click that opens another page waits for it.
 - **Runs**: every run with its steps, and a JUnit file.
 - **Agent**: say what to test; your own AI (Settings) writes the steps, NomadQA checks every step, you review and run.
   Only your sentence and the org's object names are sent to the AI.

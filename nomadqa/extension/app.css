@@ -1046,3 +1046,37 @@ ol.picked {
 ol.picked button.link {
   margin-left: 8px;
 }
+
+/* Tests: a step's values, each with its label */
+.step-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  align-items: flex-end;
+  min-width: 340px;
+}
+.step-field {
+  display: grid;
+  gap: 3px;
+  flex: 1 1 170px;
+  min-width: 150px;
+}
+.step-field.wide {
+  flex-basis: 100%;
+}
+.step-field > span {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.step-field input,
+.step-field select {
+  width: 100%;
+  min-width: 0;
+}
+.step-optional {
+  flex: none;
+  white-space: nowrap;
+  font-size: 12.5px;
+  padding-bottom: 6px;
+}

@@ -260,6 +260,48 @@
     return parts.join('\n').replace(/\s+/g, ' ');
   };
 
+  const OPS = {
+    contains: 'contains',
+    is: 'is',
+    not: 'is not',
+    starts: 'starts with',
+    empty: 'is empty',
+    filled: 'is filled in',
+    more: 'is more than',
+    less: 'is less than',
+    matches: 'matches',
+  };
+  const num = (v) => parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+  /** The value as a check wants it (text compared without case). */
+  function compare(actual, want, op = 'contains') {
+    const a = String(actual ?? '').trim();
+    const w = String(want ?? '').trim();
+    switch (op) {
+      case 'is':
+        return a.toLowerCase() === w.toLowerCase();
+      case 'not':
+        return a.toLowerCase() !== w.toLowerCase();
+      case 'starts':
+        return a.toLowerCase().startsWith(w.toLowerCase());
+      case 'empty':
+        return a === '';
+      case 'filled':
+        return a !== '';
+      case 'more':
+        return num(a) > num(w);
+      case 'less':
+        return num(a) < num(w);
+      case 'matches':
+        try {
+          return new RegExp(w, 'i').test(a);
+        } catch {
+          return false;
+        }
+      default:
+        return a.toLowerCase().includes(w.toLowerCase());
+    }
+  }
+
   /** Runs one step; resolves { ok, message, ms }. */
   async function run(step) {
     const t0 = Date.now();
@@ -268,7 +310,11 @@
       switch (step.action) {
         case 'click': {
           const el = await until(() => findClickable(step.label, step), timeout, `“${step.label}”`);
+          const before = location.href;
           press(el);
+          // A click that goes to another page: wait for it, so the next step does not find the old one
+          for (let i = 0; i < 12 && location.href === before; i++) await sleep(100);
+          if (location.href !== before) await ready(timeout);
           break;
         }
         case 'fill':
@@ -296,34 +342,33 @@
           break;
         case 'expect': {
           const want = String(step.value ?? '');
-          if (step.kind === 'toast')
-            await until(
-              () => toasts().find((t) => t.toLowerCase().includes(want.toLowerCase())) ?? null,
-              timeout,
-              `a message “${want}”`
-            );
-          else if (step.kind === 'field')
+          const op = step.op ?? 'contains';
+          const kind = step.kind ?? 'text';
+          const say = `${OPS[op] ?? op}${op === 'empty' || op === 'filled' ? '' : ` “${want}”`}`;
+          if (kind === 'toast')
+            await until(() => toasts().find((t) => compare(t, want, op)) ?? null, timeout, `a message that ${say}`);
+          else if (kind === 'field')
             await until(
               () => {
                 const v = fieldValue(step.field);
-                return v !== null && v.toLowerCase().includes(want.toLowerCase()) ? v : null;
+                return v !== null && compare(v, want, op) ? true : null;
               },
               timeout,
-              `${step.field} = “${want}” (now “${fieldValue(step.field) ?? 'not on the page'}”)`
+              `${step.field} ${say} (now “${fieldValue(step.field) ?? 'not on the page'}”)`
             );
-          else if (step.kind === 'title')
+          else if (kind === 'title')
             await until(
-              () => (document.title.toLowerCase().includes(want.toLowerCase()) ? true : null),
+              () => (compare(document.title, want, op) ? true : null),
               timeout,
-              `the title “${want}” (now “${document.title}”)`
+              `the title ${say} (now “${document.title}”)`
             );
-          else if (step.kind === 'url')
-            await until(
-              () => (location.href.includes(want) ? true : null),
-              timeout,
-              `the address to contain “${want}”`
-            );
-          else if (step.kind === 'no-text')
+          else if (kind === 'url')
+            await until(() => (compare(location.href, want, op) ? true : null), timeout, `the address ${say}`);
+          else if (kind === 'button')
+            await until(() => findClickable(want, step), timeout, `a button or link “${want}”`);
+          else if (kind === 'no-button')
+            await until(() => (findClickable(want, step) ? null : true), timeout, `no button or link “${want}”`);
+          else if (kind === 'no-text')
             await until(
               () => (pageText().toLowerCase().includes(want.toLowerCase()) ? null : true),
               timeout,
@@ -336,6 +381,10 @@
               `the text “${want}”`
             );
           break;
+        }
+        case 'remember': {
+          const v = await until(() => fieldValue(step.field), timeout, `the field “${step.field}”`);
+          return { ok: true, value: v, message: `${step.as} = “${v}”`, ms: Date.now() - t0 };
         }
         case 'press':
           (document.activeElement ?? document.body).dispatchEvent(
@@ -434,6 +483,7 @@
     version: 1,
     run,
     ready,
+    compare,
     describe,
     findClickable,
     findField,

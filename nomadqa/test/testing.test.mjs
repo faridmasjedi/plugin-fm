@@ -20,7 +20,7 @@ test('steps: problems, values from a data step, text', () => {
   });
   assert.equal(
     stepText({ action: 'expect', kind: 'field', field: 'Industry', value: 'Energy' }),
-    'Check Industry is “Energy”'
+    'Check Industry contains “Energy”'
   );
 });
 
@@ -266,4 +266,56 @@ test('pattern rule: alone, or with a made-up value added', async () => {
     { ...ctx, values: { FirstName: 'Leila', LastName: 'Patel' } }
   );
   assert.match(mail, /^nomad\.qa\.[a-z.]+@example\.com$/);
+});
+
+test('runTest: find a record and use it, remember a value, optional steps, screenshots', async () => {
+  const opened = [];
+  const sf = {
+    host: 'x.my.salesforce.com',
+    rest: async (m, path) => {
+      assert.match(decodeURIComponent(path), /SELECT Id, Name FROM Account/);
+      return { totalSize: 1, records: [{ attributes: {}, Id: '001F', Name: 'Found Co' }] };
+    },
+  };
+  const driver = {
+    open: async (url) => opened.push(url),
+    step: async (s) =>
+      s.action === 'remember'
+        ? { ok: true, value: 'AC-7' }
+        : s.label === 'Maybe'
+        ? { ok: false, message: 'not there' }
+        : s.action === 'fill'
+        ? { ok: true, message: s.value }
+        : { ok: true },
+    shot: async () => 'data:image/png;base64,BBB',
+  };
+  const r = await runTest(
+    {
+      name: 'T',
+      steps: [
+        { action: 'query', soql: "SELECT Id, Name FROM Account WHERE Name LIKE 'Found%'", save: 'found' },
+        { action: 'open', record: '{{found}}' },
+        { action: 'remember', field: 'Account Number', as: 'num' },
+        { action: 'click', label: 'Maybe', optional: true },
+        { action: 'fill', field: 'Description', value: '{{found.Name}} / {{num}}' },
+        { action: 'shot' },
+      ],
+    },
+    { driver, sf }
+  );
+  assert.equal(opened[0], 'https://x.my.salesforce.com/lightning/r/001F/view');
+  assert.equal(r.ok, true);
+  assert.equal(r.results[3].optional, true);
+  assert.equal(r.results[4].message, 'Found Co / AC-7');
+  assert.equal(r.results[5].shot, 'data:image/png;base64,BBB');
+  assert.equal(
+    stepText({ action: 'expect', kind: 'field', field: 'Stage', op: 'not', value: 'Lost' }),
+    'Check Stage is not “Lost”'
+  );
+  assert.equal(
+    stepText({ action: 'expect', kind: 'no-button', value: 'Delete' }),
+    'Check there is no button or link “Delete”'
+  );
+  assert.equal(problem({ action: 'expect', kind: 'field', field: 'Phone', op: 'filled' }), '');
+  assert.match(problem({ action: 'query', soql: 'DELETE FROM Account' }), /SELECT/);
 });

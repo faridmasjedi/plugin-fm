@@ -1,6 +1,6 @@
 // NomadQA pages for tests: Inspector, Recorder, Tests (edit and run), Runs, Agent, Settings (AI).
 import { h, select, askTyped, toast, download } from '../core/ui.js';
-import { ACTIONS, stepText, problem, runTest, junit } from '../core/steps.js';
+import { ACTIONS, KINDS, OPS, stepText, problem, runTest, junit } from '../core/steps.js';
 import { PROVIDERS, stepsFromWords } from '../core/ai.js';
 import { apiHostFor } from '../core/salesforce.js';
 
@@ -52,6 +52,12 @@ async function tabDriver(host) {
       await inTab(tab.id, () => globalThis.__nomadqa.ready(90000));
     },
     step: (s) => inTab(tab.id, (st) => globalThis.__nomadqa.run(st), [s]),
+    // What the tab shows (the test's tab is in front while it runs)
+    async shot() {
+      if (!(await chrome.permissions.contains({ origins: ['<all_urls>'] }))) return undefined;
+      const t = await chrome.tabs.get(tab.id);
+      return chrome.tabs.captureVisibleTab(t.windowId, { format: 'png' });
+    },
   };
 }
 
@@ -334,46 +340,83 @@ export function testingViews(ctx) {
   }
 
   // ---------- Tests ----------
+  // What each step asks for: [key, label, placeholder, { options, wide }]
+  const KIND_LABELS = {
+    text: 'Text on the page',
+    toast: 'A message (toast)',
+    field: 'A field',
+    title: 'The page title',
+    url: 'The address',
+    'no-text': 'Text is NOT shown',
+    button: 'A button or link is shown',
+    'no-button': 'A button or link is NOT shown',
+  };
   const FIELDS = {
     open: [
-      ['path', 'Path (/lightning/o/Account/list)'],
-      ['record', 'or a record ({{a-1}} or an Id)'],
-      ['object', 'or an object'],
-      ['name', '… and a name'],
+      // One way to open: only the one in use shows (all of them on a new step)
+      ['path', 'Page', '/lightning/o/Account/list', { wide: true, when: (s) => s.path || !(s.record || s.object) }],
+      ['record', 'or a record', '{{found}} or an Id', { when: (s) => s.record || !(s.path || s.object) }],
+      ['object', 'or an object', 'Account', { when: (s) => s.object || !(s.path || s.record) }],
+      ['name', '… by its name', 'Acme', { when: (s) => s.object || !(s.path || s.record) }],
     ],
     click: [
-      ['label', 'What it says'],
-      ['within', 'In (a section title, optional)'],
+      ['label', 'What it says', 'Save'],
+      ['within', 'In (optional)', 'a section or dialog title'],
     ],
     fill: [
-      ['field', 'Field label'],
-      ['value', 'Value'],
+      ['field', 'Field', 'Last Name'],
+      ['value', 'Value', 'Smith or {{found.Name}}'],
     ],
     pick: [
-      ['field', 'Field label'],
-      ['value', 'Value'],
+      ['field', 'Field', 'Stage'],
+      ['value', 'Value', 'Closed Won'],
     ],
     lookup: [
-      ['field', 'Field label'],
-      ['value', 'Record name'],
+      ['field', 'Field', 'Account Name'],
+      ['value', 'Record name', 'Acme'],
     ],
     check: [
-      ['field', 'Field label'],
-      ['value', 'true or false'],
+      ['field', 'Field', 'Active'],
+      [
+        'value',
+        'Ticked',
+        '',
+        {
+          options: [
+            ['true', 'Ticked'],
+            ['false', 'Not ticked'],
+          ],
+        },
+      ],
     ],
     wait: [
-      ['text', 'Until this text shows'],
-      ['ms', 'or milliseconds'],
+      ['text', 'Until this text shows', 'Saved'],
+      ['ms', 'or milliseconds', '1000'],
     ],
-    press: [['key', 'Key (Enter, Escape…)']],
+    press: [['key', 'Key', 'Enter, Escape, Tab…']],
     expect: [
-      ['kind', 'text · toast · field · title · url · no-text'],
-      ['field', 'Field (for kind field)'],
-      ['value', 'Value'],
+      ['kind', 'What to check', '', { options: KINDS.map((k) => [k, KIND_LABELS[k]]) }],
+      ['field', 'Field', 'Industry', { when: (s) => s.kind === 'field' }],
+      [
+        'op',
+        'How',
+        '',
+        {
+          options: Object.entries(OPS),
+          when: (s) => ['field', 'toast', 'title', 'url'].includes(s.kind),
+        },
+      ],
+      ['value', 'Value', 'Technology', { when: (s) => s.op !== 'empty' && s.op !== 'filled' }],
     ],
+    remember: [
+      ['field', 'Field on the page', 'Account Number'],
+      ['as', 'Remember as', 'number → use {{number}} later'],
+    ],
+    shot: [],
     query: [
-      ['soql', 'SELECT Id FROM …'],
-      ['count', 'Rows (empty = at least one)'],
+      ['soql', 'Query', "SELECT Id, Name FROM Account WHERE Name LIKE 'Acme%' LIMIT 1", { wide: true }],
+      ['count', 'Rows it must find', 'empty = at least one'],
+      ['save', 'Save the first row as', 'found → {{found}}, {{found.Name}}'],
     ],
     data: [],
   };
@@ -589,18 +632,42 @@ export function testingViews(ctx) {
               )
             : h(
                 'div',
-                { class: 'setting', style: 'flex-wrap: wrap' },
-                fields.map(([k, ph]) =>
+                { class: 'step-fields' },
+                fields
+                  .filter(([, , , o]) => !o?.when || o.when(s))
+                  .map(([k, lab, ph, o]) =>
+                    h(
+                      'label',
+                      { class: `step-field${o?.wide ? ' wide' : ''}` },
+                      h('span', {}, lab),
+                      o?.options
+                        ? h(
+                            'select',
+                            { onchange: (e) => (set(k, e.target.value), render()) },
+                            o.options.map(([v, l]) =>
+                              h('option', { value: v, selected: String(s[k] ?? o.options[0][0]) === String(v) }, l)
+                            )
+                          )
+                        : h('input', {
+                            value: s[k] === undefined ? '' : String(s[k]),
+                            placeholder: ph,
+                            title: s[k] === undefined ? ph : String(s[k]),
+                            onchange: (e) => (set(k, e.target.value), render()),
+                          })
+                    )
+                  ),
+                h(
+                  'label',
+                  { class: 'check step-optional', title: 'If it fails, the test still goes on' },
                   h('input', {
-                    value: s[k] === undefined ? '' : String(s[k]),
-                    placeholder: ph,
-                    'aria-label': ph,
-                    title: ph,
-                    style: 'flex: 1 1 150px',
-                    onchange: (e) => (set(k, e.target.value), render()),
-                  })
+                    type: 'checkbox',
+                    checked: Boolean(s.optional),
+                    onchange: (e) => (e.target.checked ? (s.optional = true) : delete s.optional, changed(), render()),
+                  }),
+                  'Optional'
                 )
               ),
+          h('span', { class: 'sub' }, stepText(s)),
           bad ? h('span', { class: 'sub', style: 'color: var(--bad)' }, bad) : null,
           r?.ok === false ? h('span', { class: 'sub', style: 'color: var(--bad)' }, r.message) : null
         ),
@@ -610,8 +677,16 @@ export function testingViews(ctx) {
           r
             ? h(
                 'span',
-                { class: `pill ${r.ok ? 'good' : r.ok === null ? '' : 'bad'}` },
-                r.ok ? `✓ ${(r.ms / 1000).toFixed(1)} s` : r.ok === null ? 'not run' : '✕'
+                { class: `pill ${r.ok ? 'good' : r.ok === null ? '' : r.optional ? 'warn' : 'bad'}` },
+                r.ok ? `✓ ${(r.ms / 1000).toFixed(1)} s` : r.ok === null ? 'not run' : r.optional ? '✕ optional' : '✕'
+              )
+            : null,
+          r?.ok && r.message ? h('span', { class: 'sub' }, r.message) : null,
+          r?.shot
+            ? h(
+                'a',
+                { class: 'sub', href: r.shot, download: `step-${i + 1}.png`, title: 'Download the screenshot' },
+                'Screenshot'
               )
             : null
         ),
@@ -698,7 +773,7 @@ export function testingViews(ctx) {
             { class: `notice ${res.ok ? 'good' : 'bad'}` },
             res.ok
               ? `Passed in ${(res.ms / 1000).toFixed(1)} s.`
-              : `Failed at step ${res.results.findIndex((r) => r.ok === false) + 1}.`,
+              : `Failed at step ${res.results.findIndex((r) => r.ok === false && !r.optional) + 1}.`,
             res.cleaned ? ` ${res.cleaned} test record(s) deleted.` : ''
           )
         : null,
@@ -771,6 +846,10 @@ export function testingViews(ctx) {
   }
 
   async function runHere(test) {
+    // Screenshots of a tab need Chrome's "all sites" permission: asked only for a test that takes them (while the
+    // click still counts as the person's), and only once
+    if (test.steps.some((x) => x.action === 'shot'))
+      await chrome.permissions.request({ origins: ['<all_urls>'] }).catch(() => false);
     const changes = test.steps.some((s) => ['click', 'fill', 'pick', 'lookup', 'check', 'data'].includes(s.action));
     if (changes && S.facts && !S.facts.isSandbox) {
       if (

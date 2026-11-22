@@ -3,7 +3,7 @@
 import { apiHostFor } from './core/salesforce.js';
 
 /** Opens NomadQA next to `tab`, for the org of its page. */
-async function openFor(tab) {
+async function openFor(tab, view = '') {
   let host = '';
   try {
     host = apiHostFor(new URL(tab?.url ?? '').host) ?? '';
@@ -11,14 +11,16 @@ async function openFor(tab) {
     host = '';
   }
   await chrome.tabs.create({
-    url: chrome.runtime.getURL(`app.html${host ? `?host=${encodeURIComponent(host)}` : ''}`),
+    url: chrome.runtime.getURL(
+      `app.html?${new URLSearchParams({ ...(host ? { host } : {}), ...(view ? { view } : {}) })}`
+    ),
     index: (tab?.index ?? 0) + 1,
   });
 }
 
 // The tab on Salesforce pages (content/tab.js)
 chrome.runtime.onMessage.addListener((msg, sender) => {
-  if (msg?.type === 'nomadqa:open') void openFor(sender.tab);
+  if (msg?.type === 'nomadqa:open') void openFor(sender.tab, msg.view);
 });
 
 chrome.action.onClicked.addListener((tab) => void openFor(tab));
@@ -64,3 +66,51 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
     /* not a page NomadQA may run on */
   }
 });
+
+// The Inspector's "Find a record": runs a read-only query in the page's org, so the record can be opened right away
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (msg?.type !== 'nomadqa:find') return;
+  (async () => {
+    const host = apiHostFor(new URL(sender.tab?.url ?? '').host);
+    if (!host) throw new Error('Not a Salesforce page.');
+    if (!/^\s*SELECT\s[\s\S]+?\sFROM\s+\w+/i.test(String(msg.soql ?? '')) || /;/.test(msg.soql))
+      throw new Error('A query that reads: SELECT … FROM …');
+    const sid = (await chrome.cookies.get({ url: `https://${host}`, name: 'sid' }))?.value;
+    const res = await fetch(`https://${host}/services/data/v62.0/query?q=${encodeURIComponent(msg.soql)}`, {
+      headers: { Authorization: `Bearer ${sid}` },
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.[0]?.message ?? `Salesforce answered ${res.status}.`);
+    return { total: data.totalSize ?? 0, rows: (data.records ?? []).slice(0, 5).map(({ attributes, ...r }) => r) };
+  })()
+    .then(reply)
+    .catch((e) => reply({ error: e.message }));
+  return true;
+});
+
+// Tabs where the Inspector is on: after a full page load it is turned on again there
+const inspecting = async () => (await chrome.storage.session.get('inspecting')).inspecting ?? [];
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  const id = sender.tab?.id;
+  if (!id) return;
+  if (msg?.type === 'nomadqa:inspecting')
+    void inspecting().then((ids) =>
+      chrome.storage.session.set({ inspecting: msg.on ? [...new Set([...ids, id])] : ids.filter((x) => x !== id) })
+    );
+  if (msg?.type === 'nomadqa:loaded')
+    void inspecting().then(async (ids) => {
+      if (!ids.includes(id)) return;
+      try {
+        await prepare(id);
+        await chrome.tabs.sendMessage(id, { type: 'nomadqa:mode', mode: 'inspect' });
+      } catch {
+        /* the page went elsewhere */
+      }
+    });
+});
+chrome.tabs.onRemoved.addListener(
+  (id) =>
+    void inspecting().then(
+      (ids) => ids.includes(id) && chrome.storage.session.set({ inspecting: ids.filter((x) => x !== id) })
+    )
+);

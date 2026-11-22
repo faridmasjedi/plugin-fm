@@ -29,7 +29,7 @@
     "https://*.cloudforce.com/*",
     "https://*.site.com/*"
   ],
-  "optional_host_permissions": ["https://*/*"],
+  "optional_host_permissions": ["https://*/*", "<all_urls>"],
   "commands": {
     "toggle-inspector": {
       "suggested_key": {
