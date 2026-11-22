@@ -3,7 +3,7 @@
 // evaluates the same file through Chrome's DevTools protocol. In the isolated world Lightning's components are plain
 // DOM; the few real shadow roots are walked too.
 (() => {
-  if (globalThis.__nomadqa?.version === 4) return;
+  if (globalThis.__nomadqa?.version === 5) return;
 
   const norm = (s) =>
     String(s ?? '')
@@ -196,6 +196,12 @@
   function press(el) {
     const api = globalThis.__nomadqa;
     if (api) api.pressing = true;
+    // A press may reload the whole page (another app): the driver then reads this to know the step was done
+    try {
+      if (api?.stepId) sessionStorage.setItem('nomadqa.pressed', api.stepId);
+    } catch {
+      /* no storage here */
+    }
     try {
       pressNow(el);
     } finally {
@@ -273,6 +279,62 @@
       `a record “${value}” in ${field.label.innerText.trim()}`
     );
     press(opt);
+  }
+
+  // ---------- a click that opens a list (App Launcher, a list view's menu…): type in it, then choose ----------
+  const ITEMS = `${CLICKABLE}, [role="option"], [role="listitem"] a, one-app-launcher-menu-item, lightning-base-combobox-item`;
+  async function clickThen(el, step, timeout) {
+    const shownBefore = new Set(deepAll(`${TYPABLE}, ${ITEMS}`).filter(visible));
+    press(el);
+    if (String(step.type ?? '') !== '') {
+      // The box the click opened: the one with the cursor, or one that was not there before
+      const box = await until(
+        () => {
+          const active = deepActive();
+          if (active?.matches?.(TYPABLE) && visible(active)) return active;
+          return deepAll(TYPABLE).find((i) => visible(i) && !shownBefore.has(i) && !i.disabled && !i.readOnly) ?? null;
+        },
+        timeout,
+        `a box to type in after clicking “${step.label}”`
+      );
+      press(box);
+      await sleep(200);
+      setValue(box, step.type, { change: false });
+      box.dispatchEvent(
+        new KeyboardEvent('keyup', { bubbles: true, composed: true, key: String(step.type).slice(-1) })
+      );
+      await sleep(400);
+    }
+    if (String(step.choose ?? '').trim() === '') return;
+    const want = norm(step.choose);
+    // What the click opened comes first (new on the page), then anything else with that name
+    const item = await until(
+      () => {
+        const all = deepAll(ITEMS).filter((x) => visible(x) && x !== el);
+        const fresh = all.filter((x) => !shownBefore.has(x));
+        const name = (x) =>
+          norm(String(x.getAttribute('aria-label') || x.getAttribute('title') || x.innerText || '').split('\n')[0]);
+        for (const list of [fresh, all]) {
+          const hit = list.find((x) => name(x) === want) ?? list.find((x) => name(x).startsWith(want));
+          if (hit) return hit;
+        }
+        return null;
+      },
+      timeout,
+      () => `“${step.choose}” in what “${step.label}” opened`
+    );
+    if (inSetup() && changes(step.choose)) readOnly(`choosing “${step.choose}”`);
+    press(item);
+  }
+  /** The element with the cursor, inside shadow roots and frames. */
+  function deepActive() {
+    let a = document.activeElement;
+    for (let i = 0; i < 10 && a; i++) {
+      const inner = a.shadowRoot?.activeElement ?? (a.tagName === 'IFRAME' ? frameDoc(a)?.activeElement : null);
+      if (!inner) break;
+      a = inner;
+    }
+    return a;
   }
 
   // ---------- search and choose: a search bar, a list's search, a lookup or any box that suggests ----------
@@ -447,14 +509,19 @@
   }
 
   // ---------- Setup is read-only: NomadQA checks it, it never changes it ----------
+  // Setup, and your own settings (from the user icon: /lightning/settings/…, classic My Settings)
   const inSetup = () =>
-    /salesforce-setup\.com$/.test(location.host) || /^\/(lightning\/setup|setup)\//.test(location.pathname);
+    /salesforce-setup\.com$/.test(location.host) ||
+    /^\/(lightning\/setup|setup|lightning\/settings|_ui\/core\/userprofile|_ui\/system\/user)\//.test(
+      location.pathname
+    ) ||
+    /setupid=PersonalSetup|setupid=PersonalInfo/i.test(location.search);
   const CHANGES =
     /^(save|quick save|delete|del|remove|new|clone|edit|activate|deactivate|assign|unassign|enable|disable|reset|unlock|freeze|unfreeze|deploy|submit|confirm|ok|add|create|import|upload|login|log in|grant|revoke|change|update|install|uninstall|upgrade|execute|schedule|send|merge|transfer|mass |set up|setup |manage assignments|edit assignments)\b/i;
   const changes = (name) => CHANGES.test(String(name ?? '').trim());
   function readOnly(what) {
     throw new Error(
-      `Setup is read-only for NomadQA: ${what} would change the org, so it is not done. Steps on Setup open pages, search and check.`
+      `Setup and personal settings are read-only for NomadQA: ${what} would change them, so it is not done. Steps there open pages, search and check.`
     );
   }
   /** Where the page is: the address of the tab and of Setup's frame (a click inside the frame changes only that). */
@@ -621,6 +688,7 @@
   /** Runs one step; resolves { ok, message, ms }. */
   async function run(step) {
     const t0 = Date.now();
+    globalThis.__nomadqa.stepId = step.__id ?? '';
     const timeout = Number(step.timeout ?? 20000);
     try {
       switch (step.action) {
@@ -628,6 +696,11 @@
           const el = await until(() => findClickable(step.label, step), timeout, `“${step.label}”`);
           if (inSetup() && (changes(step.label) || changes(nameOf(el)))) readOnly(`clicking “${step.label}”`);
           const before = where();
+          if (step.type || step.choose) {
+            await clickThen(el, step, timeout);
+            await settleAfter(before, timeout);
+            break;
+          }
           press(el);
           // A click that goes to another page: wait for it, so the next step does not find the old one
           await settleAfter(before, timeout);
@@ -878,7 +951,7 @@
   }
 
   globalThis.__nomadqa = {
-    version: 4,
+    version: 5,
     run,
     inSetup,
     changes,

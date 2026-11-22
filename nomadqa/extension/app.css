@@ -1321,3 +1321,32 @@ table.steps .side-in .c-res {
 table.steps td.c-side {
   padding-top: 12px;
 }
+/* Every control of a step on one line: the step's kind sits level with the first row of boxes (under their labels) */
+table.steps td.c-step {
+  padding-top: 30px;
+}
+table.steps td.c-n {
+  padding-top: 37px;
+}
+table.steps td.c-side {
+  padding-top: 32px;
+}
+table.steps tr.no-fields td.c-step,
+table.steps tr.no-fields td.c-side {
+  padding-top: 10px;
+}
+table.steps tr.no-fields td.c-n {
+  padding-top: 17px;
+}
+/* A clearer arrow on the lists you can type in */
+.search-select-caret {
+  font-size: 0;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 6l4.5 4.5L12.5 6' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / 16px 16px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 6l4.5 4.5L12.5 6' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / 16px 16px no-repeat;
+}

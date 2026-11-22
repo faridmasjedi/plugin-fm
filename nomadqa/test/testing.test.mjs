@@ -453,3 +453,11 @@ test('search and choose: sentences and checks', () => {
   assert.equal(problem({ action: 'search', text: 'Mia' }), '');
   assert.equal(problem({ action: 'search', choose: 'Mia Brown' }), 'needs text');
 });
+
+test('a click that opens a list: type, then choose', () => {
+  assert.equal(
+    stepText({ action: 'click', label: 'App Launcher', type: 'Sales', choose: 'Sales' }),
+    'Click “App Launcher”, type “Sales”, choose “Sales”'
+  );
+  assert.equal(problem({ action: 'click', label: 'Select a List View', choose: 'All Open Cases' }), '');
+});

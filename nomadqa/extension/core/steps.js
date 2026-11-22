@@ -17,7 +17,7 @@ export const ACTIONS = {
   click: {
     say: 'Click',
     fields: ['label'],
-    also: 'a button, link, tab or menu item, by what it says; within: a section title',
+    also: 'a button, link, tab or menu item, by what it says; within: a section title; type, choose: in the list it opens (App Launcher, a list view menu) type, then choose an item',
   },
   fill: { say: 'Type into a field', fields: ['field', 'value'] },
   pick: { say: 'Choose in a list', fields: ['field', 'value'] },
@@ -106,7 +106,9 @@ function sentence(s) {
     case 'open':
       return s.record ? `Open the record ${s.record}` : s.object ? `Open ${s.object} “${s.name}”` : `Open ${s.path}`;
     case 'click':
-      return `Click “${s.label}”${s.within ? ` in ${s.within}` : ''}`;
+      return `Click “${s.label}”${s.within ? ` in ${s.within}` : ''}${s.type ? `, type “${s.type}”` : ''}${
+        s.choose ? `, choose “${s.choose}”` : ''
+      }`;
     case 'fill':
       return `Type “${s.value}” in ${fieldName(s)}`;
     case 'pick':

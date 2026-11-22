@@ -106,12 +106,22 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
       if (!m[id]) return;
       try {
         await prepare(id);
-        await chrome.tabs.sendMessage(id, { type: 'nomadqa:mode', mode: m[id] });
+        await chrome.tabs.sendMessage(id, { type: 'nomadqa:mode', mode: m[id], resume: true });
       } catch {
         /* the page went elsewhere */
       }
     });
 });
+// A tab opened from a tab being recorded or inspected (Setup from the gear opens one): it goes on there
+chrome.tabs.onCreated.addListener(
+  (t) =>
+    void modes().then((m) => {
+      const mode = t.openerTabId ? m[t.openerTabId] : null;
+      if (!t.id || (mode !== 'record' && mode !== 'inspect')) return;
+      m[t.id] = mode;
+      return setModes(m);
+    })
+);
 chrome.tabs.onRemoved.addListener(
   (id) =>
     void modes().then((m) => {

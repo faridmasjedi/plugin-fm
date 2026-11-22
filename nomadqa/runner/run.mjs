@@ -176,13 +176,29 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** A tab (in a browser context, or the first one) and its driver for the step engine. */
 async function tab(cdp, browserContextId) {
-  const { targetId } = await cdp.send('Target.createTarget', {
+  let { targetId } = await cdp.send('Target.createTarget', {
     url: 'about:blank',
     ...(browserContextId ? { browserContextId } : {}),
   });
-  const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
+  let { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   await cdp.send('Page.enable', {}, sessionId);
   await cdp.send('Runtime.enable', {}, sessionId);
+  // A click that opens a new tab (Setup from the gear): the test goes on in it
+  await cdp.send('Target.setDiscoverTargets', { discover: true }).catch(() => {});
+  let opened = null;
+  cdp.listeners.push((msg) => {
+    if (msg.method === 'Target.targetCreated' && msg.params.targetInfo.openerId === targetId)
+      opened = msg.params.targetInfo.targetId;
+  });
+  async function follow() {
+    targetId = opened;
+    opened = null;
+    ({ sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true }));
+    await cdp.send('Page.enable', {}, sessionId);
+    await cdp.send('Runtime.enable', {}, sessionId);
+    await sleep(1500);
+    await inPage('__nomadqa.ready(90000)').catch(() => {});
+  }
 
   /** Evaluates in NomadQA's own isolated world (where Lightning's components are plain DOM). */
   async function inPage(expression, tries = 6) {
@@ -217,10 +233,36 @@ async function tab(cdp, browserContextId) {
       await inPage('__nomadqa.ready(90000)');
     },
     // The login form makes the page go away: it runs once, never again on the next page
-    step: (s) =>
-      s.action === 'login-form'
-        ? inPage(`__nomadqa.run(${JSON.stringify(s)})`, 0).catch(() => undefined)
-        : inPage(`__nomadqa.run(${JSON.stringify(s)})`),
+    // A step runs once, never again (a click must not happen twice). The login form makes the page go away.
+    async step(s) {
+      if (s.action === 'login-form') return inPage(`__nomadqa.run(${JSON.stringify(s)})`, 0).catch(() => undefined);
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const before = await inPage('location.href', 2).catch(() => '');
+      opened = null;
+      let r = await inPage(`__nomadqa.run(${JSON.stringify({ ...s, __id: id })})`, 0).catch((e) =>
+        /context|navigat|destroyed|not found|Cannot find/i.test(e.message)
+          ? undefined
+          : { ok: false, message: e.message }
+      );
+      if (r === undefined) {
+        // The page went away while the step ran (another app reloads the whole page)
+        await sleep(1500);
+        await inPage('__nomadqa.ready(60000)').catch(() => {});
+        const marked = await inPage(`sessionStorage.getItem('nomadqa.pressed') === ${JSON.stringify(id)}`).catch(
+          () => false
+        );
+        const now = await inPage('location.href', 2).catch(() => '');
+        r =
+          marked || now !== before
+            ? { ok: true, message: 'Done; the page loaded again after it.' }
+            : { ok: false, message: 'No answer from the page (it reloaded before the step finished).' };
+      }
+      if (opened) {
+        await follow();
+        r = { ...r, message: [r.message, 'Went on in the new tab it opened.'].filter(Boolean).join(' ') };
+      }
+      return r;
+    },
     async load(url) {
       const loaded = cdp.once('Page.loadEventFired', sessionId, 90000);
       await cdp.send('Page.navigate', { url }, sessionId);

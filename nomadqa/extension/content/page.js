@@ -21,7 +21,7 @@
     :host{all:initial}
     *{box-sizing:border-box;font:13px/1.4 Inter,system-ui,-apple-system,sans-serif}
     .box{position:fixed;border:2px solid #5b3fd1;background:rgba(91,63,209,.08);border-radius:4px;pointer-events:none;display:none}
-    .tip{position:fixed;width:400px;max-width:calc(100vw - 20px);max-height:calc(100vh - 20px);overflow:auto;background:#fff;color:#1d2433;border:1px solid #e3e6ee;border-radius:12px;box-shadow:0 12px 40px rgba(20,24,40,.22);pointer-events:auto;display:none}
+    .tip{position:fixed;width:420px;max-width:calc(100vw - 20px);max-height:calc(100vh - 20px);overflow:auto;background:#fff;color:#1d2433;border:1px solid #e3e6ee;border-radius:12px;box-shadow:0 12px 40px rgba(20,24,40,.22);pointer-events:auto;display:none}
     .tip .th{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #eef0f5}
     .tip .th b{flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .tip .chip{flex:none;font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:#432bb0;background:#efebff;border-radius:999px;padding:2px 8px}
@@ -46,6 +46,12 @@
     .tip .form .b{display:flex;gap:6px}.tip .form .msg{font-size:12px;color:#5b6475}
     .tip .copies{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 12px 10px;border-top:1px solid #eef0f5}
     .tip .copies .k{color:#5b6475;font-size:12px;margin-right:2px}
+    .tip .tabs{display:flex;gap:4px;padding:8px 12px 0;border-bottom:1px solid #eef0f5}
+    .tip .tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:6px 8px;color:#5b6475;font-weight:600}
+    .tip .tabs button.on{color:#432bb0;border-bottom-color:#5b3fd1}
+    .tip .details{display:grid;grid-template-columns:96px minmax(0,1fr) 22px;gap:5px 8px;padding:10px 12px;font-size:12px;align-items:start}
+    .tip .details .k{color:#5b6475}.tip .details .v{word-break:break-all;font:11.5px/1.45 ui-monospace,Menlo,monospace;color:#1d2433}
+    .tip .details .cp{border:0;background:none;padding:0 4px;color:#8a93a6;font-size:12px}.tip .details .cp:hover{color:#432bb0}
     .bar{position:fixed;right:18px;bottom:18px;cursor:move;user-select:none;background:#fff;color:#1d2433;border:1px solid #e3e6ee;border-radius:12px;box-shadow:0 8px 30px rgba(20,24,40,.18);padding:10px 12px;display:none;gap:10px;align-items:center;pointer-events:auto}
     .dot{width:10px;height:10px;border-radius:50%;background:#d12b2b;box-shadow:0 0 0 0 rgba(209,43,43,.5);animation:p 1.4s infinite}
     @keyframes p{70%{box-shadow:0 0 0 8px rgba(209,43,43,0)}}
@@ -550,6 +556,13 @@
         value: typable?.value ?? '',
       });
     }
+    if (click && name && name.length <= 60 && !globalSearch && opensList(click))
+      out.push({
+        title: `Click “${short(name)}”, then type and choose…`,
+        desc: 'Opens its list, types in it (if you want), then picks an item — one step, the list stays open.',
+        form: 'list',
+        label: name,
+      });
     if (name && name.length <= 60 && !globalSearch) {
       const blocked = setup && Q.changes(name);
       out.push({
@@ -588,6 +601,83 @@
     });
     return out;
   }
+  /** Everything about the element (the Details tab): what it is, where it sits, its path, its parent. */
+  function detailsOf(el, d) {
+    const rows = [];
+    const add = (k, v, copy = true) => v && rows.push([k, String(v), copy]);
+    add('Element', `<${d.tag}>`);
+    add('Says', d.name);
+    if (d.field) add('Field', d.fieldApi ? `${d.field} · ${d.fieldApi}` : d.field);
+    if (d.fieldApi) add('Field API name', d.fieldApi);
+    if (d.record) add('Record', `${d.record.object} ${d.record.id}`);
+    if (d.custom) add('Your component', `${d.custom.tag} (${d.custom.path})`);
+    if (d.packaged) add('Package', d.packaged);
+    if (d.aura) add('Aura component', d.aura);
+    add('Components (outside → in)', [...d.components].reverse().join(' › '));
+    // Where it sits: the tab, the section or card, a window
+    const anc = [...Q.ancestors(el)];
+    const panel = anc.find((a) => a.getAttribute?.('role') === 'tabpanel');
+    const tabId = panel?.getAttribute('aria-labelledby');
+    const tabEl = tabId ? Q.deepAll(`[id="${CSS.escape(tabId)}"]`)[0] : null;
+    add('In the tab', line(tabEl?.innerText ?? panel?.getAttribute('aria-label') ?? ''));
+    for (const a of anc) {
+      if (!a.matches?.('article, section, .slds-card, records-record-layout-section, force-record-layout-section'))
+        continue;
+      const head = a.querySelector('h1, h2, h3, .slds-card__header-title, [role="heading"], .slds-section__title');
+      const t = line(head?.innerText ?? '');
+      if (t && t !== d.name) {
+        add('In the section', t);
+        break;
+      }
+    }
+    const dialog = anc.find((a) => a.getAttribute?.('role') === 'dialog');
+    if (dialog)
+      add('In the window', line(dialog.querySelector('h1, h2')?.innerText ?? dialog.getAttribute('aria-label') ?? ''));
+    const parent = anc.slice(1).find((a) => a.tagName && a.tagName !== 'SLOT');
+    if (parent)
+      add(
+        'Parent',
+        `<${parent.tagName.toLowerCase()}>${parent.id ? `#${parent.id}` : ''} ${short(
+          line(parent.getAttribute?.('aria-label') || parent.innerText || '')
+        )}`.trim()
+      );
+    add('Path', cssPath(el));
+    add('Page', `${pageName()} · ${location.pathname}`);
+    if (el.id) add('Id', el.id);
+    const cls = String(el.className?.baseVal ?? el.className ?? '').trim();
+    if (cls) add('Classes', cls.split(/\s+/).slice(0, 8).join(' '));
+    const data = [...(el.attributes ?? [])].filter((x) =>
+      /^(data-|aria-|title$|name$|placeholder$|href$|role$)/.test(x.name)
+    );
+    for (const x of data.slice(0, 8)) add(x.name, x.value.slice(0, 200));
+    const r = Q.screenRect(el);
+    add(
+      'Position',
+      `x ${Math.round(r.x)}, y ${Math.round(r.y)} · ${Math.round(r.width)} × ${Math.round(r.height)} px`,
+      false
+    );
+    return rows;
+  }
+  /** A path to the element, outside in: tag, id or first class, its place among the same tags. */
+  function cssPath(el) {
+    const parts = [];
+    for (const a of Q.ancestors(el)) {
+      if (!a.tagName || a.tagName === 'HTML' || a.tagName === 'BODY') continue;
+      let p = a.tagName.toLowerCase();
+      if (a.id && !/^\d/.test(a.id)) p += `#${a.id}`;
+      else {
+        const c = String(a.className?.baseVal ?? a.className ?? '')
+          .trim()
+          .split(/\s+/)[0];
+        if (c) p += `.${c}`;
+        const same = a.parentElement ? [...a.parentElement.children].filter((x) => x.tagName === a.tagName) : [];
+        if (same.length > 1) p += `:nth-of-type(${same.indexOf(a) + 1})`;
+      }
+      parts.unshift(p);
+      if (parts.length >= 12) break;
+    }
+    return parts.join(' > ');
+  }
   /** The component it is part of, when it says something (not Salesforce's page wrappers). */
   const ownComponent = (d) => {
     const c = d.components[0] ?? '';
@@ -605,6 +695,7 @@
     if (d.record) out.push(['id', 'Record Id', d.record.id]);
     return out;
   }
+  let tipTab = 'test';
   function showInfo(el, x, y) {
     const d = Q.describe(el);
     const click = [...Q.ancestors(el)].find((a) => a.matches?.(CLICKS));
@@ -640,7 +731,13 @@
     else if (d.packaged) rows.push(['Package', `<code>${esc(d.packaged)}</code>`]);
     else if (ownComponent(d)) rows.push(['Component', `<code>${esc(ownComponent(d))}</code>`]);
     if (d.record) rows.push(['Record', `${esc(d.record.object)} · <code>${esc(d.record.id)}</code>`]);
-    const title = d.field || d.name || line(el.innerText) || d.tag;
+    // Named like a person sees it: the field, or the button / link it is part of (not the icon's dot inside it)
+    const title =
+      d.field ||
+      d.name ||
+      (click ? line(click.getAttribute('aria-label') || click.getAttribute('title') || click.innerText) : '') ||
+      line(el.innerText) ||
+      d.tag;
     const setup = Q.inSetup();
     tip.innerHTML =
       `<div class="th"><span class="chip">${esc(kind)}</span><b title="${esc(title)}">${esc(short(title))}</b>${
@@ -651,7 +748,23 @@
             .map(([k, v]) => `<span class="k">${k}</span><span class="v">${v}</span>`)
             .join('')}</div>`
         : '') +
-      (!state.pinned
+      (state.pinned
+        ? `<div class="tabs"><button data-tab="test" class="${
+            tipTab === 'test' ? 'on' : ''
+          }">Add to a test</button><button data-tab="details" class="${
+            tipTab === 'details' ? 'on' : ''
+          }">Details</button></div>`
+        : '') +
+      (state.pinned && tipTab === 'details'
+        ? `<div class="details">${detailsOf(el, d)
+            .map(
+              ([k, v, copy], i) =>
+                `<span class="k">${esc(k)}</span><span class="v">${esc(v)}</span>${
+                  copy ? `<button class="cp" data-cp="${i}" title="Copy">⧉</button>` : '<span></span>'
+                }`
+            )
+            .join('')}</div>`
+        : !state.pinned
         ? '<div class="hint">Click to pin it and add it to a test · Esc to stop</div>'
         : (setup
             ? '<div class="note">Setup is read-only for NomadQA: tests open pages, search and check here, never change.</div>'
@@ -680,6 +793,19 @@
                 .join('')}</div>`
             : ''));
     function wire() {
+      tip.querySelectorAll('[data-tab]').forEach((b) => {
+        b.onclick = () => {
+          tipTab = b.getAttribute('data-tab');
+          showInfo(el, x, y);
+        };
+      });
+      const details = tipTab === 'details' ? detailsOf(el, d) : [];
+      tip.querySelectorAll('[data-cp]').forEach((b) => {
+        b.onclick = () => {
+          navigator.clipboard.writeText(details[Number(b.getAttribute('data-cp'))][1]);
+          b.textContent = '✓';
+        };
+      });
       tip.querySelectorAll('[data-copy]').forEach((b) => {
         b.onclick = () => {
           const c = copies.find(([k]) => k === b.getAttribute('data-copy'));
@@ -701,18 +827,29 @@
           const row = b.closest('.act');
           if (row.nextElementSibling?.classList.contains('form')) return;
           const where = s.box ? `“${s.box}”` : 'Salesforce search (at the top)';
+          const list = s.form === 'list';
           const form = document.createElement('div');
           form.className = 'form';
-          form.innerHTML =
-            `<label>Type<input data-s="text" placeholder="e.g. Mia" value="${esc(s.value)}"></label>` +
-            `<label>Then choose<input data-s="choose" placeholder="e.g. Mia Brown · empty: press Enter"></label>` +
-            `<div class="b"><button class="step" data-s="add">Add</button><button class="step primary" data-s="go" title="Adds the step, then does it on this page">Add and do it</button></div>` +
-            '<div class="msg" data-s="msg"></div>';
+          form.innerHTML = list
+            ? `<label>Then type (optional)<input data-s="text" placeholder="e.g. Sales · empty: type nothing"></label>` +
+              `<label>Then choose<input data-s="choose" placeholder="e.g. Sales"></label>` +
+              `<div class="b"><button class="step" data-s="add">Add</button><button class="step primary" data-s="go" title="Adds the step, then does it on this page">Add and do it</button></div>` +
+              '<div class="msg" data-s="msg"></div>'
+            : `<label>Type<input data-s="text" placeholder="e.g. Mia" value="${esc(s.value)}"></label>` +
+              `<label>Then choose<input data-s="choose" placeholder="e.g. Mia Brown · empty: press Enter"></label>` +
+              `<div class="b"><button class="step" data-s="add">Add</button><button class="step primary" data-s="go" title="Adds the step, then does it on this page">Add and do it</button></div>` +
+              '<div class="msg" data-s="msg"></div>';
           row.after(form);
           form.querySelector('[data-s="text"]').focus();
           const stepOf = () => {
             const text = form.querySelector('[data-s="text"]').value.trim();
             const choose = form.querySelector('[data-s="choose"]').value.trim();
+            if (list)
+              return {
+                step: { action: 'click', label: s.label, ...(text ? { type: text } : {}), choose },
+                text: `Click “${s.label}”${text ? `, type “${text}”` : ''}, choose “${choose}”`,
+                ok: Boolean(choose),
+              };
             const step = { action: 'search', text, ...(s.box ? { box: s.box } : {}), ...(choose ? { choose } : {}) };
             return {
               step,
@@ -722,16 +859,18 @@
             };
           };
           const msg = (t) => (form.querySelector('[data-s="msg"]').textContent = t);
+          const missing = (it) =>
+            list ? (it.ok ? '' : 'Write what to choose first.') : it.step.text ? '' : 'Type what to search first.';
           form.querySelector('[data-s="add"]').onclick = async () => {
             const it = stepOf();
-            if (!it.step.text) return msg('Type what to search first.');
+            if (missing(it)) return msg(missing(it));
             const n = await addPicked([it]);
             msg(`Added ✓ (${n} steps)`);
           };
           form.querySelector('[data-s="go"]').onclick = async () => {
             const it = stepOf();
-            if (!it.step.text) return msg('Type what to search first.');
-            msg('Searching…');
+            if (missing(it)) return msg(missing(it));
+            msg(list ? 'Doing it…' : 'Searching…');
             await addPicked([it], { done: true });
             state.pinned = null;
             tip.style.display = 'none';
@@ -823,10 +962,13 @@
       .map((x) => x.trim())
       .find(Boolean) ?? '';
 
-  async function save() {
+  function paintBar() {
     bar.querySelector('.count').textContent = `${state.steps.length} step${state.steps.length === 1 ? '' : 's'}`;
     const last = state.steps[state.steps.length - 1];
     bar.querySelector('.last').textContent = last ? text(last) : '';
+  }
+  async function save() {
+    paintBar();
     try {
       await chrome.storage.local.set({
         'nomadqa.recording': { host: location.host, at: Date.now(), steps: state.steps },
@@ -837,7 +979,7 @@
   }
   const text = (s) =>
     s.action === 'click'
-      ? `Click “${s.label}”`
+      ? `Click “${s.label}”${s.type ? `, type “${s.type}”` : ''}${s.choose ? `, choose “${s.choose}”` : ''}`
       : s.action === 'open'
       ? `Open ${s.path}`
       : s.action === 'search'
@@ -845,20 +987,47 @@
       : s.action === 'expect'
       ? `Check ${s.kind} ${s.field ? `${s.field} = ` : ''}“${s.value}”`
       : `${s.action} ${s.field} = “${s.value}”`;
+  /** Changes the recording: read from storage first (the page may have reloaded, or gone on in a new tab). */
+  const changeRecording = (fn) =>
+    serial(async () => {
+      try {
+        const rec = (await chrome.storage.local.get('nomadqa.recording'))['nomadqa.recording'];
+        if (rec && !rec.done && Array.isArray(rec.steps)) state.steps = rec.steps;
+      } catch {
+        /* the extension was reloaded */
+      }
+      fn(state.steps);
+      await save();
+    });
   function add(step) {
-    const last = state.steps[state.steps.length - 1];
-    // Typing in the same field again replaces it; a lookup replaces the search text typed into it
-    if (
-      last &&
-      (last.action === 'fill' || last.action === 'lookup') &&
-      step.field &&
-      last.field === step.field &&
-      step.action !== 'expect'
-    )
-      state.steps.pop();
-    state.steps.push(step);
-    void save();
+    return changeRecording((steps) => {
+      const last = steps[steps.length - 1];
+      // Typing in the same field again replaces it; a lookup replaces the search text typed into it
+      if (
+        last &&
+        (last.action === 'fill' || last.action === 'lookup') &&
+        step.field &&
+        last.field === step.field &&
+        step.action !== 'expect'
+      )
+        steps.pop();
+      steps.push(step);
+    });
   }
+  /** The click before opened a list (App Launcher, a list view's menu): what is typed and chosen in it goes with it. */
+  const popupClick = (steps, popup = state.popup) => {
+    const last = steps[steps.length - 1];
+    return popup && Date.now() - popup.at < 60000 && last?.action === 'click' && last.label === popup.label
+      ? last
+      : null;
+  };
+  // Another tab of the same recording (or this page before it reloaded) added a step: the bar shows it
+  chrome.storage.onChanged.addListener((ch) => {
+    const rec = ch['nomadqa.recording']?.newValue;
+    if (state.mode !== 'record' || !rec || rec.done) return;
+    state.steps = rec.steps ?? state.steps;
+    paintBar();
+  });
 
   function expectFor(el) {
     const toast = closest(el, '.toastMessage, .forceToastMessage, [role="alert"], .slds-notify');
@@ -935,8 +1104,39 @@
       target.getAttribute('aria-label') || target.getAttribute('title') || target.innerText || target.value
     );
     if (!label || label.length > 80) return;
+    const MENUS =
+      '[role="menu"], [role="menuitem"], [role="listbox"], [role="option"], .slds-dropdown, .uiMenuList, .uiPopupTarget, .popupTargetContainer';
+    const inPopup = closest(target, `${MENUS}, [role="dialog"], one-app-launcher-modal, one-app-launcher-menu`);
+    // A menu item right after a click (the gear's Setup, a "more" menu): the click opened the menu
+    const inMenu = closest(target, MENUS);
+    if (inMenu && !state.popup && Date.now() - state.lastRecordedClick?.at < 30000)
+      state.popup = { label: state.lastRecordedClick.label, at: state.lastRecordedClick.at };
+    if (inPopup && state.popup && Date.now() - state.popup.at < 60000) {
+      const typed = state.typing && Date.now() - state.typing.at < 60000 ? state.typing.text : '';
+      // Kept now: the change runs a moment later, after these are cleared
+      const popup = state.popup;
+      void changeRecording((steps) => {
+        const opener = popupClick(steps, popup);
+        if (opener) {
+          if (typed) opener.type = typed;
+          opener.choose = label;
+        } else steps.push({ action: 'click', label });
+      });
+      state.popup = null;
+      state.typing = null;
+      return;
+    }
+    if (opensList(target)) state.popup = { label, at: Date.now() };
+    state.lastRecordedClick = { label, at: Date.now() };
     add({ action: 'click', label });
   }
+  /** A button that opens a list or a menu (App Launcher, a list view's menu, a "more" menu). */
+  const opensList = (el) =>
+    Boolean(el.getAttribute?.('aria-haspopup')) ||
+    el.hasAttribute?.('aria-expanded') ||
+    /app launcher|select a list view|show more|more actions|menu/i.test(
+      `${el.getAttribute?.('aria-label') ?? ''} ${el.getAttribute?.('title') ?? ''} ${el.innerText ?? ''}`
+    );
 
   // What is typed in a box that is not a field's (a search bar): kept until a suggestion is chosen or Enter pressed
   // (a lookup field's box says "Search Accounts…" too: it is recorded from the record chosen, as before)
@@ -949,9 +1149,19 @@
   };
   /** A search step; the click that only opened Salesforce's search box before it is not needed. */
   const addSearch = (step) => {
-    const last = state.steps[state.steps.length - 1];
-    if (last?.action === 'click' && /^search$/i.test(last.label ?? '')) state.steps.pop();
-    add(step);
+    const popup = state.popup;
+    return changeRecording((steps) => {
+      const opener = popupClick(steps, popup);
+      if (opener && step.box) {
+        opener.type = step.text;
+        if (step.choose) opener.choose = step.choose;
+        state.popup = null;
+        return;
+      }
+      const last = steps[steps.length - 1];
+      if (last?.action === 'click' && /^search$/i.test(last.label ?? '')) steps.pop();
+      steps.push(step);
+    });
   };
   function onInput(e) {
     if (state.mode !== 'record') return;
@@ -1098,12 +1308,19 @@
     else tray.style.display = 'none';
     // The background turns it on again after a full page load (a record opened, a step that opens a page)
     chrome.runtime
-      .sendMessage({ type: 'nomadqa:inspecting', on: mode === 'inspect' || mode === 'debug', mode })
+      .sendMessage({ type: 'nomadqa:inspecting', on: ['inspect', 'debug', 'record'].includes(mode), mode })
       .catch(() => {});
     if (mode === 'record') {
-      state.steps = opts.keep ? state.steps : [{ action: 'open', path: location.pathname }];
       state.path = location.pathname + location.search;
-      void save();
+      if (opts.resume) {
+        // The page loaded again (another app) or this is a tab the recording opened: it goes on. Its address
+        // settling in the next seconds is the click's doing, not a step of its own
+        state.lastClickAt = Date.now();
+        void changeRecording(() => {});
+      } else {
+        state.steps = opts.keep ? state.steps : [{ action: 'open', path: location.pathname }];
+        void save();
+      }
     }
     if (mode === 'off') {
       host.remove();

@@ -75,20 +75,39 @@ async function tabDriver(host, { tabId, window: place } = {}) {
     : tabId
     ? await chrome.tabs.get(tabId)
     : await chrome.tabs.create({ url: home, active: true });
-  await waitTab(tab.id);
-  await inTab(tab.id, () => globalThis.__nomadqa.ready(90000));
+  // The tab the test is in: a click that opens a new tab (Setup from the gear) moves the test there
+  const cur = { id: tab.id };
+  let opened = null;
+  const onCreated = (t) => {
+    if (t.openerTabId === cur.id) opened = t.id;
+  };
+  chrome.tabs.onCreated.addListener(onCreated);
+  await waitTab(cur.id);
+  await inTab(cur.id, () => globalThis.__nomadqa.ready(90000));
   let kept = null;
+  /** Runs one step once (never again: a click must not happen twice). */
+  async function once(s) {
+    await inTab(cur.id, () => true);
+    const [r] = await chrome.scripting.executeScript({
+      target: { tabId: cur.id },
+      func: (st) => globalThis.__nomadqa.run(st),
+      args: [s],
+    });
+    return r?.result;
+  }
   return {
-    tabId: tab.id,
+    get tabId() {
+      return cur.id;
+    },
     async open(url) {
-      await chrome.tabs.update(tab.id, { url });
-      await waitTab(tab.id);
-      await inTab(tab.id, () => globalThis.__nomadqa.ready(90000));
+      await chrome.tabs.update(cur.id, { url });
+      await waitTab(cur.id);
+      await inTab(cur.id, () => globalThis.__nomadqa.ready(90000));
     },
     // A page that is not Lightning (the login page): loaded, nothing more
     async load(url) {
-      await chrome.tabs.update(tab.id, { url });
-      await waitTab(tab.id);
+      await chrome.tabs.update(cur.id, { url });
+      await waitTab(cur.id);
     },
     // After the login form is sent: the redirects end on Lightning (or stay on a login or verification page)
     async settle(timeout = 90000) {
@@ -96,32 +115,49 @@ async function tabDriver(host, { tabId, window: place } = {}) {
       let still = 0;
       while (Date.now() < end) {
         await sleep(500);
-        const t = await chrome.tabs.get(tab.id);
+        const t = await chrome.tabs.get(cur.id);
         if (t.status !== 'complete') {
           still = 0;
           continue;
         }
         if (/\/lightning\//.test(t.url ?? ''))
-          return void (await inTab(tab.id, () => globalThis.__nomadqa.ready(60000)));
+          return void (await inTab(cur.id, () => globalThis.__nomadqa.ready(60000)));
         if (++still > 16) return;
       }
     },
-    url: async () => (await chrome.tabs.get(tab.id)).url ?? '',
+    url: async () => (await chrome.tabs.get(cur.id)).url ?? '',
     // The login form makes the page go away: run once, never again on the next page
-    step: (s) =>
-      s.action === 'login-form'
-        ? chrome.scripting
-            .executeScript({ target: { tabId: tab.id }, files: ['core/engine.js'] })
-            .then(() =>
-              chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                func: (st) => globalThis.__nomadqa.run(st),
-                args: [s],
-              })
-            )
-            .then(([r]) => r?.result)
-            .catch(() => undefined)
-        : inTab(tab.id, (st) => globalThis.__nomadqa.run(st), [s]),
+    async step(s) {
+      if (s.action === 'login-form') return once(s).catch(() => undefined);
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const before = (await chrome.tabs.get(cur.id)).url;
+      opened = null;
+      let r = await once({ ...s, __id: id }).catch(() => undefined);
+      if (r === undefined) {
+        // The page went away while the step ran (choosing another app reloads the whole page): when the step had
+        // pressed (its mark is on the new page) or the page is another one, it was done
+        await waitTab(cur.id).catch(() => {});
+        await inTab(cur.id, () => globalThis.__nomadqa.ready(60000)).catch(() => {});
+        const marked = await inTab(cur.id, (k) => sessionStorage.getItem('nomadqa.pressed') === k, [id]).catch(
+          () => false
+        );
+        const now = (await chrome.tabs.get(cur.id)).url;
+        r =
+          marked || now !== before
+            ? { ok: true, message: 'Done; the page loaded again after it.' }
+            : { ok: false, message: 'No answer from the page (it reloaded before the step finished).' };
+      }
+      // A new tab from this one: the test goes on there
+      if (opened) {
+        cur.id = opened;
+        opened = null;
+        await chrome.tabs.update(cur.id, { active: true }).catch(() => {});
+        await waitTab(cur.id);
+        await inTab(cur.id, () => globalThis.__nomadqa.ready(90000)).catch(() => {});
+        r = { ...r, message: [r.message, 'Went on in the new tab it opened.'].filter(Boolean).join(' ') };
+      }
+      return r;
+    },
     // Logging in as someone else replaces your session in this browser: it is kept first, and put back after
     async keepSession() {
       if (!kept) kept = await orgCookies(host);
@@ -151,12 +187,13 @@ async function tabDriver(host, { tabId, window: place } = {}) {
       await this.open(`https://${host}/lightning/page/home`).catch(() => {});
     },
     async close() {
+      chrome.tabs.onCreated.removeListener(onCreated);
       if (win) await chrome.windows.remove(win.id).catch(() => {});
     },
     // What the tab shows (the test's tab is in front while it runs)
     async shot() {
       if (!(await chrome.permissions.contains({ origins: ['<all_urls>'] }))) return undefined;
-      const t = await chrome.tabs.get(tab.id);
+      const t = await chrome.tabs.get(cur.id);
       return chrome.tabs.captureVisibleTab(t.windowId, { format: 'png' });
     },
   };
@@ -529,6 +566,8 @@ export function testingViews(ctx) {
     click: [
       ['label', 'What it says', 'Save'],
       ['within', 'In (optional)', 'a section or dialog title'],
+      ['type', 'Then type (optional)', 'in the list it opens'],
+      ['choose', 'Then choose (optional)', 'an item of that list'],
     ],
     fill: [
       ['field', 'Field', 'Last Name or LastName'],
@@ -944,7 +983,13 @@ export function testingViews(ctx) {
       return h(
         'tr',
         {
-          class: [r?.ok === false ? 'bad' : '', T.focusStep === i ? 'new' : ''].filter(Boolean).join(' '),
+          class: [
+            r?.ok === false ? 'bad' : '',
+            T.focusStep === i ? 'new' : '',
+            s.action === 'data' || !(FIELDS[s.action] ?? []).length ? 'no-fields' : '',
+          ]
+            .filter(Boolean)
+            .join(' '),
           'data-step': i,
         },
         h('td', { class: 'c-n' }, i + 1),
@@ -1533,6 +1578,11 @@ export function testingViews(ctx) {
             : `Step ${i + 1} failed: change it, add a step before it, or remove it.`;
           x.bad = !r.ok;
         });
+        // A step that opened a new tab: the test (and its list) goes on there
+        if (D.driver.tabId !== D.tabId) {
+          D.tabId = D.driver.tabId;
+          d = await writeDebug((x) => (x.tabId = D.tabId));
+        }
         // A step that opened another page: the list is put back on it
         await pageMode(D.tabId, 'debug').catch(() => {});
         if (!r.ok && !r.optional) break;

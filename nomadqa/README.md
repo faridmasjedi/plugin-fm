@@ -41,18 +41,23 @@ headless Chrome alike.
   this page. **Add and click it** also does the click, so you follow a link (a related record, a tab) and go on
   picking there. While the Inspector is on, a list at the bottom left shows the steps picked so far: change (✎), move
   or remove them, **+ Find a record** (by name or a condition: adds “find it” and “open it” and opens it now), and
-  **Open in Tests** to make the test. **Search and choose…** on a search bar, a list's search or a lookup (or
+  **Open in Tests** to make the test. A button that opens a list (App Launcher, a list view's menu, the gear) has
+  **Click, then type and choose…**: one step that clicks it, types in its list and picks an item, the list staying
+  open. The panel's **Details** tab shows everything about the element — its components, the tab and section it
+  sits in, its parent, its path, its attributes and place — each with a copy button. **Search and choose…** on a search bar, a list's search or a lookup (or
   Salesforce's search button): what to type and what to choose, added — and done on the page with **Add and do it**.
   The panel says what the thing is (a field, a button, Salesforce search…) and what each step does in the test; it
   copies only what helps (a field's API name, your component and its folder, what it says, a record Id). It opens
   next to what you point at, never over it; the list (and the Recorder's bar) moves to the other side (⇆) or
   wherever you drag it.
-- **Setup**: its pages (profiles, permission sets, users…) work like any other — the Inspector, the Recorder and
+- **Setup and your personal settings**: their pages (profiles, permission sets, users…) work like any other — the Inspector, the Recorder and
   the steps reach into the frame Setup draws them in. Setup is **read-only** for NomadQA: steps open pages, search
   and check there; a click on Save, Edit, Delete, New… or a tick is refused with a clear message. The Inspector page lists every org you are logged in to with its open tabs;
   **Open and inspect** for an org without one.
 - **Recorder**: do it once in Salesforce; clicks, typing, list choices, lookups and searches (typed, then a
-  suggestion chosen or Enter) become steps. **+ Check** on the
+  suggestion chosen or Enter) become steps; a click on a button that opens a list and the item chosen in it
+  (App Launcher → Sales, the gear → Setup) become one step. It goes on when the page loads again (another app)
+  and in a tab the page opens (Setup from the gear). A test run follows that tab too. **+ Check** on the
   page's bar, then a message or a value, adds a check. Passwords are never recorded.
 - **Tests**: edit steps, run them in a tab of the org, see each step pass or fail; download the test file.
   Steps: open, click, fill, pick, lookup, check, wait, press; **search** (type in Salesforce's search at the top, a
