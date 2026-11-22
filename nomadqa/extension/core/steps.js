@@ -23,6 +23,11 @@ export const ACTIONS = {
   pick: { say: 'Choose in a list', fields: ['field', 'value'] },
   lookup: { say: 'Choose a record in a lookup', fields: ['field', 'value'] },
   check: { say: 'Tick or untick', fields: ['field', 'value'] },
+  search: {
+    say: 'Search and choose',
+    fields: ['text'],
+    also: 'box: where to type (empty: Salesforce’s search at the top; or a field, or a box by what it shows: Search this list…); choose: the result to click (empty: press Enter)',
+  },
   wait: { say: 'Wait', fields: [], also: 'text: until it shows · or ms' },
   press: { say: 'Press a key', fields: ['key'] },
   expect: {
@@ -108,6 +113,12 @@ function sentence(s) {
       return `Choose “${s.value}” in ${fieldName(s)}`;
     case 'lookup':
       return `Choose the record “${s.value}” in ${fieldName(s)}`;
+    case 'search': {
+      const box = s.box ? `“${s.box}”` : 'Search';
+      return s.choose
+        ? `Search “${s.text}” in ${box}, choose “${s.choose}”`
+        : `Search “${s.text}” in ${box}, press Enter`;
+    }
     case 'check':
       return `${s.value === false || s.value === 'false' ? 'Untick' : 'Tick'} ${fieldName(s)}`;
     case 'wait':

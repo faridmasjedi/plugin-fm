@@ -41,12 +41,17 @@ headless Chrome alike.
   this page. **Add and click it** also does the click, so you follow a link (a related record, a tab) and go on
   picking there. While the Inspector is on, a list at the bottom left shows the steps picked so far: change (✎), move
   or remove them, **+ Find a record** (by name or a condition: adds “find it” and “open it” and opens it now), and
-  **Open in Tests** to make the test. The Inspector page lists every org you are logged in to with its open tabs;
+  **Open in Tests** to make the test. **Search and choose…** on a search bar, a list's search or a lookup (or
+  Salesforce's search button): what to type and what to choose, added — and done on the page with **Add and do it**.
+  The panel opens next to what you point at, never over it; the list moves to the other side (⇆) or wherever you
+  drag it by its title. The Inspector page lists every org you are logged in to with its open tabs;
   **Open and inspect** for an org without one.
-- **Recorder**: do it once in Salesforce; clicks, typing, list choices and lookups become steps. **+ Check** on the
+- **Recorder**: do it once in Salesforce; clicks, typing, list choices, lookups and searches (typed, then a
+  suggestion chosen or Enter) become steps. **+ Check** on the
   page's bar, then a message or a value, adds a check. Passwords are never recorded.
 - **Tests**: edit steps, run them in a tab of the org, see each step pass or fail; download the test file.
-  Steps: open, click, fill, pick, lookup, check, wait, press; **expect** — text, a message, a field, the title, the
+  Steps: open, click, fill, pick, lookup, check, wait, press; **search** (type in Salesforce's search, a list's
+  search, a lookup or any box, then choose a suggestion — or press Enter); **expect** — text, a message, a field, the title, the
   address, text NOT shown, a button or link shown / NOT shown (permissions) — compared by contains, is, is not,
   starts with, is empty, is filled in, more than, less than, or matches (a pattern); **remember** a field's value as
   `{{name}}` for later steps; **query** (a read-only SOQL that must find the right number of rows; **save** the first
@@ -60,14 +65,17 @@ headless Chrome alike.
   **Log in** (the login page; the username and password come from Settings › Logins, never from the test file) and
   **Log in as a user** (Salesforce's Login-As, for an admin; it needs “Administrators Can Log in as Any User”) —
   test what another user sees; at the end you are yourself again.
-  **Groups**: give tests a group (Smoke, Regression…), then **Run all** — one tab, one JUnit report for the group.
+  **Groups**: give tests a group (Smoke, Regression…), then **Run all** — one JUnit report for the group. One at a
+  time (one tab), or 2–8 at a time, each in a window of its own; tests that log in as someone else still run alone,
+  after the others (a login is the whole browser's).
   **Step by step on the page** (or **Fix it on the page** after a failed run: the steps before it run first): the
   test's steps show on the Salesforce page; ▶ runs one, ▶▶ to the end, click a step to go to it, change, move or
   remove steps, point at the page to add one before the current step, then **Save to the test**.
   **Just click** in the list on the page lets the page work as usual (menus, tabs) without picking.
 - **Runs**: every run with its steps; download the **test** as it ran, its **JUnit** report, or one for the whole
   group. A JUnit report NomadQA wrote carries its steps: **Upload** it in Tests to run it again.
-- **Refresh** on every screen reads the org and what NomadQA keeps again.
+- **Refresh** on every screen opens it again, cleared (what was typed or shown goes; saved plans and tests stay),
+  and reads the org and what NomadQA keeps again.
 - **Agent**: say what to test; your own AI (Settings) writes the steps, NomadQA checks every step, you review and run.
   Only your sentence and the org's object names are sent to the AI.
 - **Automation switch** (Test data): the org's own bypass — a hierarchy custom setting or a custom permission named
@@ -82,7 +90,9 @@ node nomadqa/runner/run.mjs nomadqa/examples/new-contact.nomadqa.json --org my-s
 
 Node 22 and Chrome; nothing to install. `--org` asks the Salesforce CLI for a one-time login link (or give one with
 `--login-url` / `NOMADQA_LOGIN_URL`). Writes a JUnit report and a screenshot of a failed step; exits 1 when a test
-fails. `--headed` shows the browser. It takes test files, group files and NomadQA's JUnit reports. **Log in** steps
+fails. `--headed` shows the browser. It takes test files, group files and NomadQA's JUnit reports. `--parallel 4`
+runs 4 tests at a time, each in a browser context of its own (its own cookies, so tests that log in run side by side
+too). **Log in** steps
 take their usernames and passwords from `--logins logins.json` (or `NOMADQA_LOGINS`, the same JSON):
 `{ "sales-user": { "url": "https://test.salesforce.com", "username": "…", "password": "…" } }`.
 

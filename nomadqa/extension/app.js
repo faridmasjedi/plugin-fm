@@ -2139,7 +2139,7 @@ function render() {
         {
           class: 'refresh',
           disabled: Boolean(S.busy),
-          title: 'Read the org and what NomadQA keeps in this browser again',
+          title: 'This screen again, cleared: the org and what NomadQA keeps are read again',
           onclick: () => void refresh(),
         },
         '↻ Refresh'
@@ -2151,26 +2151,12 @@ function render() {
 
 const TESTING = testingViews({ S, render, run, setNotice, label, store, noticeEl });
 
-/** Refresh, on every screen: the orgs this browser is logged in to, this org (a new session, its objects and fields
- * read again — changes made in Setup show), and what NomadQA keeps (batches, recipes, tests, runs). The plan and its
- * preview stay. */
-async function refresh() {
-  await run('Refreshing…', async () => {
-    S.batches = await store.get('nomadqa.batches', []);
-    S.recipes = await store.get('nomadqa.recipes', []);
-    await TESTING.reload();
-    S.orgs = await browserOrgs();
-    if (!S.host) return;
-    S.sf = new Salesforce(S.host, await sessionFor(S.host));
-    S.facts = await S.sf.facts();
-    S.objects = await S.sf.objects();
-    const objects = Object.keys(S.describes);
-    S.describes = {};
-    S.picklists = {};
-    S.lookups = {};
-    for (const o of objects) await ensure(o).catch(() => {});
-    S.orgError = '';
-  });
+/** Refresh, on every screen: this screen again, from the start — what was typed or shown on it (a preview, a search,
+ * a test's results) is cleared, the org is read again (a new session, its objects and fields: changes made in Setup
+ * show) and so is what NomadQA keeps (batches, recipes, tests, runs). Saved work (the plan, tests) stays. */
+function refresh() {
+  const q = new URLSearchParams({ view: S.view === 'preview' ? 'plan' : S.view, ...(S.host ? { host: S.host } : {}) });
+  location.replace(`${location.pathname}?${q}`);
 }
 
 async function start() {

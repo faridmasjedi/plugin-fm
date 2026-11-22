@@ -440,3 +440,16 @@ test('fields by API name, new checks, logins', async () => {
   assert.match(problem({ action: 'expect', kind: 'place', field: 'Phone' }), /section, a row or a column/);
   assert.match(problem({ action: 'loginas' }), /user/);
 });
+
+test('search and choose: sentences and checks', () => {
+  assert.equal(
+    stepText({ action: 'search', text: 'Mia', choose: 'Mia Brown' }),
+    'Search “Mia” in Search, choose “Mia Brown”'
+  );
+  assert.equal(
+    stepText({ action: 'search', box: 'Search this list...', text: 'Acme' }),
+    'Search “Acme” in “Search this list...”, press Enter'
+  );
+  assert.equal(problem({ action: 'search', text: 'Mia' }), '');
+  assert.equal(problem({ action: 'search', choose: 'Mia Brown' }), 'needs text');
+});

@@ -2,7 +2,10 @@
 // NomadQA headless runner: runs NomadQA test files in Chrome, with nothing to install (Node 22+, Chrome).
 //
 //   node nomadqa/runner/run.mjs my-test.nomadqa.json [more.json | a-group.nomadqa-group.json | a.junit.xml]
-//        --org uat [--logins logins.json] [--headed] [--out reports]
+//        --org uat [--logins logins.json] [--parallel 4] [--headed] [--out reports]
+//
+// --parallel N runs N tests at the same time, each in a browser context of its own (its own cookies: a test that
+// logs in as someone else does not change the others).
 //
 // "Log in" steps take their username and password from --logins (or NOMADQA_LOGINS, the same JSON):
 //   { "sales-user": { "url": "https://test.salesforce.com", "username": "…", "password": "…" } }
@@ -29,6 +32,7 @@ function args(argv) {
     else if (a === '--out') out.out = argv[++i];
     else if (a === '--logins') out.logins = argv[++i];
     else if (a === '--chrome') out.chrome = argv[++i];
+    else if (a === '--parallel') out.parallel = Math.max(1, parseInt(argv[++i], 10) || 1);
     else if (a === '--headed') out.headed = true;
     else if (a === '--help' || a === '-h') out.help = true;
     else out.files.push(a);
@@ -130,11 +134,55 @@ async function launch(opts) {
   });
   const cdp = new Cdp(wsUrl);
   await cdp.opened;
-  const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
+  const first = await tab(cdp);
+  return {
+    cdp,
+    ...first,
+    /** A tab in a browser context of its own, logged in with a copy of the first tab's cookies. */
+    async isolated() {
+      const { browserContextId } = await cdp.send('Target.createBrowserContext', { disposeOnDetach: true });
+      const { cookies } = await cdp.send('Storage.getCookies', {});
+      await cdp.send('Storage.setCookies', {
+        browserContextId,
+        cookies: cookies.map((c) => ({
+          name: c.name,
+          value: c.value,
+          domain: c.domain,
+          path: c.path,
+          secure: c.secure,
+          httpOnly: c.httpOnly,
+          ...(c.sameSite ? { sameSite: c.sameSite } : {}),
+          ...(c.expires > 0 ? { expires: c.expires } : {}),
+        })),
+      });
+      const t = await tab(cdp, browserContextId);
+      return {
+        ...t,
+        async close() {
+          await cdp.send('Target.disposeBrowserContext', { browserContextId }).catch(() => {});
+        },
+      };
+    },
+    async close() {
+      cdp.close();
+      chrome.kill();
+      await sleep(500);
+      rmSync(profile, { recursive: true, force: true });
+    },
+  };
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** A tab (in a browser context, or the first one) and its driver for the step engine. */
+async function tab(cdp, browserContextId) {
+  const { targetId } = await cdp.send('Target.createTarget', {
+    url: 'about:blank',
+    ...(browserContextId ? { browserContextId } : {}),
+  });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   await cdp.send('Page.enable', {}, sessionId);
   await cdp.send('Runtime.enable', {}, sessionId);
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   /** Evaluates in NomadQA's own isolated world (where Lightning's components are plain DOM). */
   async function inPage(expression, tries = 6) {
@@ -203,7 +251,6 @@ async function launch(opts) {
     return cookies.find((c) => c.name === 'sid')?.value;
   }
   return {
-    cdp,
     driver,
     session,
     async login(url) {
@@ -212,12 +259,6 @@ async function launch(opts) {
       await loaded;
       await inPage('__nomadqa.ready(120000)');
     },
-    async close() {
-      cdp.close();
-      chrome.kill();
-      await sleep(500);
-      rmSync(profile, { recursive: true, force: true });
-    },
   };
 }
 
@@ -225,7 +266,7 @@ async function main() {
   const opts = args(process.argv.slice(2));
   if (opts.help || !opts.files.length) {
     console.log(
-      'Usage: node nomadqa/runner/run.mjs <test.nomadqa.json | group.json | report.junit.xml…> --org <alias> [--logins logins.json] [--headed] [--out <folder>]'
+      'Usage: node nomadqa/runner/run.mjs <test.nomadqa.json | group.json | report.junit.xml…> --org <alias> [--logins logins.json] [--parallel N] [--headed] [--out <folder>]'
     );
     process.exit(opts.help ? 0 : 2);
   }
@@ -260,31 +301,57 @@ async function main() {
     const sid = await browser.session(host);
     if (!sid) throw new Error('Logged in, but no session was found for the API.');
     const sf = new Salesforce(host, sid);
-    for (const { file, test, group } of tests) {
-      console.log(`\n${test.name ?? basename(file)}`);
+    const parallel = Math.min(opts.parallel ?? 1, tests.length);
+    const runOne = async ({ file, test, group }, driver) => {
+      const lines = [`\n${test.name ?? basename(file)}`];
+      const say = (line) => (parallel > 1 ? lines.push(line) : console.log(line));
+      if (parallel === 1) console.log(lines.shift());
       const run = await runTest(test, {
-        driver: browser.driver,
+        driver,
         sf,
         logins,
         onStep: (i, r) => {
           const mark = r.ok ? '✓' : r.ok === null ? '·' : '✕';
-          console.log(`  ${mark} ${i + 1}. ${stepText(test.steps[i])}${r.ok === false ? `\n      ${r.message}` : ''}`);
+          say(`  ${mark} ${i + 1}. ${stepText(test.steps[i])}${r.ok === false ? `\n      ${r.message}` : ''}`);
         },
-      });
+      }).catch((e) => ({ ok: false, ms: 0, results: [{ ok: false, message: e.message, ms: 0 }] }));
       const stem = basename(file).replace(/\.json$/, '');
       writeFileSync(join(opts.out, `${stem}.junit.xml`), junit(test, run));
       run.results.forEach((r, i) => {
         if (r.shot)
           writeFileSync(join(opts.out, `${stem}-step${i + 1}.png`), Buffer.from(r.shot.split(',')[1], 'base64'));
       });
-      console.log(
+      say(
         `  ${run.ok ? 'passed' : 'FAILED'} in ${(run.ms / 1000).toFixed(1)} s${
           run.cleaned ? ` · ${run.cleaned} test record(s) deleted` : ''
         }`
       );
+      // Side by side, a test's lines are written together when it ends
+      if (parallel > 1) console.log(lines.join('\n'));
       if (!run.ok) failedTests++;
-      if (group) groups.set(group, [...(groups.get(group) ?? []), { test, run }]);
+      return { group, test, run };
+    };
+    const results = new Array(tests.length);
+    if (parallel === 1) for (const [k, t] of tests.entries()) results[k] = await runOne(t, browser.driver);
+    else {
+      console.log(`${tests.length} tests, ${parallel} at a time…`);
+      let next = 0;
+      await Promise.all(
+        Array.from({ length: parallel }, async () => {
+          const tab = await browser.isolated();
+          try {
+            while (next < tests.length) {
+              const k = next++;
+              results[k] = await runOne(tests[k], tab.driver);
+            }
+          } finally {
+            await tab.close();
+          }
+        })
+      );
     }
+    for (const { group, test, run } of results.filter(Boolean))
+      if (group) groups.set(group, [...(groups.get(group) ?? []), { test, run }]);
     // One report for each group as well
     for (const [name, list] of groups)
       writeFileSync(

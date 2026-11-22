@@ -3,7 +3,7 @@
 // evaluates the same file through Chrome's DevTools protocol. In the isolated world Lightning's components are plain
 // DOM; the few real shadow roots are walked too.
 (() => {
-  if (globalThis.__nomadqa?.version === 2) return;
+  if (globalThis.__nomadqa?.version === 3) return;
 
   const norm = (s) =>
     String(s ?? '')
@@ -235,6 +235,98 @@
     press(opt);
   }
 
+  // ---------- search and choose: a search bar, a list's search, a lookup or any box that suggests ----------
+  const TYPABLE =
+    'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]), textarea';
+  const boxName = (i) => norm(i.getAttribute('placeholder') || i.getAttribute('aria-label') || i.getAttribute('title'));
+  const isSearchWord = (want) => !want || /^search( salesforce)?(\.\.\.|…)?$/.test(want);
+  /** The box to type in: a field by its label, a box by what it shows (Search this list…), or Salesforce's search. */
+  function findBox(box) {
+    const want = norm(box);
+    const dialog = topDialog();
+    const all = deepAll(TYPABLE).filter((i) => visible(i) && !i.disabled && !i.readOnly);
+    const list = dialog ? [...all.filter((i) => inScope(i, dialog)), ...all] : all;
+    if (!isSearchWord(want)) {
+      const f = findField(box);
+      if (f?.control?.matches?.(TYPABLE)) return f.control;
+      return list.find((i) => boxName(i) === want) ?? list.find((i) => boxName(i).startsWith(want)) ?? null;
+    }
+    // Salesforce's own search, at the top (its box shows once its button is clicked)
+    return (
+      list.find((i) => i.type === 'search' && /^search/.test(boxName(i))) ??
+      list.find((i) => /^search\b/.test(boxName(i)) && !/this list|list view/.test(boxName(i))) ??
+      null
+    );
+  }
+  const globalSearchButton = () =>
+    deepAll('button.search-button, button[aria-label="Search"], .forceSearchDesktopHeader button').find(visible) ??
+    null;
+  const RESULT_SKIP = /^(show (more|all) results|search for |new |see more|view all)/;
+  function enter(el) {
+    for (const type of ['keydown', 'keypress', 'keyup'])
+      el.dispatchEvent(
+        new KeyboardEvent(type, {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          composed: true,
+          cancelable: true,
+        })
+      );
+  }
+  async function search(step, timeout) {
+    const want = norm(step.box);
+    let opened = false;
+    const input = await until(
+      () => {
+        const found = findBox(step.box);
+        if (found) return found;
+        if (isSearchWord(want) && !opened) {
+          const b = globalSearchButton();
+          if (b) (opened = true), press(b);
+        }
+        return null;
+      },
+      timeout,
+      `a box “${step.box || 'Search'}” to type in`
+    );
+    press(input);
+    await sleep(300);
+    setValue(input, step.text ?? '', { change: false });
+    input.dispatchEvent(
+      new KeyboardEvent('keyup', { bubbles: true, composed: true, key: String(step.text ?? '').slice(-1) })
+    );
+    const before = location.href;
+    if (!String(step.choose ?? '').trim()) {
+      await sleep(400);
+      enter(input);
+    } else {
+      const choose = norm(step.choose);
+      const pick = await until(
+        () => {
+          const list = deepAll('[role="option"], lightning-base-combobox-item, search_dialog-instant-result-item')
+            .filter(visible)
+            .filter((o) => !RESULT_SKIP.test(norm(o.innerText)));
+          return (
+            list.find((o) => norm(String(o.innerText).split('\n')[0]) === choose) ??
+            list.find((o) => norm(o.innerText).startsWith(choose)) ??
+            list.find((o) => norm(o.innerText).includes(choose)) ??
+            null
+          );
+        },
+        timeout,
+        () => `“${step.choose}” among what “${step.text}” suggests`
+      );
+      // The option's own link when it has one (a search result), else the option
+      press(pick.querySelector?.('a[href]') ?? pick);
+    }
+    // Searching or choosing a record usually opens a page: wait for it
+    for (let i = 0; i < 15 && location.href === before; i++) await sleep(100);
+    if (location.href !== before) await ready(timeout);
+  }
+
   /** A field's shown value on a record page: the highlights panel, the details layout, or a form. */
   function fieldValue(label) {
     const want = norm(label);
@@ -246,15 +338,26 @@
         (x) => x.children.length === 0 && norm(x.textContent) === want && visible(x)
       );
       if (!lab) continue;
-      const text = box.innerText.replace(/\s+/g, ' ').trim();
+      // Words only for screen readers ("Preview" after a link, "Edit …") are not the value
+      let text = box.innerText.replace(/\s+/g, ' ').trim();
+      for (const hidden of box.querySelectorAll('.assistiveText, .slds-assistive-text')) {
+        const t = (hidden.innerText || hidden.textContent || '').replace(/\s+/g, ' ').trim();
+        if (t && norm(t) !== want) text = text.replace(t, '').replace(/\s+/g, ' ').trim();
+      }
       const at = text.toLowerCase().indexOf(lab.textContent.trim().toLowerCase());
       const rest = (at >= 0 ? text.slice(at + lab.textContent.trim().length) : text)
         .replace(/^\s*(Help|Edit [^\n]*)\s*/i, '')
         .trim();
-      if (box.matches('.slds-form-element')) {
-        const control = box.querySelector('input, textarea, button[role="combobox"]');
-        if (control) return control.value ?? control.innerText;
-      }
+      // A form (new, edit): the box's own value — a chosen lookup record shows in a read-only box
+      const control = [...box.querySelectorAll('input:not([type="hidden"]), textarea, button[role="combobox"]')].find(
+        visible
+      );
+      if (control)
+        return control.type === 'checkbox'
+          ? String(control.checked)
+          : control.tagName === 'BUTTON'
+          ? control.getAttribute('data-value') || control.innerText.trim()
+          : control.value;
       return rest.replace(new RegExp(`\\s*Edit ${lab.textContent.trim()}\\s*$`, 'i'), '').trim();
     }
     return null;
@@ -436,6 +539,9 @@
           else setValue(f.control, step.value ?? '');
           break;
         }
+        case 'search':
+          await search(step, timeout);
+          break;
         case 'wait':
           if (step.text)
             await until(
@@ -650,7 +756,7 @@
   }
 
   globalThis.__nomadqa = {
-    version: 2,
+    version: 3,
     run,
     count,
     placeOf,

@@ -61,11 +61,20 @@ async function orgCookies(host) {
   });
 }
 
-/** Drives a tab of the org: a new one, or `tabId` (a tab already there). */
-async function tabDriver(host, { tabId } = {}) {
-  const tab = tabId
+/** Drives a tab of the org: a new one, `tabId` (a tab already there), or one in a window of its own (`window`:
+ * where it goes on the screen — tests of a group running side by side). */
+async function tabDriver(host, { tabId, window: place } = {}) {
+  const home = `https://${host}/lightning/page/home`;
+  const win = place
+    ? await chrome.windows
+        .create({ url: home, focused: true, ...place })
+        .catch(() => chrome.windows.create({ url: home, focused: true }))
+    : null;
+  const tab = win
+    ? win.tabs[0]
+    : tabId
     ? await chrome.tabs.get(tabId)
-    : await chrome.tabs.create({ url: `https://${host}/lightning/page/home`, active: true });
+    : await chrome.tabs.create({ url: home, active: true });
   await waitTab(tab.id);
   await inTab(tab.id, () => globalThis.__nomadqa.ready(90000));
   let kept = null;
@@ -141,6 +150,9 @@ async function tabDriver(host, { tabId } = {}) {
       kept = null;
       await this.open(`https://${host}/lightning/page/home`).catch(() => {});
     },
+    async close() {
+      if (win) await chrome.windows.remove(win.id).catch(() => {});
+    },
     // What the tab shows (the test's tab is in front while it runs)
     async shot() {
       if (!(await chrome.permissions.contains({ origins: ['<all_urls>'] }))) return undefined;
@@ -171,6 +183,7 @@ export function testingViews(ctx) {
     logins: [],
     debug: null, // the test gone through step by step on a Salesforce page: { testId, tabId, st, driver }
     groupResult: null,
+    groupTabs: {}, // a group's tests at the same time: { name: n }
   });
   const loginsMap = () =>
     Object.fromEntries(
@@ -178,6 +191,7 @@ export function testingViews(ctx) {
     );
 
   async function load() {
+    T.groupTabs = await store.get('nomadqa.groupTabs', {});
     T.tests = await store.get('nomadqa.tests', []);
     T.runs = await store.get('nomadqa.runs', []);
     T.ai = { ...T.ai, ...(await store.get('nomadqa.ai', {})) };
@@ -525,6 +539,11 @@ export function testingViews(ctx) {
       ['field', 'Field', 'Account Name or AccountId'],
       ['value', 'Record name', 'Acme'],
     ],
+    search: [
+      ['text', 'Type', 'Mia Brown'],
+      ['box', 'In (optional)', 'empty: Salesforce’s search · a field · Search this list…'],
+      ['choose', 'Then choose (optional)', 'empty: press Enter'],
+    ],
     check: [
       ['field', 'Field', 'Active or Active__c'],
       [
@@ -717,10 +736,27 @@ export function testingViews(ctx) {
                         {
                           class: 'primary',
                           disabled: !S.sf || Boolean(S.busy),
-                          title: `Runs the ${groups.get(g).length} tests one after the other`,
+                          title:
+                            (T.groupTabs[g] ?? 1) > 1
+                              ? `Runs the tests ${T.groupTabs[g]} at a time, each in a window of its own`
+                              : `Runs the ${groups.get(g).length} tests one after the other`,
                           onclick: () => void runGroup(g),
                         },
                         `Run all ${groups.get(g).length}`
+                      ),
+                      select(
+                        String(T.groupTabs[g] ?? 1),
+                        [1, 2, 3, 4, 6, 8].map((k) => [String(k), k === 1 ? 'one at a time' : `${k} at a time`]),
+                        (v) => {
+                          T.groupTabs = { ...T.groupTabs, [g]: Number(v) };
+                          void store.set('nomadqa.groupTabs', T.groupTabs);
+                          render();
+                        },
+                        {
+                          class: 'tabs-at-once',
+                          title:
+                            'How many tests run at the same time, each in a window of its own. Tests that log in as someone else still run alone.',
+                        }
                       ),
                       h(
                         'button',
@@ -755,7 +791,7 @@ export function testingViews(ctx) {
     return h(
       'div',
       { class: `notice ${g.passed === g.total ? 'good' : 'bad'}`, role: 'status' },
-      `Group “${g.name}”: ${g.passed} of ${g.total} passed.`,
+      `Group “${g.name}”: ${g.passed} of ${g.total} passed${g.tabs > 1 ? ` (${g.tabs} at a time)` : ''}.`,
       g.failed.length ? ` Failed: ${g.failed.join(', ')}.` : '',
       ' ',
       h(
@@ -1271,30 +1307,97 @@ export function testingViews(ctx) {
     });
   }
 
-  /** Runs every test of a group, one after the other in one tab; one JUnit report for all of them. */
+  /** Tests that log in as someone else change who is logged in for the whole browser: they run alone. */
+  const logsIn = (t) => t.steps.some((x) => x.action === 'login' || x.action === 'loginas');
+
+  /** Windows for tests side by side: each nearly the whole screen (pages look as usual), a little apart, so each
+   * one shows a part of itself (a window fully hidden would be slowed down by the browser). */
+  function windowPlaces(n) {
+    const gap = 36;
+    const W = screen.availWidth;
+    const H = screen.availHeight;
+    // Never bigger than the screen (Chrome refuses a window mostly off it)
+    const width = Math.min(W, Math.max(Math.min(900, W), W - gap * (n - 1)));
+    const height = Math.min(H, Math.max(Math.min(600, H), H - gap * (n - 1)));
+    return Array.from({ length: n }, (_, k) => ({
+      left: Math.round((screen.availLeft ?? 0) + Math.min(k * gap, Math.max(0, W - width))),
+      top: Math.round((screen.availTop ?? 0) + Math.min(k * gap, Math.max(0, H - height))),
+      width,
+      height,
+    }));
+  }
+
+  /** Runs every test of a group: one after the other in one tab, or `n` at a time, each in a window of its own (a
+   * test that logs in as someone else runs alone, after the others). One JUnit report for all of them. */
   async function runGroup(name) {
     const tests = T.tests.filter((t) => (t.group ?? '') === name);
     if (!tests.length || !(await okToRun(tests, `the ${tests.length} tests of “${name}”`))) return;
+    const n = Math.max(1, Math.min(Number(T.groupTabs[name] ?? 1), tests.length));
     const suite = newId();
-    const done = [];
-    await run(`Running the group “${name}”…`, async () => {
-      const driver = await tabDriver(S.host);
-      for (const [k, test] of tests.entries()) {
+    const done = new Array(tests.length);
+    let finished = 0;
+    const status = () => {
+      S.busy = `Group “${name}”: ${finished} of ${tests.length} done${n > 1 ? `, ${n} at a time` : ''}…`;
+      render();
+    };
+    const runOne = async (driver, k) => {
+      const test = tests[k];
+      if (n === 1) {
         S.busy = `Group “${name}”: test ${k + 1} of ${tests.length}, “${test.name}”…`;
         render();
-        const out = await runTest(test, { driver, sf: S.sf, describes: S.describes, logins: loginsMap() });
-        done.push({ test, run: out });
-        await saveRun(test, out, { group: name, suite });
+      }
+      const out = await runTest(test, { driver, sf: S.sf, describes: S.describes, logins: loginsMap() }).catch((e) => ({
+        ok: false,
+        ms: 0,
+        results: [{ ok: false, message: e.message, ms: 0 }],
+      }));
+      done[k] = { test, run: out };
+      finished++;
+      await saveRun(test, out, { group: name, suite });
+      if (n > 1) status();
+    };
+    await run(`Running the group “${name}”…`, async () => {
+      if (n === 1) {
+        const driver = await tabDriver(S.host);
+        for (const k of tests.keys()) await runOne(driver, k);
+      } else {
+        status();
+        const together = [...tests.keys()].filter((k) => !logsIn(tests[k]));
+        const alone = [...tests.keys()].filter((k) => logsIn(tests[k]));
+        const places = windowPlaces(Math.min(n, Math.max(1, together.length)));
+        const drivers = [];
+        try {
+          let next = 0;
+          await Promise.all(
+            places.map(async (place) => {
+              if (next >= together.length) return;
+              const driver = await tabDriver(S.host, { window: place });
+              drivers.push(driver);
+              while (next < together.length) await runOne(driver, together[next++]);
+            })
+          );
+          // Then, alone, the ones that log in as someone else
+          if (alone.length) {
+            const driver = drivers[0] ?? (await tabDriver(S.host, { window: places[0] }));
+            if (!drivers.includes(driver)) drivers.push(driver);
+            for (const d of drivers.slice(1)) await d.close();
+            for (const k of alone) await runOne(driver, k);
+          }
+        } finally {
+          for (const d of drivers) await d.close();
+        }
       }
       await backHere();
     });
-    if (done.length)
+    const list = done.filter(Boolean);
+    if (list.length)
       T.groupResult = {
         name,
-        passed: done.filter((x) => x.run.ok).length,
+        passed: list.filter((x) => x.run.ok).length,
         total: tests.length,
-        failed: done.filter((x) => !x.run.ok).map((x) => x.test.name),
-        junit: groupJunit(name, done),
+        failed: list.filter((x) => !x.run.ok).map((x) => x.test.name),
+        junit: groupJunit(name, list),
+        tabs: n,
       };
     render();
   }

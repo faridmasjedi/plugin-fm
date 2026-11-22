@@ -33,7 +33,7 @@
     .last{color:#5b6475;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .brand{font-weight:700;color:#5b3fd1}
     .tray{position:fixed;left:18px;bottom:18px;width:400px;max-height:58vh;display:none;flex-direction:column;background:#fff;color:#1d2433;border:1px solid #e3e6ee;border-radius:14px;box-shadow:0 10px 36px rgba(20,24,40,.2);pointer-events:auto;overflow:hidden}
-    .tray header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #eef0f5}
+    .tray header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #eef0f5;cursor:move;user-select:none}
     .tray header b{flex:1}.tray .n{background:#efebff;color:#432bb0;border-radius:999px;padding:0 8px;font-size:12px;font-weight:600}
     .tray ol{margin:0;padding:6px 8px 6px 30px;overflow:auto;flex:1}
     .tray li{padding:6px 4px;border-bottom:1px solid #f1f2f6}
@@ -58,6 +58,8 @@
     .tray .why{margin:4px 0 0 20px;font-size:12px;color:#a3272b;word-break:break-word}
     .tray .muted{color:#8a93a6}
     .tip button.step.primary{color:#fff}
+    .tip .form{display:grid;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid #39415a}
+    .tip .form input{font:inherit;font-size:12.5px;padding:5px 8px;border:1px solid #4a5370;border-radius:7px;background:#11161f;color:#fff}
   </style>
   <div class="box"></div><div class="tray"></div><div class="tip"></div>
   <div class="bar"><span class="dot"></span><span class="brand">NomadQA</span><span class="count">0 steps</span><span class="last"></span>
@@ -91,6 +93,7 @@
     fill: 'value',
     pick: 'value',
     lookup: 'value',
+    search: 'text',
     check: 'value',
     expect: 'value',
     open: 'path',
@@ -106,6 +109,8 @@
     finding: false,
     small: false,
     pass: false,
+    side: 'left',
+    at: null,
     msg: '',
     msgBad: false,
   };
@@ -185,6 +190,7 @@
     const busy = Boolean(d?.running);
     tray.style.display = 'flex';
     tray.classList.toggle('small', t.small);
+    placeTray();
     const mark = (p, i) =>
       !d
         ? ''
@@ -224,6 +230,7 @@
       `<button class="${
         t.pass ? 'on' : ''
       }" data-a="pass" title="The page works as usual: nothing is pinned or added">Just click</button>` +
+      `<button class="ib" data-a="side" title="Move the list to the other side (or drag it by its title)">⇆</button>` +
       `<button class="ib" data-a="small" title="${t.small ? 'Show' : 'Hide'} the list">${
         t.small ? '▴' : '▾'
       }</button></header>` +
@@ -271,6 +278,49 @@
       input.onkeydown = (e) => e.key === 'Enter' && void trayAction('save', t.editing);
     }
   }
+  /** The list sits in a bottom corner, or where it was dragged to (out of the way of what is under it). */
+  function placeTray() {
+    const t = trayState;
+    if (t.at) {
+      const x = Math.max(0, Math.min(t.at.left, innerWidth - 120));
+      const y = Math.max(0, Math.min(t.at.top, innerHeight - 48));
+      Object.assign(tray.style, { left: `${x}px`, top: `${y}px`, right: 'auto', bottom: 'auto' });
+    } else
+      Object.assign(
+        tray.style,
+        t.side === 'right'
+          ? { left: 'auto', right: '18px', top: 'auto', bottom: '18px' }
+          : { left: '18px', right: 'auto', top: 'auto', bottom: '18px' }
+      );
+  }
+  void chrome.storage.local
+    .get('nomadqa.trayAt')
+    .then((r) => {
+      const v = r['nomadqa.trayAt'];
+      if (v) Object.assign(trayState, { side: v.side ?? 'left', at: v.at ?? null });
+      placeTray();
+    })
+    .catch(() => {});
+  // Drag the list by its title
+  tray.addEventListener('pointerdown', (e) => {
+    const head = e.composedPath().find((x) => x.tagName === 'HEADER');
+    if (!head || e.composedPath().some((x) => x.tagName === 'BUTTON')) return;
+    e.preventDefault();
+    const r = tray.getBoundingClientRect();
+    const dx = e.clientX - r.left;
+    const dy = e.clientY - r.top;
+    const move = (ev) => {
+      trayState.at = { left: ev.clientX - dx, top: ev.clientY - dy };
+      placeTray();
+    };
+    const up = () => {
+      removeEventListener('pointermove', move, true);
+      removeEventListener('pointerup', up, true);
+      void chrome.storage.local.set({ 'nomadqa.trayAt': { side: trayState.side, at: trayState.at } }).catch(() => {});
+    };
+    addEventListener('pointermove', move, true);
+    addEventListener('pointerup', up, true);
+  });
   const soqlFor = (object, where) => {
     const w = String(where ?? '').trim();
     const cond = !w
@@ -302,7 +352,11 @@
     t.msg = a === 'find' || a === 'find-go' || a === 'find-add' ? t.msg : '';
     t.msgBad = false;
     if (a === 'small') t.small = !t.small;
-    else if (a === 'pass') {
+    else if (a === 'side') {
+      t.side = t.at ? t.side : t.side === 'left' ? 'right' : 'left';
+      t.at = null;
+      void chrome.storage.local.set({ 'nomadqa.trayAt': { side: t.side, at: null } }).catch(() => {});
+    } else if (a === 'pass') {
       t.pass = !t.pass;
       state.pinned = null;
       tip.style.display = 'none';
@@ -430,6 +484,18 @@
     }
     const click = [...Q.ancestors(el)].find((a) => a.matches?.(CLICKS));
     const name = click ? line(click.getAttribute('aria-label') || click.getAttribute('title') || click.innerText) : '';
+    // A box to type in (a search bar, a list's search, a lookup) or Salesforce's search button: type, then choose
+    const typable = [...Q.ancestors(el)].find((a) => a.matches?.('input, textarea'));
+    const boxLabel = typable
+      ? d.field || typable.getAttribute('placeholder') || typable.getAttribute('aria-label') || ''
+      : '';
+    if ((typable && !typable.readOnly && !typable.disabled && boxLabel) || /^search\b/i.test(name))
+      out.push({
+        button: 'Search and choose…',
+        form: true,
+        box: typable && !/^search(\.\.\.|…)?$/i.test(boxLabel.trim()) ? boxLabel.trim() : '',
+        value: typable?.value ?? '',
+      });
     if (name && name.length <= 60)
       out.push({
         button: `Click “${short(name)}”`,
@@ -498,7 +564,9 @@
               ? `<div class="group"><span class="k">Add to a test</span>${suggested
                   .map(
                     (x, i) =>
-                      `<button class="step" data-step="${i}" title="${esc(x.text)}">${esc(x.button)}</button>${
+                      `<button class="step" data-${x.form ? 'form' : 'step'}="${i}" title="${esc(
+                        x.text ?? 'Type in it, then choose what it suggests (or press Enter)'
+                      )}">${esc(x.button)}</button>${
                         x.go
                           ? `<button class="step primary" data-go="${i}" title="Adds the step, then really clicks it">${esc(
                               x.go
@@ -527,6 +595,52 @@
           b.textContent = `Added ✓ (${n} steps)`;
         };
       });
+      // Search and choose: what to type and what to choose, then add it (and do it, like a person would)
+      tip.querySelectorAll('[data-form]').forEach((b) => {
+        b.onclick = () => {
+          const x = suggested[Number(b.getAttribute('data-form'))];
+          const form = document.createElement('div');
+          form.className = 'form';
+          form.innerHTML =
+            `<div class="k">Search and choose${x.box ? ` in “${esc(x.box)}”` : ' (Salesforce’s search)'}</div>` +
+            `<input data-s="text" placeholder="Type, e.g. Mia Brown" value="${esc(x.value)}">` +
+            `<input data-s="choose" placeholder="Then choose (empty: press Enter)">` +
+            `<div><button class="step" data-s="add">Add</button><button class="step primary" data-s="go" title="Adds the step, then does it on this page">Add and do it</button></div>` +
+            '<div class="k" data-s="msg"></div>';
+          b.closest('.group').after(form);
+          form.querySelector('[data-s="text"]').focus();
+          const stepOf = () => {
+            const text = form.querySelector('[data-s="text"]').value.trim();
+            const choose = form.querySelector('[data-s="choose"]').value.trim();
+            const step = { action: 'search', text, ...(x.box ? { box: x.box } : {}), ...(choose ? { choose } : {}) };
+            const where = x.box ? `“${x.box}”` : 'Search';
+            return {
+              step,
+              text: choose
+                ? `Search “${text}” in ${where}, choose “${choose}”`
+                : `Search “${text}” in ${where}, press Enter`,
+            };
+          };
+          const msg = (t) => (form.querySelector('[data-s="msg"]').textContent = t);
+          form.querySelector('[data-s="add"]').onclick = async () => {
+            const it = stepOf();
+            if (!it.step.text) return msg('Type what to search first.');
+            const n = await addPicked([it]);
+            msg(`Added ✓ (${n} steps)`);
+          };
+          form.querySelector('[data-s="go"]').onclick = async () => {
+            const it = stepOf();
+            if (!it.step.text) return msg('Type what to search first.');
+            msg('Searching…');
+            await addPicked([it], { done: true });
+            state.pinned = null;
+            tip.style.display = 'none';
+            outline(null);
+            const r = await Q.run(it.step);
+            if (!r.ok) alert(`NomadQA: the step was added, but on this page it did not work: ${r.message}`);
+          };
+        };
+      });
       // Add the click and really do it: the page moves on (a related record, a tab…) and picking goes on there
       tip.querySelectorAll('[data-go]').forEach((b) => {
         b.onclick = async () => {
@@ -546,21 +660,51 @@
       tip.style.display = 'none';
     });
     tip.style.display = 'block';
-    const w = Math.min(420, innerWidth - 20);
-    tip.style.left = `${Math.min(x + 14, innerWidth - w - 10)}px`;
-    tip.style.top = `${Math.min(y + 16, innerHeight - tip.offsetHeight - 10)}px`;
+    placeTip(el, x, y);
+  }
+  /** The panel goes next to what is pointed at (below, above, or beside it), never over it. */
+  function placeTip(el, x, y) {
+    const m = 10;
+    const w = tip.offsetWidth;
+    const ht = tip.offsetHeight;
+    const r = el.getBoundingClientRect();
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
+    let left = clamp(x + 14, m, innerWidth - w - m);
+    let top;
+    if (r.bottom + 8 + ht <= innerHeight - m) top = r.bottom + 8;
+    else if (r.top - 8 - ht >= m) top = r.top - 8 - ht;
+    else {
+      top = clamp(y - ht / 2, m, innerHeight - ht - m);
+      left =
+        r.right + 8 + w <= innerWidth - m
+          ? r.right + 8
+          : r.left - 8 - w >= m
+          ? r.left - 8 - w
+          : x > innerWidth / 2
+          ? m
+          : innerWidth - w - m;
+    }
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
   }
   const onMove = (e) => {
     if (state.pinned || !picking()) return;
     const el = e.composedPath?.()[0] ?? e.target;
-    if (!el?.tagName || ours(el)) return;
+    if (!el?.tagName) return;
+    // On NomadQA's own list: the panel of what was under the pointer goes away, so it covers nothing
+    if (ours(el) || e.composedPath?.().includes(host)) {
+      state.hover = null;
+      tip.style.display = 'none';
+      outline(null);
+      return;
+    }
     state.hover = el;
     outline(el);
     showInfo(el, e.clientX, e.clientY);
   };
 
   // ---------- recorder ----------
-  const OPTION = '[role="option"], lightning-base-combobox-item';
+  const OPTION = '[role="option"], lightning-base-combobox-item, search_dialog-instant-result-item';
   const FIELD_BOX =
     'lightning-input, lightning-textarea, lightning-combobox, lightning-grouped-combobox, lightning-input-field, lightning-lookup, .slds-form-element';
   const closest = (el, sel) => [...Q.ancestors(el)].find((a) => a.matches?.(sel)) ?? null;
@@ -587,6 +731,8 @@
       ? `Click “${s.label}”`
       : s.action === 'open'
       ? `Open ${s.path}`
+      : s.action === 'search'
+      ? `Search “${s.text}”${s.choose ? `, choose “${s.choose}”` : ''}`
       : s.action === 'expect'
       ? `Check ${s.kind} ${s.field ? `${s.field} = ` : ''}“${s.value}”`
       : `${s.action} ${s.field} = “${s.value}”`;
@@ -654,6 +800,13 @@
         add({ action: lookup ? 'lookup' : 'pick', field: label, value });
         return;
       }
+      // A suggestion of a box that is not a field (Salesforce's search, a search bar): search and choose
+      const typed = state.typing;
+      if (value && typed?.text && Date.now() - typed.at < 60000) {
+        addSearch({ action: 'search', text: typed.text, ...(typed.box ? { box: typed.box } : {}), choose: value });
+        state.typing = null;
+        return;
+      }
     }
     if (closest(el, 'input, textarea, [role="combobox"]')) return;
     const target = closest(
@@ -668,11 +821,42 @@
     add({ action: 'click', label });
   }
 
+  // What is typed in a box that is not a field's (a search bar): kept until a suggestion is chosen or Enter pressed
+  // (a lookup field's box says "Search Accounts…" too: it is recorded from the record chosen, as before)
+  const searchBoxOf = (el) => {
+    if (!el?.tagName || ours(el) || el.tagName !== 'INPUT') return null;
+    if (closest(el, 'lightning-grouped-combobox, lightning-lookup, records-record-layout-item')) return null;
+    const name = (el.getAttribute('placeholder') || el.getAttribute('aria-label') || Q.fieldLabelOf(el) || '').trim();
+    if (el.type !== 'search' && !/^search\b/i.test(name)) return null;
+    return /^search(\.\.\.|…)?$/i.test(name) ? '' : name;
+  };
+  /** A search step; the click that only opened Salesforce's search box before it is not needed. */
+  const addSearch = (step) => {
+    const last = state.steps[state.steps.length - 1];
+    if (last?.action === 'click' && /^search$/i.test(last.label ?? '')) state.steps.pop();
+    add(step);
+  };
+  function onInput(e) {
+    if (state.mode !== 'record') return;
+    const el = e.composedPath?.()[0] ?? e.target;
+    const box = searchBoxOf(el);
+    if (box !== null) state.typing = { box, text: el.value, at: Date.now() };
+  }
+  function onKey(e) {
+    if (state.mode !== 'record' || e.key !== 'Enter') return;
+    const el = e.composedPath?.()[0] ?? e.target;
+    const box = searchBoxOf(el);
+    if (box === null || !el.value) return;
+    addSearch({ action: 'search', text: el.value, ...(box ? { box } : {}) });
+    state.typing = null;
+  }
+
   function onChange(e) {
     if (state.mode !== 'record') return;
     const el = e.composedPath?.()[0] ?? e.target;
     if (!el?.tagName || ours(el) || !/^(INPUT|TEXTAREA)$/.test(el.tagName)) return;
     if (el.getAttribute('role') === 'combobox') return; // lookups and pick lists come from the option chosen
+    if (searchBoxOf(el) !== null) return; // a search: recorded when a suggestion is chosen or Enter pressed
     const field = Q.fieldLabelOf(el) || el.getAttribute('aria-label') || el.getAttribute('placeholder') || '';
     if (!field) return;
     if (el.type === 'checkbox') return add({ action: 'check', field, value: el.checked });
@@ -708,6 +892,8 @@
   );
   document.addEventListener('click', onClick, true);
   document.addEventListener('change', onChange, true);
+  document.addEventListener('input', onInput, true);
+  document.addEventListener('keydown', onKey, true);
   document.addEventListener(
     'keydown',
     (e) => {

@@ -630,6 +630,17 @@ td.example {
   border-bottom: 1px solid var(--border);
   margin-bottom: 4px;
 }
+/* The group's name on its line; Run all, how many at a time and Download under it */
+.test-group .group-head {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.test-group .group-head > b {
+  flex-basis: 100%;
+}
+.test-group .group-head select.tabs-at-once {
+  width: auto;
+}
 details.more-tabs > summary {
   cursor: pointer;
 }
