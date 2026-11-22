@@ -3,7 +3,7 @@
 // evaluates the same file through Chrome's DevTools protocol. In the isolated world Lightning's components are plain
 // DOM; the few real shadow roots are walked too.
 (() => {
-  if (globalThis.__nomadqa?.version === 3) return;
+  if (globalThis.__nomadqa?.version === 4) return;
 
   const norm = (s) =>
     String(s ?? '')
@@ -16,13 +16,47 @@
       .toLowerCase();
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  /** Every element matching `selector`, in the document and every open shadow root. */
+  /** A frame's page when it is the org's own (Setup draws its pages in one); null for another site's. */
+  const frameDoc = (f) => {
+    try {
+      return f.contentDocument?.documentElement ? f.contentDocument : null;
+    } catch {
+      return null;
+    }
+  };
+  /** Every element matching `selector`, in the document, every open shadow root and the org's own frames. */
   function deepAll(selector, root = document) {
     const out = [...root.querySelectorAll(selector)];
-    for (const el of root.querySelectorAll('*')) if (el.shadowRoot) out.push(...deepAll(selector, el.shadowRoot));
+    for (const el of root.querySelectorAll('*')) {
+      if (el.shadowRoot) out.push(...deepAll(selector, el.shadowRoot));
+      if (el.tagName === 'IFRAME' || el.tagName === 'FRAME') {
+        const doc = frameDoc(el);
+        if (doc) out.push(...deepAll(selector, doc));
+      }
+    }
     return out;
   }
-  const parentOf = (el) => el.parentElement ?? (el.getRootNode() instanceof ShadowRoot ? el.getRootNode().host : null);
+  /** The pages of the org's own frames (Setup's), deepest last. */
+  const frameDocs = () => deepAll('iframe, frame').map(frameDoc).filter(Boolean);
+  const parentOf = (el) =>
+    el.parentElement ??
+    (el.getRootNode() instanceof ShadowRoot
+      ? el.getRootNode().host
+      : el === el.ownerDocument?.documentElement
+      ? el.ownerDocument.defaultView?.frameElement ?? null
+      : null);
+  /** Where an element is on the screen of the whole tab (an element in a frame: plus where the frame is). */
+  function screenRect(el) {
+    const r = el.getBoundingClientRect();
+    let x = r.x;
+    let y = r.y;
+    for (let w = el.ownerDocument?.defaultView; w && w.frameElement; w = w.frameElement.ownerDocument.defaultView) {
+      const f = w.frameElement.getBoundingClientRect();
+      x += f.x + (w.frameElement.clientLeft || 0);
+      y += f.y + (w.frameElement.clientTop || 0);
+    }
+    return { x, y, width: r.width, height: r.height, top: y, left: x, right: x + r.width, bottom: y + r.height };
+  }
   const ancestors = function* (el) {
     for (let x = el; x; x = parentOf(x)) yield x;
   };
@@ -32,7 +66,7 @@
     const r = el.getBoundingClientRect();
     if (r.width === 0 && r.height === 0) return false;
     for (const a of ancestors(el)) {
-      const s = getComputedStyle(a);
+      const s = (a.ownerDocument?.defaultView ?? window).getComputedStyle(a);
       if (s.display === 'none' || s.visibility === 'hidden' || a.getAttribute?.('aria-hidden') === 'true') return false;
     }
     return true;
@@ -60,8 +94,14 @@
       const box = findRegion(within);
       if (box) all = all.filter((el) => inScope(el, box));
     }
+    // What it says, or what it reads out (a button "Search..." reads "Search"); a trailing … does not count
+    const bare = (t) => t.replace(/(\.\.\.|…)$/, '').trim();
+    const w = bare(want);
+    const names = (el) => [nameOf(el), norm(el.innerText ?? '')].map(bare);
     const pick = (list) =>
-      list.find((el) => nameOf(el) === want) ?? list.find((el) => nameOf(el).startsWith(want)) ?? null;
+      list.find((el) => names(el).includes(w)) ??
+      list.find((el) => names(el).some((n) => n && n.startsWith(w))) ??
+      null;
     return (dialog && pick(all.filter((el) => inScope(el, dialog)))) || pick(all);
   }
 
@@ -171,7 +211,7 @@
       composed: true,
       clientX: r.x + r.width / 2,
       clientY: r.y + r.height / 2,
-      view: window,
+      view: el.ownerDocument?.defaultView ?? window,
     };
     el.dispatchEvent(new PointerEvent('pointerdown', at));
     el.dispatchEvent(new MouseEvent('mousedown', at));
@@ -239,7 +279,20 @@
   const TYPABLE =
     'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]), textarea';
   const boxName = (i) => norm(i.getAttribute('placeholder') || i.getAttribute('aria-label') || i.getAttribute('title'));
-  const isSearchWord = (want) => !want || /^search( salesforce)?(\.\.\.|…)?$/.test(want);
+  // Salesforce's search at the top: no box named, or named like it (never a list's "Search this list…")
+  const isSearchWord = (want) =>
+    !want || /^(search( salesforce)?|salesforce search|global search)( \(at the top\))?(\.\.\.|…)?$/.test(want);
+  const IN_LIST = 'force-list-view-manager, lst-list-view-manager-header, .forceListViewManager, lst-object-home';
+  /** Is this box Salesforce's own search (in the header, or the search window it opens)? */
+  const isGlobalBox = (i) =>
+    ![...ancestors(i)].some((a) => a.matches?.(IN_LIST)) &&
+    [...ancestors(i)].some(
+      (a) =>
+        /^(SEARCH_|FORCESEARCH|FORCE-SEARCH)/.test(a.tagName) ||
+        /forceSearch|slds-global-header|oneHeader|search-dialog/i.test(
+          String(a.className?.baseVal ?? a.className ?? '')
+        )
+    );
   /** The box to type in: a field by its label, a box by what it shows (Search this list…), or Salesforce's search. */
   function findBox(box) {
     const want = norm(box);
@@ -251,10 +304,13 @@
       if (f?.control?.matches?.(TYPABLE)) return f.control;
       return list.find((i) => boxName(i) === want) ?? list.find((i) => boxName(i).startsWith(want)) ?? null;
     }
-    // Salesforce's own search, at the top (its box shows once its button is clicked)
+    // Salesforce's own search, at the top (its box shows once its button is clicked) — never a list's search
+    // On an object's pages its window has a second box first (where to search: "Cases"): the one that says Search
+    const global = list.filter(isGlobalBox);
     return (
-      list.find((i) => i.type === 'search' && /^search/.test(boxName(i))) ??
-      list.find((i) => /^search\b/.test(boxName(i)) && !/this list|list view/.test(boxName(i))) ??
+      global.find((i) => /^search/.test(norm(i.getAttribute('placeholder')))) ??
+      global.find((i) => i.type === 'search') ??
+      global.find((i) => i.getAttribute('role') !== 'combobox') ??
       null
     );
   }
@@ -298,38 +354,50 @@
     input.dispatchEvent(
       new KeyboardEvent('keyup', { bubbles: true, composed: true, key: String(step.text ?? '').slice(-1) })
     );
-    const before = location.href;
+    const before = where();
     if (!String(step.choose ?? '').trim()) {
       await sleep(400);
       enter(input);
     } else {
       const choose = norm(step.choose);
-      const pick = await until(
-        () => {
-          const list = deepAll('[role="option"], lightning-base-combobox-item, search_dialog-instant-result-item')
-            .filter(visible)
-            .filter((o) => !RESULT_SKIP.test(norm(o.innerText)));
-          return (
-            list.find((o) => norm(String(o.innerText).split('\n')[0]) === choose) ??
-            list.find((o) => norm(o.innerText).startsWith(choose)) ??
-            list.find((o) => norm(o.innerText).includes(choose)) ??
-            null
-          );
-        },
-        timeout,
-        () => `“${step.choose}” among what “${step.text}” suggests`
-      );
-      // The option's own link when it has one (a search result), else the option
-      press(pick.querySelector?.('a[href]') ?? pick);
+      const suggestion = () => {
+        const list = deepAll('[role="option"], lightning-base-combobox-item, search_dialog-instant-result-item')
+          .filter(visible)
+          .filter((o) => !RESULT_SKIP.test(norm(o.innerText)));
+        return (
+          list.find((o) => norm(String(o.innerText).split('\n')[0]) === choose) ??
+          list.find((o) => norm(o.innerText).startsWith(choose)) ??
+          list.find((o) => norm(o.innerText).includes(choose)) ??
+          null
+        );
+      };
+      // Among the suggestions; when none fits (a case number is not suggested), like a person: Enter, then the
+      // result on the page of results
+      const pick = await until(suggestion, Math.min(timeout / 2, 8000), '').catch(() => null);
+      if (pick) press(pick.querySelector?.('a[href]') ?? pick);
+      else {
+        enter(input);
+        await settleAfter(before, timeout);
+        const result = await until(
+          () => findClickable(step.choose),
+          timeout,
+          () => `“${step.choose}” among what “${step.text}” suggests, or in its search results`
+        );
+        const now = where();
+        press(result);
+        await settleAfter(now, timeout);
+        return;
+      }
     }
     // Searching or choosing a record usually opens a page: wait for it
-    for (let i = 0; i < 15 && location.href === before; i++) await sleep(100);
-    if (location.href !== before) await ready(timeout);
+    await settleAfter(before, timeout);
   }
 
   /** A field's shown value on a record page: the highlights panel, the details layout, or a form. */
   function fieldValue(label) {
     const want = norm(label);
+    const classic = classicValue(want);
+    if (classic !== null) return classic;
     const boxes = deepAll(
       'records-highlights-details-item, records-record-layout-item, force-record-layout-item, .slds-form-element, dl > div'
     ).filter(visible);
@@ -363,12 +431,52 @@
     return null;
   }
 
+  /** Setup's classic pages: a label cell, then its value (a tick shows as a picture: Checked / Not Checked). */
+  function classicValue(want) {
+    const cell = deepAll('td.labelCol, th.labelCol, td.requiredLabel').find(
+      (c) => visible(c) && norm(c.innerText.replace(/:\s*$/, '')) === want
+    );
+    if (!cell) return null;
+    const value = cell.nextElementSibling;
+    if (!value) return null;
+    const tick = value.querySelector('img.checkImg, img[title="Checked"], img[title="Not Checked"]');
+    if (tick) return tick.getAttribute('title') || tick.getAttribute('alt') || '';
+    const box = value.querySelector('input[type="checkbox"]');
+    if (box) return box.checked ? 'Checked' : 'Not Checked';
+    return value.innerText.replace(/\s+/g, ' ').trim();
+  }
+
+  // ---------- Setup is read-only: NomadQA checks it, it never changes it ----------
+  const inSetup = () =>
+    /salesforce-setup\.com$/.test(location.host) || /^\/(lightning\/setup|setup)\//.test(location.pathname);
+  const CHANGES =
+    /^(save|quick save|delete|del|remove|new|clone|edit|activate|deactivate|assign|unassign|enable|disable|reset|unlock|freeze|unfreeze|deploy|submit|confirm|ok|add|create|import|upload|login|log in|grant|revoke|change|update|install|uninstall|upgrade|execute|schedule|send|merge|transfer|mass |set up|setup |manage assignments|edit assignments)\b/i;
+  const changes = (name) => CHANGES.test(String(name ?? '').trim());
+  function readOnly(what) {
+    throw new Error(
+      `Setup is read-only for NomadQA: ${what} would change the org, so it is not done. Steps on Setup open pages, search and check.`
+    );
+  }
+  /** Where the page is: the address of the tab and of Setup's frame (a click inside the frame changes only that). */
+  const where = () => [location.href, ...frameDocs().map((d) => d.location?.href ?? '')].join(' | ');
+  /** After a click or a search: when the page (or Setup's frame) goes elsewhere, wait for it to be drawn. */
+  async function settleAfter(before, timeout) {
+    for (let i = 0; i < 15 && where() === before; i++) await sleep(100);
+    if (where() === before) return;
+    if (location.href !== before.split(' | ')[0]) await ready(timeout);
+    await until(
+      () => (frameDocs().every((d) => d.readyState === 'complete') ? true : null),
+      timeout,
+      'the page to load'
+    );
+  }
+
   const toasts = () =>
     deepAll('.toastMessage, .forceToastMessage, [role="alert"], .slds-notify__content')
       .filter(visible)
       .map((t) => t.innerText.replace(/\s+/g, ' ').trim());
   const pageText = () => {
-    const parts = [document.body?.innerText ?? ''];
+    const parts = [document.body?.innerText ?? '', ...frameDocs().map((d) => d.body?.innerText ?? '')];
     for (const el of deepAll('*')) if (el.shadowRoot) parts.push(el.shadowRoot.textContent ?? '');
     return parts.join('\n').replace(/\s+/g, ' ');
   };
@@ -518,11 +626,11 @@
       switch (step.action) {
         case 'click': {
           const el = await until(() => findClickable(step.label, step), timeout, `“${step.label}”`);
-          const before = location.href;
+          if (inSetup() && (changes(step.label) || changes(nameOf(el)))) readOnly(`clicking “${step.label}”`);
+          const before = where();
           press(el);
           // A click that goes to another page: wait for it, so the next step does not find the old one
-          for (let i = 0; i < 12 && location.href === before; i++) await sleep(100);
-          if (location.href !== before) await ready(timeout);
+          await settleAfter(before, timeout);
           break;
         }
         case 'fill':
@@ -530,6 +638,8 @@
         case 'lookup':
         case 'check': {
           const f = await until(() => either(findField, step), timeout, `the field “${step.field}”`);
+          // Some of Setup's ticks are saved at once
+          if (inSetup() && (step.action === 'check' || f.kind === 'checkbox')) readOnly(`ticking “${step.field}”`);
           if (step.action === 'check' || f.kind === 'checkbox') {
             const want = step.value === true || /^(true|yes|1|on|checked)$/i.test(String(step.value));
             if (f.control.checked !== want) press(f.control);
@@ -663,6 +773,14 @@
           return { ok: true, typed: true, ms: Date.now() - t0 };
         }
         case 'press':
+          if (
+            inSetup() &&
+            (step.key ?? 'Enter') === 'Enter' &&
+            !/search|find/i.test(
+              `${document.activeElement?.getAttribute?.('placeholder') ?? ''} ${document.activeElement?.type ?? ''}`
+            )
+          )
+            readOnly('pressing Enter (it may send a form)');
           (document.activeElement ?? document.body).dispatchEvent(
             new KeyboardEvent('keydown', { key: step.key ?? 'Enter', bubbles: true, composed: true })
           );
@@ -695,6 +813,10 @@
 
   const fieldLabelOf = (el) => {
     for (const a of ancestors(el)) {
+      // Setup's classic pages: a label cell and its value cell
+      if (a.matches?.('td.labelCol, th.labelCol')) return a.innerText.replace(/:\s*$/, '').replace(/\s+/g, ' ').trim();
+      if (a.matches?.('td.dataCol, td.data2Col') && a.previousElementSibling?.matches?.('.labelCol'))
+        return a.previousElementSibling.innerText.replace(/:\s*$/, '').replace(/\s+/g, ' ').trim();
       if (a.matches?.('records-highlights-details-item, records-record-layout-item, force-record-layout-item')) {
         const leaf = [...a.querySelectorAll('*')].find((x) => x.children.length === 0 && x.textContent.trim());
         if (leaf) return leaf.textContent.replace(/\s+/g, ' ').trim();
@@ -756,8 +878,12 @@
   }
 
   globalThis.__nomadqa = {
-    version: 3,
+    version: 4,
     run,
+    inSetup,
+    changes,
+    screenRect,
+    frameDocs,
     count,
     placeOf,
     ready,

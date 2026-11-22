@@ -114,7 +114,7 @@ function sentence(s) {
     case 'lookup':
       return `Choose the record “${s.value}” in ${fieldName(s)}`;
     case 'search': {
-      const box = s.box ? `“${s.box}”` : 'Search';
+      const box = s.box ? `“${s.box}”` : 'Salesforce search (at the top)';
       return s.choose
         ? `Search “${s.text}” in ${box}, choose “${s.choose}”`
         : `Search “${s.text}” in ${box}, press Enter`;

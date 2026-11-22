@@ -184,6 +184,8 @@ export function testingViews(ctx) {
     debug: null, // the test gone through step by step on a Salesforce page: { testId, tabId, st, driver }
     groupResult: null,
     groupTabs: {}, // a group's tests at the same time: { name: n }
+    closed: {}, // groups folded in the list: { name: true }
+    focusStep: -1, // a step just added: the editor scrolls to it
   });
   const loginsMap = () =>
     Object.fromEntries(
@@ -192,6 +194,7 @@ export function testingViews(ctx) {
 
   async function load() {
     T.groupTabs = await store.get('nomadqa.groupTabs', {});
+    T.closed = await store.get('nomadqa.closedGroups', {});
     T.tests = await store.get('nomadqa.tests', []);
     T.runs = await store.get('nomadqa.runs', []);
     T.ai = { ...T.ai, ...(await store.get('nomadqa.ai', {})) };
@@ -541,7 +544,7 @@ export function testingViews(ctx) {
     ],
     search: [
       ['text', 'Type', 'Mia Brown'],
-      ['box', 'In (optional)', 'empty: Salesforce’s search · a field · Search this list…'],
+      ['box', 'In (optional)', 'empty = Salesforce search at the top'],
       ['choose', 'Then choose (optional)', 'empty: press Enter'],
     ],
     check: [
@@ -694,7 +697,7 @@ export function testingViews(ctx) {
     ];
   }
 
-  /** The tests by group: each group can be run at once, and downloaded as one file. */
+  /** The tests by group: a group opens and closes, runs at once (n at a time), and downloads as one file. */
   function testList(lastRun) {
     const groups = new Map();
     for (const t of T.tests) {
@@ -708,81 +711,108 @@ export function testingViews(ctx) {
       return h(
         'div',
         {
-          class: `node${t.id === T.selected ? ' on' : ''}`,
+          class: `test-row${t.id === T.selected ? ' on' : ''}`,
+          role: 'button',
+          tabindex: '0',
           onclick: () => ((T.selected = t.id), (T.results = null), render()),
+          onkeydown: (e) => e.key === 'Enter' && ((T.selected = t.id), (T.results = null), render()),
         },
-        h('span', { class: 'name' }, t.name),
-        h('span', { class: 'grow' }),
-        h('span', { class: 'api' }, `${t.steps.length} steps`),
-        r ? h('span', { class: `pill ${r.ok ? 'good' : 'bad'}` }, r.ok ? 'passed' : 'failed') : null
+        h('span', {
+          class: `dot ${r ? (r.ok ? 'good' : 'bad') : ''}`,
+          title: r ? (r.ok ? 'Passed last time' : 'Failed last time') : 'Not run yet',
+        }),
+        h('span', { class: 'name', title: t.name }, t.name),
+        h('span', { class: 'meta' }, `${t.steps.length} step${t.steps.length === 1 ? '' : 's'}`)
       );
     };
-    return h(
-      'div',
-      { class: 'tree' },
-      names.map((g) =>
-        g || names.length > 1
+    const toggle = (g) => {
+      T.closed = { ...T.closed, [g]: !T.closed[g] };
+      void store.set('nomadqa.closedGroups', T.closed);
+      render();
+    };
+    const groupEl = (g) => {
+      const list = groups.get(g);
+      const open = !T.closed[g];
+      const failed = list.filter((t) => lastRun(t)?.ok === false).length;
+      const passed = list.filter((t) => lastRun(t)?.ok).length;
+      return h(
+        'div',
+        { class: `test-group${open ? ' open' : ''}` },
+        h(
+          'div',
+          {
+            class: 'group-head',
+            role: 'button',
+            tabindex: '0',
+            'aria-expanded': String(open),
+            onclick: () => toggle(g),
+            onkeydown: (e) => e.key === 'Enter' && toggle(g),
+          },
+          h('span', { class: 'caret' }, '▸'),
+          h('b', { class: 'name' }, g || 'No group'),
+          h('span', { class: 'count' }, String(list.length)),
+          passed ? h('span', { class: 'pill good' }, `${passed} ✓`) : null,
+          failed ? h('span', { class: 'pill bad' }, `${failed} ✕`) : null
+        ),
+        open && g
           ? h(
               'div',
-              { class: 'test-group' },
+              { class: 'group-tools' },
               h(
-                'div',
-                { class: 'row group-head' },
-                h('b', { class: 'grow' }, g || 'No group'),
-                g
-                  ? [
-                      h(
-                        'button',
-                        {
-                          class: 'primary',
-                          disabled: !S.sf || Boolean(S.busy),
-                          title:
-                            (T.groupTabs[g] ?? 1) > 1
-                              ? `Runs the tests ${T.groupTabs[g]} at a time, each in a window of its own`
-                              : `Runs the ${groups.get(g).length} tests one after the other`,
-                          onclick: () => void runGroup(g),
-                        },
-                        `Run all ${groups.get(g).length}`
-                      ),
-                      select(
-                        String(T.groupTabs[g] ?? 1),
-                        [1, 2, 3, 4, 6, 8].map((k) => [String(k), k === 1 ? 'one at a time' : `${k} at a time`]),
-                        (v) => {
-                          T.groupTabs = { ...T.groupTabs, [g]: Number(v) };
-                          void store.set('nomadqa.groupTabs', T.groupTabs);
-                          render();
-                        },
-                        {
-                          class: 'tabs-at-once',
-                          title:
-                            'How many tests run at the same time, each in a window of its own. Tests that log in as someone else still run alone.',
-                        }
-                      ),
-                      h(
-                        'button',
-                        {
-                          title: 'One file with every test of the group (the headless runner takes it too)',
-                          onclick: () =>
-                            download(
-                              `${g.replace(/[^\w-]+/g, '-').toLowerCase()}.nomadqa-group.json`,
-                              JSON.stringify(
-                                { nomadqa: 'group', name: g, tests: groups.get(g).map(({ id, host, ...t }) => t) },
-                                null,
-                                2
-                              ),
-                              'application/json'
-                            ),
-                        },
-                        'Download'
-                      ),
-                    ]
-                  : null
+                'button',
+                {
+                  class: 'primary small',
+                  disabled: !S.sf || Boolean(S.busy),
+                  title:
+                    (T.groupTabs[g] ?? 1) > 1
+                      ? `Runs the tests ${T.groupTabs[g]} at a time, each in a window of its own`
+                      : `Runs the ${list.length} tests one after the other`,
+                  onclick: () => void runGroup(g),
+                },
+                `▶ Run all ${list.length}`
               ),
-              groups.get(g).map(row)
+              select(
+                String(T.groupTabs[g] ?? 1),
+                [1, 2, 3, 4, 6, 8].map((k) => [String(k), k === 1 ? 'One at a time' : `${k} at a time`]),
+                (v) => {
+                  T.groupTabs = { ...T.groupTabs, [g]: Number(v) };
+                  void store.set('nomadqa.groupTabs', T.groupTabs);
+                  render();
+                },
+                {
+                  class: 'small',
+                  'aria-label': 'How many at a time',
+                  title:
+                    'How many tests run at the same time, each in a window of its own. Tests that log in as someone else still run alone.',
+                }
+              ),
+              h('span', { class: 'grow' }),
+              h(
+                'button',
+                {
+                  class: 'small',
+                  title: 'One file with every test of the group (the headless runner takes it too)',
+                  onclick: () =>
+                    download(
+                      `${g.replace(/[^\w-]+/g, '-').toLowerCase()}.nomadqa-group.json`,
+                      JSON.stringify(
+                        { nomadqa: 'group', name: g, tests: list.map(({ id, host, ...t }) => t) },
+                        null,
+                        2
+                      ),
+                      'application/json'
+                    ),
+                },
+                'Download'
+              )
             )
-          : groups.get(g).map(row)
-      )
-    );
+          : null,
+        open ? h('div', { class: 'group-rows' }, list.map(row)) : null
+      );
+    };
+    // No groups at all: just the tests
+    if (names.length === 1 && !names[0]) return h('div', { class: 'test-list' }, groups.get('').map(row));
+    return h('div', { class: 'test-list' }, names.map(groupEl));
   }
 
   function groupResultEl() {
@@ -913,11 +943,14 @@ export function testingViews(ctx) {
       const fields = FIELDS[s.action] ?? [];
       return h(
         'tr',
-        { class: r?.ok === false ? 'bad' : '' },
-        h('td', { class: 'muted' }, i + 1),
+        {
+          class: [r?.ok === false ? 'bad' : '', T.focusStep === i ? 'new' : ''].filter(Boolean).join(' '),
+          'data-step': i,
+        },
+        h('td', { class: 'c-n' }, i + 1),
         h(
           'td',
-          {},
+          { class: 'c-step' },
           select(
             s.action,
             Object.entries(ACTIONS).map(([k, a]) => [k, a.say]),
@@ -979,76 +1012,104 @@ export function testingViews(ctx) {
                             onchange: (e) => (set(k, e.target.value), render()),
                           })
                     );
-                  }),
-                h(
-                  'label',
-                  { class: 'check step-optional', title: 'If it fails, the test still goes on' },
-                  h('input', {
-                    type: 'checkbox',
-                    checked: Boolean(s.optional),
-                    onchange: (e) => (e.target.checked ? (s.optional = true) : delete s.optional, changed(), render()),
-                  }),
-                  'Optional'
-                )
+                  })
               ),
-          h('span', { class: 'sub' }, stepText(s)),
+          h('span', { class: 'sub says' }, stepText(s)),
           bad ? h('span', { class: 'sub', style: 'color: var(--bad)' }, bad) : null,
           r?.ok === false ? h('span', { class: 'sub', style: 'color: var(--bad)' }, r.message) : null
         ),
         h(
           'td',
-          {},
-          r
-            ? h(
-                'span',
-                { class: `pill ${r.ok ? 'good' : r.ok === null ? '' : r.optional ? 'warn' : 'bad'}` },
-                r.ok ? `✓ ${(r.ms / 1000).toFixed(1)} s` : r.ok === null ? 'not run' : r.optional ? '✕ optional' : '✕'
+          { class: 'c-side' },
+          h(
+            'div',
+            { class: 'side-in' },
+            h(
+              'div',
+              { class: 'c-opt' },
+              h(
+                'label',
+                { class: 'check step-optional', title: 'If it fails, the test still goes on' },
+                h('input', {
+                  type: 'checkbox',
+                  checked: Boolean(s.optional),
+                  onchange: (e) => (e.target.checked ? (s.optional = true) : delete s.optional, changed(), render()),
+                }),
+                'Optional'
               )
-            : null,
-          r?.ok && r.message ? h('span', { class: 'sub' }, r.message) : null,
-          r?.shot
-            ? h(
-                'a',
-                { class: 'sub', href: r.shot, download: `step-${i + 1}.png`, title: 'Download the screenshot' },
-                'Screenshot'
+            ),
+            h(
+              'div',
+              { class: 'c-res' },
+              r
+                ? h(
+                    'span',
+                    { class: `pill ${r.ok ? 'good' : r.ok === null ? '' : r.optional ? 'warn' : 'bad'}` },
+                    r.ok
+                      ? `✓ ${(r.ms / 1000).toFixed(1)} s`
+                      : r.ok === null
+                      ? 'not run'
+                      : r.optional
+                      ? '✕ optional'
+                      : '✕'
+                  )
+                : null,
+              r?.ok && r.message ? h('span', { class: 'sub' }, r.message) : null,
+              r?.shot
+                ? h(
+                    'a',
+                    { class: 'sub', href: r.shot, download: `step-${i + 1}.png`, title: 'Download the screenshot' },
+                    'Screenshot'
+                  )
+                : null
+            ),
+            h(
+              'div',
+              { class: 'c-acts' },
+              h(
+                'button',
+                {
+                  class: 'icon',
+                  'aria-label': 'Add a step below',
+                  title: 'Add a step below this one',
+                  onclick: () => addStepAt(i + 1),
+                },
+                '+'
+              ),
+              h(
+                'button',
+                {
+                  class: 'icon',
+                  'aria-label': 'Up',
+                  disabled: i === 0,
+                  onclick: () => (
+                    ([test.steps[i - 1], test.steps[i]] = [test.steps[i], test.steps[i - 1]]), changed(), render()
+                  ),
+                },
+                '↑'
+              ),
+              h(
+                'button',
+                {
+                  class: 'icon',
+                  'aria-label': 'Down',
+                  disabled: i === test.steps.length - 1,
+                  onclick: () => (
+                    ([test.steps[i + 1], test.steps[i]] = [test.steps[i], test.steps[i + 1]]), changed(), render()
+                  ),
+                },
+                '↓'
+              ),
+              h(
+                'button',
+                {
+                  class: 'icon',
+                  'aria-label': 'Remove step',
+                  onclick: () => (test.steps.splice(i, 1), changed(), render()),
+                },
+                '✕'
               )
-            : null
-        ),
-        h(
-          'td',
-          { style: 'white-space: nowrap' },
-          h(
-            'button',
-            {
-              class: 'icon',
-              'aria-label': 'Up',
-              disabled: i === 0,
-              onclick: () => (
-                ([test.steps[i - 1], test.steps[i]] = [test.steps[i], test.steps[i - 1]]), changed(), render()
-              ),
-            },
-            '↑'
-          ),
-          h(
-            'button',
-            {
-              class: 'icon',
-              'aria-label': 'Down',
-              disabled: i === test.steps.length - 1,
-              onclick: () => (
-                ([test.steps[i + 1], test.steps[i]] = [test.steps[i], test.steps[i + 1]]), changed(), render()
-              ),
-            },
-            '↓'
-          ),
-          h(
-            'button',
-            {
-              class: 'icon',
-              'aria-label': 'Remove step',
-              onclick: () => (test.steps.splice(i, 1), changed(), render()),
-            },
-            '✕'
+            )
           )
         )
       );
@@ -1058,6 +1119,19 @@ export function testingViews(ctx) {
       return JSON.stringify(rest, null, 2);
     };
     const fname = `${test.name.replace(/[^\w-]+/g, '-').toLowerCase()}.nomadqa.json`;
+    /** A new step at `at`; the editor scrolls to it and its first box is ready to type in. */
+    const addStepAt = (at) => {
+      test.steps.splice(at, 0, { action: 'click', label: '' });
+      T.focusStep = at;
+      changed();
+      render();
+      requestAnimationFrame(() => {
+        const tr = document.querySelector(`tr[data-step="${at}"]`);
+        tr?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        tr?.querySelector('.step-fields input')?.focus({ preventScroll: true });
+        T.focusStep = -1;
+      });
+    };
     return h(
       'section',
       { class: 'card' },
@@ -1174,36 +1248,39 @@ export function testingViews(ctx) {
             );
           })()
         : null,
+      // The steps grow with the page (no box of their own to scroll): a change never sends the list to its top
       h(
         'div',
-        { class: 'table-box' },
+        { class: 'table-box steps-box' },
         h(
           'table',
-          {},
+          { class: 'steps' },
+          h(
+            'colgroup',
+            {},
+            h('col', { class: 'c-n' }),
+            h('col', { class: 'c-step' }),
+            h('col', {}),
+            h('col', { class: 'c-side' })
+          ),
           h(
             'thead',
             {},
-            h(
-              'tr',
-              {},
-              h('th', {}, '#'),
-              h('th', {}, 'Step'),
-              h('th', {}, 'Details'),
-              h('th', {}, 'Result'),
-              h('th', {}, '')
-            )
+            h('tr', {}, h('th', {}, '#'), h('th', {}, 'Step'), h('th', {}, 'Details'), h('th', {}, 'Result'))
           ),
-          h('tbody', {}, test.steps.map(stepRow))
+          h(
+            'tbody',
+            {},
+            test.steps.length
+              ? test.steps.map(stepRow)
+              : h('tr', {}, h('td', { colspan: 4, class: 'muted empty-row' }, 'No steps yet: add one below.'))
+          )
         )
       ),
       h(
         'div',
         { class: 'row' },
-        h(
-          'button',
-          { onclick: () => (test.steps.push({ action: 'click', label: '' }), changed(), render()) },
-          '+ Step'
-        ),
+        h('button', { onclick: () => addStepAt(test.steps.length) }, '+ Step'),
         h('span', { class: 'grow' }),
         h('button', { onclick: () => download(fname, file(), 'application/json') }, 'Download'),
         h(

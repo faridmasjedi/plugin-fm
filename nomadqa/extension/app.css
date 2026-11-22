@@ -619,28 +619,6 @@ td.example {
 .head .grow ~ .refresh {
   margin-left: 0;
 }
-.test-group {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 6px 8px;
-  margin-bottom: 10px;
-}
-.test-group .group-head {
-  padding: 4px 4px 8px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
-}
-/* The group's name on its line; Run all, how many at a time and Download under it */
-.test-group .group-head {
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.test-group .group-head > b {
-  flex-basis: 100%;
-}
-.test-group .group-head select.tabs-at-once {
-  width: auto;
-}
 details.more-tabs > summary {
   cursor: pointer;
 }
@@ -1117,4 +1095,229 @@ ol.picked button.link {
   white-space: nowrap;
   font-size: 12.5px;
   padding-bottom: 6px;
+}
+
+/* ---------- Tests: the list of tests, by group ---------- */
+button.small,
+select.small {
+  font-size: 12.5px;
+  padding: 4px 10px;
+}
+.test-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.test-row {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.test-row:hover {
+  background: var(--panel-2);
+}
+.test-row.on {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.test-row .name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.test-row .meta {
+  color: var(--faint);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.test-row .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+.test-row .dot.good {
+  background: var(--good);
+}
+.test-row .dot.bad {
+  background: var(--bad);
+}
+.test-group {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.test-group .group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  cursor: pointer;
+  user-select: none;
+}
+.test-group .group-head:hover {
+  background: var(--accent-soft);
+}
+.test-group .group-head .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.test-group .group-head .caret {
+  color: var(--muted);
+  font-size: 11px;
+  transition: transform 0.15s;
+}
+.test-group.open .group-head .caret {
+  transform: rotate(90deg);
+}
+.test-group .group-head .count {
+  color: var(--muted);
+  font-size: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 8px;
+}
+.test-group .group-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.test-group .group-rows {
+  padding: 4px;
+}
+
+/* ---------- Tests: the steps of a test ---------- */
+.table-box.steps-box {
+  max-height: none;
+  overflow: visible;
+}
+table.steps {
+  table-layout: fixed;
+}
+table.steps col.c-n {
+  width: 36px;
+}
+table.steps col.c-step {
+  width: 172px;
+}
+table.steps col.c-side {
+  width: 128px;
+}
+table.steps td {
+  vertical-align: top;
+  padding: 10px;
+  transition: background 0.12s;
+}
+table.steps tbody tr:hover td {
+  background: var(--panel-2);
+}
+table.steps tbody tr.bad td {
+  background: var(--bad-soft);
+}
+table.steps tbody tr.bad td:first-child {
+  box-shadow: inset 3px 0 0 var(--bad);
+}
+table.steps tbody tr.new td {
+  background: var(--accent-soft);
+}
+table.steps td.c-n {
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  padding-top: 17px;
+}
+table.steps td.c-step select,
+table.steps td.c-step .search-select {
+  width: 100%;
+  min-width: 0;
+}
+/* Right side of a step: its result, then its buttons, then Optional */
+table.steps .side-in {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+table.steps .side-in .c-res {
+  order: 1;
+  min-height: 22px;
+  padding-top: 4px;
+}
+table.steps .side-in .c-acts {
+  order: 2;
+  display: flex;
+  gap: 0;
+  margin-left: -6px;
+}
+table.steps .side-in .c-opt {
+  order: 3;
+}
+table.steps .c-acts button.icon {
+  padding: 3px 6px;
+}
+table.steps .c-acts button.icon:first-child:hover {
+  color: var(--accent);
+}
+table.steps .step-fields {
+  display: grid;
+  /* the same columns on every row (empty ones kept), so fields line up from step to step */
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px 10px;
+  min-width: 0;
+}
+table.steps .step-field {
+  min-width: 0;
+}
+table.steps .step-field.wide {
+  grid-column: 1 / -1;
+}
+table.steps .step-field input,
+table.steps .step-field select {
+  height: 32px;
+}
+table.steps .sub.says {
+  margin-top: 6px;
+  color: var(--muted);
+}
+table.steps .sub.says::before {
+  content: '→ ';
+  color: var(--faint);
+}
+table.steps .step-optional {
+  padding: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+table.steps .empty-row {
+  text-align: center;
+  padding: 22px;
+}
+table.steps td.c-step .search-select {
+  display: flex;
+}
+table.steps td.c-step .search-select-button {
+  min-width: 0;
+  height: 34px;
+}
+table.steps .side-in .c-res:empty {
+  display: none;
+}
+table.steps .side-in .c-res {
+  min-height: 0;
+  padding-top: 2px;
+}
+table.steps td.c-side {
+  padding-top: 12px;
 }

@@ -444,7 +444,7 @@ test('fields by API name, new checks, logins', async () => {
 test('search and choose: sentences and checks', () => {
   assert.equal(
     stepText({ action: 'search', text: 'Mia', choose: 'Mia Brown' }),
-    'Search “Mia” in Search, choose “Mia Brown”'
+    'Search “Mia” in Salesforce search (at the top), choose “Mia Brown”'
   );
   assert.equal(
     stepText({ action: 'search', box: 'Search this list...', text: 'Acme' }),

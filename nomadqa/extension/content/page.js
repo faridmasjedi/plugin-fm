@@ -21,11 +21,32 @@
     :host{all:initial}
     *{box-sizing:border-box;font:13px/1.4 Inter,system-ui,-apple-system,sans-serif}
     .box{position:fixed;border:2px solid #5b3fd1;background:rgba(91,63,209,.08);border-radius:4px;pointer-events:none;display:none}
-    .tip{position:fixed;max-width:420px;background:#1d2433;color:#fff;border-radius:10px;padding:10px 12px;box-shadow:0 8px 30px rgba(0,0,0,.3);pointer-events:auto;display:none}
-    .tip .row{display:flex;gap:8px;margin:2px 0}.tip .k{color:#a6adbe;min-width:76px}.tip .v{word-break:break-all}
-    .tip code{font:12px ui-monospace,Menlo,monospace;color:#c4b8ff}
-    .tip button{margin-top:6px;margin-right:6px}.tip .group{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 6px;margin-top:6px}.tip .group .k{min-width:96px}.tip button.step{border-color:#5b3fd1;color:#432bb0}
-    .bar{position:fixed;right:18px;bottom:18px;background:#fff;color:#1d2433;border:1px solid #e3e6ee;border-radius:12px;box-shadow:0 8px 30px rgba(20,24,40,.18);padding:10px 12px;display:none;gap:10px;align-items:center;pointer-events:auto}
+    .tip{position:fixed;width:400px;max-width:calc(100vw - 20px);max-height:calc(100vh - 20px);overflow:auto;background:#fff;color:#1d2433;border:1px solid #e3e6ee;border-radius:12px;box-shadow:0 12px 40px rgba(20,24,40,.22);pointer-events:auto;display:none}
+    .tip .th{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #eef0f5}
+    .tip .th b{flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .tip .chip{flex:none;font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:#432bb0;background:#efebff;border-radius:999px;padding:2px 8px}
+    .tip .x{border:0;background:none;color:#5b6475;padding:2px 6px;font-size:13px}.tip .x:hover{background:#f0f1f7;color:#1d2433}
+    .tip .info{display:grid;grid-template-columns:86px 1fr;gap:4px 10px;padding:8px 12px;border-bottom:1px solid #eef0f5;font-size:12.5px}
+    .tip .info .k{color:#5b6475}.tip .info .v{word-break:break-all}
+    .tip code{font:12px ui-monospace,Menlo,monospace;color:#432bb0;background:#f6f4ff;border-radius:4px;padding:0 4px}
+    .tip .hint{padding:8px 12px;color:#5b6475;font-size:12px}
+    .tip .note{margin:8px 12px 0;padding:7px 10px;background:#fff8e6;color:#7a5200;border-radius:8px;font-size:12px}
+    .tip .sec{padding:10px 12px 4px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#5b6475}
+    .tip .acts{padding:0 6px 6px}
+    .tip .act{display:flex;align-items:center;gap:10px;padding:7px 6px;border-radius:8px}
+    .tip .act:hover{background:#f6f4ff}
+    .tip .act .t{flex:1;min-width:0;display:grid;gap:1px}.tip .act .t b{font-weight:600;font-size:12.5px}.tip .act .t span{color:#5b6475;font-size:11.5px}
+    .tip .act .b{flex:none;display:flex;gap:6px}
+    .tip .act.off .t b{color:#8a93a6}.tip .act.off .t span{color:#a3272b}
+    .tip button.step{border-color:#5b3fd1;color:#432bb0;white-space:nowrap}
+    .tip button.step.primary{background:#5b3fd1;color:#fff}
+    .tip .form{display:grid;gap:8px;margin:0 6px 6px;padding:10px;border:1px solid #e3e6ee;border-radius:8px;background:#fafbfd}
+    .tip .form label{display:grid;gap:3px;font-size:11.5px;color:#5b6475}
+    .tip .form input{font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid #d5d9e4;border-radius:7px;color:#1d2433;background:#fff}
+    .tip .form .b{display:flex;gap:6px}.tip .form .msg{font-size:12px;color:#5b6475}
+    .tip .copies{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 12px 10px;border-top:1px solid #eef0f5}
+    .tip .copies .k{color:#5b6475;font-size:12px;margin-right:2px}
+    .bar{position:fixed;right:18px;bottom:18px;cursor:move;user-select:none;background:#fff;color:#1d2433;border:1px solid #e3e6ee;border-radius:12px;box-shadow:0 8px 30px rgba(20,24,40,.18);padding:10px 12px;display:none;gap:10px;align-items:center;pointer-events:auto}
     .dot{width:10px;height:10px;border-radius:50%;background:#d12b2b;box-shadow:0 0 0 0 rgba(209,43,43,.5);animation:p 1.4s infinite}
     @keyframes p{70%{box-shadow:0 0 0 8px rgba(209,43,43,0)}}
     button{font:inherit;font-size:12.5px;padding:5px 10px;border-radius:7px;border:1px solid #d5d9e4;background:#fff;color:#1d2433;cursor:pointer}
@@ -57,13 +78,10 @@
     .tray .mk{flex:none;width:14px;text-align:center;color:#8a93a6}.tray .mk.cur{color:#5b3fd1}.tray .mk.ok{color:#1f7a4d}.tray .mk.bad{color:#c23934}.tray .mk.warn{color:#a86b00}
     .tray .why{margin:4px 0 0 20px;font-size:12px;color:#a3272b;word-break:break-word}
     .tray .muted{color:#8a93a6}
-    .tip button.step.primary{color:#fff}
-    .tip .form{display:grid;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid #39415a}
-    .tip .form input{font:inherit;font-size:12.5px;padding:5px 8px;border:1px solid #4a5370;border-radius:7px;background:#11161f;color:#fff}
   </style>
   <div class="box"></div><div class="tray"></div><div class="tip"></div>
   <div class="bar"><span class="dot"></span><span class="brand">NomadQA</span><span class="count">0 steps</span><span class="last"></span>
-  <button class="check" title="Then click what to check on the page">+ Check</button><button class="stop">Stop</button></div>`;
+  <button class="check" title="Then click what to check on the page">+ Check</button><button class="stop">Stop</button><button class="side" title="Move to the other side (or drag it)">⇆</button></div>`;
   const box = root.querySelector('.box');
   const tip = root.querySelector('.tip');
   const bar = root.querySelector('.bar');
@@ -75,7 +93,7 @@
     String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   function outline(el) {
     if (!el) return (box.style.display = 'none');
-    const r = el.getBoundingClientRect();
+    const r = Q.screenRect(el);
     Object.assign(box.style, {
       display: 'block',
       left: `${r.x - 2}px`,
@@ -143,12 +161,14 @@
               result: done ? { ok: true, message: 'done by hand' } : null,
             }))
           );
+          trayState.focusAt = d.at + items.length - 1;
           if (done) d.at += items.length;
           d.dirty = true;
         }).then(() => trayState.debug?.items.length ?? 0)
       : serial(async () => {
           const list = await readPicked();
           list.push(...items.map((x) => ({ step: x.step, text: x.text, page: location.pathname, at: Date.now() })));
+          trayState.focusAt = list.length - 1;
           await writePicked(list);
           return list.length;
         });
@@ -223,6 +243,8 @@
         : '') +
       '</li>';
     const atEnd = d && d.at >= list.length;
+    // The list keeps its place when it is drawn again; a step just added or changed is scrolled to
+    const keepTop = tray.querySelector('ol')?.scrollTop ?? 0;
     tray.innerHTML =
       `<header><span class="brand">NomadQA</span><b title="${esc(d?.name ?? '')}">${
         d ? esc(d.name.length > 26 ? `${d.name.slice(0, 25)}…` : d.name) : 'Test steps'
@@ -272,6 +294,14 @@
     tray.querySelectorAll('[data-a]').forEach((b) => {
       b.onclick = () => void trayAction(b.dataset.a, Number(b.dataset.i));
     });
+    const ol = tray.querySelector('ol');
+    if (ol) {
+      ol.scrollTop = keepTop;
+      const show = t.focusAt ?? (d ? d.at : null);
+      const li = show !== null && show !== undefined ? ol.children[Math.min(show, ol.children.length - 1)] : null;
+      if (li && ((t.focusAt !== undefined && t.focusAt !== null) || d)) li.scrollIntoView({ block: 'nearest' });
+      t.focusAt = null;
+    }
     const input = tray.querySelector('[data-edit]');
     if (input) {
       input.focus();
@@ -361,7 +391,7 @@
       state.pinned = null;
       tip.style.display = 'none';
       outline(null);
-    } else if (a === 'edit') t.editing = t.editing === i ? -1 : i;
+    } else if (a === 'edit') (t.editing = t.editing === i ? -1 : i), (t.focusAt = i);
     else if (a === 'save') {
       const v = tray.querySelector('[data-edit]')?.value ?? '';
       const step = { ...list[i].step, [mainOf(list[i].step)]: v };
@@ -370,9 +400,11 @@
       const text = old && list[i].text.includes(old) ? list[i].text.replace(old, v) : sentence(step);
       list[i] = { ...list[i], step, text, result: null };
       t.editing = -1;
+      t.focusAt = i;
       return writeList(list);
     } else if (a === 'up' || a === 'down') {
       const j = a === 'up' ? i - 1 : i + 1;
+      t.focusAt = j;
       [list[i], list[j]] = [list[j], list[i]];
       return writeList(list, at === i ? j : at === j ? i : at);
     } else if (a === 'del') {
@@ -445,32 +477,51 @@
   }
   const short = (t) => (t.length > 34 ? `${t.slice(0, 32)}…` : t);
 
-  // Test steps for what is pinned, by what a person sees (as the Recorder writes them)
+  // Test steps for what is pinned, by what a person sees (as the Recorder writes them). Each one: a title, a line
+  // that says what it does in the test, and its buttons.
   const CLICKS = 'button, a, [role="button"], [role="tab"], [role="menuitem"], [role="link"], [role="option"]';
+  const line = (t) =>
+    String(t ?? '')
+      .split('\n')
+      .map((x) => x.trim())
+      .find(Boolean) ?? '';
+  const pageName = () => document.title.replace(/\s*\|\s*Salesforce\s*$/, '');
+  /** What the thing pointed at is, in a word or two. */
+  function kindOf(el, d, click, typable) {
+    if (click && /^search\b/i.test(d.name ?? '') && Q.deepAll('button.search-button').includes(click))
+      return 'Salesforce search';
+    if (d.field) return 'Field';
+    if (typable) return 'Box to type in';
+    if (click?.getAttribute('role') === 'tab') return 'Tab';
+    if (click?.matches?.('a, [role="link"]')) return 'Link';
+    if (click?.matches?.('[role="menuitem"], [role="option"]')) return 'Menu item';
+    if (click) return 'Button';
+    return 'Text';
+  }
   function stepsFor(el, d) {
     const out = [];
-    const line = (t) =>
-      String(t ?? '')
-        .split('\n')
-        .map((x) => x.trim())
-        .find(Boolean) ?? '';
+    const setup = Q.inSetup();
+    const click = [...Q.ancestors(el)].find((a) => a.matches?.(CLICKS));
+    const name = click ? line(click.getAttribute('aria-label') || click.getAttribute('title') || click.innerText) : '';
+    const typable = [...Q.ancestors(el)].find((a) => a.matches?.('input, textarea'));
     if (d.field) {
-      const input = [...Q.ancestors(el)].find((a) => a.matches?.('input, textarea'));
-      if (input && !input.readOnly && !input.disabled)
+      if (typable && !typable.readOnly && !typable.disabled)
         out.push({
-          button: 'Type into it',
+          title: `Type into ${short(d.field)}`,
+          desc: `The test types “${short(typable.value ?? '')}” here (change it later in the list).`,
           step: {
             action: 'fill',
             field: d.field,
             ...(d.fieldApi ? { api: d.fieldApi } : {}),
-            value: input.value ?? '',
+            value: typable.value ?? '',
           },
-          text: `Type “${input.value ?? ''}” in ${d.field}`,
+          text: `Type “${typable.value ?? ''}” in ${d.field}`,
         });
       const value = Q.fieldValue(d.field);
       if (value !== null && value !== undefined)
         out.push({
-          button: 'Check its value',
+          title: `Check ${short(d.field)} is “${short(value)}”`,
+          desc: 'The test fails when this field shows anything else.',
           step: {
             action: 'expect',
             kind: 'field',
@@ -482,138 +533,187 @@
           text: `Check ${d.field} is “${value}”`,
         });
     }
-    const click = [...Q.ancestors(el)].find((a) => a.matches?.(CLICKS));
-    const name = click ? line(click.getAttribute('aria-label') || click.getAttribute('title') || click.innerText) : '';
     // A box to type in (a search bar, a list's search, a lookup) or Salesforce's search button: type, then choose
-    const typable = [...Q.ancestors(el)].find((a) => a.matches?.('input, textarea'));
     const boxLabel = typable
-      ? d.field || typable.getAttribute('placeholder') || typable.getAttribute('aria-label') || ''
+      ? (d.field || typable.getAttribute('placeholder') || typable.getAttribute('aria-label') || '').trim()
       : '';
-    if ((typable && !typable.readOnly && !typable.disabled && boxLabel) || /^search\b/i.test(name))
+    const globalSearch = !typable && /^search\b/i.test(name);
+    if ((typable && !typable.readOnly && !typable.disabled && boxLabel) || globalSearch) {
+      const box = typable && !/^search(\.\.\.|…)?$/i.test(boxLabel) ? boxLabel : '';
       out.push({
-        button: 'Search and choose…',
+        title: 'Search and choose…',
+        desc: box
+          ? `Types in “${short(box)}”, then picks one of its suggestions (or presses Enter).`
+          : 'Types in Salesforce search at the top, then picks a result (or presses Enter).',
         form: true,
-        box: typable && !/^search(\.\.\.|…)?$/i.test(boxLabel.trim()) ? boxLabel.trim() : '',
+        box,
         value: typable?.value ?? '',
       });
-    if (name && name.length <= 60)
+    }
+    if (name && name.length <= 60 && !globalSearch) {
+      const blocked = setup && Q.changes(name);
       out.push({
-        button: `Click “${short(name)}”`,
-        go: 'Add and click it',
+        title: `Click “${short(name)}”`,
+        desc: blocked
+          ? 'Not on Setup: it would change the org. NomadQA only looks and checks here.'
+          : 'The test clicks it, like a person would.',
+        blocked,
+        go: blocked ? '' : 'Add and click it',
         target: click,
         step: { action: 'click', label: name },
         text: `Click “${name}”`,
       });
-    const text = line(el.innerText);
-    if (!d.field && text && text.length <= 120 && text !== name)
+    }
+    // A button or link: check it is there (a user without access does not see it)
+    if (name && name.length <= 60 && !globalSearch)
       out.push({
-        button: 'Check this text shows',
+        title: `Check “${short(name)}” is there`,
+        desc: 'The test fails when this button or link is missing (for example, a user without access).',
+        step: { action: 'expect', kind: 'button', value: name },
+        text: `Check the button or link “${name}” is shown`,
+      });
+    const text = line(el.innerText);
+    if (!d.field && !click && text && text.length <= 120)
+      out.push({
+        title: `Check “${short(text)}” is shown`,
+        desc: 'The test fails when this text is not on the page.',
         step: { action: 'expect', kind: 'text', value: text },
         text: `Check the page shows “${text}”`,
       });
     out.push({
-      button: 'Start on this page',
+      title: 'Start the test on this page',
+      desc: `First step: open “${short(pageName())}”, so the test always begins here.`,
       step: { action: 'open', path: location.pathname + location.search },
-      text: `Open “${document.title.replace(/\s*\|\s*Salesforce\s*$/, '')}”`,
+      text: `Open “${pageName()}”`,
     });
+    return out;
+  }
+  /** The component it is part of, when it says something (not Salesforce's page wrappers). */
+  const ownComponent = (d) => {
+    const c = d.components[0] ?? '';
+    return c.includes('-') && !/^(force-aloha|one-|flexipage-|force-record-layout|records-record-layout)/.test(c)
+      ? c
+      : '';
+  };
+  /** What can be copied: only what is useful (a field's API name, your component and its folder, a record Id). */
+  function copiesFor(d) {
+    const out = [];
+    if (d.fieldApi) out.push(['field', 'Field API name', d.fieldApi]);
+    if (d.custom) out.push(['path', 'Folder', d.custom.path], ['tag', 'Component', d.custom.tag]);
+    else if (ownComponent(d)) out.push(['tag', 'Component', ownComponent(d)]);
+    if (d.name) out.push(['name', 'What it says', d.name]);
+    if (d.record) out.push(['id', 'Record Id', d.record.id]);
     return out;
   }
   function showInfo(el, x, y) {
     const d = Q.describe(el);
+    const click = [...Q.ancestors(el)].find((a) => a.matches?.(CLICKS));
+    const typable = [...Q.ancestors(el)].find((a) => a.matches?.('input, textarea'));
+    const kind = kindOf(el, d, click, typable);
+    const suggested = state.pinned ? stepsFor(el, d) : [];
+    const copies = copiesFor(d);
     if (!d.fieldApi && d.field && d.record)
       void apiName(d.record.object, d.field).then((api) => {
-        if (api && (state.pinned === el || state.hover === el)) {
-          const row = tip.querySelector('[data-field]');
-          if (row) row.innerHTML = `<code>${esc(d.record.object)}.${esc(api)}</code> · ${esc(d.field)}`;
-          // Found by the label: copy it like a named one; steps added from here know it too
-          const full = `${d.record.object}.${api}`;
-          for (const x of suggested) if (x.step.field === d.field) x.step.api = full;
-          const copy = tip.querySelector('[data-copy="tag"]');
-          // Only this button: the panel may have been drawn again since (pinned), with its own buttons
-          if (copy && !tip.querySelector('[data-copy="field"]')) {
-            const b = document.createElement('button');
-            b.textContent = 'Copy field';
-            b.setAttribute('data-copy', 'field');
-            b.onclick = () => {
-              navigator.clipboard.writeText(full);
-              b.textContent = 'Copied';
-            };
-            copy.before(b);
-          }
+        if (!api || (state.pinned !== el && state.hover !== el)) return;
+        const full = `${d.record.object}.${api}`;
+        const row = tip.querySelector('[data-field]');
+        if (row) row.innerHTML = `<code>${esc(full)}</code>`;
+        // Found by the label: steps added from here know it too, and it can be copied
+        for (const s of suggested) if (s.step?.field === d.field) s.step.api = full;
+        const list = tip.querySelector('.copies');
+        if (list && !list.querySelector('[data-copy="field"]')) {
+          const b = document.createElement('button');
+          b.textContent = 'Field API name';
+          b.title = full;
+          b.setAttribute('data-copy', 'field');
+          b.onclick = () => {
+            navigator.clipboard.writeText(full);
+            b.textContent = 'Copied ✓';
+          };
+          list.querySelector('.k').after(b);
         }
       });
-    const suggested = state.pinned ? stepsFor(el, d) : [];
     const rows = [];
-    if (d.custom) rows.push(['Yours', `<code>${esc(d.custom.tag)}</code><br><code>${esc(d.custom.path)}</code>`]);
-    if (d.packaged) rows.push(['Package', `<code>${esc(d.packaged)}</code>`]);
-    if (d.fieldApi) rows.push(['Field', `<code>${esc(d.fieldApi)}</code>`]);
-    else if (d.field) rows.push(['Field', `<span data-field>${esc(d.field)}</span>`]);
-    if (d.name) rows.push(['Says', esc(d.name)]);
-    if (d.aura) rows.push(['Aura', `<code>${esc(d.aura)}</code>`]);
-    rows.push(['Built from', `<code>${esc(d.components.slice(0, 4).map(short).join(' › ') || d.tag)}</code>`]);
-    if (d.record) rows.push(['Record', `${esc(d.record.object)} <code>${esc(d.record.id)}</code>`]);
+    if (d.field)
+      rows.push(['Field', d.fieldApi ? `<code>${esc(d.fieldApi)}</code>` : `<span data-field>${esc(d.field)}</span>`]);
+    if (d.custom) rows.push(['Yours', `<code>${esc(d.custom.tag)}</code> · <code>${esc(d.custom.path)}</code>`]);
+    else if (d.packaged) rows.push(['Package', `<code>${esc(d.packaged)}</code>`]);
+    else if (ownComponent(d)) rows.push(['Component', `<code>${esc(ownComponent(d))}</code>`]);
+    if (d.record) rows.push(['Record', `${esc(d.record.object)} · <code>${esc(d.record.id)}</code>`]);
+    const title = d.field || d.name || line(el.innerText) || d.tag;
+    const setup = Q.inSetup();
     tip.innerHTML =
-      rows.map(([k, v]) => `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('') +
-      (state.pinned
-        ? `<div class="group"><span class="k">Copy</span>${
-            d.custom ? '<button data-copy="path">Copy path</button>' : ''
-          }${
-            d.fieldApi ? '<button data-copy="field">Copy field</button>' : ''
-          }<button data-copy="tag" title="The component's tag, e.g. c-invoice-list">Copy tag</button></div>${
-            suggested.length
-              ? `<div class="group"><span class="k">Add to a test</span>${suggested
-                  .map(
-                    (x, i) =>
-                      `<button class="step" data-${x.form ? 'form' : 'step'}="${i}" title="${esc(
-                        x.text ?? 'Type in it, then choose what it suggests (or press Enter)'
-                      )}">${esc(x.button)}</button>${
-                        x.go
-                          ? `<button class="step primary" data-go="${i}" title="Adds the step, then really clicks it">${esc(
-                              x.go
-                            )}</button>`
-                          : ''
-                      }`
-                  )
-                  .join('')}</div>`
-              : ''
-          }<div><button data-close>Close</button></div>`
-        : '<div class="k" style="margin-top:4px">Click to pin · Esc to stop</div>');
+      `<div class="th"><span class="chip">${esc(kind)}</span><b title="${esc(title)}">${esc(short(title))}</b>${
+        state.pinned ? '<button class="x" data-close title="Close (Esc)">✕</button>' : ''
+      }</div>` +
+      (rows.length
+        ? `<div class="info">${rows
+            .map(([k, v]) => `<span class="k">${k}</span><span class="v">${v}</span>`)
+            .join('')}</div>`
+        : '') +
+      (!state.pinned
+        ? '<div class="hint">Click to pin it and add it to a test · Esc to stop</div>'
+        : (setup
+            ? '<div class="note">Setup is read-only for NomadQA: tests open pages, search and check here, never change.</div>'
+            : '') +
+          `<div class="sec">Add to the test</div><div class="acts">${suggested
+            .map(
+              (s, i) =>
+                `<div class="act${s.blocked ? ' off' : ''}"><div class="t"><b>${esc(s.title)}</b><span>${esc(
+                  s.desc
+                )}</span></div><div class="b">${
+                  s.blocked
+                    ? ''
+                    : s.form
+                    ? `<button class="step" data-form="${i}">Fill in…</button>`
+                    : `<button class="step" data-step="${i}" title="${esc(s.text)}">Add</button>`
+                }${
+                  s.go
+                    ? `<button class="step primary" data-go="${i}" title="Adds the step, then really clicks it">Add and click</button>`
+                    : ''
+                }</div></div>`
+            )
+            .join('')}</div>` +
+          (copies.length
+            ? `<div class="copies"><span class="k">Copy</span>${copies
+                .map(([k, label, v]) => `<button data-copy="${k}" title="${esc(v)}">${esc(label)}</button>`)
+                .join('')}</div>`
+            : ''));
     function wire() {
       tip.querySelectorAll('[data-copy]').forEach((b) => {
         b.onclick = () => {
-          const what = b.getAttribute('data-copy');
-          navigator.clipboard.writeText(
-            what === 'path' ? d.custom.path : what === 'field' ? d.fieldApi : d.components[0] ?? d.tag
-          );
-          b.textContent = 'Copied';
+          const c = copies.find(([k]) => k === b.getAttribute('data-copy'));
+          if (c) navigator.clipboard.writeText(c[2]);
+          b.textContent = 'Copied ✓';
         };
       });
       tip.querySelectorAll('[data-step]').forEach((b) => {
         b.onclick = async () => {
-          const x = suggested[Number(b.getAttribute('data-step'))];
-          const n = await addPicked([x]);
-          b.textContent = `Added ✓ (${n} steps)`;
+          const s = suggested[Number(b.getAttribute('data-step'))];
+          const n = await addPicked([s]);
+          b.textContent = `Added ✓ (${n})`;
         };
       });
       // Search and choose: what to type and what to choose, then add it (and do it, like a person would)
       tip.querySelectorAll('[data-form]').forEach((b) => {
         b.onclick = () => {
-          const x = suggested[Number(b.getAttribute('data-form'))];
+          const s = suggested[Number(b.getAttribute('data-form'))];
+          const row = b.closest('.act');
+          if (row.nextElementSibling?.classList.contains('form')) return;
+          const where = s.box ? `“${s.box}”` : 'Salesforce search (at the top)';
           const form = document.createElement('div');
           form.className = 'form';
           form.innerHTML =
-            `<div class="k">Search and choose${x.box ? ` in “${esc(x.box)}”` : ' (Salesforce’s search)'}</div>` +
-            `<input data-s="text" placeholder="Type, e.g. Mia Brown" value="${esc(x.value)}">` +
-            `<input data-s="choose" placeholder="Then choose (empty: press Enter)">` +
-            `<div><button class="step" data-s="add">Add</button><button class="step primary" data-s="go" title="Adds the step, then does it on this page">Add and do it</button></div>` +
-            '<div class="k" data-s="msg"></div>';
-          b.closest('.group').after(form);
+            `<label>Type<input data-s="text" placeholder="e.g. Mia" value="${esc(s.value)}"></label>` +
+            `<label>Then choose<input data-s="choose" placeholder="e.g. Mia Brown · empty: press Enter"></label>` +
+            `<div class="b"><button class="step" data-s="add">Add</button><button class="step primary" data-s="go" title="Adds the step, then does it on this page">Add and do it</button></div>` +
+            '<div class="msg" data-s="msg"></div>';
+          row.after(form);
           form.querySelector('[data-s="text"]').focus();
           const stepOf = () => {
             const text = form.querySelector('[data-s="text"]').value.trim();
             const choose = form.querySelector('[data-s="choose"]').value.trim();
-            const step = { action: 'search', text, ...(x.box ? { box: x.box } : {}), ...(choose ? { choose } : {}) };
-            const where = x.box ? `“${x.box}”` : 'Search';
+            const step = { action: 'search', text, ...(s.box ? { box: s.box } : {}), ...(choose ? { choose } : {}) };
             return {
               step,
               text: choose
@@ -639,18 +739,19 @@
             const r = await Q.run(it.step);
             if (!r.ok) alert(`NomadQA: the step was added, but on this page it did not work: ${r.message}`);
           };
+          placeTip(el, x, y);
         };
       });
       // Add the click and really do it: the page moves on (a related record, a tab…) and picking goes on there
       tip.querySelectorAll('[data-go]').forEach((b) => {
         b.onclick = async () => {
-          const x = suggested[Number(b.getAttribute('data-go'))];
-          await addPicked([x], { done: true });
+          const s = suggested[Number(b.getAttribute('data-go'))];
+          await addPicked([s], { done: true });
           state.pinned = null;
           tip.style.display = 'none';
           outline(null);
           state.passNext = true;
-          x.target.click();
+          s.target.click();
         };
       });
     }
@@ -658,6 +759,7 @@
     tip.querySelector('[data-close]')?.addEventListener('click', () => {
       state.pinned = null;
       tip.style.display = 'none';
+      outline(null);
     });
     tip.style.display = 'block';
     placeTip(el, x, y);
@@ -667,7 +769,7 @@
     const m = 10;
     const w = tip.offsetWidth;
     const ht = tip.offsetHeight;
-    const r = el.getBoundingClientRect();
+    const r = Q.screenRect(el);
     const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
     let left = clamp(x + 14, m, innerWidth - w - m);
     let top;
@@ -700,8 +802,15 @@
     }
     state.hover = el;
     outline(el);
-    showInfo(el, e.clientX, e.clientY);
+    const [x, y] = tabPoint(el, e);
+    showInfo(el, x, y);
   };
+  /** An event's place on the whole tab (an event in Setup's frame is relative to the frame). */
+  function tabPoint(el, e) {
+    const r = el.getBoundingClientRect();
+    const R = Q.screenRect(el);
+    return [e.clientX + (R.x - r.x), e.clientY + (R.y - r.y)];
+  }
 
   // ---------- recorder ----------
   const OPTION = '[role="option"], lightning-base-combobox-item, search_dialog-instant-result-item';
@@ -776,7 +885,8 @@
       e.stopPropagation();
       state.pinned = el;
       outline(el);
-      showInfo(el, e.clientX, e.clientY);
+      const [x, y] = tabPoint(el, e);
+      showInfo(el, x, y);
       return;
     }
     if (state.checking) {
@@ -803,7 +913,14 @@
       // A suggestion of a box that is not a field (Salesforce's search, a search bar): search and choose
       const typed = state.typing;
       if (value && typed?.text && Date.now() - typed.at < 60000) {
-        addSearch({ action: 'search', text: typed.text, ...(typed.box ? { box: typed.box } : {}), choose: value });
+        // "Search: 00001037" (search for what was typed) is the same as pressing Enter
+        const enter = /^search\b[^:]*:/i.test(value) || /^show (more|all) results/i.test(value);
+        addSearch({
+          action: 'search',
+          text: typed.text,
+          ...(typed.box ? { box: typed.box } : {}),
+          ...(enter ? {} : { choose: value }),
+        });
         state.typing = null;
         return;
       }
@@ -879,32 +996,94 @@
     bar.querySelector('.check').classList.toggle('on', state.checking);
   });
   bar.querySelector('.stop').addEventListener('click', () => setMode('off'));
-  document.addEventListener(
-    'mousemove',
-    (e) => {
-      if (state.mode === 'inspect' || debugging()) return onMove(e);
-      if (state.checking) {
-        const el = e.composedPath?.()[0] ?? e.target;
-        if (el?.tagName && !ours(el)) outline(el);
-      }
-    },
-    true
-  );
-  document.addEventListener('click', onClick, true);
-  document.addEventListener('change', onChange, true);
-  document.addEventListener('input', onInput, true);
-  document.addEventListener('keydown', onKey, true);
-  document.addEventListener(
-    'keydown',
-    (e) => {
-      if (e.key !== 'Escape' || (state.mode !== 'inspect' && !debugging())) return;
-      if (state.pinned) {
-        state.pinned = null;
-        tip.style.display = 'none';
-      } else if (!debugging()) setMode('off');
-    },
-    true
-  );
+  // The recording bar moves out of the way: to the other side, or dragged anywhere
+  const barAt = { side: 'right', at: null };
+  function placeBar() {
+    if (barAt.at)
+      Object.assign(bar.style, {
+        left: `${Math.max(0, Math.min(barAt.at.left, innerWidth - 120))}px`,
+        top: `${Math.max(0, Math.min(barAt.at.top, innerHeight - 40))}px`,
+        right: 'auto',
+        bottom: 'auto',
+      });
+    else
+      Object.assign(
+        bar.style,
+        barAt.side === 'left'
+          ? { left: '18px', right: 'auto', top: 'auto', bottom: '18px' }
+          : { left: 'auto', right: '18px', top: 'auto', bottom: '18px' }
+      );
+  }
+  const keepBar = () => void chrome.storage.local.set({ 'nomadqa.barAt': { ...barAt } }).catch(() => {});
+  void chrome.storage.local
+    .get('nomadqa.barAt')
+    .then((r) => {
+      Object.assign(barAt, r['nomadqa.barAt'] ?? {});
+      placeBar();
+    })
+    .catch(() => {});
+  bar.querySelector('.side').addEventListener('click', () => {
+    barAt.side = barAt.at ? barAt.side : barAt.side === 'left' ? 'right' : 'left';
+    barAt.at = null;
+    placeBar();
+    keepBar();
+  });
+  bar.addEventListener('pointerdown', (e) => {
+    if (e.composedPath().some((x) => x.tagName === 'BUTTON')) return;
+    e.preventDefault();
+    const r = bar.getBoundingClientRect();
+    const dx = e.clientX - r.left;
+    const dy = e.clientY - r.top;
+    const move = (ev) => {
+      barAt.at = { left: ev.clientX - dx, top: ev.clientY - dy };
+      placeBar();
+    };
+    const up = () => {
+      removeEventListener('pointermove', move, true);
+      removeEventListener('pointerup', up, true);
+      keepBar();
+    };
+    addEventListener('pointermove', move, true);
+    addEventListener('pointerup', up, true);
+  });
+  /** The Inspector and the Recorder listen on the page, and on the org's own frames (Setup draws its pages in one). */
+  const hooked = new WeakSet();
+  function hook(doc) {
+    if (hooked.has(doc)) return;
+    hooked.add(doc);
+    doc.addEventListener(
+      'mousemove',
+      (e) => {
+        if (state.mode === 'inspect' || debugging()) return onMove(e);
+        if (state.checking) {
+          const el = e.composedPath?.()[0] ?? e.target;
+          if (el?.tagName && !ours(el)) outline(el);
+        }
+      },
+      true
+    );
+    doc.addEventListener('click', onClick, true);
+    doc.addEventListener('change', onChange, true);
+    doc.addEventListener('input', onInput, true);
+    doc.addEventListener('keydown', onKey, true);
+    doc.addEventListener(
+      'keydown',
+      (e) => {
+        if (e.key !== 'Escape' || (state.mode !== 'inspect' && !debugging())) return;
+        if (state.pinned) {
+          state.pinned = null;
+          tip.style.display = 'none';
+        } else if (!debugging()) setMode('off');
+      },
+      true
+    );
+  }
+  hook(document);
+  // A frame's page is new after every load in it: hooked again
+  setInterval(() => {
+    if (state.mode === 'off') return;
+    for (const d of Q.frameDocs()) hook(d);
+  }, 700);
 
   function setMode(mode, opts = {}) {
     state.mode = mode;

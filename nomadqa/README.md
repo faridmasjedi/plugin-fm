@@ -43,15 +43,21 @@ headless Chrome alike.
   or remove them, **+ Find a record** (by name or a condition: adds “find it” and “open it” and opens it now), and
   **Open in Tests** to make the test. **Search and choose…** on a search bar, a list's search or a lookup (or
   Salesforce's search button): what to type and what to choose, added — and done on the page with **Add and do it**.
-  The panel opens next to what you point at, never over it; the list moves to the other side (⇆) or wherever you
-  drag it by its title. The Inspector page lists every org you are logged in to with its open tabs;
+  The panel says what the thing is (a field, a button, Salesforce search…) and what each step does in the test; it
+  copies only what helps (a field's API name, your component and its folder, what it says, a record Id). It opens
+  next to what you point at, never over it; the list (and the Recorder's bar) moves to the other side (⇆) or
+  wherever you drag it.
+- **Setup**: its pages (profiles, permission sets, users…) work like any other — the Inspector, the Recorder and
+  the steps reach into the frame Setup draws them in. Setup is **read-only** for NomadQA: steps open pages, search
+  and check there; a click on Save, Edit, Delete, New… or a tick is refused with a clear message. The Inspector page lists every org you are logged in to with its open tabs;
   **Open and inspect** for an org without one.
 - **Recorder**: do it once in Salesforce; clicks, typing, list choices, lookups and searches (typed, then a
   suggestion chosen or Enter) become steps. **+ Check** on the
   page's bar, then a message or a value, adds a check. Passwords are never recorded.
 - **Tests**: edit steps, run them in a tab of the org, see each step pass or fail; download the test file.
-  Steps: open, click, fill, pick, lookup, check, wait, press; **search** (type in Salesforce's search, a list's
-  search, a lookup or any box, then choose a suggestion — or press Enter); **expect** — text, a message, a field, the title, the
+  Steps: open, click, fill, pick, lookup, check, wait, press; **search** (type in Salesforce's search at the top, a
+  list's search, a lookup or any box, then choose a suggestion — or press Enter; what is not suggested, like a case
+  number, is found on the results page); **expect** — text, a message, a field, the title, the
   address, text NOT shown, a button or link shown / NOT shown (permissions) — compared by contains, is, is not,
   starts with, is empty, is filled in, more than, less than, or matches (a pattern); **remember** a field's value as
   `{{name}}` for later steps; **query** (a read-only SOQL that must find the right number of rows; **save** the first
