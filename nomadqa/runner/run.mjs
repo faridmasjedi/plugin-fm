@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 // NomadQA headless runner: runs NomadQA test files in Chrome, with nothing to install (Node 22+, Chrome).
 //
-//   node nomadqa/runner/run.mjs my-test.nomadqa.json [more.json] --org uat [--headed] [--out reports]
+//   node nomadqa/runner/run.mjs my-test.nomadqa.json [more.json | a-group.nomadqa-group.json | a.junit.xml]
+//        --org uat [--logins logins.json] [--headed] [--out reports]
+//
+// "Log in" steps take their username and password from --logins (or NOMADQA_LOGINS, the same JSON):
+//   { "sales-user": { "url": "https://test.salesforce.com", "username": "…", "password": "…" } }
 //
 // Login: --org <alias> asks the Salesforce CLI for a one-time login link (sf org open --url-only); or give that link
 // yourself with --login-url or NOMADQA_LOGIN_URL (CI). The session stays in the browser and in memory: nothing is
@@ -12,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Salesforce } from '../extension/core/salesforce.js';
-import { runTest, stepText, junit } from '../extension/core/steps.js';
+import { runTest, stepText, junit, groupJunit, testsFromFile } from '../extension/core/steps.js';
 
 const ENGINE = readFileSync(fileURLToPath(new URL('../extension/core/engine.js', import.meta.url)), 'utf8');
 
@@ -23,6 +27,7 @@ function args(argv) {
     if (a === '--org') out.org = argv[++i];
     else if (a === '--login-url') out.loginUrl = argv[++i];
     else if (a === '--out') out.out = argv[++i];
+    else if (a === '--logins') out.logins = argv[++i];
     else if (a === '--chrome') out.chrome = argv[++i];
     else if (a === '--headed') out.headed = true;
     else if (a === '--help' || a === '-h') out.help = true;
@@ -163,7 +168,31 @@ async function launch(opts) {
       await loaded;
       await inPage('__nomadqa.ready(90000)');
     },
-    step: (s) => inPage(`__nomadqa.run(${JSON.stringify(s)})`),
+    // The login form makes the page go away: it runs once, never again on the next page
+    step: (s) =>
+      s.action === 'login-form'
+        ? inPage(`__nomadqa.run(${JSON.stringify(s)})`, 0).catch(() => undefined)
+        : inPage(`__nomadqa.run(${JSON.stringify(s)})`),
+    async load(url) {
+      const loaded = cdp.once('Page.loadEventFired', sessionId, 90000);
+      await cdp.send('Page.navigate', { url }, sessionId);
+      await loaded;
+    },
+    url: () => inPage('location.href'),
+    // After the login form is sent: the redirects end on Lightning (or stay on a login or verification page)
+    async settle(timeout = 90000) {
+      const end = Date.now() + timeout;
+      let still = 0;
+      let last = '';
+      while (Date.now() < end) {
+        await sleep(700);
+        const now = await inPage('location.href', 2).catch(() => '');
+        if (/\/lightning\//.test(now)) return void (await inPage('__nomadqa.ready(60000)'));
+        still = now && now === last ? still + 1 : 0;
+        last = now;
+        if (still > 12) return;
+      }
+    },
     async shot() {
       const r = await cdp.send('Page.captureScreenshot', { format: 'png' }, sessionId);
       return `data:image/png;base64,${r.data}`;
@@ -195,7 +224,9 @@ async function launch(opts) {
 async function main() {
   const opts = args(process.argv.slice(2));
   if (opts.help || !opts.files.length) {
-    console.log('Usage: node nomadqa/runner/run.mjs <test.nomadqa.json…> --org <alias> [--headed] [--out <folder>]');
+    console.log(
+      'Usage: node nomadqa/runner/run.mjs <test.nomadqa.json | group.json | report.junit.xml…> --org <alias> [--logins logins.json] [--headed] [--out <folder>]'
+    );
     process.exit(opts.help ? 0 : 2);
   }
   const loginUrl =
@@ -207,7 +238,19 @@ async function main() {
       : undefined);
   if (!loginUrl) throw new Error('Give --org <alias> (Salesforce CLI) or --login-url.');
   const host = new URL(loginUrl).host;
-  const tests = opts.files.map((f) => ({ file: f, test: JSON.parse(readFileSync(f, 'utf8')) }));
+  // A test, a group of tests, or a JUnit report NomadQA wrote: every test in it
+  const tests = opts.files.flatMap((f) => {
+    const text = readFileSync(f, 'utf8');
+    const list = testsFromFile(text);
+    const group = /^\s*\{/.test(text) && JSON.parse(text).nomadqa === 'group' ? JSON.parse(text).name : '';
+    return list.map((test, i) => ({
+      file: list.length > 1 ? `${f.replace(/\.(json|xml)$/, '')}-${i + 1}.json` : f,
+      test,
+      group,
+    }));
+  });
+  const logins = JSON.parse(opts.logins ? readFileSync(opts.logins, 'utf8') : process.env.NOMADQA_LOGINS ?? '{}');
+  const groups = new Map();
   mkdirSync(opts.out, { recursive: true });
   const browser = await launch(opts);
   let failedTests = 0;
@@ -217,12 +260,12 @@ async function main() {
     const sid = await browser.session(host);
     if (!sid) throw new Error('Logged in, but no session was found for the API.');
     const sf = new Salesforce(host, sid);
-    for (const { file, test } of tests) {
-      if (test.nomadqa !== 'test' || !Array.isArray(test.steps)) throw new Error(`${file} is not a NomadQA test.`);
+    for (const { file, test, group } of tests) {
       console.log(`\n${test.name ?? basename(file)}`);
       const run = await runTest(test, {
         driver: browser.driver,
         sf,
+        logins,
         onStep: (i, r) => {
           const mark = r.ok ? '✓' : r.ok === null ? '·' : '✕';
           console.log(`  ${mark} ${i + 1}. ${stepText(test.steps[i])}${r.ok === false ? `\n      ${r.message}` : ''}`);
@@ -240,7 +283,14 @@ async function main() {
         }`
       );
       if (!run.ok) failedTests++;
+      if (group) groups.set(group, [...(groups.get(group) ?? []), { test, run }]);
     }
+    // One report for each group as well
+    for (const [name, list] of groups)
+      writeFileSync(
+        join(opts.out, `${name.replace(/[^\w-]+/g, '-').toLowerCase()}.group.junit.xml`),
+        groupJunit(name, list)
+      );
   } finally {
     await browser.close();
   }

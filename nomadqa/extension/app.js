@@ -2029,46 +2029,49 @@ function recipesView() {
       render();
     },
   });
-  const card = (r, ready = false) =>
+  // One row per recipe, its buttons on the right — as Batches and Tests show theirs
+  const item = (r, ready = false) =>
     h(
       'div',
-      { class: `recipe${ready ? ' ready' : ''}` },
-      h('b', {}, r.name),
-      h('span', { class: 'muted small' }, r.nodes.map((n) => `${n.object} ${n.count}`).join(' › ')),
+      { class: 'list-row' },
       h(
         'div',
-        { class: 'row', style: 'margin-top: 6px' },
-        h('button', { class: 'primary', disabled: !S.sf, onclick: () => void openRecipe(r) }, 'Open'),
-        ready
-          ? null
-          : h(
-              'button',
-              {
-                onclick: () =>
-                  download(
-                    `${r.name.replace(/[^\w-]+/g, '-')}.nomadqa.json`,
-                    JSON.stringify(r, null, 2),
-                    'application/json'
-                  ),
-              },
-              'Download'
-            ),
-        ready
-          ? null
-          : h(
-              'button',
-              {
-                class: 'icon',
-                'aria-label': `Delete ${r.name}`,
-                onclick: async () => (
-                  (S.recipes = S.recipes.filter((x) => x !== r)),
-                  await store.set('nomadqa.recipes', S.recipes),
-                  render()
+        { class: 'grow' },
+        h('b', {}, r.name),
+        h('div', { class: 'muted small' }, r.nodes.map((n) => `${n.object} ${n.count}`).join(' › '))
+      ),
+      h(
+        'button',
+        { disabled: !S.sf, title: `Open it as the plan in ${label()}`, onclick: () => void openRecipe(r) },
+        'Open'
+      ),
+      ready
+        ? null
+        : h(
+            'button',
+            {
+              onclick: () =>
+                download(
+                  `${r.name.replace(/[^\w-]+/g, '-')}.nomadqa.json`,
+                  JSON.stringify(r, null, 2),
+                  'application/json'
                 ),
-              },
-              '✕'
-            )
-      )
+            },
+            'Download'
+          ),
+      ready
+        ? null
+        : h(
+            'button',
+            {
+              class: 'icon',
+              'aria-label': `Delete ${r.name}`,
+              onclick: async () => (
+                (S.recipes = S.recipes.filter((x) => x !== r)), await store.set('nomadqa.recipes', S.recipes), render()
+              ),
+            },
+            '✕'
+          )
     );
   return [
     h(
@@ -2079,23 +2082,20 @@ function recipesView() {
         'span',
         { class: 'muted' },
         'Plans you keep, to make the same kind of data again — in any org with these objects'
-      )
+      ),
+      h('span', { class: 'grow' }),
+      h('label', { class: 'btn' }, 'Upload a recipe…', h('span', { style: 'display: none' }, upload))
     ),
     noticeEl(),
     h(
       'section',
       { class: 'card' },
-      h(
-        'div',
-        { class: 'row' },
-        h('h2', { class: 'grow' }, 'Yours'),
-        h('label', { class: 'btn' }, 'Upload a recipe…', h('span', { style: 'display: none' }, upload))
-      ),
+      h('h2', {}, 'Yours'),
       S.recipes.length
         ? h(
             'div',
-            { class: 'recipes' },
-            S.recipes.map((r) => card(r))
+            { class: 'list' },
+            S.recipes.map((r) => item(r))
           )
         : h('p', { class: 'muted' }, 'None yet: “Save as recipe” on Test data keeps one here.')
     ),
@@ -2105,16 +2105,19 @@ function recipesView() {
       h('h2', {}, 'Ready-made'),
       h(
         'div',
-        { class: 'recipes' },
-        READY.map((r) => card(r, true))
+        { class: 'list' },
+        READY.map((r) => item(r, true))
       )
     ),
   ];
 }
 
+let shown = '';
 function render() {
   const root = document.getElementById('app');
-  const y = window.scrollY;
+  // The same screen keeps its place; another one starts at the top
+  const y = shown === S.view ? window.scrollY : 0;
+  shown = S.view;
   const view =
     S.view === 'preview' && S.preview
       ? previewView()
@@ -2127,11 +2130,48 @@ function render() {
       : TESTING.views[S.view]
       ? TESTING.views[S.view]()
       : planView();
+  // Every screen has its Refresh, at the same place: the right of its title
+  const head = [view].flat().find((x) => x?.classList?.contains('head'));
+  if (head)
+    head.append(
+      h(
+        'button',
+        {
+          class: 'refresh',
+          disabled: Boolean(S.busy),
+          title: 'Read the org and what NomadQA keeps in this browser again',
+          onclick: () => void refresh(),
+        },
+        '↻ Refresh'
+      )
+    );
   root.replaceChildren(top(), h('div', { class: 'layout' }, side(), h('main', {}, view)));
   window.scrollTo(0, y);
 }
 
 const TESTING = testingViews({ S, render, run, setNotice, label, store, noticeEl });
+
+/** Refresh, on every screen: the orgs this browser is logged in to, this org (a new session, its objects and fields
+ * read again — changes made in Setup show), and what NomadQA keeps (batches, recipes, tests, runs). The plan and its
+ * preview stay. */
+async function refresh() {
+  await run('Refreshing…', async () => {
+    S.batches = await store.get('nomadqa.batches', []);
+    S.recipes = await store.get('nomadqa.recipes', []);
+    await TESTING.reload();
+    S.orgs = await browserOrgs();
+    if (!S.host) return;
+    S.sf = new Salesforce(S.host, await sessionFor(S.host));
+    S.facts = await S.sf.facts();
+    S.objects = await S.sf.objects();
+    const objects = Object.keys(S.describes);
+    S.describes = {};
+    S.picklists = {};
+    S.lookups = {};
+    for (const o of objects) await ensure(o).catch(() => {});
+    S.orgError = '';
+  });
+}
 
 async function start() {
   mountLog();

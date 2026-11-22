@@ -53,7 +53,21 @@ headless Chrome alike.
   row as `{{found}}` / `{{found.Name}}` to open it or use its values); **data** (records from a Test data recipe —
   `{{a-1}}`, `{{a-1.Name}}`; deleted after the test); **screenshot**. Any step can be **optional**: reported, but
   the test goes on. A click that opens another page waits for it.
-- **Runs**: every run with its steps, and a JUnit file.
+  More checks: **how many** buttons (the record's own actions), tabs, fields, sections, related lists or rows — on
+  the page or in one part of it ("Check there are 2 buttons"); **where a field is** (its section, row and column:
+  column 1 is the left); the **record type**; the **page layout** of who is logged in. A field can be given by its
+  label or its API name (`Title`, `Contact.Title`, `MobilePhone`).
+  **Log in** (the login page; the username and password come from Settings › Logins, never from the test file) and
+  **Log in as a user** (Salesforce's Login-As, for an admin; it needs “Administrators Can Log in as Any User”) —
+  test what another user sees; at the end you are yourself again.
+  **Groups**: give tests a group (Smoke, Regression…), then **Run all** — one tab, one JUnit report for the group.
+  **Step by step on the page** (or **Fix it on the page** after a failed run: the steps before it run first): the
+  test's steps show on the Salesforce page; ▶ runs one, ▶▶ to the end, click a step to go to it, change, move or
+  remove steps, point at the page to add one before the current step, then **Save to the test**.
+  **Just click** in the list on the page lets the page work as usual (menus, tabs) without picking.
+- **Runs**: every run with its steps; download the **test** as it ran, its **JUnit** report, or one for the whole
+  group. A JUnit report NomadQA wrote carries its steps: **Upload** it in Tests to run it again.
+- **Refresh** on every screen reads the org and what NomadQA keeps again.
 - **Agent**: say what to test; your own AI (Settings) writes the steps, NomadQA checks every step, you review and run.
   Only your sentence and the org's object names are sent to the AI.
 - **Automation switch** (Test data): the org's own bypass — a hierarchy custom setting or a custom permission named
@@ -68,7 +82,9 @@ node nomadqa/runner/run.mjs nomadqa/examples/new-contact.nomadqa.json --org my-s
 
 Node 22 and Chrome; nothing to install. `--org` asks the Salesforce CLI for a one-time login link (or give one with
 `--login-url` / `NOMADQA_LOGIN_URL`). Writes a JUnit report and a screenshot of a failed step; exits 1 when a test
-fails. `--headed` shows the browser.
+fails. `--headed` shows the browser. It takes test files, group files and NomadQA's JUnit reports. **Log in** steps
+take their usernames and passwords from `--logins logins.json` (or `NOMADQA_LOGINS`, the same JSON):
+`{ "sales-user": { "url": "https://test.salesforce.com", "username": "…", "password": "…" } }`.
 
 ## Try it
 

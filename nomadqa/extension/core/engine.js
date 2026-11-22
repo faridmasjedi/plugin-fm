@@ -3,7 +3,7 @@
 // evaluates the same file through Chrome's DevTools protocol. In the isolated world Lightning's components are plain
 // DOM; the few real shadow roots are walked too.
 (() => {
-  if (globalThis.__nomadqa?.version === 1) return;
+  if (globalThis.__nomadqa?.version === 2) return;
 
   const norm = (s) =>
     String(s ?? '')
@@ -143,7 +143,7 @@
       }
       await sleep(200);
     }
-    throw new Error(`Not found within ${Math.round(timeout / 1000)} s: ${what}`);
+    throw new Error(`Not found within ${Math.round(timeout / 1000)} s: ${typeof what === 'function' ? what() : what}`);
   }
   const busy = () => {
     const dialog = topDialog();
@@ -152,7 +152,17 @@
     );
   };
 
+  // While a step clicks, NomadQA's own page script (Inspector, going through a test) lets the click through
   function press(el) {
+    const api = globalThis.__nomadqa;
+    if (api) api.pressing = true;
+    try {
+      pressNow(el);
+    } finally {
+      if (api) api.pressing = false;
+    }
+  }
+  function pressNow(el) {
     el.scrollIntoView?.({ block: 'center', inline: 'center' });
     const r = el.getBoundingClientRect();
     const at = {
@@ -302,6 +312,101 @@
     }
   }
 
+  // ---------- what a user sees: how many, and where ----------
+
+  const COUNTS = {
+    // The record's own action buttons (not "Show more actions"); in a part of the page, its buttons
+    // (a related list's own "New" counts only when that list is asked for)
+    buttons: (scope) => {
+      const ribbon = 'runtime_platform_actions-actions-ribbon li button, runtime_platform_actions-actions-ribbon li a';
+      const top = deepAll(`records-highlights2 ${ribbon.replace(', ', ', records-highlights2 ')}`).filter(visible);
+      return (
+        scope
+          ? deepAll('button, a.slds-button, [role="button"]').filter((b) => inScope(b, scope))
+          : top.length
+          ? top
+          : deepAll(ribbon)
+      ).filter((b) => visible(b) && !/^show (more|all) actions$/i.test(nameOf(b)) && nameOf(b));
+    },
+    tabs: (scope) => deepAll('[role="tab"]').filter((t) => visible(t) && inScope(t, scope)),
+    fields: (scope) =>
+      deepAll('records-record-layout-item, force-record-layout-item').filter(
+        (f) => visible(f) && inScope(f, scope) && (f.getAttribute('field-label') ?? f.innerText.trim()) !== ''
+      ),
+    sections: (scope) =>
+      deepAll('records-record-layout-section, force-record-layout-section').filter(
+        (x) => visible(x) && inScope(x, scope)
+      ),
+    'related lists': (scope) =>
+      deepAll('lst-related-list-single-container, force-related-list-single-container').filter(
+        (x) => visible(x) && inScope(x, scope)
+      ),
+    rows: (scope) =>
+      deepAll('tbody tr, [role="row"]').filter(
+        (r) => visible(r) && inScope(r, scope) && !r.querySelector('th[scope="col"], [role="columnheader"]')
+      ),
+  };
+
+  /** How many of `what` the page (or a part of it, by its title) shows. */
+  function count(what, within) {
+    const scope = within ? findRegion(within) : null;
+    if (within && !scope) return null;
+    const list = (COUNTS[what] ?? COUNTS.buttons)(scope);
+    // The same element seen twice (a light-DOM copy inside a shadow host) counts once
+    return { n: new Set(list).size, names: list.map((x) => nameOf(x).slice(0, 40)).slice(0, 12) };
+  }
+
+  const sectionTitle = (sec) => {
+    const head =
+      sec.querySelector('.test-id__section-header-title, .slds-section__title, h3') ??
+      sec.previousElementSibling?.querySelector?.('.slds-section__title, h3');
+    return head ? head.innerText.replace(/\s+/g, ' ').trim() : '';
+  };
+
+  /** Where a field is on the record's layout: its section (title and number), row and column (from 1). */
+  function placeOf(label) {
+    const want = norm(label);
+    const items = deepAll('records-record-layout-item').filter(
+      (i) => visible(i) && norm(i.getAttribute('field-label') ?? '') === want
+    );
+    const item = items[0];
+    if (!item) return null;
+    const row = [...ancestors(item)].find((a) => a.matches?.('records-record-layout-row'));
+    const sec = [...ancestors(item)].find((a) => a.matches?.('records-record-layout-section'));
+    const rows = sec ? [...sec.querySelectorAll('records-record-layout-row')].filter(visible) : [];
+    const sections = deepAll('records-record-layout-section').filter(visible);
+    return {
+      section: sec ? sectionTitle(sec) : '',
+      sectionNo: sections.indexOf(sec) + 1,
+      row: rows.indexOf(row) + 1,
+      col: row ? [...row.querySelectorAll('records-record-layout-item')].indexOf(item) + 1 : 0,
+    };
+  }
+  const placeText = (p) => `${p.section ? `“${p.section}”` : `section ${p.sectionNo}`}, row ${p.row}, column ${p.col}`;
+
+  // A field named as typed, or by its label (a step that gives the API name carries the label in fieldAlt)
+  /** The label a record page shows for a field, by its API name (Contact.MobilePhone → "Mobile"). */
+  function labelByApi(api) {
+    if (!api) return null;
+    for (const el of deepAll(`[data-target-selection-name="sfdc:RecordField.${api}"]`).filter(visible)) {
+      const item =
+        el.querySelector?.('records-record-layout-item, records-highlights-details-item') ??
+        [...ancestors(el)].find((a) => a.matches?.('records-record-layout-item, records-highlights-details-item'));
+      const label = item?.getAttribute('field-label') || (item && fieldLabelOf(item.querySelector('*') ?? item));
+      if (label) return label;
+    }
+    return null;
+  }
+  const either = (fn, step) =>
+    fn(step.field) ??
+    (step.fieldAlt && step.fieldAlt !== step.field ? fn(step.fieldAlt) : null) ??
+    (step.fieldApi
+      ? (() => {
+          const label = labelByApi(step.fieldApi);
+          return label ? fn(label) : null;
+        })()
+      : null);
+
   /** Runs one step; resolves { ok, message, ms }. */
   async function run(step) {
     const t0 = Date.now();
@@ -321,7 +426,7 @@
         case 'pick':
         case 'lookup':
         case 'check': {
-          const f = await until(() => findField(step.field), timeout, `the field “${step.field}”`);
+          const f = await until(() => either(findField, step), timeout, `the field “${step.field}”`);
           if (step.action === 'check' || f.kind === 'checkbox') {
             const want = step.value === true || /^(true|yes|1|on|checked)$/i.test(String(step.value));
             if (f.control.checked !== want) press(f.control);
@@ -350,17 +455,17 @@
           else if (kind === 'field')
             await until(
               () => {
-                const v = fieldValue(step.field);
+                const v = either(fieldValue, step);
                 return v !== null && compare(v, want, op) ? true : null;
               },
               timeout,
-              `${step.field} ${say} (now “${fieldValue(step.field) ?? 'not on the page'}”)`
+              () => `${step.field} ${say} (now “${either(fieldValue, step) ?? 'not on the page'}”)`
             );
           else if (kind === 'title')
             await until(
               () => (compare(document.title, want, op) ? true : null),
               timeout,
-              `the title ${say} (now “${document.title}”)`
+              () => `the title ${say} (now “${document.title}”)`
             );
           else if (kind === 'url')
             await until(() => (compare(location.href, want, op) ? true : null), timeout, `the address ${say}`);
@@ -368,7 +473,40 @@
             await until(() => findClickable(want, step), timeout, `a button or link “${want}”`);
           else if (kind === 'no-button')
             await until(() => (findClickable(want, step) ? null : true), timeout, `no button or link “${want}”`);
-          else if (kind === 'no-text')
+          else if (kind === 'count')
+            await until(
+              () => {
+                const c = count(step.what ?? 'buttons', step.within);
+                return c && compare(String(c.n), want, op === 'contains' ? 'is' : op) ? true : null;
+              },
+              timeout,
+              () => {
+                const c = count(step.what ?? 'buttons', step.within);
+                return `${step.what ?? 'buttons'} ${OPS[op === 'contains' ? 'is' : op] ?? op} ${want}${
+                  step.within ? ` in “${step.within}”` : ''
+                } (now ${
+                  c ? `${c.n}${c.names.length ? `: ${c.names.join(', ')}` : ''}` : `no “${step.within}” on the page`
+                })`;
+              }
+            );
+          else if (kind === 'place') {
+            const fits = (p) =>
+              p &&
+              (!step.section ||
+                (/^\d+$/.test(String(step.section))
+                  ? p.sectionNo === Number(step.section)
+                  : norm(p.section) === norm(step.section))) &&
+              (!step.row || p.row === Number(step.row)) &&
+              (!step.col || p.col === Number(step.col));
+            await until(
+              () => (fits(either(placeOf, step)) ? true : null),
+              timeout,
+              () => {
+                const p = either(placeOf, step);
+                return `${step.field} at the place asked (now ${p ? placeText(p) : 'not on the page'})`;
+              }
+            );
+          } else if (kind === 'no-text')
             await until(
               () => (pageText().toLowerCase().includes(want.toLowerCase()) ? null : true),
               timeout,
@@ -383,8 +521,40 @@
           break;
         }
         case 'remember': {
-          const v = await until(() => fieldValue(step.field), timeout, `the field “${step.field}”`);
+          const v = await until(() => either(fieldValue, step), timeout, `the field “${step.field}”`);
           return { ok: true, value: v, message: `${step.as} = “${v}”`, ms: Date.now() - t0 };
+        }
+        case 'login-form': {
+          // The Salesforce login page: username, password, Log In (the newer page asks for an email first: its
+          // "Log In with Username" link shows the form — the caller asks again after it)
+          const found = await until(
+            () => {
+              const u = [...document.querySelectorAll('input#username, input[name="username"]')].find(visible);
+              if (u) return { u };
+              const l = [...document.querySelectorAll('a, button')].find(
+                (x) => visible(x) && /^log in with username$/i.test((x.innerText ?? '').trim())
+              );
+              return l ? { l } : null;
+            },
+            timeout,
+            'the login page'
+          );
+          if (found.l) {
+            press(found.l);
+            return { ok: true, link: true, ms: Date.now() - t0 };
+          }
+          // The password box may show a moment after the username
+          const pass = await until(
+            () => [...document.querySelectorAll('input#password, input[type="password"]')].find(visible) ?? null,
+            5000,
+            'the password box on the login page'
+          );
+          setValue(found.u, step.username ?? '');
+          setValue(pass, step.password ?? '');
+          const go = document.querySelector('#Login, input[type="submit"], button[type="submit"]');
+          if (!go) throw new Error('No “Log In” button on the page.');
+          press(go);
+          return { ok: true, typed: true, ms: Date.now() - t0 };
         }
         case 'press':
           (document.activeElement ?? document.body).dispatchEvent(
@@ -480,8 +650,10 @@
   }
 
   globalThis.__nomadqa = {
-    version: 1,
+    version: 2,
     run,
+    count,
+    placeOf,
     ready,
     compare,
     describe,

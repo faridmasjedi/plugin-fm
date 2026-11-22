@@ -1,6 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { problem, withValues, stepText, runTest, junit } from '../extension/core/steps.js';
+import {
+  problem,
+  withValues,
+  stepText,
+  runTest,
+  junit,
+  groupJunit,
+  testsFromFile,
+  stepper,
+  pageRecord,
+} from '../extension/core/steps.js';
 import { firstJson, stepsFromWords } from '../extension/core/ai.js';
 import { turnOn, turnOff } from '../extension/core/bypass.js';
 
@@ -318,4 +328,115 @@ test('runTest: find a record and use it, remember a value, optional steps, scree
   );
   assert.equal(problem({ action: 'expect', kind: 'field', field: 'Phone', op: 'filled' }), '');
   assert.match(problem({ action: 'query', soql: 'DELETE FROM Account' }), /SELECT/);
+});
+
+test('JUnit carries the test: uploaded again, it gives the same steps; a group gives every test', () => {
+  const t = {
+    id: 'x',
+    host: 'h',
+    nomadqa: 'test',
+    version: 1,
+    name: 'A & “B”',
+    steps: [{ action: 'click', label: 'Save <now>' }],
+  };
+  const run = { results: [{ ok: false, message: 'No “Save” & no luck', ms: 10 }], ms: 10 };
+  const xml = junit(t, run);
+  assert.match(xml, /<failure message="No “Save” &amp; no luck"\/>/);
+  const back = testsFromFile(xml);
+  assert.equal(back.length, 1);
+  assert.equal(back[0].name, 'A & “B”');
+  assert.deepEqual(back[0].steps, t.steps);
+  assert.equal(back[0].id, undefined);
+  const group = groupJunit('Smoke', [
+    { test: t, run },
+    { test: { ...t, name: 'Two' }, run: { results: [{ ok: true, ms: 1 }], ms: 1 } },
+  ]);
+  assert.deepEqual(
+    testsFromFile(group).map((x) => x.name),
+    ['A & “B”', 'Two']
+  );
+  assert.equal(testsFromFile(JSON.stringify({ nomadqa: 'group', name: 'G', tests: [t, t] })).length, 2);
+  assert.throws(() => testsFromFile('<testsuites><testsuite name="x"/></testsuites>'), /not written by NomadQA/);
+});
+
+test('fields by API name, new checks, logins', async () => {
+  assert.deepEqual(pageRecord('https://x.lightning.force.com/lightning/r/Contact/003AA0000012345AAA/view'), {
+    object: 'Contact',
+    id: '003AA0000012345AAA',
+  });
+  assert.deepEqual(pageRecord('https://x/lightning/o/Contact/list'), { object: 'Contact', id: '' });
+  const sent = [];
+  const opened = [];
+  const sf = {
+    host: 'x.my.salesforce.com',
+    describe: async () => ({
+      fields: [
+        { name: 'Title', label: 'Title' },
+        { name: 'Name', label: 'Full Name' },
+        { name: 'Level__c', label: 'Level' },
+        { name: 'RecordTypeId', label: 'Record Type ID' },
+      ],
+    }),
+    query: async (q) =>
+      /FROM User/.test(q)
+        ? [{ Id: '005A', Name: 'Ann Lee', Username: 'ann@x.com', ProfileId: '00eP' }]
+        : /FROM Organization/.test(q)
+        ? [{ Id: '00DO' }]
+        : /RecordType\.Name/.test(q)
+        ? [{ RecordType: { Name: 'Partner' } }]
+        : [],
+    facts: async () => ({ userId: '005ME' }),
+    rest: async () => ({ records: [] }),
+  };
+  let url = 'https://x.lightning.force.com/lightning/r/Contact/003AA0000012345AAA/view';
+  const driver = {
+    open: async (u) => opened.push(u),
+    load: async (u) => opened.push(u),
+    settle: async () => (url = 'https://x.lightning.force.com/lightning/page/home'),
+    url: async () => url,
+    step: async (s) => (sent.push(s), { ok: true }),
+    keepSession: async () => sent.push('kept'),
+    restoreSession: async () => sent.push('restored'),
+  };
+  const st = stepper(
+    { steps: [] },
+    { driver, sf, logins: { sales: { url: 'https://test.salesforce.com', username: 'ann@x.com', password: 'pw' } } }
+  );
+  // API names: Level__c is shown as Level; "Name" is tried as typed, then as its label
+  await st.run({ action: 'expect', kind: 'field', field: 'Level__c', value: 'Gold' });
+  assert.equal(sent.at(-1).fieldAlt, 'Level');
+  await st.run({ action: 'expect', kind: 'field', field: 'Contact.Name', value: 'Mia' });
+  assert.equal(sent.at(-1).field, 'Full Name');
+  assert.equal((await st.run({ action: 'expect', kind: 'recordtype', op: 'is', value: 'Partner' })).ok, true);
+  assert.match((await st.run({ action: 'expect', kind: 'recordtype', op: 'is', value: 'Other' })).message, /“Partner”/);
+  // Login-As: the su link, and back to you at the end
+  const r = await st.run({ action: 'loginas', user: 'Ann Lee' });
+  assert.equal(r.ok, true);
+  assert.match(opened.at(-2), /servlet\.su\?oid=00DO&suorgadminid=005A/);
+  // Log in with a saved login: the session is kept, the form gets the username and password
+  const l = await st.run({ action: 'login', login: 'sales' });
+  assert.equal(l.ok, true, l.message);
+  assert.match(opened.join(' '), /secur\/logout\.jsp.*test\.salesforce\.com/);
+  assert.deepEqual(
+    sent.filter((x) => x === 'kept' || x?.action === 'login-form').map((x) => x.username ?? x),
+    ['kept', 'kept', 'ann@x.com']
+  );
+  await st.finish();
+  assert.equal(sent.at(-1), 'restored');
+  assert.match((await st.run({ action: 'login', login: 'nobody' })).message, /Settings › Logins/);
+  assert.equal(
+    stepText({ action: 'expect', kind: 'count', what: 'buttons', within: 'Cases', op: 'is', value: '2' }),
+    'Check the number of buttons in “Cases” is 2'
+  );
+  assert.equal(
+    stepText({ action: 'expect', kind: 'place', field: 'Phone', section: '1', row: 1, col: 2 }),
+    'Check Phone is in section 1, row 1, column 2'
+  );
+  assert.equal(
+    stepText({ action: 'fill', field: 'Title', api: 'Contact.Title', value: 'CEO' }),
+    'Type “CEO” in Title (Contact.Title)'
+  );
+  assert.match(problem({ action: 'expect', kind: 'count', value: 'two' }), /number/);
+  assert.match(problem({ action: 'expect', kind: 'place', field: 'Phone' }), /section, a row or a column/);
+  assert.match(problem({ action: 'loginas' }), /user/);
 });

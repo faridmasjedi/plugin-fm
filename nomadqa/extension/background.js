@@ -88,21 +88,25 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   return true;
 });
 
-// Tabs where the Inspector is on: after a full page load it is turned on again there
-const inspecting = async () => (await chrome.storage.session.get('inspecting')).inspecting ?? [];
+// Tabs where the Inspector is on (or a test is gone through step by step): after a full page load it is turned on
+// again there, in the same mode
+const modes = async () => (await chrome.storage.session.get('modes')).modes ?? {};
+const setModes = (m) => chrome.storage.session.set({ modes: m });
 chrome.runtime.onMessage.addListener((msg, sender) => {
   const id = sender.tab?.id;
   if (!id) return;
   if (msg?.type === 'nomadqa:inspecting')
-    void inspecting().then((ids) =>
-      chrome.storage.session.set({ inspecting: msg.on ? [...new Set([...ids, id])] : ids.filter((x) => x !== id) })
-    );
+    void modes().then((m) => {
+      if (msg.on) m[id] = msg.mode ?? 'inspect';
+      else delete m[id];
+      return setModes(m);
+    });
   if (msg?.type === 'nomadqa:loaded')
-    void inspecting().then(async (ids) => {
-      if (!ids.includes(id)) return;
+    void modes().then(async (m) => {
+      if (!m[id]) return;
       try {
         await prepare(id);
-        await chrome.tabs.sendMessage(id, { type: 'nomadqa:mode', mode: 'inspect' });
+        await chrome.tabs.sendMessage(id, { type: 'nomadqa:mode', mode: m[id] });
       } catch {
         /* the page went elsewhere */
       }
@@ -110,7 +114,9 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 });
 chrome.tabs.onRemoved.addListener(
   (id) =>
-    void inspecting().then(
-      (ids) => ids.includes(id) && chrome.storage.session.set({ inspecting: ids.filter((x) => x !== id) })
-    )
+    void modes().then((m) => {
+      if (!m[id]) return;
+      delete m[id];
+      return setModes(m);
+    })
 );

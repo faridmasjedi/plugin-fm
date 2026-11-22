@@ -49,6 +49,14 @@
     .tray .find .r{display:flex;flex-wrap:wrap;gap:6px}.tray .msg{font-size:12px;color:#5b6475}.tray .msg.bad{color:#a3272b}
     .tray.small ol,.tray.small footer,.tray.small .find,.tray.small .empty{display:none}
     button.primary{background:#5b3fd1;border-color:#5b3fd1;color:#fff}
+    button:disabled{opacity:.45;cursor:default}
+    .tray header button.on{background:#5b3fd1;border-color:#5b3fd1;color:#fff}
+    .tray .note{padding:8px 12px;background:#fff8e6;color:#7a5200;font-size:12px;border-bottom:1px solid #f3e3b8}
+    .tray li.cur{background:#f4f1ff;border-radius:6px}
+    .tray li .txt[data-a]{cursor:pointer}.tray li .txt[data-a]:hover{text-decoration:underline}
+    .tray .mk{flex:none;width:14px;text-align:center;color:#8a93a6}.tray .mk.cur{color:#5b3fd1}.tray .mk.ok{color:#1f7a4d}.tray .mk.bad{color:#c23934}.tray .mk.warn{color:#a86b00}
+    .tray .why{margin:4px 0 0 20px;font-size:12px;color:#a3272b;word-break:break-word}
+    .tray .muted{color:#8a93a6}
     .tip button.step.primary{color:#fff}
   </style>
   <div class="box"></div><div class="tray"></div><div class="tip"></div>
@@ -91,52 +99,150 @@
     wait: 'text',
     press: 'key',
   };
-  const trayState = { list: [], editing: -1, finding: false, small: false, msg: '', msgBad: false };
+  const trayState = {
+    list: [],
+    debug: null,
+    editing: -1,
+    finding: false,
+    small: false,
+    pass: false,
+    msg: '',
+    msgBad: false,
+  };
   const readPicked = async () => (await chrome.storage.local.get('nomadqa.picked'))['nomadqa.picked'] ?? [];
   const writePicked = (list) => chrome.storage.local.set({ 'nomadqa.picked': list });
+  const readDebug = async () => (await chrome.storage.local.get('nomadqa.debug'))['nomadqa.debug'] ?? null;
   // One change at a time: two quick clicks must not both read the old list and lose a step
   let queue = Promise.resolve();
-  const addPicked = (items) =>
-    (queue = queue.then(async () => {
-      const list = await readPicked();
-      list.push(...items.map((x) => ({ step: x.step, text: x.text, page: location.pathname, at: Date.now() })));
-      await writePicked(list);
-      return list.length;
-    }));
+  const serial = (fn) => (queue = queue.then(fn, fn));
+  /** Changes the test being gone through (debug mode): fn(d) changes d in place. */
+  const changeDebug = (fn) =>
+    serial(async () => {
+      const d = await readDebug();
+      if (!d) return;
+      fn(d);
+      await chrome.storage.local.set({ 'nomadqa.debug': d });
+    });
+  const debugging = () => state.mode === 'debug';
+  // Steps added from the pinned panel: to the list being picked, or (going through a test) before the current step.
+  // done: the step was already done by hand (Add and click it), so the test goes on after it.
+  const addPicked = (items, { done = false } = {}) =>
+    debugging()
+      ? changeDebug((d) => {
+          d.items.splice(
+            d.at,
+            0,
+            ...items.map((x) => ({
+              step: x.step,
+              text: x.text,
+              result: done ? { ok: true, message: 'done by hand' } : null,
+            }))
+          );
+          if (done) d.at += items.length;
+          d.dirty = true;
+        }).then(() => trayState.debug?.items.length ?? 0)
+      : serial(async () => {
+          const list = await readPicked();
+          list.push(...items.map((x) => ({ step: x.step, text: x.text, page: location.pathname, at: Date.now() })));
+          await writePicked(list);
+          return list.length;
+        });
   chrome.storage.onChanged.addListener((ch) => {
     if (ch['nomadqa.picked']) {
       trayState.list = ch['nomadqa.picked'].newValue ?? [];
       paintTray();
     }
+    if (ch['nomadqa.debug'] && debugging()) {
+      trayState.debug = ch['nomadqa.debug'].newValue ?? null;
+      if (!trayState.debug) return void setMode('off');
+      paintTray();
+    }
   });
+  const items = () => (debugging() ? trayState.debug?.items ?? [] : trayState.list);
+  /** Picking is paused while "Just click" is on, and while a step of the test runs. */
+  const picking = () =>
+    (state.mode === 'inspect' || debugging()) && !trayState.pass && !Q.pressing && !trayState.debug?.running;
   const mainOf = (step) => MAIN[step.action] ?? (step.record ? 'record' : 'path');
+  const send = (cmd, extra = {}) =>
+    chrome.runtime.sendMessage({ type: 'nomadqa:debug', cmd, ...extra }).then(
+      (r) => r,
+      () => null
+    );
+  async function command(cmd, extra) {
+    const r = await send(cmd, extra);
+    if (!r) {
+      trayState.msg = 'NomadQA is not open: open it again from the tab you started in.';
+      trayState.msgBad = true;
+      paintTray();
+    }
+  }
   function paintTray() {
-    if (state.mode !== 'inspect') return (tray.style.display = 'none');
+    if (state.mode !== 'inspect' && !debugging()) return (tray.style.display = 'none');
     const t = trayState;
+    const d = debugging() ? t.debug : null;
+    if (debugging() && !d) return (tray.style.display = 'none');
+    const list = items();
+    const busy = Boolean(d?.running);
     tray.style.display = 'flex';
     tray.classList.toggle('small', t.small);
+    const mark = (p, i) =>
+      !d
+        ? ''
+        : `<span class="mk ${
+            i === d.at
+              ? 'cur'
+              : p.result?.ok
+              ? 'ok'
+              : p.result?.ok === false
+              ? p.result.optional
+                ? 'warn'
+                : 'bad'
+              : ''
+          }">${i === d.at ? '▶' : p.result?.ok ? '✓' : p.result?.ok === false ? '✕' : '·'}</span>`;
     const item = (p, i) =>
-      `<li><div class="line"><span class="txt">${esc(p.text)}</span><span class="acts">` +
-      `<button class="ib" data-a="edit" data-i="${i}" title="Change">✎</button>` +
-      `<button class="ib" data-a="up" data-i="${i}" title="Up" ${i ? '' : 'disabled'}>↑</button>` +
+      `<li class="${d && i === d.at ? 'cur' : ''}"><div class="line">${mark(p, i)}<span class="txt"${
+        d ? ` data-a="goto" data-i="${i}" title="Go to this step"` : ''
+      }>${esc(p.text)}</span><span class="acts">` +
+      `<button class="ib" data-a="edit" data-i="${i}" title="Change" ${busy ? 'disabled' : ''}>✎</button>` +
+      `<button class="ib" data-a="up" data-i="${i}" title="Up" ${i && !busy ? '' : 'disabled'}>↑</button>` +
       `<button class="ib" data-a="down" data-i="${i}" title="Down" ${
-        i < t.list.length - 1 ? '' : 'disabled'
+        i < list.length - 1 && !busy ? '' : 'disabled'
       }>↓</button>` +
-      `<button class="ib" data-a="del" data-i="${i}" title="Remove">✕</button></span></div>` +
+      `<button class="ib" data-a="del" data-i="${i}" title="Remove" ${busy ? 'disabled' : ''}>✕</button></span></div>` +
+      (d && p.result?.ok === false ? `<div class="why">${esc(p.result.message)}</div>` : '') +
       (t.editing === i
         ? `<div class="edit"><input data-edit value="${esc(
             p.step[mainOf(p.step)] ?? ''
           )}"><button class="primary" data-a="save" data-i="${i}">Save</button></div>`
         : '') +
       '</li>';
+    const atEnd = d && d.at >= list.length;
     tray.innerHTML =
-      `<header><span class="brand">NomadQA</span><b>Test steps</b><span class="n">${t.list.length}</span>` +
+      `<header><span class="brand">NomadQA</span><b title="${esc(d?.name ?? '')}">${
+        d ? esc(d.name.length > 26 ? `${d.name.slice(0, 25)}…` : d.name) : 'Test steps'
+      }</b><span class="n">${list.length}</span>` +
+      `<button class="${
+        t.pass ? 'on' : ''
+      }" data-a="pass" title="The page works as usual: nothing is pinned or added">Just click</button>` +
       `<button class="ib" data-a="small" title="${t.small ? 'Show' : 'Hide'} the list">${
         t.small ? '▴' : '▾'
       }</button></header>` +
-      (t.list.length
-        ? `<ol>${t.list.map(item).join('')}</ol>`
-        : '<div class="empty">Click anything on the page to pin it, then <b>Add to a test</b>. The steps show here.</div>') +
+      (t.pass
+        ? '<div class="note">Just click: the page works as usual. Switch it off to point and pick again.</div>'
+        : '') +
+      (list.length
+        ? `<ol>${list.map(item).join('')}${
+            d
+              ? `<li class="${atEnd ? 'cur' : ''} end"><div class="line">${
+                  atEnd ? '<span class="mk cur">▶</span>' : ''
+                }<span class="txt muted">The end</span></div></li>`
+              : ''
+          }</ol>`
+        : `<div class="empty">${
+            d
+              ? 'No steps: pin something on the page and add it.'
+              : 'Click anything on the page to pin it, then <b>Add to a test</b>. The steps show here.'
+          }</div>`) +
       (t.finding
         ? `<div class="find"><b>Find a record</b><div class="r"><input data-f="object" placeholder="Object, e.g. Account" style="width:130px">` +
           `<input data-f="where" placeholder="Name words, or Industry = 'Energy'" style="flex:1"></div>` +
@@ -145,8 +251,17 @@
             t.msg || 'Adds “find the record” and “open it” to the test.'
           )}</div></div>`
         : '') +
-      `<footer><button data-a="find">+ Find a record</button><button data-a="tests" class="primary">Open in Tests</button>` +
-      `<button data-a="clear">Clear</button><button data-a="off" title="Turn the Inspector off (Esc)">Stop</button></footer>`;
+      (d
+        ? `<footer><button class="primary" data-a="run1" ${busy || atEnd ? 'disabled' : ''}>▶ This step</button>` +
+          `<button data-a="runall" ${busy || atEnd ? 'disabled' : ''}>▶▶ To the end</button>` +
+          `<button data-a="find" ${busy ? 'disabled' : ''}>+ Find a record</button>` +
+          `<button data-a="keep" ${busy ? 'disabled' : ''}>${d.dirty ? 'Save to the test' : 'Saved'}</button>` +
+          `<button data-a="close" ${busy ? 'disabled' : ''}>Close</button>` +
+          `<div class="msg${t.msgBad || d.bad ? ' bad' : ''}" style="flex-basis:100%">${esc(
+            busy ? 'Running…' : t.msg || d.msg || 'New steps from the page go in before ▶. Click a step to go to it.'
+          )}</div></footer>`
+        : `<footer><button data-a="find">+ Find a record</button><button data-a="tests" class="primary">Open in Tests</button>` +
+          `<button data-a="clear">Clear</button><button data-a="off" title="Turn the Inspector off (Esc)">Stop</button></footer>`);
     tray.querySelectorAll('[data-a]').forEach((b) => {
       b.onclick = () => void trayAction(b.dataset.a, Number(b.dataset.i));
     });
@@ -171,32 +286,56 @@
       step[k] ?? ''
     }`;
   };
+  /** Writes the list: the picked steps, or the test being gone through (the current step follows its step). */
+  function writeList(list, at) {
+    if (!debugging()) return writePicked(list);
+    return changeDebug((d) => {
+      d.items = list;
+      if (at !== undefined) d.at = Math.max(0, Math.min(at, list.length));
+      d.dirty = true;
+    });
+  }
   async function trayAction(a, i) {
     const t = trayState;
-    const list = [...t.list];
+    const list = [...items()];
+    const at = t.debug?.at ?? 0;
+    t.msg = a === 'find' || a === 'find-go' || a === 'find-add' ? t.msg : '';
+    t.msgBad = false;
     if (a === 'small') t.small = !t.small;
-    else if (a === 'edit') t.editing = t.editing === i ? -1 : i;
+    else if (a === 'pass') {
+      t.pass = !t.pass;
+      state.pinned = null;
+      tip.style.display = 'none';
+      outline(null);
+    } else if (a === 'edit') t.editing = t.editing === i ? -1 : i;
     else if (a === 'save') {
       const v = tray.querySelector('[data-edit]')?.value ?? '';
       const step = { ...list[i].step, [mainOf(list[i].step)]: v };
       // The text follows the change: the old value in it is replaced by the new one
       const old = String(list[i].step[mainOf(list[i].step)] ?? '');
       const text = old && list[i].text.includes(old) ? list[i].text.replace(old, v) : sentence(step);
-      list[i] = { ...list[i], step, text };
+      list[i] = { ...list[i], step, text, result: null };
       t.editing = -1;
-      return writePicked(list);
+      return writeList(list);
     } else if (a === 'up' || a === 'down') {
       const j = a === 'up' ? i - 1 : i + 1;
       [list[i], list[j]] = [list[j], list[i]];
-      return writePicked(list);
+      return writeList(list, at === i ? j : at === j ? i : at);
     } else if (a === 'del') {
       list.splice(i, 1);
       t.editing = -1;
-      return writePicked(list);
-    } else if (a === 'clear') return writePicked([]);
+      return writeList(list, i < at ? at - 1 : at);
+    } else if (a === 'goto') return writeList(list, i);
+    else if (a === 'clear') return writePicked([]);
     else if (a === 'tests') void chrome.runtime.sendMessage({ type: 'nomadqa:open', view: 'tests' });
     else if (a === 'off') return void setMode('off');
-    else if (a === 'find') (t.finding = !t.finding), (t.msg = ''), (t.msgBad = false);
+    else if (a === 'run1') return void command('step');
+    else if (a === 'runall') return void command('all');
+    else if (a === 'keep') return void command('save');
+    else if (a === 'close') {
+      if (t.debug?.dirty && !confirm('Close without saving your changes to the test?')) return;
+      return void command('close');
+    } else if (a === 'find') (t.finding = !t.finding), (t.msg = ''), (t.msgBad = false);
     else if (a === 'find-x') t.finding = false;
     else if (a === 'find-go' || a === 'find-add') {
       const object = tray.querySelector('[data-f="object"]').value.trim();
@@ -224,7 +363,11 @@
         { step: { action: 'open', record: `{{${name}}}` }, text: `Open the ${object} found (now: ${found})` },
       ]);
       t.finding = false;
-      if (a === 'find-go') location.assign(`/lightning/r/${object}/${r.rows[0].Id}/view`);
+      // Going through a test, the test runs them (it keeps {{found}} for later steps)
+      if (a === 'find-go') {
+        if (debugging()) return void command('step', { n: 2 });
+        location.assign(`/lightning/r/${object}/${r.rows[0].Id}/view`);
+      }
       return;
     }
     paintTray();
@@ -262,14 +405,26 @@
       if (input && !input.readOnly && !input.disabled)
         out.push({
           button: 'Type into it',
-          step: { action: 'fill', field: d.field, value: input.value ?? '' },
+          step: {
+            action: 'fill',
+            field: d.field,
+            ...(d.fieldApi ? { api: d.fieldApi } : {}),
+            value: input.value ?? '',
+          },
           text: `Type “${input.value ?? ''}” in ${d.field}`,
         });
       const value = Q.fieldValue(d.field);
       if (value !== null && value !== undefined)
         out.push({
           button: 'Check its value',
-          step: { action: 'expect', kind: 'field', field: d.field, op: 'is', value },
+          step: {
+            action: 'expect',
+            kind: 'field',
+            field: d.field,
+            ...(d.fieldApi ? { api: d.fieldApi } : {}),
+            op: 'is',
+            value,
+          },
           text: `Check ${d.field} is “${value}”`,
         });
     }
@@ -304,8 +459,9 @@
         if (api && (state.pinned === el || state.hover === el)) {
           const row = tip.querySelector('[data-field]');
           if (row) row.innerHTML = `<code>${esc(d.record.object)}.${esc(api)}</code> · ${esc(d.field)}`;
-          // Found by the label: copy it like a named one
+          // Found by the label: copy it like a named one; steps added from here know it too
           const full = `${d.record.object}.${api}`;
+          for (const x of suggested) if (x.step.field === d.field) x.step.api = full;
           const copy = tip.querySelector('[data-copy="tag"]');
           // Only this button: the panel may have been drawn again since (pinned), with its own buttons
           if (copy && !tip.querySelector('[data-copy="field"]')) {
@@ -375,7 +531,7 @@
       tip.querySelectorAll('[data-go]').forEach((b) => {
         b.onclick = async () => {
           const x = suggested[Number(b.getAttribute('data-go'))];
-          await addPicked([x]);
+          await addPicked([x], { done: true });
           state.pinned = null;
           tip.style.display = 'none';
           outline(null);
@@ -395,7 +551,7 @@
     tip.style.top = `${Math.min(y + 16, innerHeight - tip.offsetHeight - 10)}px`;
   }
   const onMove = (e) => {
-    if (state.pinned || state.mode !== 'inspect') return;
+    if (state.pinned || !picking()) return;
     const el = e.composedPath?.()[0] ?? e.target;
     if (!el?.tagName || ours(el)) return;
     state.hover = el;
@@ -465,10 +621,11 @@
 
   function onClick(e) {
     if (state.passNext) return void (state.passNext = false);
-    if (state.mode !== 'record' && state.mode !== 'inspect') return;
+    if (state.mode !== 'record' && state.mode !== 'inspect' && !debugging()) return;
     const el = e.composedPath?.()[0] ?? e.target;
     if (!el?.tagName || ours(el) || e.composedPath?.().includes(host)) return;
-    if (state.mode === 'inspect') {
+    if (state.mode === 'inspect' || debugging()) {
+      if (!picking()) return; // Just click, or a step of the test is clicking
       e.preventDefault();
       e.stopPropagation();
       state.pinned = el;
@@ -541,7 +698,7 @@
   document.addEventListener(
     'mousemove',
     (e) => {
-      if (state.mode === 'inspect') return onMove(e);
+      if (state.mode === 'inspect' || debugging()) return onMove(e);
       if (state.checking) {
         const el = e.composedPath?.()[0] ?? e.target;
         if (el?.tagName && !ours(el)) outline(el);
@@ -554,11 +711,11 @@
   document.addEventListener(
     'keydown',
     (e) => {
-      if (e.key !== 'Escape' || state.mode !== 'inspect') return;
+      if (e.key !== 'Escape' || (state.mode !== 'inspect' && !debugging())) return;
       if (state.pinned) {
         state.pinned = null;
         tip.style.display = 'none';
-      } else setMode('off');
+      } else if (!debugging()) setMode('off');
     },
     true
   );
@@ -572,8 +729,12 @@
     bar.style.display = mode === 'record' ? 'flex' : 'none';
     if (mode !== 'off') mount();
     if (mode === 'inspect') void readPicked().then((l) => ((trayState.list = l), paintTray()));
+    else if (mode === 'debug') void readDebug().then((d) => ((trayState.debug = d), paintTray()));
     else tray.style.display = 'none';
-    chrome.runtime.sendMessage({ type: 'nomadqa:inspecting', on: mode === 'inspect' }).catch(() => {});
+    // The background turns it on again after a full page load (a record opened, a step that opens a page)
+    chrome.runtime
+      .sendMessage({ type: 'nomadqa:inspecting', on: mode === 'inspect' || mode === 'debug', mode })
+      .catch(() => {});
     if (mode === 'record') {
       state.steps = opts.keep ? state.steps : [{ action: 'open', path: location.pathname }];
       state.path = location.pathname + location.search;

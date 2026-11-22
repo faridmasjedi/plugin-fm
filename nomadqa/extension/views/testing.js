@@ -1,6 +1,18 @@
 // NomadQA pages for tests: Inspector, Recorder, Tests (edit and run), Runs, Agent, Settings (AI).
 import { h, select, askTyped, toast, download } from '../core/ui.js';
-import { ACTIONS, KINDS, OPS, stepText, problem, runTest, junit } from '../core/steps.js';
+import {
+  ACTIONS,
+  KINDS,
+  OPS,
+  COUNT_WHAT,
+  stepText,
+  problem,
+  runTest,
+  stepper,
+  junit,
+  groupJunit,
+  testsFromFile,
+} from '../core/steps.js';
 import { PROVIDERS, stepsFromWords } from '../core/ai.js';
 import { apiHostFor } from '../core/salesforce.js';
 
@@ -40,10 +52,23 @@ async function inTab(tabId, func, args = []) {
   }
 }
 
-async function tabDriver(host) {
-  const tab = await chrome.tabs.create({ url: `https://${host}/lightning/page/home`, active: true });
+/** The cookies of an org's own domains (My Domain, Lightning, Setup, Visualforce), to put back after a test logs in. */
+async function orgCookies(host) {
+  const stem = host.replace(/\.my\.salesforce\.com$/, '');
+  return (await chrome.cookies.getAll({})).filter((c) => {
+    const d = c.domain.replace(/^\./, '');
+    return d.startsWith(`${stem}.`) || d.startsWith(`${stem}--`);
+  });
+}
+
+/** Drives a tab of the org: a new one, or `tabId` (a tab already there). */
+async function tabDriver(host, { tabId } = {}) {
+  const tab = tabId
+    ? await chrome.tabs.get(tabId)
+    : await chrome.tabs.create({ url: `https://${host}/lightning/page/home`, active: true });
   await waitTab(tab.id);
   await inTab(tab.id, () => globalThis.__nomadqa.ready(90000));
+  let kept = null;
   return {
     tabId: tab.id,
     async open(url) {
@@ -51,7 +76,71 @@ async function tabDriver(host) {
       await waitTab(tab.id);
       await inTab(tab.id, () => globalThis.__nomadqa.ready(90000));
     },
-    step: (s) => inTab(tab.id, (st) => globalThis.__nomadqa.run(st), [s]),
+    // A page that is not Lightning (the login page): loaded, nothing more
+    async load(url) {
+      await chrome.tabs.update(tab.id, { url });
+      await waitTab(tab.id);
+    },
+    // After the login form is sent: the redirects end on Lightning (or stay on a login or verification page)
+    async settle(timeout = 90000) {
+      const end = Date.now() + timeout;
+      let still = 0;
+      while (Date.now() < end) {
+        await sleep(500);
+        const t = await chrome.tabs.get(tab.id);
+        if (t.status !== 'complete') {
+          still = 0;
+          continue;
+        }
+        if (/\/lightning\//.test(t.url ?? ''))
+          return void (await inTab(tab.id, () => globalThis.__nomadqa.ready(60000)));
+        if (++still > 16) return;
+      }
+    },
+    url: async () => (await chrome.tabs.get(tab.id)).url ?? '',
+    // The login form makes the page go away: run once, never again on the next page
+    step: (s) =>
+      s.action === 'login-form'
+        ? chrome.scripting
+            .executeScript({ target: { tabId: tab.id }, files: ['core/engine.js'] })
+            .then(() =>
+              chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: (st) => globalThis.__nomadqa.run(st),
+                args: [s],
+              })
+            )
+            .then(([r]) => r?.result)
+            .catch(() => undefined)
+        : inTab(tab.id, (st) => globalThis.__nomadqa.run(st), [s]),
+    // Logging in as someone else replaces your session in this browser: it is kept first, and put back after
+    async keepSession() {
+      if (!kept) kept = await orgCookies(host);
+    },
+    forgetSession() {
+      kept = null;
+    },
+    async restoreSession() {
+      if (!kept) return;
+      for (const c of kept) {
+        const domain = c.domain.replace(/^\./, '');
+        await chrome.cookies
+          .set({
+            url: `https://${domain}${c.path}`,
+            name: c.name,
+            value: c.value,
+            path: c.path,
+            secure: c.secure,
+            httpOnly: c.httpOnly,
+            sameSite: c.sameSite,
+            ...(c.hostOnly ? {} : { domain: c.domain }),
+            ...(c.session ? {} : { expirationDate: c.expirationDate }),
+          })
+          .catch(() => {});
+      }
+      kept = null;
+      await this.open(`https://${host}/lightning/page/home`).catch(() => {});
+    },
     // What the tab shows (the test's tab is in front while it runs)
     async shot() {
       if (!(await chrome.permissions.contains({ origins: ['<all_urls>'] }))) return undefined;
@@ -79,7 +168,14 @@ export function testingViews(ctx) {
     tabs: [],
     picked: [],
     agent: { words: '', result: null },
+    logins: [],
+    debug: null, // the test gone through step by step on a Salesforce page: { testId, tabId, st, driver }
+    groupResult: null,
   });
+  const loginsMap = () =>
+    Object.fromEntries(
+      T.logins.filter((l) => l.name).map((l) => [l.name, { url: l.url, username: l.username, password: l.password }])
+    );
 
   async function load() {
     T.tests = await store.get('nomadqa.tests', []);
@@ -87,6 +183,17 @@ export function testingViews(ctx) {
     T.ai = { ...T.ai, ...(await store.get('nomadqa.ai', {})) };
     T.recording = await store.get('nomadqa.recording', null);
     T.picked = await store.get('nomadqa.picked', []);
+    T.logins = await store.get('nomadqa.logins', []);
+    // A test gone through on the page from an earlier visit cannot go on (its steps' state was here): it is closed
+    await store.set('nomadqa.debug', null);
+    chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+      if (msg?.type !== 'nomadqa:debug' || !T.debug || sender.tab?.id !== T.debug.tabId) return;
+      void debugCommand(msg).then(
+        () => reply({ ok: true }),
+        (e) => reply({ ok: false, message: e.message })
+      );
+      return true;
+    });
     // The Inspector's list follows the browser: tabs opened, moved to another page, or closed
     let soon;
     const again = () => {
@@ -100,6 +207,12 @@ export function testingViews(ctx) {
       if (changes['nomadqa.picked']) {
         T.picked = changes['nomadqa.picked'].newValue ?? [];
         if (S.view === 'tests') render();
+      }
+      // The page changed a step's value: its sentence is written again here (the page has only a short one)
+      const d = changes['nomadqa.debug']?.newValue;
+      if (d?.items?.some((x) => x.text !== stepText(x.step))) {
+        for (const x of d.items) x.text = stepText(x.step);
+        void store.set('nomadqa.debug', d);
       }
       if (changes['nomadqa.recording']) {
         T.recording = changes['nomadqa.recording'].newValue ?? null;
@@ -128,17 +241,11 @@ export function testingViews(ctx) {
         h('span', { class: 'muted' }, 'Point at anything on a Salesforce page: what it is, and where it comes from')
       ),
       noticeEl(),
+      lastPageCard(),
       h(
-        'section',
-        { class: 'card' },
-        h('h2', {}, 'Turn it on'),
-        h(
-          'p',
-          { class: 'muted' },
-          'On any Salesforce page press ',
-          h('b', {}, 'Alt + Shift + I'),
-          ' — or pick a tab here. Hover to see, click to pin and copy, Esc to stop.'
-        ),
+        'details',
+        { class: 'card more-tabs', open: T.tabsOpen || undefined, ontoggle: (e) => (T.tabsOpen = e.target.open) },
+        h('summary', {}, h('b', {}, 'Other tabs and orgs')),
         orgTabs()
       ),
       h(
@@ -172,6 +279,44 @@ export function testingViews(ctx) {
       ),
     ];
   }
+  // The Salesforce page you were on last (where NomadQA was opened from, most of the time)
+  function lastPageCard() {
+    const last = [...T.tabs].sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
+    return h(
+      'section',
+      { class: 'card' },
+      h('h2', {}, 'Your last Salesforce page'),
+      last
+        ? h(
+            'div',
+            { class: 'org-tab last-page' },
+            h(
+              'span',
+              { class: 'grow' },
+              h('b', {}, last.title || 'Salesforce'),
+              h(
+                'span',
+                { class: 'sub' },
+                `${
+                  apiHostFor(new URL(last.url).host)?.replace(/\.my\.salesforce\.com$/, '') ?? new URL(last.url).host
+                } · ${new URL(last.url).pathname}`
+              )
+            ),
+            h('button', { class: 'primary', onclick: () => void inspect(last) }, 'Inspect it')
+          )
+        : h('p', { class: 'muted' }, 'No Salesforce page is open. Open one, or pick an org below.'),
+      h(
+        'p',
+        { class: 'muted small' },
+        'Or on any Salesforce page press ',
+        h('b', {}, 'Alt + Shift + I'),
+        '. Hover to see, click to pin and copy; ',
+        h('b', {}, 'Just click'),
+        ' in the list at the bottom left lets the page work as usual; Esc stops.'
+      )
+    );
+  }
+
   // Every org logged in to in this browser, with its open tabs (any page: an app from the App Launcher, a record,
   // Setup…); an org without a tab can be opened right here. Tabs of orgs without a session come last.
   function orgTabs() {
@@ -350,7 +495,12 @@ export function testingViews(ctx) {
     'no-text': 'Text is NOT shown',
     button: 'A button or link is shown',
     'no-button': 'A button or link is NOT shown',
+    count: 'How many (buttons, tabs, fields…)',
+    place: 'Where a field is (section, row, column)',
+    recordtype: 'The record type',
+    layout: 'The page layout (of who is logged in)',
   };
+  const FIELD_HINT = 'label or API name: Industry, Account.Industry';
   const FIELDS = {
     open: [
       // One way to open: only the one in use shows (all of them on a new step)
@@ -364,19 +514,19 @@ export function testingViews(ctx) {
       ['within', 'In (optional)', 'a section or dialog title'],
     ],
     fill: [
-      ['field', 'Field', 'Last Name'],
+      ['field', 'Field', 'Last Name or LastName'],
       ['value', 'Value', 'Smith or {{found.Name}}'],
     ],
     pick: [
-      ['field', 'Field', 'Stage'],
+      ['field', 'Field', 'Stage or StageName'],
       ['value', 'Value', 'Closed Won'],
     ],
     lookup: [
-      ['field', 'Field', 'Account Name'],
+      ['field', 'Field', 'Account Name or AccountId'],
       ['value', 'Record name', 'Acme'],
     ],
     check: [
-      ['field', 'Field', 'Active'],
+      ['field', 'Field', 'Active or Active__c'],
       [
         'value',
         'Ticked',
@@ -396,20 +546,72 @@ export function testingViews(ctx) {
     press: [['key', 'Key', 'Enter, Escape, Tab…']],
     expect: [
       ['kind', 'What to check', '', { options: KINDS.map((k) => [k, KIND_LABELS[k]]) }],
-      ['field', 'Field', 'Industry', { when: (s) => s.kind === 'field' }],
+      ['field', 'Field', FIELD_HINT, { when: (s) => s.kind === 'field' || s.kind === 'place' }],
+      [
+        'what',
+        'Count',
+        '',
+        { options: COUNT_WHAT.map((w) => [w, w[0].toUpperCase() + w.slice(1)]), when: (s) => s.kind === 'count' },
+      ],
+      [
+        'within',
+        'In (optional)',
+        'a section, card or related list title',
+        { when: (s) => ['count', 'button', 'no-button'].includes(s.kind) },
+      ],
+      ['section', 'Section', 'its title, or 1, 2…', { when: (s) => s.kind === 'place' }],
+      ['row', 'Row', '1', { when: (s) => s.kind === 'place' }],
+      ['col', 'Column', '1 = left, 2 = right', { when: (s) => s.kind === 'place' }],
       [
         'op',
         'How',
         '',
         {
-          options: Object.entries(OPS),
-          when: (s) => ['field', 'toast', 'title', 'url'].includes(s.kind),
+          options: (s) =>
+            s.kind === 'count'
+              ? [
+                  ['is', 'is exactly'],
+                  ['more', 'is more than'],
+                  ['less', 'is less than'],
+                  ['not', 'is not'],
+                ]
+              : Object.entries(OPS),
+          when: (s) => ['field', 'toast', 'title', 'url', 'count', 'recordtype', 'layout'].includes(s.kind),
         },
       ],
-      ['value', 'Value', 'Technology', { when: (s) => s.op !== 'empty' && s.op !== 'filled' }],
+      [
+        'value',
+        'Value',
+        'Technology',
+        {
+          when: (s) => s.op !== 'empty' && s.op !== 'filled' && s.kind !== 'place',
+          placeholder: (s) =>
+            s.kind === 'count'
+              ? '2'
+              : s.kind === 'recordtype'
+              ? 'Partner'
+              : s.kind === 'layout'
+              ? 'Contact Layout'
+              : 'Technology',
+        },
+      ],
     ],
+    login: [
+      [
+        'login',
+        'Login (Settings › Logins)',
+        '',
+        {
+          options: () => [
+            ['', T.logins.length ? 'Choose a login…' : 'None yet: add one in Settings'],
+            ...T.logins.filter((l) => l.name).map((l) => [l.name, `${l.name} · ${l.username}`]),
+          ],
+        },
+      ],
+    ],
+    loginas: [['user', 'User (username or name)', 'ann.lee@acme.com or Ann Lee', { wide: true }]],
     remember: [
-      ['field', 'Field on the page', 'Account Number'],
+      ['field', 'Field on the page', 'Account Number or AccountNumber'],
       ['as', 'Remember as', 'number → use {{number}} later'],
     ],
     shot: [],
@@ -425,18 +627,21 @@ export function testingViews(ctx) {
     const test = T.tests.find((t) => t.id === T.selected);
     const upload = h('input', {
       type: 'file',
-      accept: '.json',
+      accept: '.json,.xml,application/json,application/xml,text/xml',
       onchange: async (e) => {
         try {
-          const t = JSON.parse(await e.target.files[0].text());
-          if (t.nomadqa !== 'test' || !Array.isArray(t.steps)) throw new Error('Not a NomadQA test file.');
-          const copy = { ...t, id: newId() };
-          T.tests = [copy, ...T.tests];
+          // A test, a group of tests, or a JUnit report NomadQA wrote (it carries its tests)
+          const found = testsFromFile(await e.target.files[0].text());
+          const copies = found.map((t) => ({ ...t, id: newId() }));
+          T.tests = [...copies, ...T.tests];
           await saveTests();
-          T.selected = copy.id;
+          T.selected = copies[0].id;
+          T.results = null;
+          setNotice('good', `Added ${copies.length === 1 ? `“${copies[0].name}”` : `${copies.length} tests`}.`);
         } catch (err) {
           setNotice('bad', err.message);
         }
+        e.target.value = '';
         render();
       },
     });
@@ -452,6 +657,7 @@ export function testingViews(ctx) {
         h('label', { class: 'btn' }, 'Upload…', h('span', { style: 'display: none' }, upload))
       ),
       noticeEl(),
+      groupResultEl(),
       pickedCard(test),
       h(
         'div',
@@ -461,29 +667,109 @@ export function testingViews(ctx) {
           { class: 'card' },
           h('h2', {}, 'Your tests'),
           T.tests.length
-            ? h(
-                'div',
-                { class: 'tree' },
-                T.tests.map((t) => {
-                  const r = lastRun(t);
-                  return h(
-                    'div',
-                    {
-                      class: `node${t.id === T.selected ? ' on' : ''}`,
-                      onclick: () => ((T.selected = t.id), (T.results = null), render()),
-                    },
-                    h('span', { class: 'name' }, t.name),
-                    h('span', { class: 'grow' }),
-                    h('span', { class: 'api' }, `${t.steps.length} steps`),
-                    r ? h('span', { class: `pill ${r.ok ? 'good' : 'bad'}` }, r.ok ? 'passed' : 'failed') : null
-                  );
-                })
-              )
+            ? testList(lastRun)
             : h('p', { class: 'muted' }, 'None yet: record one, ask the Agent, or start a new one.')
         ),
         test ? editor(test) : h('section', { class: 'card empty' }, 'Pick a test on the left.')
       ),
     ];
+  }
+
+  /** The tests by group: each group can be run at once, and downloaded as one file. */
+  function testList(lastRun) {
+    const groups = new Map();
+    for (const t of T.tests) {
+      const g = t.group ?? '';
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push(t);
+    }
+    const names = [...groups.keys()].sort((a, b) => (!a ? 1 : !b ? -1 : a.localeCompare(b)));
+    const row = (t) => {
+      const r = lastRun(t);
+      return h(
+        'div',
+        {
+          class: `node${t.id === T.selected ? ' on' : ''}`,
+          onclick: () => ((T.selected = t.id), (T.results = null), render()),
+        },
+        h('span', { class: 'name' }, t.name),
+        h('span', { class: 'grow' }),
+        h('span', { class: 'api' }, `${t.steps.length} steps`),
+        r ? h('span', { class: `pill ${r.ok ? 'good' : 'bad'}` }, r.ok ? 'passed' : 'failed') : null
+      );
+    };
+    return h(
+      'div',
+      { class: 'tree' },
+      names.map((g) =>
+        g || names.length > 1
+          ? h(
+              'div',
+              { class: 'test-group' },
+              h(
+                'div',
+                { class: 'row group-head' },
+                h('b', { class: 'grow' }, g || 'No group'),
+                g
+                  ? [
+                      h(
+                        'button',
+                        {
+                          class: 'primary',
+                          disabled: !S.sf || Boolean(S.busy),
+                          title: `Runs the ${groups.get(g).length} tests one after the other`,
+                          onclick: () => void runGroup(g),
+                        },
+                        `Run all ${groups.get(g).length}`
+                      ),
+                      h(
+                        'button',
+                        {
+                          title: 'One file with every test of the group (the headless runner takes it too)',
+                          onclick: () =>
+                            download(
+                              `${g.replace(/[^\w-]+/g, '-').toLowerCase()}.nomadqa-group.json`,
+                              JSON.stringify(
+                                { nomadqa: 'group', name: g, tests: groups.get(g).map(({ id, host, ...t }) => t) },
+                                null,
+                                2
+                              ),
+                              'application/json'
+                            ),
+                        },
+                        'Download'
+                      ),
+                    ]
+                  : null
+              ),
+              groups.get(g).map(row)
+            )
+          : groups.get(g).map(row)
+      )
+    );
+  }
+
+  function groupResultEl() {
+    const g = T.groupResult;
+    if (!g) return null;
+    return h(
+      'div',
+      { class: `notice ${g.passed === g.total ? 'good' : 'bad'}`, role: 'status' },
+      `Group “${g.name}”: ${g.passed} of ${g.total} passed.`,
+      g.failed.length ? ` Failed: ${g.failed.join(', ')}.` : '',
+      ' ',
+      h(
+        'button',
+        {
+          class: 'link',
+          onclick: () =>
+            download(`${g.name.replace(/[^\w-]+/g, '-').toLowerCase()}.junit.xml`, g.junit, 'application/xml'),
+        },
+        'JUnit for the group'
+      ),
+      ' ',
+      h('button', { class: 'link', onclick: () => ((T.groupResult = null), render()) }, 'Dismiss')
+    );
   }
 
   // Steps added from the Inspector's pinned panel, waiting to go into a test
@@ -635,17 +921,19 @@ export function testingViews(ctx) {
                 { class: 'step-fields' },
                 fields
                   .filter(([, , , o]) => !o?.when || o.when(s))
-                  .map(([k, lab, ph, o]) =>
-                    h(
+                  .map(([k, lab, ph0, o]) => {
+                    const opts = typeof o?.options === 'function' ? o.options(s) : o?.options;
+                    const ph = typeof o?.placeholder === 'function' ? o.placeholder(s) : ph0;
+                    return h(
                       'label',
                       { class: `step-field${o?.wide ? ' wide' : ''}` },
                       h('span', {}, lab),
-                      o?.options
+                      opts
                         ? h(
                             'select',
                             { onchange: (e) => (set(k, e.target.value), render()) },
-                            o.options.map(([v, l]) =>
-                              h('option', { value: v, selected: String(s[k] ?? o.options[0][0]) === String(v) }, l)
+                            opts.map(([v, l]) =>
+                              h('option', { value: v, selected: String(s[k] ?? opts[0][0]) === String(v) }, l)
                             )
                           )
                         : h('input', {
@@ -654,8 +942,8 @@ export function testingViews(ctx) {
                             title: s[k] === undefined ? ph : String(s[k]),
                             onchange: (e) => (set(k, e.target.value), render()),
                           })
-                    )
-                  ),
+                    );
+                  }),
                 h(
                   'label',
                   { class: 'check step-optional', title: 'If it fails, the test still goes on' },
@@ -760,6 +1048,15 @@ export function testingViews(ctx) {
         h(
           'button',
           {
+            disabled: !S.sf || Boolean(S.busy) || !test.steps.length,
+            title: 'The steps show on the Salesforce page: run them one at a time, change, add or remove them',
+            onclick: () => void startDebug(test),
+          },
+          'Step by step on the page'
+        ),
+        h(
+          'button',
+          {
             class: 'primary',
             disabled: !S.sf || Boolean(S.busy) || !test.steps.length,
             onclick: () => void runHere(test),
@@ -767,15 +1064,79 @@ export function testingViews(ctx) {
           `Run in ${label()}`
         )
       ),
-      res?.ms !== undefined
+      h(
+        'div',
+        { class: 'row' },
+        h('span', { class: 'muted small' }, 'Group'),
+        h('input', {
+          value: test.group ?? '',
+          list: 'nomadqa-groups',
+          placeholder: 'e.g. Smoke — tests of a group run together',
+          style: 'width: 280px',
+          'aria-label': 'Group',
+          onchange: (e) => {
+            const g = e.target.value.trim();
+            if (g) test.group = g;
+            else delete test.group;
+            changed();
+            render();
+          },
+        }),
+        h(
+          'datalist',
+          { id: 'nomadqa-groups' },
+          [...new Set(T.tests.map((t) => t.group).filter(Boolean))].map((g) => h('option', { value: g }))
+        )
+      ),
+      T.debug?.testId === test.id
         ? h(
             'div',
-            { class: `notice ${res.ok ? 'good' : 'bad'}` },
-            res.ok
-              ? `Passed in ${(res.ms / 1000).toFixed(1)} s.`
-              : `Failed at step ${res.results.findIndex((r) => r.ok === false && !r.optional) + 1}.`,
-            res.cleaned ? ` ${res.cleaned} test record(s) deleted.` : ''
+            { class: 'notice' },
+            'Going through it on the Salesforce page: its steps are in the list there (bottom left). ',
+            h(
+              'button',
+              {
+                class: 'link',
+                onclick: async () => {
+                  const t = await chrome.tabs.get(T.debug.tabId).catch(() => null);
+                  if (t)
+                    await chrome.tabs.update(t.id, { active: true }),
+                      await chrome.windows.update(t.windowId, { focused: true });
+                },
+              },
+              'Show me'
+            ),
+            ' · ',
+            h('button', { class: 'link', onclick: () => void closeDebug() }, 'Close it')
           )
+        : null,
+      res?.ms !== undefined
+        ? (() => {
+            const at = res.results.findIndex((r) => r.ok === false && !r.optional);
+            return h(
+              'div',
+              { class: `notice ${res.ok ? 'good' : 'bad'}` },
+              res.ok ? `Passed in ${(res.ms / 1000).toFixed(1)} s.` : `Failed at step ${at + 1}.`,
+              res.cleaned ? ` ${res.cleaned} test record(s) deleted.` : '',
+              res.ok
+                ? null
+                : [
+                    ' ',
+                    h(
+                      'button',
+                      {
+                        class: 'primary',
+                        disabled: Boolean(S.busy),
+                        title: `Runs steps 1 to ${at} on a Salesforce page, then stops at step ${
+                          at + 1
+                        }: change it, add a step, or remove it`,
+                        onclick: () => void startDebug(test, at),
+                      },
+                      'Fix it on the page'
+                    ),
+                  ]
+            );
+          })()
         : null,
       h(
         'div',
@@ -845,22 +1206,50 @@ export function testingViews(ctx) {
     );
   }
 
-  async function runHere(test) {
+  /** Asks before a test that changes data runs in production; true to go on. */
+  async function okToRun(tests, what) {
     // Screenshots of a tab need Chrome's "all sites" permission: asked only for a test that takes them (while the
     // click still counts as the person's), and only once
-    if (test.steps.some((x) => x.action === 'shot'))
+    if (tests.some((t) => t.steps.some((x) => x.action === 'shot')))
       await chrome.permissions.request({ origins: ['<all_urls>'] }).catch(() => false);
-    const changes = test.steps.some((s) => ['click', 'fill', 'pick', 'lookup', 'check', 'data'].includes(s.action));
-    if (changes && S.facts && !S.facts.isSandbox) {
-      if (
-        !(await askTyped(
-          `${label()} is a PRODUCTION org. Run “${test.name}” there anyway? It may change data.`,
-          label(),
-          { ok: 'Run', danger: true }
-        ))
-      )
-        return;
-    }
+    const changes = tests.some((t) =>
+      t.steps.some((s) => ['click', 'fill', 'pick', 'lookup', 'check', 'data'].includes(s.action))
+    );
+    if (changes && S.facts && !S.facts.isSandbox)
+      return askTyped(`${label()} is a PRODUCTION org. Run ${what} there anyway? It may change data.`, label(), {
+        ok: 'Run',
+        danger: true,
+      });
+    return true;
+  }
+
+  /** Keeps a run in Runs (with the test itself, so it can be downloaded again). */
+  async function saveRun(test, out, extra = {}) {
+    const { id, host, ...file } = test;
+    const entry = {
+      id: newId(),
+      testId: test.id,
+      testName: test.name,
+      at: new Date().toISOString(),
+      org: label(),
+      ok: out.ok,
+      ms: out.ms,
+      results: out.results.map(({ shot, ...r }) => r),
+      steps: test.steps.map(stepText),
+      test: file,
+      junit: junit(test, out),
+      ...extra,
+    };
+    T.runs = [entry, ...T.runs].slice(0, 100);
+    await store.set('nomadqa.runs', T.runs);
+  }
+  const backHere = async () => {
+    const me = await chrome.tabs.getCurrent().catch(() => null);
+    if (me) await chrome.tabs.update(me.id, { active: true }).catch(() => {});
+  };
+
+  async function runHere(test) {
+    if (!(await okToRun([test], `“${test.name}”`))) return;
     T.results = { testId: test.id, results: [] };
     await run(`Running “${test.name}”…`, async () => {
       const driver = await tabDriver(S.host);
@@ -868,6 +1257,7 @@ export function testingViews(ctx) {
         driver,
         sf: S.sf,
         describes: S.describes,
+        logins: loginsMap(),
         onStep: (i, r) => {
           T.results.results[i] = r;
           S.busy = `Running “${test.name}”: step ${i + 2} of ${test.steps.length}…`;
@@ -875,24 +1265,136 @@ export function testingViews(ctx) {
         },
       });
       T.results = { testId: test.id, ...out };
-      const entry = {
-        id: newId(),
-        testId: test.id,
-        testName: test.name,
-        at: new Date().toISOString(),
-        org: label(),
-        ok: out.ok,
-        ms: out.ms,
-        results: out.results.map(({ shot, ...r }) => r),
-        steps: test.steps.map(stepText),
-        junit: junit(test, out),
-      };
-      T.runs = [entry, ...T.runs].slice(0, 100);
-      await store.set('nomadqa.runs', T.runs);
+      await saveRun(test, out);
       // Back to NomadQA to see the result
-      const me = await chrome.tabs.getCurrent().catch(() => null);
-      if (me) await chrome.tabs.update(me.id, { active: true }).catch(() => {});
+      await backHere();
     });
+  }
+
+  /** Runs every test of a group, one after the other in one tab; one JUnit report for all of them. */
+  async function runGroup(name) {
+    const tests = T.tests.filter((t) => (t.group ?? '') === name);
+    if (!tests.length || !(await okToRun(tests, `the ${tests.length} tests of “${name}”`))) return;
+    const suite = newId();
+    const done = [];
+    await run(`Running the group “${name}”…`, async () => {
+      const driver = await tabDriver(S.host);
+      for (const [k, test] of tests.entries()) {
+        S.busy = `Group “${name}”: test ${k + 1} of ${tests.length}, “${test.name}”…`;
+        render();
+        const out = await runTest(test, { driver, sf: S.sf, describes: S.describes, logins: loginsMap() });
+        done.push({ test, run: out });
+        await saveRun(test, out, { group: name, suite });
+      }
+      await backHere();
+    });
+    if (done.length)
+      T.groupResult = {
+        name,
+        passed: done.filter((x) => x.run.ok).length,
+        total: tests.length,
+        failed: done.filter((x) => !x.run.ok).map((x) => x.test.name),
+        junit: groupJunit(name, done),
+      };
+    render();
+  }
+
+  // ---------- going through a test on the page, step by step ----------
+  // The steps show in the list on the Salesforce page (content/page.js) from storage (nomadqa.debug); the page asks
+  // this tab to run them (nomadqa:debug), since the test's state ({{found}}, records made, who is logged in) is here.
+  const readDebug = () => store.get('nomadqa.debug', null);
+  async function writeDebug(fn) {
+    const d = await readDebug();
+    if (!d) return null;
+    fn(d);
+    await store.set('nomadqa.debug', d);
+    return d;
+  }
+
+  /** Opens the test on a Salesforce page; with upTo, runs the steps before that one first (to a failed step). */
+  async function startDebug(test, upTo = 0) {
+    if (T.debug) await closeDebug();
+    if (!(await okToRun([test], `“${test.name}”`))) return;
+    await run(`Opening “${test.name}” on the page…`, async () => {
+      const driver = await tabDriver(S.host);
+      const st = stepper(test, { driver, sf: S.sf, describes: S.describes, logins: loginsMap() });
+      T.debug = { testId: test.id, tabId: driver.tabId, st, driver };
+      await store.set('nomadqa.debug', {
+        testId: test.id,
+        name: test.name,
+        tabId: driver.tabId,
+        items: test.steps.map((step) => ({ step: structuredClone(step), text: stepText(step), result: null })),
+        at: 0,
+        running: '',
+        msg: upTo ? `Running the ${upTo} step(s) before step ${upTo + 1}…` : '',
+        dirty: false,
+      });
+      await pageMode(driver.tabId, 'debug');
+    });
+    if (upTo > 0 && T.debug) await debugRun(upTo);
+  }
+
+  /** Runs `n` steps from the current one; stops at a step that fails (an optional one goes on). */
+  async function debugRun(n) {
+    const D = T.debug;
+    let d = await writeDebug((x) => {
+      x.running = 'yes';
+      x.bad = false;
+    });
+    try {
+      for (let k = 0; d && k < n && d.at < d.items.length; k++) {
+        const i = d.at;
+        const { shot, ...r } = await D.st.run(d.items[i].step);
+        d = await writeDebug((x) => {
+          if (x.items[i]) x.items[i].result = r;
+          if (r.ok || r.optional) x.at = i + 1;
+          x.msg = r.ok
+            ? `Step ${i + 1} passed.`
+            : `Step ${i + 1} failed: change it, add a step before it, or remove it.`;
+          x.bad = !r.ok;
+        });
+        // A step that opened another page: the list is put back on it
+        await pageMode(D.tabId, 'debug').catch(() => {});
+        if (!r.ok && !r.optional) break;
+      }
+    } finally {
+      d = await writeDebug((x) => {
+        x.running = '';
+        if (x.at >= x.items.length && !x.bad) x.msg = 'The end: every step ran. Save to keep your changes.';
+      });
+    }
+  }
+
+  async function debugCommand(msg) {
+    if (msg.cmd === 'step') return debugRun(Number(msg.n) || 1);
+    if (msg.cmd === 'all') return debugRun(Infinity);
+    if (msg.cmd === 'close') return closeDebug();
+    if (msg.cmd === 'save') {
+      const d = await readDebug();
+      const test = T.tests.find((t) => t.id === d?.testId);
+      if (!test) throw new Error('The test is not in NomadQA any more.');
+      test.steps = d.items.map((x) => x.step);
+      await saveTests();
+      T.results = null;
+      await writeDebug((x) => {
+        x.dirty = false;
+        x.bad = false;
+        x.msg = `Saved to “${test.name}”.`;
+      });
+      render();
+    }
+  }
+
+  async function closeDebug() {
+    const D = T.debug;
+    T.debug = null;
+    // The page turns its list off when this goes
+    await store.set('nomadqa.debug', null);
+    if (D) {
+      const cleaned = await D.st.finish().catch(() => 0);
+      if (cleaned) toast(`${cleaned} test record(s) deleted.`);
+    }
+    render();
   }
 
   // ---------- Runs ----------
@@ -942,7 +1444,12 @@ export function testingViews(ctx) {
                         {},
                         new Date(r.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
                       ),
-                      h('td', {}, r.testName),
+                      h(
+                        'td',
+                        {},
+                        r.testName,
+                        r.group ? h('span', { class: 'pill', style: 'margin-left: 6px' }, r.group) : null
+                      ),
                       h('td', {}, r.org),
                       h(
                         'td',
@@ -950,7 +1457,7 @@ export function testingViews(ctx) {
                         h(
                           'span',
                           { class: `pill ${r.ok ? 'good' : 'bad'}` },
-                          r.ok ? 'passed' : `failed at ${r.results.findIndex((x) => x.ok === false) + 1}`
+                          r.ok ? 'passed' : `failed at ${r.results.findIndex((x) => x.ok === false && !x.optional) + 1}`
                         )
                       ),
                       h('td', {}, `${(r.ms / 1000).toFixed(1)} s`),
@@ -966,11 +1473,59 @@ export function testingViews(ctx) {
                         h(
                           'button',
                           {
+                            title: 'The test as it ran (upload it in Tests to run it again)',
+                            disabled: !r.test,
                             onclick: () =>
-                              download(`${r.testName.replace(/[^\w-]+/g, '-')}.junit.xml`, r.junit, 'application/xml'),
+                              download(
+                                `${r.testName.replace(/[^\w-]+/g, '-').toLowerCase()}.nomadqa.json`,
+                                JSON.stringify(r.test, null, 2),
+                                'application/json'
+                              ),
+                          },
+                          'Test'
+                        ),
+                        ' ',
+                        h(
+                          'button',
+                          {
+                            title: 'The results for CI; Tests can upload it again (it carries the steps)',
+                            onclick: () =>
+                              download(
+                                `${r.testName.replace(/[^\w-]+/g, '-').toLowerCase()}.junit.xml`,
+                                r.test
+                                  ? junit({ ...r.test, name: r.testName }, { results: r.results, ms: r.ms })
+                                  : r.junit,
+                                'application/xml'
+                              ),
                           },
                           'JUnit'
-                        )
+                        ),
+                        r.suite
+                          ? [
+                              ' ',
+                              h(
+                                'button',
+                                {
+                                  title: `One report for every test of this run of “${r.group}”`,
+                                  onclick: () => {
+                                    const all = T.runs.filter((x) => x.suite === r.suite && x.test).reverse();
+                                    download(
+                                      `${r.group.replace(/[^\w-]+/g, '-').toLowerCase()}.junit.xml`,
+                                      groupJunit(
+                                        r.group,
+                                        all.map((x) => ({
+                                          test: { ...x.test, name: x.testName },
+                                          run: { results: x.results, ms: x.ms },
+                                        }))
+                                      ),
+                                      'application/xml'
+                                    );
+                                  },
+                                },
+                                'Group JUnit'
+                              ),
+                            ]
+                          : null
                       )
                     )
                   )
@@ -1129,7 +1684,12 @@ export function testingViews(ctx) {
     const ai = T.ai;
     const p = PROVIDERS[ai.provider] ?? PROVIDERS.custom;
     return [
-      h('div', { class: 'head' }, h('h1', {}, 'Settings'), h('span', { class: 'muted' }, 'Your AI for the Agent')),
+      h(
+        'div',
+        { class: 'head' },
+        h('h1', {}, 'Settings'),
+        h('span', { class: 'muted' }, 'Your AI for the Agent, and the logins tests use')
+      ),
       noticeEl(),
       h(
         'section',
@@ -1182,7 +1742,137 @@ export function testingViews(ctx) {
           'The key stays in this browser. The Agent sends only your sentence and the names of this org’s objects — never records.'
         )
       ),
+      loginsCard(),
     ];
+  }
+
+  // Logins for "Log in" steps: kept in this browser only; a test names the login, it never holds the password
+  function loginsCard() {
+    const pages = [
+      ['https://login.salesforce.com', 'login.salesforce.com (production, Developer Edition)'],
+      ['https://test.salesforce.com', 'test.salesforce.com (sandbox, scratch org)'],
+      ...(S.host ? [[`https://${S.host}`, `${label()} (its My Domain)`]] : []),
+    ];
+    const save = async () => {
+      await store.set('nomadqa.logins', T.logins);
+      toast('Saved.');
+    };
+    const field = (l, k, props = {}) =>
+      h('input', { value: l[k] ?? '', autocomplete: 'off', onchange: (e) => (l[k] = e.target.value.trim()), ...props });
+    return h(
+      'section',
+      { class: 'card', style: 'max-width: 900px' },
+      h(
+        'div',
+        { class: 'row' },
+        h('h2', { class: 'grow' }, 'Logins'),
+        h(
+          'button',
+          {
+            onclick: () => (
+              T.logins.push({
+                name: `user${T.logins.length + 1}`,
+                url: S.facts?.isSandbox ? 'https://test.salesforce.com' : 'https://login.salesforce.com',
+                username: '',
+                password: '',
+              }),
+              render()
+            ),
+          },
+          '+ Add a login'
+        )
+      ),
+      h(
+        'p',
+        { class: 'muted small' },
+        'For ',
+        h('b', {}, 'Log in'),
+        ' steps: the test starts on the login page and types these. They stay in this browser; a test only names the login, so a downloaded test never holds a password. To test as another user without a password, use ',
+        h('b', {}, 'Log in as a user'),
+        ' (Login-As) instead.'
+      ),
+      T.logins.length
+        ? h(
+            'div',
+            { class: 'table-box' },
+            h(
+              'table',
+              {},
+              h(
+                'thead',
+                {},
+                h(
+                  'tr',
+                  {},
+                  h('th', {}, 'Name in tests'),
+                  h('th', {}, 'Login page'),
+                  h('th', {}, 'Username'),
+                  h('th', {}, 'Password'),
+                  h('th', {}, '')
+                )
+              ),
+              h(
+                'tbody',
+                {},
+                T.logins.map((l, i) =>
+                  h(
+                    'tr',
+                    {},
+                    h('td', {}, field(l, 'name', { style: 'width: 120px', 'aria-label': 'Name' })),
+                    h(
+                      'td',
+                      {},
+                      select(
+                        l.url,
+                        pages.some(([v]) => v === l.url) ? pages : [[l.url, l.url], ...pages],
+                        (v) => ((l.url = v), render()),
+                        { 'aria-label': 'Login page' }
+                      )
+                    ),
+                    h('td', {}, field(l, 'username', { placeholder: 'name@company.com', 'aria-label': 'Username' })),
+                    h(
+                      'td',
+                      {},
+                      field(l, 'password', {
+                        type: 'password',
+                        placeholder: 'kept in this browser',
+                        'aria-label': 'Password',
+                      })
+                    ),
+                    h(
+                      'td',
+                      {},
+                      h(
+                        'button',
+                        {
+                          class: 'icon',
+                          'aria-label': `Remove ${l.name}`,
+                          onclick: () => (T.logins.splice(i, 1), void save(), render()),
+                        },
+                        '✕'
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        : h('p', { class: 'muted' }, 'None yet.'),
+      T.logins.length
+        ? h(
+            'div',
+            { class: 'row' },
+            h('button', { class: 'primary', onclick: () => void save() }, 'Save the logins'),
+            h(
+              'span',
+              { class: 'muted small' },
+              'Headless runner: ',
+              h('code', {}, '--logins logins.json'),
+              ' (the same names, with url, username and password)'
+            )
+          )
+        : null
+    );
   }
   async function saveAi() {
     const base = (T.ai.base || PROVIDERS[T.ai.provider]?.base || '').replace(/\/$/, '');
@@ -1198,8 +1888,19 @@ export function testingViews(ctx) {
     render();
   }
 
+  /** Reads again what is kept in this browser (another NomadQA tab, or a page, may have changed it). */
+  async function reload() {
+    T.tests = await store.get('nomadqa.tests', []);
+    T.runs = await store.get('nomadqa.runs', []);
+    T.recording = await store.get('nomadqa.recording', null);
+    T.picked = await store.get('nomadqa.picked', []);
+    T.logins = await store.get('nomadqa.logins', []);
+    if (S.view === 'inspector') await salesforceTabs();
+  }
+
   return {
     load,
+    reload,
     views: {
       inspector: inspectorView,
       recorder: recorderView,

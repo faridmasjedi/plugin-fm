@@ -598,21 +598,48 @@ td.example {
   padding: 28px;
   color: var(--muted);
 }
-.recipes {
+.list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
 }
-.recipe {
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.list-row:last-child {
+  border-bottom: 0;
+}
+.head .refresh {
+  margin-left: auto;
+  align-self: center;
+}
+.head .grow + .refresh,
+.head .grow ~ .refresh {
+  margin-left: 0;
+}
+.test-group {
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 13px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  padding: 6px 8px;
+  margin-bottom: 10px;
 }
-.recipe.ready {
-  border-style: dashed;
+.test-group .group-head {
+  padding: 4px 4px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+details.more-tabs > summary {
+  cursor: pointer;
+}
+details.more-tabs[open] > summary {
+  margin-bottom: 12px;
+}
+.org-tab.last-page {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
 }
 
 /* ---------- dialog ---------- */
