@@ -255,26 +255,37 @@ async function tab(cdp, browserContextId) {
     // A step runs once, never again (a click must not happen twice). The login form makes the page go away.
     async step(s) {
       if (s.action === 'login-form') return inPage(`__nomadqa.run(${JSON.stringify(s)})`, 0).catch(() => undefined);
+      // A tab opened late by the step before (Setup from the gear can take a moment): the test goes on there first
+      if (opened) await follow();
       const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const before = await inPage('location.href', 2).catch(() => '');
-      opened = null;
-      let r = await inPage(`__nomadqa.run(${JSON.stringify({ ...s, __id: id })})`, 0).catch((e) =>
-        /context|navigat|destroyed|not found|Cannot find/i.test(e.message)
-          ? undefined
-          : { ok: false, message: e.message }
-      );
-      if (r === undefined) {
+      // Waits and checks press nothing: when the page loads again under them, they run again on the new page
+      const repeatable = ['wait', 'expect', 'remember'].includes(s.action);
+      let r;
+      for (let tries = 0; tries < 3; tries++) {
+        r = await inPage(`__nomadqa.run(${JSON.stringify({ ...s, __id: id })})`, 0).catch((e) =>
+          /context|navigat|destroyed|not found|Cannot find/i.test(e.message)
+            ? undefined
+            : { ok: false, message: e.message }
+        );
+        if (r !== undefined && r !== null) break;
         // The page went away while the step ran (another app reloads the whole page)
         await sleep(1500);
         await inPage('__nomadqa.ready(60000)').catch(() => {});
         const marked = await inPage(`sessionStorage.getItem('nomadqa.pressed') === ${JSON.stringify(id)}`).catch(
           () => false
         );
+        if (marked) {
+          r = { ok: true, message: 'Done; the page loaded again after it.' };
+          break;
+        }
+        if (repeatable && tries < 2) continue;
         const now = await inPage('location.href', 2).catch(() => '');
         r =
-          marked || now !== before
+          !repeatable && now !== before
             ? { ok: true, message: 'Done; the page loaded again after it.' }
-            : { ok: false, message: 'No answer from the page (it reloaded before the step finished).' };
+            : { ok: false, message: 'No answer from the page (it loaded again while the step ran).' };
+        break;
       }
       if (opened) {
         await follow();

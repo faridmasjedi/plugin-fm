@@ -128,23 +128,40 @@ async function tabDriver(host, { tabId, window: place } = {}) {
     // The login form makes the page go away: run once, never again on the next page
     async step(s) {
       if (s.action === 'login-form') return once(s).catch(() => undefined);
+      // A tab opened late by the step before (Setup from the gear can take a moment): the test goes on there first
+      if (opened) {
+        cur.id = opened;
+        opened = null;
+        await chrome.tabs.update(cur.id, { active: true }).catch(() => {});
+        await waitTab(cur.id).catch(() => {});
+        await inTab(cur.id, () => globalThis.__nomadqa.ready(90000)).catch(() => {});
+      }
       const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const before = (await chrome.tabs.get(cur.id)).url;
-      opened = null;
-      let r = await once({ ...s, __id: id }).catch(() => undefined);
-      if (r === undefined) {
-        // The page went away while the step ran (choosing another app reloads the whole page): when the step had
-        // pressed (its mark is on the new page) or the page is another one, it was done
+      // Waits and checks press nothing: when the page loads again under them, they run again on the new page
+      const repeatable = ['wait', 'expect', 'remember'].includes(s.action);
+      let r;
+      for (let tries = 0; tries < 3; tries++) {
+        r = await once({ ...s, __id: id }).catch(() => undefined);
+        // No answer (Chrome gives none, or nothing, when the page goes away while the step runs)
+        if (r !== undefined && r !== null) break;
         await waitTab(cur.id).catch(() => {});
         await inTab(cur.id, () => globalThis.__nomadqa.ready(60000)).catch(() => {});
         const marked = await inTab(cur.id, (k) => sessionStorage.getItem('nomadqa.pressed') === k, [id]).catch(
           () => false
         );
+        if (marked) {
+          r = { ok: true, message: 'Done; the page loaded again after it.' };
+          break;
+        }
+        if (repeatable && tries < 2) continue;
+        // The page went away while the step ran (choosing another app reloads the whole page): another page now
         const now = (await chrome.tabs.get(cur.id)).url;
         r =
-          marked || now !== before
+          !repeatable && now !== before
             ? { ok: true, message: 'Done; the page loaded again after it.' }
-            : { ok: false, message: 'No answer from the page (it reloaded before the step finished).' };
+            : { ok: false, message: 'No answer from the page (it loaded again while the step ran).' };
+        break;
       }
       // A new tab from this one: the test goes on there
       if (opened) {
