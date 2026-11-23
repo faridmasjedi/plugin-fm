@@ -41,7 +41,7 @@
   const frameDocs = () => deepAll('iframe, frame').map(frameDoc).filter(Boolean);
   const parentOf = (el) =>
     el.parentElement ??
-    (el.getRootNode() instanceof ShadowRoot
+    (el.getRootNode().nodeType === 11 && el.getRootNode().host
       ? el.getRootNode().host
       : el === el.ownerDocument?.documentElement
       ? el.ownerDocument.defaultView?.frameElement ?? null
@@ -83,13 +83,15 @@
     const p = String(path ?? '').trim();
     if (!p) return null;
     if (/^document\s*\.\s*querySelector/.test(p)) {
-      const parts = [...p.matchAll(/querySelector\(\s*(["'`])((?:\\.|(?!\1).)*)\1\s*\)(\s*\.\s*shadowRoot)?/g)];
+      const parts = [
+        ...p.matchAll(/querySelector\(\s*(["'`])((?:\\.|(?!\1).)*)\1\s*\)(\s*\.\s*(shadowRoot|contentDocument))?/g),
+      ];
       let root = document;
       let el = null;
-      for (const [, , sel, shadow] of parts) {
+      for (const [, , sel, , into] of parts) {
         el = root?.querySelector(sel.replace(/\\(["'`\\])/g, '$1')) ?? null;
         if (!el) return null;
-        root = shadow ? el.shadowRoot : el;
+        root = into === 'shadowRoot' ? el.shadowRoot : into === 'contentDocument' ? frameDoc(el) : el;
       }
       return el;
     }
@@ -120,7 +122,7 @@
     if (!el?.tagName) return null;
     const cssq = (v) => `"${String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
     // Attributes that say what it is (ids and values with long numbers change from one load to the next)
-    const steady = (v) => v && v.length <= 80 && !/\d{3,}/.test(v);
+    const steady = (v) => v && v.length <= 80 && !/\d{3,}/.test(v) && !/^\s*javascript:/i.test(v);
     const ATTRS = [
       'name',
       'title',
@@ -130,14 +132,12 @@
       'data-target-selection-name',
       'data-label',
       'placeholder',
-      'type',
     ];
     const own = (e) => {
       const tag = e.tagName.toLowerCase();
       const out = [];
       if (steady(e.id) && !/^\d/.test(e.id)) out.push(`${tag}#${CSS.escape(e.id)}`);
       for (const a of ATTRS) if (steady(e.getAttribute(a))) out.push(`${tag}[${a}=${cssq(e.getAttribute(a))}]`);
-      out.push(tag);
       return out;
     };
     const only = (root, sel, e) => {
@@ -153,52 +153,71 @@
       const sib = e.parentElement ? [...e.parentElement.children].filter((x) => x.tagName === e.tagName) : [];
       return sib.length > 1 ? `${tag}:nth-of-type(${sib.indexOf(e) + 1})` : tag;
     };
-    /** A selector that finds only e in its own root (the page or its shadow root). */
+    /** A selector that finds only e in its own root (a page, a frame's page, a shadow root); steady: by what it is,
+     * not by where it sits among its neighbours. */
     const inRoot = (e) => {
       const root = e.getRootNode();
-      for (const s of own(e)) if (only(root, s, e)) return s;
-      // Under the nearest parent that can be named, step by step down
+      for (const s of own(e)) if (only(root, s, e)) return { sel: s, steady: true };
+      const tag = e.tagName.toLowerCase();
+      if (only(root, tag, e)) return { sel: tag, steady: true };
+      // Under the nearest parent that can be named
       const chain = [nth(e)];
       for (let a = e.parentElement; a && chain.length < 8; a = a.parentElement) {
         const named = own(a).find((s) => only(root, s, a));
-        if (named && only(root, `${named} ${chain.join(' > ')}`, e)) return `${named} ${chain.join(' > ')}`;
-        if (named && only(root, `${named} > ${chain.join(' > ')}`, e)) return `${named} > ${chain.join(' > ')}`;
+        if (named) {
+          for (const sel of [`${named} ${tag}`, `${named} ${chain.join(' > ')}`])
+            if (only(root, sel, e)) return { sel, steady: sel === `${named} ${tag}` };
+        }
         chain.unshift(nth(a));
-        if (only(root, chain.join(' > '), e)) return chain.join(' > ');
+        if (only(root, chain.join(' > '), e)) return { sel: chain.join(' > '), steady: false };
       }
-      return chain.join(' > ');
+      return { sel: chain.join(' > '), steady: false };
     };
+    // From the page down to it: through frames (contentDocument) and shadow roots (shadowRoot)
     const parts = [];
     for (let e = el; e; ) {
-      parts.unshift(inRoot(e));
       const root = e.getRootNode();
-      e = root instanceof ShadowRoot ? root.host : null;
+      // (nodeType, not instanceof: a frame's page has its own Document and ShadowRoot)
+      const shadow = root.nodeType === 11 && root.host;
+      const how = shadow ? '.shadowRoot' : root !== document ? '.contentDocument' : '';
+      parts.unshift({ ...inRoot(e), how });
+      e = shadow ? root.host : root !== document ? root.defaultView?.frameElement ?? null : null;
     }
-    const js = `document${parts
-      .map((s, i) => `${i ? '.shadowRoot' : ''}.querySelector(${JSON.stringify(s)})`)
-      .join('')}`;
+    const js = `document${parts.map((x, i) => `${i ? x.how : ''}.querySelector(${JSON.stringify(x.sel)})`).join('')}`;
     const last = parts[parts.length - 1];
-    const deep = deepAll(last);
-    const selector = deep.length === 1 && deep[0] === el ? last : parts.length === 1 ? last : '';
+    const deep = deepAll(last.sel);
+    const selector = deep.length === 1 && deep[0] === el ? last.sel : parts.length === 1 ? last.sel : '';
+    // XPath: in its page or frame's page (not inside a shadow root): by an attribute, by its text, or by place
     let xpath = '';
-    if (el.getRootNode() === document) {
-      const xq = (v) => (v.includes('"') ? `'${v}'` : `"${v}"`);
+    let xSteady = false;
+    const doc = el.getRootNode();
+    if (doc.nodeType === 9) {
+      const docs = [document, ...frameDocs()];
       const xone = (x) => {
         try {
-          const r = document.evaluate(x, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-          return r.snapshotLength === 1 && r.snapshotItem(0) === el;
+          let n = 0;
+          let hit = null;
+          for (const d of docs) {
+            const r = d.evaluate(x, d, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+            n += r.snapshotLength;
+            if (r.snapshotLength) hit = hit ?? r.snapshotItem(0);
+          }
+          return n === 1 && hit === el;
         } catch {
           return false;
         }
       };
+      const xq = (v) => (v.includes('"') ? `'${v}'` : `"${v}"`);
       const tag = el.tagName.toLowerCase();
-      for (const a of ['id', ...ATTRS]) {
-        const v = el.getAttribute(a);
-        if (steady(v) && xone(`//${tag}[@${a}=${xq(v)}]`)) {
-          xpath = `//${tag}[@${a}=${xq(v)}]`;
-          break;
-        }
-      }
+      const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const tries = [
+        ...['id', ...ATTRS]
+          .filter((a) => steady(el.getAttribute(a)))
+          .map((a) => `//${tag}[@${a}=${xq(el.getAttribute(a))}]`),
+        ...(text && text.length <= 40 && !text.includes('"') ? [`//${tag}[normalize-space()=${xq(text)}]`] : []),
+      ];
+      xpath = tries.find(xone) ?? '';
+      xSteady = Boolean(xpath);
       if (!xpath) {
         const steps = [];
         for (let e = el; e && e.nodeType === 1; e = e.parentElement) {
@@ -208,7 +227,10 @@
         xpath = `/${steps.join('/')}`;
       }
     }
-    return { selector, xpath, js, best: selector || js };
+    // What a step uses: what it is (a selector, its text) before where it sits
+    const best =
+      selector && last.steady ? selector : xSteady ? xpath : parts.every((x) => x.steady) ? js : selector || js;
+    return { selector, xpath, js, best };
   }
 
   /** What an element shows: a box's value, or its text. */
@@ -390,6 +412,13 @@
     el.focus?.();
     el.dispatchEvent(new PointerEvent('pointerup', at));
     el.dispatchEvent(new MouseEvent('mouseup', at));
+    // A "javascript:" link: Chrome does not follow it when an extension clicks it; the page's own world does
+    // (content/main.js). Anywhere else (the headless runner runs in the page's world) a plain click does it
+    if (/^\s*javascript:/i.test(el.closest?.('a[href]')?.getAttribute('href') ?? '')) {
+      const link = el.closest('a[href]');
+      link.dispatchEvent(new CustomEvent('nomadqa:click'));
+      if (link.getAttribute('data-nomadqa-clicked')) return void link.removeAttribute('data-nomadqa-clicked');
+    }
     el.click();
   }
 
@@ -473,6 +502,9 @@
     }
     if (String(step.choose ?? '').trim() === '') return;
     const want = norm(step.choose);
+    // "Click X, choose X" where X was a link (a permission set, Setup's menu): the click was the whole step. The
+    // gear's Setup is the same name too, but there the menu shows it at once
+    const same = !step.type && want === norm(step.label ?? '');
     // What the click opened comes first (new on the page), then anything else with that name
     const item = await until(
       () => {
@@ -486,9 +518,13 @@
         }
         return null;
       },
-      timeout,
+      same ? Math.min(timeout, 4000) : timeout,
       () => `“${step.choose}” in what “${step.label}” opened`
-    );
+    ).catch((e) => {
+      if (same && !e.stopped) return null;
+      throw e;
+    });
+    if (!item) return 'Clicked; it opened no list, so there was nothing to choose.';
     if (inSetup() && changes(step.choose)) readOnly(`choosing “${step.choose}”`);
     press(item);
   }

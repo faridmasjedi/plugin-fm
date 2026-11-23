@@ -1416,12 +1416,17 @@
     add({ action: 'click', label });
   }
   /** A button that opens a list or a menu (App Launcher, a list view's menu, a "more" menu). */
-  const opensList = (el) =>
-    Boolean(el.getAttribute?.('aria-haspopup')) ||
-    el.hasAttribute?.('aria-expanded') ||
-    /app launcher|select a list view|show more|more actions|menu/i.test(
+  const opensList = (el) => {
+    // Setup's menu on the left opens or folds a branch, and its links open pages: no list to choose from
+    if (closest(el, '[role="tree"], [role="treeitem"]')) return false;
+    const pop = el.getAttribute?.('aria-haspopup');
+    if (pop && pop !== 'false') return true;
+    // A button that opens something (a link that "expands" opens a page)
+    if (el.hasAttribute?.('aria-expanded') && el.matches?.('button, [role="button"], [role="combobox"]')) return true;
+    return /app launcher|select a list view|show more|more actions|menu/i.test(
       `${el.getAttribute?.('aria-label') ?? ''} ${el.getAttribute?.('title') ?? ''} ${el.innerText ?? ''}`
     );
+  };
 
   // What is typed in a box that is not a field's (a search bar): kept until a suggestion is chosen or Enter pressed
   // (a lookup field's box says "Search Accounts…" too: it is recorded from the record chosen, as before)

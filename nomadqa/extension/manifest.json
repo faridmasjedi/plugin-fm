@@ -56,6 +56,18 @@
         "https://*.salesforce-setup.com/*",
         "https://*.force.com/*"
       ],
+      "js": ["content/main.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://*.lightning.force.com/*",
+        "https://*.my.salesforce.com/*",
+        "https://*.salesforce-setup.com/*",
+        "https://*.force.com/*"
+      ],
       "js": ["content/tab.js"],
       "run_at": "document_idle"
     }
