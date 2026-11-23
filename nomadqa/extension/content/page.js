@@ -89,6 +89,10 @@
     .tray .why{margin:4px 0 0 20px;font-size:12px;color:#a3272b;word-break:break-word}
     .tray .why .eg{display:block;color:#5b6475}.tray .why .eg b{color:#1d2433;font-weight:600}
     .tray .muted{color:#8a93a6}
+    .tray .caret{padding:0 4px;color:#5b3fd1;font-size:14px;line-height:1.3;flex:none}
+    .tray ol.kids{margin:6px 0 0 14px;padding:0 0 0 10px;border-left:2px solid #c9bdf5;overflow:visible}
+    .tray li.kid{padding:4px 2px;border-bottom:1px dashed #eef0f5;list-style:none}.tray li.kid:last-child{border-bottom:0}
+    .tray li.kid .kn{flex:none;color:#8a93a6;font-size:11.5px;min-width:26px}
   </style>
   <div class="box"></div><div class="tray"></div><div class="tip"></div>
   <div class="bar"><span class="dot"></span><span class="brand">NomadQA</span><span class="count">0 steps</span><span class="last"></span>
@@ -134,7 +138,8 @@
   const trayState = {
     list: [],
     debug: null,
-    editing: -1,
+    editing: '', // the step being changed: "3", or "3.2" (the 2nd step of the group at 3)
+    open: {}, // groups shown open: { index: true }
     finding: false,
     small: false,
     pass: false,
@@ -213,9 +218,12 @@
     }
   }
   /** Every box of a step (as in Tests): the kind of step, its boxes (some show for one kind of check only), Optional. */
-  function editForm(step, i) {
+  function editForm(step, key) {
     const W = globalThis.__nomadqaWords;
-    const actions = Object.entries(W.ACTIONS).filter(([k]) => k === step.action || (k !== 'data' && k !== 'group'));
+    // A group is only renamed here (its steps are changed one by one, under it)
+    const actions = Object.entries(W.ACTIONS).filter(([k]) =>
+      step.action === 'group' ? k === 'group' : k === step.action || (k !== 'data' && k !== 'group')
+    );
     const box = ([k, lab, ph0, o]) => {
       const opts = typeof o?.options === 'function' ? o.options(step, { logins: trayState.logins }) : o?.options;
       const ph = typeof o?.placeholder === 'function' ? o.placeholder(step) : ph0;
@@ -242,7 +250,7 @@
         step.optional ? ' checked' : ''
       }> Optional: if it fails, the test still goes on</label>` +
       `<div class="says">→ ${esc(W.stepText(step))}</div>` +
-      `<div class="b"><button class="primary" data-a="save" data-i="${i}">Save</button><button data-a="edit-x" data-i="${i}">Cancel</button></div></div>`
+      `<div class="b"><button class="primary" data-a="save" data-k="${key}">Save</button><button data-a="edit-x" data-k="${key}">Cancel</button></div></div>`
     );
   }
   /** The step being changed, as it is written: empty boxes left out, numbers as numbers. */
@@ -284,23 +292,67 @@
                 : 'bad'
               : ''
           }">${i === d.at ? '▶' : p.result?.ok ? '✓' : p.result?.ok === false ? '✕' : '·'}</span>`;
-    const item = (p, i) =>
-      `<li class="${d && i === d.at ? 'cur' : ''}"><div class="line">${mark(p, i)}<span class="txt"${
-        d ? ` data-a="goto" data-i="${i}" title="Go to this step"` : ''
-      }>${esc(p.text)}</span><span class="acts">` +
-      `<button class="ib" data-a="edit" data-i="${i}" title="Change" ${busy ? 'disabled' : ''}>✎</button>` +
-      `<button class="ib" data-a="up" data-i="${i}" title="Up" ${i && !busy ? '' : 'disabled'}>↑</button>` +
-      `<button class="ib" data-a="down" data-i="${i}" title="Down" ${
-        i < list.length - 1 && !busy ? '' : 'disabled'
-      }>↓</button>` +
-      `<button class="ib" data-a="del" data-i="${i}" title="Remove" ${busy ? 'disabled' : ''}>✕</button></span></div>` +
-      (d && p.result?.ok === false
-        ? `<div class="why">${esc(p.result.message)}${
-            p.result.expected ? `<span class="eg"><b>Expected</b> ${esc(p.result.expected)}</span>` : ''
-          }${p.result.got ? `<span class="eg"><b>Got</b> ${esc(p.result.got)}</span>` : ''}</div>`
-        : '') +
-      (t.editing === i && t.draft ? editForm(t.draft, i) : '') +
-      '</li>';
+    const W = globalThis.__nomadqaWords;
+    const why = (r) =>
+      r?.ok === false
+        ? `<div class="why">${esc(r.message)}${
+            r.expected ? `<span class="eg"><b>Expected</b> ${esc(r.expected)}</span>` : ''
+          }${r.got ? `<span class="eg"><b>Got</b> ${esc(r.got)}</span>` : ''}</div>`
+        : '';
+    // ↗ opens the step in NomadQA's Tests (only a test being gone through is in NomadQA already)
+    const showBtn = (k) =>
+      d ? `<button class="ib" data-a="show" data-k="${k}" title="Open this step in NomadQA">↗</button>` : '';
+    const markOf = (r) =>
+      `<span class="mk ${r?.ok ? 'ok' : r?.ok === false ? (r.optional ? 'warn' : 'bad') : ''}">${
+        r?.ok ? '✓' : r?.ok === false ? '✕' : '·'
+      }</span>`;
+    /** A step of the group at i: shown under it, moved in; it can be changed, opened in NomadQA or removed. */
+    const kid = (c, j, p, i) => {
+      const k = `${i}.${j}`;
+      const r = p.result?.children?.[j];
+      return (
+        `<li class="kid"><div class="line">${d ? markOf(r) : ''}<span class="kn">${i + 1}.${
+          j + 1
+        }</span><span class="txt">${esc(W ? W.stepText(c) : sentence(c))}</span><span class="acts">${showBtn(k)}` +
+        `<button class="ib" data-a="edit" data-k="${k}" title="Change" ${busy ? 'disabled' : ''}>✎</button>` +
+        `<button class="ib" data-a="del" data-k="${k}" title="Remove from the group" ${
+          busy ? 'disabled' : ''
+        }>✕</button></span></div>` +
+        (d ? why(r) : '') +
+        (t.editing === k && t.draft ? editForm(t.draft, k) : '') +
+        '</li>'
+      );
+    };
+    const item = (p, i) => {
+      const isGroup = p.step.action === 'group' && Array.isArray(p.step.steps);
+      // A group that failed shows its steps (the one that failed among them)
+      const open = isGroup && (t.open[i] ?? (d && p.result?.ok === false));
+      return (
+        `<li class="${d && i === d.at ? 'cur' : ''}${isGroup ? ' grp' : ''}"><div class="line">${mark(p, i)}${
+          isGroup
+            ? `<button class="ib caret" data-a="fold" data-k="${i}" title="${open ? 'Hide' : 'Show'} its steps">${
+                open ? '▾' : '▸'
+              }</button>`
+            : ''
+        }<span class="txt"${d ? ` data-a="goto" data-k="${i}" title="Go to this step"` : ''}>${esc(
+          p.text
+        )}</span><span class="acts">${showBtn(String(i))}` +
+        `<button class="ib" data-a="edit" data-k="${i}" title="${isGroup ? 'Rename' : 'Change'}" ${
+          busy ? 'disabled' : ''
+        }>✎</button>` +
+        `<button class="ib" data-a="up" data-k="${i}" title="Up" ${i && !busy ? '' : 'disabled'}>↑</button>` +
+        `<button class="ib" data-a="down" data-k="${i}" title="Down" ${
+          i < list.length - 1 && !busy ? '' : 'disabled'
+        }>↓</button>` +
+        `<button class="ib" data-a="del" data-k="${i}" title="Remove" ${
+          busy ? 'disabled' : ''
+        }>✕</button></span></div>` +
+        (d ? why(p.result) : '') +
+        (t.editing === String(i) && t.draft ? editForm(t.draft, String(i)) : '') +
+        (open ? `<ol class="kids">${p.step.steps.map((c, j) => kid(c, j, p, i)).join('')}</ol>` : '') +
+        '</li>'
+      );
+    };
     const atEnd = d && d.at >= list.length;
     // The list keeps its place when it is drawn again; a step just added or changed is scrolled to
     const keepTop = tray.querySelector('ol')?.scrollTop ?? 0;
@@ -351,7 +403,7 @@
         : `<footer><button data-a="find">+ Find a record</button><button data-a="tests" class="primary">Open in Tests</button>` +
           `<button data-a="clear">Clear</button><button data-a="off" title="Turn the Inspector off (Esc)">Stop</button></footer>`);
     tray.querySelectorAll('[data-a]').forEach((b) => {
-      b.onclick = () => void trayAction(b.dataset.a, Number(b.dataset.i));
+      b.onclick = () => void trayAction(b.dataset.a, b.dataset.k ?? '');
     });
     const ol = tray.querySelector('ol');
     if (ol) {
@@ -456,9 +508,21 @@
       d.dirty = true;
     });
   }
-  async function trayAction(a, i) {
+  async function trayAction(a, key) {
     const t = trayState;
     const list = [...items()];
+    const [i, j = -1] = String(key).split('.').map(Number);
+    // A step of a group being worked on: the group stays open (also when its result goes, after a change)
+    if (j >= 0) t.open = { ...t.open, [i]: true };
+    const W = globalThis.__nomadqaWords;
+    const textOf = (step) => (W ? W.stepText(step) : sentence(step));
+    /** The group at i with its steps changed by fn(steps). */
+    const regroup = (fn) => {
+      const steps = [...list[i].step.steps];
+      fn(steps);
+      const step = { ...list[i].step, steps };
+      list[i] = { ...list[i], step, text: textOf(step), result: null };
+    };
     const at = t.debug?.at ?? 0;
     t.msg = a === 'find' || a === 'find-go' || a === 'find-add' ? t.msg : '';
     t.msgBad = false;
@@ -472,22 +536,30 @@
       state.pinned = null;
       tip.style.display = 'none';
       outline(null);
+    } else if (a === 'fold') {
+      const open = t.open[i] ?? (debugging() && list[i]?.result?.ok === false);
+      t.open = { ...t.open, [i]: !open };
+    } else if (a === 'show') {
+      const d = t.debug;
+      if (!d) return;
+      void chrome.runtime.sendMessage({ type: 'nomadqa:show', testId: d.testId, step: key }).catch(() => {});
+      t.msg = d.dirty ? 'Opened in NomadQA. Your changes here show there after Save to the test.' : '';
     } else if (a === 'edit') {
-      t.editing = t.editing === i ? -1 : i;
-      t.draft = t.editing === i ? structuredClone(list[i].step) : null;
+      t.editing = t.editing === key ? '' : key;
+      t.draft = t.editing === key ? structuredClone(j < 0 ? list[i].step : list[i].step.steps[j]) : null;
       t.focusAt = i;
       t.editFocus = true;
       // Log in steps choose among Settings › Logins: their names only
       const stored = (await chrome.storage.local.get('nomadqa.logins').catch(() => ({})))['nomadqa.logins'] ?? [];
       t.logins = stored.map((l) => ({ name: l.name, username: l.username }));
     } else if (a === 'edit-x') {
-      t.editing = -1;
+      t.editing = '';
       t.draft = null;
     } else if (a === 'save') {
-      const step = cleanDraft(t.draft ?? list[i].step);
-      const W = globalThis.__nomadqaWords;
-      list[i] = { ...list[i], step, text: W ? W.stepText(step) : sentence(step), result: null };
-      t.editing = -1;
+      const step = cleanDraft(t.draft ?? (j < 0 ? list[i].step : list[i].step.steps[j]));
+      if (j < 0) list[i] = { ...list[i], step, text: textOf(step), result: null };
+      else regroup((steps) => (steps[j] = step));
+      t.editing = '';
       t.draft = null;
       t.focusAt = i;
       return writeList(list);
@@ -495,10 +567,21 @@
       const j = a === 'up' ? i - 1 : i + 1;
       t.focusAt = j;
       [list[i], list[j]] = [list[j], list[i]];
+      t.open = {};
       return writeList(list, at === i ? j : at === j ? i : at);
+    } else if (a === 'del' && j >= 0) {
+      t.editing = '';
+      // The group's last step: the group goes too
+      if (list[i].step.steps.length > 1) {
+        regroup((steps) => steps.splice(j, 1));
+        return writeList(list);
+      }
+      list.splice(i, 1);
+      return writeList(list, i < at ? at - 1 : at);
     } else if (a === 'del') {
       list.splice(i, 1);
-      t.editing = -1;
+      t.editing = '';
+      t.open = {};
       return writeList(list, i < at ? at - 1 : at);
     } else if (a === 'goto') return writeList(list, i);
     else if (a === 'clear') return writePicked([]);

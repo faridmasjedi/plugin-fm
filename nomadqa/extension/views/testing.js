@@ -185,9 +185,13 @@ async function tabDriver(host, { tabId, window: place } = {}) {
       kept = null;
       await this.open(`https://${host}/lightning/page/home`).catch(() => {});
     },
-    async close() {
+    /** Ends the driver: its window goes; with { tab: true } also the tab(s) it opened (never a tab it was given). */
+    async close({ tab: closeTab = false } = {}) {
       chrome.tabs.onCreated.removeListener(onCreated);
-      if (win) await chrome.windows.remove(win.id).catch(() => {});
+      if (win) return void (await chrome.windows.remove(win.id).catch(() => {}));
+      if (!closeTab) return;
+      const ids = [...new Set([tabId ? null : tab.id, cur.id === tabId ? null : cur.id])].filter(Boolean);
+      if (ids.length) await chrome.tabs.remove(ids).catch(() => {});
     },
     // What the tab shows (the test's tab is in front while it runs): a small JPEG
     async shot() {
@@ -250,6 +254,7 @@ export function testingViews(ctx) {
     shots: {}, // pictures of failed steps by run: { runId: { stepIndex: dataUrl } }
     shotsOk: false, // Chrome lets NomadQA take pictures of a tab
     sel: null, // steps ticked in the editor: { testId, set }
+    closeTab: true, // the tab a test ran in is closed when it ends
   });
   const loginsMap = () =>
     Object.fromEntries(
@@ -267,6 +272,7 @@ export function testingViews(ctx) {
     T.logins = await store.get('nomadqa.logins', []);
     T.clip = await store.get('nomadqa.clip', []);
     T.shots = await store.get('nomadqa.shots', {});
+    T.closeTab = await store.get('nomadqa.closeTab', true);
     T.shotsOk = await chrome.permissions.contains({ origins: ['<all_urls>'] }).catch(() => false);
     // A test gone through on the page from an earlier visit cannot go on (its steps' state was here): it is closed
     await store.set('nomadqa.debug', null);
@@ -277,6 +283,11 @@ export function testingViews(ctx) {
         (e) => reply({ ok: false, message: e.message })
       );
       return true;
+    });
+    // A step clicked (↗) in the list on the Salesforce page: its test opens here, at that step
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg?.type !== 'nomadqa:show' || !T.tests.some((t) => t.id === msg.testId)) return;
+      void showStep(msg.testId, String(msg.step ?? ''));
     });
     // The Inspector's list follows the browser: tabs opened, moved to another page, or closed
     let soon;
@@ -305,6 +316,28 @@ export function testingViews(ctx) {
     });
   }
   const saveTests = () => store.set('nomadqa.tests', T.tests);
+
+  /** Opens a test at one of its steps ("3", or "3.2": the 2nd step of the group at 3), brought to the front. */
+  async function showStep(testId, key) {
+    T.selected = testId;
+    S.view = 'tests';
+    T.results = null;
+    const g = Number(key.split('.')[0]);
+    if (key.includes('.')) T.folded = { ...T.folded, [`${testId}:${g}`]: false };
+    T.focusStep = key;
+    render();
+    const me = await chrome.tabs.getCurrent().catch(() => null);
+    if (me) {
+      await chrome.tabs.update(me.id, { active: true }).catch(() => {});
+      await chrome.windows.update(me.windowId, { focused: true }).catch(() => {});
+    }
+    requestAnimationFrame(() => {
+      document.querySelector(`tr[data-step="${key}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      setTimeout(() => {
+        if (T.focusStep === key) (T.focusStep = -1), render();
+      }, 2500);
+    });
+  }
 
   async function salesforceTabs() {
     const tabs = await chrome.tabs.query({ url: SF_TABS });
@@ -1448,6 +1481,16 @@ export function testingViews(ctx) {
           'Delete its test data after'
         ),
         h(
+          'label',
+          { class: 'check', title: 'For every test: the tab a test runs in is closed when the test ends' },
+          h('input', {
+            type: 'checkbox',
+            checked: T.closeTab,
+            onchange: (e) => ((T.closeTab = e.target.checked), void store.set('nomadqa.closeTab', T.closeTab)),
+          }),
+          'Close its tab after'
+        ),
+        h(
           'button',
           {
             disabled: !S.sf || Boolean(S.busy) || !test.steps.length,
@@ -1715,6 +1758,7 @@ export function testingViews(ctx) {
       });
       T.results = { testId: test.id, ...out };
       await saveRun(test, out);
+      if (T.closeTab) await driver.close({ tab: true });
       // Back to NomadQA to see the result
       await backHere();
     });
@@ -1773,6 +1817,7 @@ export function testingViews(ctx) {
       if (n === 1) {
         const driver = await tabDriver(S.host);
         for (const k of tests.keys()) await runOne(driver, k);
+        if (T.closeTab) await driver.close({ tab: true });
       } else {
         status();
         const together = [...tests.keys()].filter((k) => !logsIn(tests[k]));

@@ -1533,8 +1533,19 @@ table.steps .caret-btn {
 table.steps tr.child td.c-n {
   box-shadow: inset 3px 0 0 var(--accent);
 }
+/* A group's steps sit inside it: moved in, with a line down their left */
 table.steps tr.child td:nth-child(2) {
-  padding-left: 22px;
+  padding-left: 40px;
+  background-image: linear-gradient(var(--accent), var(--accent));
+  background-size: 2px 100%;
+  background-position: 22px 0;
+  background-repeat: no-repeat;
+}
+table.steps tr.child td:nth-child(3) {
+  padding-left: 18px;
+}
+table.steps tr.child td.c-n {
+  padding-left: 18px;
 }
 table.steps .sub-n {
   font-size: 12px;

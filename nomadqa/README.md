@@ -92,7 +92,11 @@ headless Chrome alike.
   after the others (a login is the whole browser's).
   **Step by step on the page** (or **Fix it on the page** after a failed run: the steps before it run first): the
   test's steps show on the Salesforce page; ▶ runs one, ▶▶ to the end, click a step to go to it, change, move or
-  remove steps, point at the page to add one before the current step, then **Save to the test**.
+  remove steps, point at the page to add one before the current step, then **Save to the test**. A group of steps
+  opens there too (▸), each of its steps with ✓/✕ and its own ✎ and ✕; **↗** on any step opens the test in
+  NomadQA at exactly that step.
+  **Close its tab after** (on by default, for every test): the tab a test ran in is closed when it ends (the result
+  and the picture of a failed step stay in NomadQA).
   **Just click** in the list on the page lets the page work as usual (menus, tabs) without picking.
 - **Runs**: every run with its steps (and why it failed); download the **test** as it ran, its **Report**, its
   **JUnit** report, or one for the whole group. A JUnit report NomadQA wrote carries its steps: **Upload** it in Tests to run it again.
