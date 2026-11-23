@@ -1907,6 +1907,7 @@ export function testingViews(ctx) {
   /** Runs `n` steps from the current one; stops at a step that fails (an optional one goes on). */
   async function debugRun(n) {
     const D = T.debug;
+    D.stopAsked = false;
     let d = await writeDebug((x) => {
       x.running = 'yes';
       x.bad = false;
@@ -1914,7 +1915,17 @@ export function testingViews(ctx) {
     try {
       for (let k = 0; d && k < n && d.at < d.items.length; k++) {
         const i = d.at;
-        const { shot, ...r } = await D.st.run(d.items[i].step);
+        const { shot, ...ran } = await D.st.run(d.items[i].step);
+        // ■ Stop: the step did not finish; it stays the current one, to change it and run it again
+        if (ran.stopped || D.stopAsked) {
+          d = await writeDebug((x) => {
+            if (x.items[i]) x.items[i].result = null;
+            x.msg = `Stopped at step ${i + 1}: change it if you want, then ▶ This step.`;
+            x.bad = false;
+          });
+          break;
+        }
+        const r = ran;
         d = await writeDebug((x) => {
           if (x.items[i]) x.items[i].result = r;
           if (r.ok || r.optional) x.at = i + 1;
@@ -1954,6 +1965,10 @@ export function testingViews(ctx) {
     if (msg.cmd === 'step') return debugRun(Number(msg.n) || 1);
     if (msg.cmd === 'all') return debugRun(Infinity);
     if (msg.cmd === 'close') return closeDebug();
+    if (msg.cmd === 'stop') {
+      if (T.debug) T.debug.stopAsked = true;
+      return;
+    }
     if (msg.cmd === 'save') {
       const d = await readDebug();
       const test = T.tests.find((t) => t.id === d?.testId);

@@ -89,6 +89,10 @@
     .tray .why{margin:4px 0 0 20px;font-size:12px;color:#a3272b;word-break:break-word}
     .tray .why .eg{display:block;color:#5b6475}.tray .why .eg b{color:#1d2433;font-weight:600}
     .tray .muted{color:#8a93a6}
+    .tray footer button.stop{background:#c23934;border-color:#c23934;color:#fff}
+    .tray .edit .pick{margin-top:4px;justify-self:start;font-size:12px;padding:3px 9px;border:1px solid #d5d9e4;border-radius:7px;background:#fff;color:#432bb0;cursor:pointer}
+    .tray .edit .pick.on{background:#5b3fd1;color:#fff;border-color:#5b3fd1}
+    .tip .act code{font-size:11.5px;word-break:break-all}
     .tray.dock{width:auto;max-height:none;border-radius:12px 12px 0 0;border-bottom:0;box-shadow:0 -6px 28px rgba(20,24,40,.18)}
     .tray.dock header{cursor:ns-resize}
     .tray.dock ol{padding-left:42px}.tray.dock li .txt{font-size:13.5px}
@@ -248,6 +252,14 @@
               )
               .join('')}</select>`
           : `<input data-ed="${k}" value="${esc(v)}" placeholder="${esc(ph)}">`
+      }${
+        k === 'css'
+          ? `<button class="pick${
+              trayState.pickPath ? ' on' : ''
+            }" data-a="pickpath" data-k="${key}" title="Then click the element on the page: its path is written here">⌖ ${
+              trayState.pickPath ? 'Click it on the page…' : 'Pick on the page'
+            }</button>`
+          : ''
       }</label>`;
     };
     return (
@@ -408,6 +420,9 @@
       (d
         ? `<footer><button class="primary" data-a="run1" ${busy || atEnd ? 'disabled' : ''}>▶ This step</button>` +
           `<button data-a="runall" ${busy || atEnd ? 'disabled' : ''}>▶▶ To the end</button>` +
+          (busy
+            ? `<button class="stop" data-a="stoprun" title="Stop the step now (and the steps after it)">■ Stop</button>`
+            : '') +
           `<button data-a="find" ${busy ? 'disabled' : ''}>+ Find a record</button>` +
           `<button data-a="keep" ${busy ? 'disabled' : ''}>${d.dirty ? 'Save to the test' : 'Saved'}</button>` +
           `<button data-a="close" ${busy ? 'disabled' : ''}>Close</button>` +
@@ -601,10 +616,17 @@
       // Log in steps choose among Settings › Logins: their names only
       const stored = (await chrome.storage.local.get('nomadqa.logins').catch(() => ({})))['nomadqa.logins'] ?? [];
       t.logins = stored.map((l) => ({ name: l.name, username: l.username }));
+    } else if (a === 'pickpath') {
+      // The next click on the page is not done: its element's path goes in the box
+      t.pickPath = !t.pickPath;
+      t.pass = false;
+      t.msg = t.pickPath ? 'Click the element on the page: its exact path goes in the step.' : '';
     } else if (a === 'edit-x') {
+      t.pickPath = false;
       t.editing = '';
       t.draft = null;
     } else if (a === 'save') {
+      t.pickPath = false;
       const step = cleanDraft(t.draft ?? (j < 0 ? list[i].step : list[i].step.steps[j]));
       if (j < 0) list[i] = { ...list[i], step, text: textOf(step), result: null };
       else regroup((steps) => (steps[j] = step));
@@ -637,7 +659,11 @@
     else if (a === 'tests') void chrome.runtime.sendMessage({ type: 'nomadqa:open', view: 'tests' });
     else if (a === 'off') return void setMode('off');
     else if (a === 'run1') return void command('step');
-    else if (a === 'runall') return void command('all');
+    else if (a === 'stoprun') {
+      // The step waiting on this page stops now; NomadQA runs no more steps after it
+      Q.stop?.();
+      return void command('stop');
+    } else if (a === 'runall') return void command('all');
     else if (a === 'keep') return void command('save');
     else if (a === 'close') {
       if (t.debug?.dirty && !confirm('Close without saving your changes to the test?')) return;
@@ -918,6 +944,25 @@
     const kind = kindOf(el, d, click, typable);
     const suggested = state.pinned ? stepsFor(el, d) : [];
     const copies = copiesFor(d);
+    // Its exact paths (as DevTools copies them): to copy, or for steps that find it by its path
+    const target = typable ?? click ?? el;
+    const paths = state.pinned ? Q.pathsOf(target) : null;
+    if (paths) {
+      if (paths.selector) copies.push(['sel', 'Selector', paths.selector]);
+      if (paths.xpath) copies.push(['xpath', 'XPath', paths.xpath]);
+      copies.push(['js', 'JS path', paths.js]);
+      const W = globalThis.__nomadqaWords;
+      const by = (step, label) => ({ step, text: W.stepText(step), label, hidden: true });
+      const first = suggested.length;
+      suggested.push(
+        by({ action: 'click', css: paths.best }, 'Click it'),
+        ...(typable && !typable.readOnly && !typable.disabled
+          ? [by({ action: 'fill', css: paths.best, value: typable.value ?? '' }, 'Type into it')]
+          : []),
+        by({ action: 'expect', kind: 'element', css: paths.best }, 'Check it is shown')
+      );
+      suggested.push({ paths: suggested.slice(first).map((x, k) => [first + k, x.label]), best: paths.best });
+    }
     if (!d.fieldApi && d.field && d.record)
       void apiName(d.record.object, d.field).then((api) => {
         if (!api || (state.pinned !== el && state.hover !== el)) return;
@@ -985,21 +1030,30 @@
             ? '<div class="note">Setup is read-only for NomadQA: tests open pages, search and check here, never change.</div>'
             : '') +
           `<div class="sec">Add to the test</div><div class="acts">${suggested
-            .map(
-              (s, i) =>
-                `<div class="act${s.blocked ? ' off' : ''}"><div class="t"><b>${esc(s.title)}</b><span>${esc(
-                  s.desc
-                )}</span></div><div class="b">${
-                  s.blocked
-                    ? ''
-                    : s.form
-                    ? `<button class="step" data-form="${i}">Fill in…</button>`
-                    : `<button class="step" data-step="${i}" title="${esc(s.text)}">Add</button>`
-                }${
-                  s.go
-                    ? `<button class="step primary" data-go="${i}" title="Adds the step, then really clicks it">Add and click</button>`
-                    : ''
-                }</div></div>`
+            .map((s, i) =>
+              s.hidden
+                ? ''
+                : s.paths
+                ? `<div class="act"><div class="t"><b>By its exact path</b><span title="${esc(s.best)}">Found by ${
+                    /^document/.test(s.best) ? 'its JS path' : 'its selector'
+                  }, not by what it says: <code>${esc(
+                    s.best.length > 70 ? `…${s.best.slice(-68)}` : s.best
+                  )}</code></span></div><div class="b">${s.paths
+                    .map(([k, label]) => `<button class="step" data-step="${k}">${esc(label)}</button>`)
+                    .join('')}</div></div>`
+                : `<div class="act${s.blocked ? ' off' : ''}"><div class="t"><b>${esc(s.title)}</b><span>${esc(
+                    s.desc
+                  )}</span></div><div class="b">${
+                    s.blocked
+                      ? ''
+                      : s.form
+                      ? `<button class="step" data-form="${i}">Fill in…</button>`
+                      : `<button class="step" data-step="${i}" title="${esc(s.text)}">Add</button>`
+                  }${
+                    s.go
+                      ? `<button class="step primary" data-go="${i}" title="Adds the step, then really clicks it">Add and click</button>`
+                      : ''
+                  }</div></div>`
             )
             .join('')}</div>` +
           (copies.length
@@ -1263,6 +1317,22 @@
     if (state.mode !== 'record' && state.mode !== 'inspect' && !debugging()) return;
     const el = e.composedPath?.()[0] ?? e.target;
     if (!el?.tagName || ours(el) || e.composedPath?.().includes(host)) return;
+    if (trayState.pickPath && trayState.draft && (state.mode === 'inspect' || debugging())) {
+      // ⌖ Pick on the page (changing a step in the list): the element's path goes in the step being changed
+      e.preventDefault();
+      e.stopPropagation();
+      const t = trayState;
+      const typable = [...Q.ancestors(el)].find((a) => a.matches?.('input, textarea'));
+      const click = [...Q.ancestors(el)].find((a) => a.matches?.(CLICKS));
+      const target = t.draft.action === 'fill' ? typable ?? el : t.draft.action === 'click' ? click ?? el : el;
+      const p = Q.pathsOf(target);
+      t.pickPath = false;
+      if (p) t.draft = { ...t.draft, css: p.best };
+      t.msg = p ? 'Its path is in the step: Save to keep it.' : '';
+      outline(null);
+      paintTray();
+      return;
+    }
     if (state.mode === 'inspect' || debugging()) {
       if (!picking()) return; // Just click, or a step of the test is clicking
       e.preventDefault();

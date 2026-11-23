@@ -28,7 +28,8 @@
   function deepAll(selector, root = document) {
     const out = [...root.querySelectorAll(selector)];
     for (const el of root.querySelectorAll('*')) {
-      if (el.shadowRoot) out.push(...deepAll(selector, el.shadowRoot));
+      // NomadQA's own panel on the page (the list of steps, the Inspector) is not part of the page being tested
+      if (el.shadowRoot && el.id !== 'nomadqa-host') out.push(...deepAll(selector, el.shadowRoot));
       if (el.tagName === 'IFRAME' || el.tagName === 'FRAME') {
         const doc = frameDoc(el);
         if (doc) out.push(...deepAll(selector, doc));
@@ -110,6 +111,106 @@
       return null;
     }
   }
+  /**
+   * An element's exact paths, as DevTools would copy them: { selector, xpath, js, best }. selector is one that finds
+   * only it (in the page and every shadow root); xpath only when it is not inside a shadow root (XPath cannot go
+   * in); js goes through each shadow root. best: the selector when there is one, else the JS path.
+   */
+  function pathsOf(el) {
+    if (!el?.tagName) return null;
+    const cssq = (v) => `"${String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+    // Attributes that say what it is (ids and values with long numbers change from one load to the next)
+    const steady = (v) => v && v.length <= 80 && !/\d{3,}/.test(v);
+    const ATTRS = [
+      'name',
+      'title',
+      'aria-label',
+      'data-name',
+      'data-id',
+      'data-target-selection-name',
+      'data-label',
+      'placeholder',
+      'type',
+    ];
+    const own = (e) => {
+      const tag = e.tagName.toLowerCase();
+      const out = [];
+      if (steady(e.id) && !/^\d/.test(e.id)) out.push(`${tag}#${CSS.escape(e.id)}`);
+      for (const a of ATTRS) if (steady(e.getAttribute(a))) out.push(`${tag}[${a}=${cssq(e.getAttribute(a))}]`);
+      out.push(tag);
+      return out;
+    };
+    const only = (root, sel, e) => {
+      try {
+        const all = root.querySelectorAll(sel);
+        return all.length === 1 && all[0] === e;
+      } catch {
+        return false;
+      }
+    };
+    const nth = (e) => {
+      const tag = e.tagName.toLowerCase();
+      const sib = e.parentElement ? [...e.parentElement.children].filter((x) => x.tagName === e.tagName) : [];
+      return sib.length > 1 ? `${tag}:nth-of-type(${sib.indexOf(e) + 1})` : tag;
+    };
+    /** A selector that finds only e in its own root (the page or its shadow root). */
+    const inRoot = (e) => {
+      const root = e.getRootNode();
+      for (const s of own(e)) if (only(root, s, e)) return s;
+      // Under the nearest parent that can be named, step by step down
+      const chain = [nth(e)];
+      for (let a = e.parentElement; a && chain.length < 8; a = a.parentElement) {
+        const named = own(a).find((s) => only(root, s, a));
+        if (named && only(root, `${named} ${chain.join(' > ')}`, e)) return `${named} ${chain.join(' > ')}`;
+        if (named && only(root, `${named} > ${chain.join(' > ')}`, e)) return `${named} > ${chain.join(' > ')}`;
+        chain.unshift(nth(a));
+        if (only(root, chain.join(' > '), e)) return chain.join(' > ');
+      }
+      return chain.join(' > ');
+    };
+    const parts = [];
+    for (let e = el; e; ) {
+      parts.unshift(inRoot(e));
+      const root = e.getRootNode();
+      e = root instanceof ShadowRoot ? root.host : null;
+    }
+    const js = `document${parts
+      .map((s, i) => `${i ? '.shadowRoot' : ''}.querySelector(${JSON.stringify(s)})`)
+      .join('')}`;
+    const last = parts[parts.length - 1];
+    const deep = deepAll(last);
+    const selector = deep.length === 1 && deep[0] === el ? last : parts.length === 1 ? last : '';
+    let xpath = '';
+    if (el.getRootNode() === document) {
+      const xq = (v) => (v.includes('"') ? `'${v}'` : `"${v}"`);
+      const xone = (x) => {
+        try {
+          const r = document.evaluate(x, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+          return r.snapshotLength === 1 && r.snapshotItem(0) === el;
+        } catch {
+          return false;
+        }
+      };
+      const tag = el.tagName.toLowerCase();
+      for (const a of ['id', ...ATTRS]) {
+        const v = el.getAttribute(a);
+        if (steady(v) && xone(`//${tag}[@${a}=${xq(v)}]`)) {
+          xpath = `//${tag}[@${a}=${xq(v)}]`;
+          break;
+        }
+      }
+      if (!xpath) {
+        const steps = [];
+        for (let e = el; e && e.nodeType === 1; e = e.parentElement) {
+          const sib = e.parentElement ? [...e.parentElement.children].filter((x) => x.tagName === e.tagName) : [];
+          steps.unshift(`${e.tagName.toLowerCase()}${sib.length > 1 ? `[${sib.indexOf(e) + 1}]` : ''}`);
+        }
+        xpath = `/${steps.join('/')}`;
+      }
+    }
+    return { selector, xpath, js, best: selector || js };
+  }
+
   /** What an element shows: a box's value, or its text. */
   const elText = (el) =>
     String((el.matches?.('input, textarea, select') ? el.value : el.innerText ?? el.textContent) ?? '')
@@ -224,11 +325,23 @@
   }
 
   /** Waits until `find()` returns something (Salesforce answers in its own time). */
+  // ■ Stop (going through a test on the page): the step that waits stops now, as if its time ran out
+  let stopped = false;
+  const stopError = () => Object.assign(new Error('Stopped by you.'), { stopped: true });
+  /** Waits ms, or less when stopped. */
+  async function pause(ms) {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      if (stopped) throw stopError();
+      await sleep(Math.min(200, end - Date.now()));
+    }
+  }
   async function until(find, timeout, what) {
     const end = Date.now() + timeout;
     const patience = Date.now() + timeout / 2;
     let last;
     while (Date.now() < end) {
+      if (stopped) throw stopError();
       // A spinner that never goes away (a background card) must not block the step for ever
       if (!busy() || Date.now() > patience) {
         last = await find();
@@ -597,7 +710,8 @@
       .map((t) => t.innerText.replace(/\s+/g, ' ').trim());
   const pageText = () => {
     const parts = [document.body?.innerText ?? '', ...frameDocs().map((d) => d.body?.innerText ?? '')];
-    for (const el of deepAll('*')) if (el.shadowRoot) parts.push(el.shadowRoot.textContent ?? '');
+    for (const el of deepAll('*'))
+      if (el.shadowRoot && el.id !== 'nomadqa-host') parts.push(el.shadowRoot.textContent ?? '');
     return parts.join('\n').replace(/\s+/g, ' ');
   };
 
@@ -791,6 +905,7 @@
     const t0 = Date.now();
     globalThis.__nomadqa.stepId = step.__id ?? '';
     const timeout = Number(step.timeout ?? 20000);
+    stopped = false;
     try {
       switch (step.action) {
         case 'click': {
@@ -845,7 +960,7 @@
               timeout,
               `the text “${step.text}”`
             );
-          else await sleep(Number(step.ms ?? 1000));
+          else await pause(Number(step.ms ?? 1000));
           break;
         case 'expect': {
           const want = String(step.value ?? '');
@@ -998,6 +1113,7 @@
     } catch (e) {
       return {
         ok: false,
+        ...(e.stopped || stopped ? { stopped: true } : {}),
         message: e.message,
         expected: e.expected,
         got: e.got,
@@ -1106,6 +1222,8 @@
     findClickable,
     findField,
     byPath,
+    pathsOf,
+    stop: () => void (stopped = true),
     fieldValue,
     toasts,
     deepAll,

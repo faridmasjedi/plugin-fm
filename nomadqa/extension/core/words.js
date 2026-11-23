@@ -271,7 +271,7 @@
       case 'open':
         return s.record ? `Open the record ${s.record}` : s.object ? `Open ${s.object} “${s.name}”` : `Open ${s.path}`;
       case 'click':
-        return `Click ${s.label ? `“${s.label}”` : pathText(s.css)}${s.within ? ` in ${s.within}` : ''}${
+        return `Click ${s.css ? pathText(s.css) : `“${s.label}”`}${s.within ? ` in ${s.within}` : ''}${
           s.type ? `, type “${s.type}”` : ''
         }${s.choose ? `, choose “${s.choose}”` : ''}`;
       case 'fill':
