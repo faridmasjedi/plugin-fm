@@ -89,6 +89,14 @@
     .tray .why{margin:4px 0 0 20px;font-size:12px;color:#a3272b;word-break:break-word}
     .tray .why .eg{display:block;color:#5b6475}.tray .why .eg b{color:#1d2433;font-weight:600}
     .tray .muted{color:#8a93a6}
+    .tray.dock{width:auto;max-height:none;border-radius:12px 12px 0 0;border-bottom:0;box-shadow:0 -6px 28px rgba(20,24,40,.18)}
+    .tray.dock header{cursor:ns-resize}
+    .tray.dock ol{padding-left:42px}.tray.dock li .txt{font-size:13.5px}
+    .tray.dock .why{margin-left:22px}.tray.dock .why .eg{display:inline;margin-left:10px}
+    .tray.dock .edit{grid-template-columns:repeat(4,minmax(0,1fr));max-width:1100px}
+    .tray.dock footer{flex-wrap:nowrap;align-items:center}.tray.dock footer .msg{flex-basis:auto!important;flex:1;text-align:right}
+    .tray.dock.small{height:auto!important}
+    .tray .tag{font-size:11px;background:#efebff;color:#432bb0;border-radius:999px;padding:0 7px;white-space:nowrap}
     .tray .caret{padding:0 4px;color:#5b3fd1;font-size:14px;line-height:1.3;flex:none}
     .tray ol.kids{margin:6px 0 0 14px;padding:0 0 0 10px;border-left:2px solid #c9bdf5;overflow:visible}
     .tray li.kid{padding:4px 2px;border-bottom:1px dashed #eef0f5;list-style:none}.tray li.kid:last-child{border-bottom:0}
@@ -193,6 +201,7 @@
       trayState.list = ch['nomadqa.picked'].newValue ?? [];
       paintTray();
     }
+    if (ch['nomadqa.debug'] && state.mode === 'moved' && !ch['nomadqa.debug'].newValue) return void setMode('off');
     if (ch['nomadqa.debug'] && debugging()) {
       trayState.debug = ch['nomadqa.debug'].newValue ?? null;
       if (!trayState.debug) return void setMode('off');
@@ -334,9 +343,11 @@
                 open ? '▾' : '▸'
               }</button>`
             : ''
-        }<span class="txt"${d ? ` data-a="goto" data-k="${i}" title="Go to this step"` : ''}>${esc(
-          p.text
-        )}</span><span class="acts">${showBtn(String(i))}` +
+        }<span class="txt"${d ? ` data-a="goto" data-k="${i}" title="Go to this step"` : ''}>${esc(p.text)}${
+          p.result?.newTab
+            ? ' <span class="tag" title="This step opened a new tab: the test went on there">new tab</span>'
+            : ''
+        }</span><span class="acts">${showBtn(String(i))}` +
         `<button class="ib" data-a="edit" data-k="${i}" title="${isGroup ? 'Rename' : 'Change'}" ${
           busy ? 'disabled' : ''
         }>✎</button>` +
@@ -363,6 +374,9 @@
       `<button class="${
         t.pass ? 'on' : ''
       }" data-a="pass" title="The page works as usual: nothing is pinned or added">Just click</button>` +
+      `<button class="ib" data-a="dock" title="${
+        t.side === 'bottom' ? 'Back to a corner' : 'Under the page, full width (drag its title to make it taller)'
+      }">${t.side === 'bottom' ? '◱' : '▭'}</button>` +
       `<button class="ib" data-a="side" title="Move the list to the other side (or drag it by its title)">⇆</button>` +
       `<button class="ib" data-a="small" title="${t.small ? 'Show' : 'Hide'} the list">${
         t.small ? '▴' : '▾'
@@ -441,10 +455,34 @@
       t.editFocus = false;
     }
   }
+  /** The test went on in a tab its step opened (Setup from the gear): this tab's list says so, and goes there. */
+  function paintMoved(to = '') {
+    tray.style.display = 'flex';
+    tray.classList.remove('small');
+    placeTray();
+    tray.style.height = '';
+    tray.innerHTML =
+      `<header><span class="brand">NomadQA</span><b>Test steps</b></header>` +
+      `<div class="note">A step opened a new tab${
+        to ? ` (${esc(to)})` : ''
+      }: the test goes on there, with its steps. This tab is no longer part of the test.</div>` +
+      `<footer><button class="primary" data-a="front">Go to that tab</button><button data-a="off">Hide</button></footer>`;
+    tray.querySelectorAll('[data-a]').forEach((b) => {
+      b.onclick = () =>
+        b.dataset.a === 'front'
+          ? void chrome.runtime.sendMessage({ type: 'nomadqa:front' }).catch(() => {})
+          : void setMode('off');
+    });
+  }
   /** The list sits in a bottom corner, or where it was dragged to (out of the way of what is under it). */
   function placeTray() {
     const t = trayState;
-    if (t.at) {
+    tray.classList.toggle('dock', t.side === 'bottom');
+    if (t.side === 'bottom') {
+      // Under the page, as wide as it: as tall as was dragged (a third of the window at first)
+      const h = Math.max(140, Math.min(t.dockH ?? Math.round(innerHeight * 0.34), innerHeight - 80));
+      Object.assign(tray.style, { left: '0px', right: '0px', top: 'auto', bottom: '0px', height: `${h}px` });
+    } else if (t.at) {
       const x = Math.max(0, Math.min(t.at.left, innerWidth - 120));
       const y = Math.max(0, Math.min(t.at.top, innerHeight - 48));
       Object.assign(tray.style, { left: `${x}px`, top: `${y}px`, right: 'auto', bottom: 'auto' });
@@ -455,12 +493,13 @@
           ? { left: 'auto', right: '18px', top: 'auto', bottom: '18px' }
           : { left: '18px', right: 'auto', top: 'auto', bottom: '18px' }
       );
+    if (t.side !== 'bottom') tray.style.height = '';
   }
   void chrome.storage.local
     .get('nomadqa.trayAt')
     .then((r) => {
       const v = r['nomadqa.trayAt'];
-      if (v) Object.assign(trayState, { side: v.side ?? 'left', at: v.at ?? null });
+      if (v) Object.assign(trayState, { side: v.side ?? 'left', at: v.at ?? null, dockH: v.dockH });
       placeTray();
     })
     .catch(() => {});
@@ -472,14 +511,19 @@
     const r = tray.getBoundingClientRect();
     const dx = e.clientX - r.left;
     const dy = e.clientY - r.top;
+    const docked = trayState.side === 'bottom';
     const move = (ev) => {
-      trayState.at = { left: ev.clientX - dx, top: ev.clientY - dy };
+      // Under the page it only grows or shrinks
+      if (docked) trayState.dockH = Math.round(innerHeight - ev.clientY + dy);
+      else trayState.at = { left: ev.clientX - dx, top: ev.clientY - dy };
       placeTray();
     };
     const up = () => {
       removeEventListener('pointermove', move, true);
       removeEventListener('pointerup', up, true);
-      void chrome.storage.local.set({ 'nomadqa.trayAt': { side: trayState.side, at: trayState.at } }).catch(() => {});
+      void chrome.storage.local
+        .set({ 'nomadqa.trayAt': { side: trayState.side, at: trayState.at, dockH: trayState.dockH } })
+        .catch(() => {});
     };
     addEventListener('pointermove', move, true);
     addEventListener('pointerup', up, true);
@@ -528,9 +572,14 @@
     t.msgBad = false;
     if (a === 'small') t.small = !t.small;
     else if (a === 'side') {
-      t.side = t.at ? t.side : t.side === 'left' ? 'right' : 'left';
+      t.side =
+        t.at || t.side === 'bottom' ? (t.side === 'bottom' ? 'left' : t.side) : t.side === 'left' ? 'right' : 'left';
       t.at = null;
-      void chrome.storage.local.set({ 'nomadqa.trayAt': { side: t.side, at: null } }).catch(() => {});
+      void chrome.storage.local.set({ 'nomadqa.trayAt': { side: t.side, at: null, dockH: t.dockH } }).catch(() => {});
+    } else if (a === 'dock') {
+      t.side = t.side === 'bottom' ? 'left' : 'bottom';
+      t.at = null;
+      void chrome.storage.local.set({ 'nomadqa.trayAt': { side: t.side, at: null, dockH: t.dockH } }).catch(() => {});
     } else if (a === 'pass') {
       t.pass = !t.pass;
       state.pinned = null;
@@ -1471,6 +1520,7 @@
     if (mode !== 'off') mount();
     if (mode === 'inspect') void readPicked().then((l) => ((trayState.list = l), paintTray()));
     else if (mode === 'debug') void readDebug().then((d) => ((trayState.debug = d), paintTray()));
+    else if (mode === 'moved') paintMoved(opts.to);
     else tray.style.display = 'none';
     // The background turns it on again after a full page load (a record opened, a step that opens a page)
     chrome.runtime

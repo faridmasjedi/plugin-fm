@@ -39,6 +39,7 @@ export function problem(s) {
     return s.value === undefined || s.value === '' || Number.isNaN(Number(s.value)) ? 'needs how many (a number)' : '';
   if (s.action === 'expect' && s.kind === 'place')
     return !s.field ? 'needs the field' : !(s.section || s.row || s.col) ? 'needs a section, a row or a column' : '';
+  if (s.action === 'expect' && s.kind === 'element') return s.css ? '' : 'needs the element’s path';
   if (s.action === 'expect' && noValue(s)) return s.kind === 'field' && !s.field ? 'needs the field' : '';
   if (s.action === 'query' && s.save && !/^[\w-]+$/.test(s.save)) return 'the name to save as: letters, digits, - or _';
   if (s.action === 'expect' && s.kind === 'field' && !s.field) return 'needs the field';
@@ -46,7 +47,8 @@ export function problem(s) {
   if (s.action === 'query' && !isSelect(s.soql)) return 'needs a SELECT query (it only reads)';
   if (s.action === 'open') return '';
   for (const f of a.fields)
-    if (s[f] === undefined || s[f] === '') if (!(s.action === 'expect' && f === 'kind')) return `needs ${f}`;
+    if (s[f] === undefined || s[f] === '')
+      if (!(s.action === 'expect' && f === 'kind') && !(s.css && (f === 'label' || f === 'field'))) return `needs ${f}`;
   return '';
 }
 

@@ -13,9 +13,9 @@
     click: {
       say: 'Click',
       fields: ['label'],
-      also: 'a button, link, tab or menu item, by what it says; within: a section title; type, choose: in the list it opens (App Launcher, a list view menu) type, then choose an item',
+      also: 'a button, link, tab or menu item, by what it says; within: a section title; type, choose: in the list it opens (App Launcher, a list view menu) type, then choose an item; css: or the element by its exact path (CSS, XPath, or DevTools’ Copy JS path)',
     },
-    fill: { say: 'Type into a field', fields: ['field', 'value'] },
+    fill: { say: 'Type into a field', fields: ['field', 'value'], also: 'css: or the box by its exact path' },
     pick: { say: 'Choose in a list', fields: ['field', 'value'] },
     lookup: { say: 'Choose a record in a lookup', fields: ['field', 'value'] },
     check: { say: 'Tick or untick', fields: ['field', 'value'] },
@@ -29,7 +29,7 @@
     expect: {
       say: 'Check',
       fields: ['kind', 'value'],
-      also: 'kind: text · toast · field (+ field) · title · url · no-text · button · no-button · count (+ what, within) · place (+ field, section, row, col) · recordtype · layout; op: contains · is · not · starts · empty · filled · more · less · matches',
+      also: 'kind: text · toast · field (+ field) · title · url · no-text · button · no-button · count (+ what, within) · place (+ field, section, row, col) · recordtype · layout · element (+ css: its exact path; value: its text, optional); op: contains · is · not · starts · empty · filled · more · less · matches',
     },
     login: {
       say: 'Log in (login page)',
@@ -73,6 +73,7 @@
     'place',
     'recordtype',
     'layout',
+    'element',
   ];
   /** What a count check counts. */
   const COUNT_WHAT = ['buttons', 'tabs', 'fields', 'sections', 'related lists', 'rows'];
@@ -102,7 +103,15 @@
     place: 'Where a field is (section, row, column)',
     recordtype: 'The record type',
     layout: 'The page layout (of who is logged in)',
+    element: 'An element, by its exact path',
   };
+  /** The box for an element's exact path: what DevTools copies (right-click the element › Copy). */
+  const PATH_BOX = [
+    'css',
+    'Or its exact path (optional)',
+    'DevTools › Copy selector, XPath or JS path',
+    { wide: true },
+  ];
   const FIELD_HINT = 'label or API name: Industry, Account.Industry';
 
   // What each step asks for: [key, label, placeholder, { options, wide, when, placeholder }]. options and when take
@@ -120,11 +129,9 @@
       ['within', 'In (optional)', 'a section or dialog title'],
       ['type', 'Then type (optional)', 'in the list it opens'],
       ['choose', 'Then choose (optional)', 'an item of that list'],
+      PATH_BOX,
     ],
-    fill: [
-      ['field', 'Field', 'Last Name or LastName'],
-      ['value', 'Value', 'Smith or {{found.Name}}'],
-    ],
+    fill: [['field', 'Field', 'Last Name or LastName'], ['value', 'Value', 'Smith or {{found.Name}}'], PATH_BOX],
     pick: [
       ['field', 'Field', 'Stage or StageName'],
       ['value', 'Value', 'Closed Won'],
@@ -161,6 +168,12 @@
       ['kind', 'What to check', '', { options: KINDS.map((k) => [k, KIND_LABELS[k]]) }],
       ['field', 'Field', FIELD_HINT, { when: (s) => s.kind === 'field' || s.kind === 'place' }],
       [
+        'css',
+        'Its exact path',
+        'DevTools › Copy selector, XPath or JS path',
+        { wide: true, when: (s) => s.kind === 'element' },
+      ],
+      [
         'what',
         'Count',
         '',
@@ -189,7 +202,7 @@
                   ['not', 'is not'],
                 ]
               : Object.entries(OPS),
-          when: (s) => ['field', 'toast', 'title', 'url', 'count', 'recordtype', 'layout'].includes(s.kind),
+          when: (s) => ['field', 'toast', 'title', 'url', 'count', 'recordtype', 'layout', 'element'].includes(s.kind),
         },
       ],
       [
@@ -205,6 +218,8 @@
               ? 'Partner'
               : s.kind === 'layout'
               ? 'Contact Layout'
+              : s.kind === 'element'
+              ? 'its text (empty: only that it is there)'
               : 'Technology',
         },
       ],
@@ -243,17 +258,24 @@
   /** A field as written, with its API name when the step knows it: Title (Contact.Title). */
   const fieldName = (s) => (s.api && s.api !== s.field ? `${s.field} (${s.api})` : s.field);
   const where = (s) => (s.within ? ` in “${s.within}”` : '');
+  /** An exact path, short enough to read. */
+  const pathText = (p) => {
+    const t = String(p ?? '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return `the element ${t.length > 48 ? `…${t.slice(-46)}` : t}`;
+  };
 
   function sentence(s) {
     switch (s.action) {
       case 'open':
         return s.record ? `Open the record ${s.record}` : s.object ? `Open ${s.object} “${s.name}”` : `Open ${s.path}`;
       case 'click':
-        return `Click “${s.label}”${s.within ? ` in ${s.within}` : ''}${s.type ? `, type “${s.type}”` : ''}${
-          s.choose ? `, choose “${s.choose}”` : ''
-        }`;
+        return `Click ${s.label ? `“${s.label}”` : pathText(s.css)}${s.within ? ` in ${s.within}` : ''}${
+          s.type ? `, type “${s.type}”` : ''
+        }${s.choose ? `, choose “${s.choose}”` : ''}`;
       case 'fill':
-        return `Type “${s.value}” in ${fieldName(s)}`;
+        return `Type “${s.value}” in ${s.field ? fieldName(s) : pathText(s.css)}`;
       case 'pick':
         return `Choose “${s.value}” in ${fieldName(s)}`;
       case 'lookup':
@@ -286,6 +308,8 @@
             .join(', ')}`;
         if (s.kind === 'recordtype') return `Check the record type ${how}`;
         if (s.kind === 'layout') return `Check the page layout ${how}`;
+        if (s.kind === 'element')
+          return s.value || noValue(s) ? `Check ${pathText(s.css)} ${how}` : `Check ${pathText(s.css)} is shown`;
         return s.kind === 'field'
           ? `Check ${fieldName(s)} ${how}`
           : s.kind === 'toast'

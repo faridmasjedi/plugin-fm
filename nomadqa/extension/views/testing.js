@@ -284,6 +284,14 @@ export function testingViews(ctx) {
       );
       return true;
     });
+    // The old tab of a test that went on in a new one: "Go to that tab"
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg?.type !== 'nomadqa:front' || !T.debug) return;
+      void chrome.tabs
+        .update(T.debug.tabId, { active: true })
+        .then((t) => chrome.windows.update(t.windowId, { focused: true }))
+        .catch(() => {});
+    });
     // A step clicked (↗) in the list on the Salesforce page: its test opens here, at that step
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg?.type !== 'nomadqa:show' || !T.tests.some((t) => t.id === msg.testId)) return;
@@ -1915,10 +1923,20 @@ export function testingViews(ctx) {
             : `Step ${i + 1} failed: change it, add a step before it, or remove it.`;
           x.bad = !r.ok;
         });
-        // A step that opened a new tab: the test (and its list) goes on there
+        // A step that opened a new tab: the test (and its list) goes on there; the old tab's list says so
         if (D.driver.tabId !== D.tabId) {
+          const old = D.tabId;
           D.tabId = D.driver.tabId;
-          d = await writeDebug((x) => (x.tabId = D.tabId));
+          const to = await chrome.tabs
+            .get(D.tabId)
+            .then((t) => (/\.salesforce-setup\.com|\/lightning\/setup\//.test(t.url ?? '') ? 'Setup' : t.title ?? ''))
+            .catch(() => '');
+          d = await writeDebug((x) => {
+            x.tabId = D.tabId;
+            if (x.items[i]?.result) x.items[i].result.newTab = true;
+            x.msg = `Step ${i + 1} opened a new tab${to ? ` (${to})` : ''}: the test goes on here.`;
+          });
+          await pageMode(old, 'moved', { to }).catch(() => {});
         }
         // A step that opened another page: the list is put back on it
         await pageMode(D.tabId, 'debug').catch(() => {});

@@ -69,6 +69,11 @@ headless Chrome alike.
   row as `{{found}}` / `{{found.Name}}` to open it or use its values); **data** (records from a Test data recipe —
   `{{a-1}}`, `{{a-1.Name}}`; deleted after the test); **screenshot**. Any step can be **optional**: reported, but
   the test goes on. A click that opens another page waits for it.
+  **Exact path**: a click, a box to type in, or a check (**An element, by its exact path**) can find the element by
+  what DevTools copies (right-click it › Inspect › right-click the element › Copy): **Copy selector**, **Copy XPath**
+  or **Copy JS path** — the JS path goes through Salesforce's shadow DOM exactly as written. Paste it in **Or its
+  exact path**; it wins over what the step says. (A path can change when Salesforce or the page changes: what it
+  says is steadier.)
   **Groups of steps**: tick steps (the box by their number), **Group them** — one step with a name ("Open the Sales
   app") that runs its steps one after the other, folds open and closed, and fails with the step inside it that
   failed. **⧉** copies a step or a group (also onto the clipboard, as JSON); **Paste** puts it in any test, or in a
@@ -94,7 +99,9 @@ headless Chrome alike.
   test's steps show on the Salesforce page; ▶ runs one, ▶▶ to the end, click a step to go to it, change, move or
   remove steps, point at the page to add one before the current step, then **Save to the test**. A group of steps
   opens there too (▸), each of its steps with ✓/✕ and its own ✎ and ✕; **↗** on any step opens the test in
-  NomadQA at exactly that step.
+  NomadQA at exactly that step. A step that opens a new tab (Setup from the gear) is marked **new tab**: the test
+  and its list go on there, and the old tab says so (**Go to that tab**). **▭** puts the list under the page, as
+  wide as it (drag its title to make it taller); **◱** puts it back in a corner.
   **Close its tab after** (on by default, for every test): the tab a test ran in is closed when it ends (the result
   and the picture of a failed step stay in NomadQA).
   **Just click** in the list on the page lets the page work as usual (menus, tabs) without picking.

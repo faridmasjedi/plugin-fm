@@ -72,6 +72,59 @@
     return true;
   }
 
+  /**
+   * The element at an exact path, as DevTools copies it (right-click the element › Copy):
+   * - JS path: document.querySelector("a").shadowRoot.querySelector("b") — followed exactly, through shadow roots;
+   * - XPath: //div[@id="x"]/button — in the page and the org's own frames;
+   * - selector: div.x > button — in the page, every shadow root and the org's frames (the first shown wins).
+   */
+  function byPath(path) {
+    const p = String(path ?? '').trim();
+    if (!p) return null;
+    if (/^document\s*\.\s*querySelector/.test(p)) {
+      const parts = [...p.matchAll(/querySelector\(\s*(["'`])((?:\\.|(?!\1).)*)\1\s*\)(\s*\.\s*shadowRoot)?/g)];
+      let root = document;
+      let el = null;
+      for (const [, , sel, shadow] of parts) {
+        el = root?.querySelector(sel.replace(/\\(["'`\\])/g, '$1')) ?? null;
+        if (!el) return null;
+        root = shadow ? el.shadowRoot : el;
+      }
+      return el;
+    }
+    if (/^\(*\//.test(p)) {
+      for (const doc of [document, ...frameDocs()]) {
+        try {
+          const el = doc.evaluate(p, doc, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+          if (el) return el.nodeType === 1 ? el : el.parentElement;
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    }
+    try {
+      const all = deepAll(p);
+      return all.find(visible) ?? all[0] ?? null;
+    } catch {
+      return null;
+    }
+  }
+  /** What an element shows: a box's value, or its text. */
+  const elText = (el) =>
+    String((el.matches?.('input, textarea, select') ? el.value : el.innerText ?? el.textContent) ?? '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  /** The box to type in at a path: the element, or the input inside it (a Lightning input's own box). */
+  const boxAt = (el) =>
+    !el
+      ? null
+      : el.matches('input, textarea, select')
+      ? el
+      : el.querySelector?.('input, textarea, select') ??
+        el.shadowRoot?.querySelector('input, textarea, select') ??
+        null;
+
   /** The dialog on top, when one is open: steps look there first. */
   function topDialog() {
     const dialogs = deepAll('[role="dialog"], section.slds-modal, .modal-container').filter(visible);
@@ -722,6 +775,13 @@
         };
       case 'no-text':
         return { expected: `“${want}” not shown`, got: 'it is on the page' };
+      case 'element': {
+        const el = byPath(step.css);
+        return {
+          expected: want ? `the element ${say}` : 'the element on the page',
+          got: el ? `“${elText(el)}”` : `nothing at “${step.css}”`,
+        };
+      }
       default:
         return { expected: `“${want}” on the page`, got: 'not on the page' };
     }
@@ -734,8 +794,11 @@
     try {
       switch (step.action) {
         case 'click': {
-          const el = await until(() => findClickable(step.label, step), timeout, `“${step.label}”`);
-          if (inSetup() && (changes(step.label) || changes(nameOf(el)))) readOnly(`clicking “${step.label}”`);
+          const el = step.css
+            ? await until(() => byPath(step.css), timeout, `the element at “${step.css}”`)
+            : await until(() => findClickable(step.label, step), timeout, `“${step.label}”`);
+          if (inSetup() && ((step.label && changes(step.label)) || changes(nameOf(el))))
+            readOnly(`clicking “${step.label || nameOf(el)}”`);
           const before = where();
           if (step.type || step.choose) {
             await clickThen(el, step, timeout);
@@ -751,6 +814,15 @@
         case 'pick':
         case 'lookup':
         case 'check': {
+          if (step.css && (step.action === 'fill' || step.action === 'check')) {
+            const box = await until(() => boxAt(byPath(step.css)), timeout, `a box at “${step.css}”`);
+            if (inSetup()) readOnly(`typing in “${step.css}”`);
+            if (step.action === 'check' || box.type === 'checkbox') {
+              const want = step.value === true || /^(true|yes|1|on|checked)$/i.test(String(step.value));
+              if (box.checked !== want) press(box);
+            } else setValue(box, step.value ?? '');
+            break;
+          }
           const f = await until(() => either(findField, step), timeout, `the field “${step.field}”`);
           // Some of Setup's ticks are saved at once
           if (inSetup() && (step.action === 'check' || f.kind === 'checkbox')) readOnly(`ticking “${step.field}”`);
@@ -837,7 +909,21 @@
                   return `${step.field} at the place asked (now ${p ? placeText(p) : 'not on the page'})`;
                 }
               );
-            } else if (kind === 'no-text')
+            } else if (kind === 'element')
+              await until(
+                () => {
+                  const el = byPath(step.css);
+                  if (!el) return null;
+                  if (!want && op !== 'empty' && op !== 'filled') return true;
+                  return compare(elText(el), want, op) ? true : null;
+                },
+                timeout,
+                () => {
+                  const el = byPath(step.css);
+                  return el ? `the element ${say} (now “${elText(el)}”)` : `the element at “${step.css}”`;
+                }
+              );
+            else if (kind === 'no-text')
               await until(
                 () => (pageText().toLowerCase().includes(want.toLowerCase()) ? null : true),
                 timeout,
@@ -1019,6 +1105,7 @@
     describe,
     findClickable,
     findField,
+    byPath,
     fieldValue,
     toasts,
     deepAll,

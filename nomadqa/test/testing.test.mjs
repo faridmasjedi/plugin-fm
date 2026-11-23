@@ -528,3 +528,18 @@ test('a query that finds the wrong number says what was wanted and what it got',
   assert.equal(run.results[0].expected, '2 row(s)');
   assert.equal(run.results[0].got, '0 row(s)');
 });
+
+test('an element by its exact path: click, type, check', () => {
+  const js = 'document.querySelector("one-app-nav-bar").shadowRoot.querySelector("a[title=\\"Accounts\\"]")';
+  assert.equal(problem({ action: 'click', css: js }), '');
+  assert.equal(problem({ action: 'fill', css: '//input[@name="Name"]', value: 'Acme' }), '');
+  assert.equal(problem({ action: 'expect', kind: 'element', css: 'h1.title' }), '');
+  assert.match(problem({ action: 'expect', kind: 'element' }), /path/);
+  assert.match(problem({ action: 'click' }), /label/);
+  assert.equal(stepText({ action: 'click', css: 'button.save' }), 'Click the element button.save');
+  assert.equal(
+    stepText({ action: 'expect', kind: 'element', css: 'h1', value: 'Acme', op: 'is' }),
+    'Check the element h1 is “Acme”'
+  );
+  assert.equal(stepText({ action: 'expect', kind: 'element', css: 'h1' }), 'Check the element h1 is shown');
+});
