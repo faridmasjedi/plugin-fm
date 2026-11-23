@@ -233,6 +233,40 @@
     return { selector, xpath, js, best };
   }
 
+  /**
+   * Waits until the page has loaded: the page and its frames (Setup's) are complete, no spinner shows, and the page
+   * has stopped changing for a moment (or has been ready for a while: some pages never stop moving a little).
+   */
+  async function pageLoaded(timeout) {
+    const end = Date.now() + timeout;
+    let changed = Date.now();
+    let readySince = 0;
+    const seen = new Set();
+    const mo = new MutationObserver(() => (changed = Date.now()));
+    const watch = () => {
+      for (const d of [document, ...frameDocs()])
+        if (d.documentElement && !seen.has(d)) {
+          seen.add(d);
+          mo.observe(d.documentElement, { childList: true, subtree: true });
+        }
+    };
+    try {
+      while (Date.now() < end) {
+        if (stopped) throw stopError();
+        watch();
+        const ready =
+          document.readyState === 'complete' && frameDocs().every((d) => d.readyState === 'complete') && !busy();
+        if (!ready) readySince = 0;
+        else if (!readySince) readySince = Date.now();
+        if (ready && (Date.now() - changed >= 700 || Date.now() - readySince >= 3000)) return;
+        await sleep(150);
+      }
+    } finally {
+      mo.disconnect();
+    }
+    throw new Error(`The page was still loading after ${Math.round(timeout / 1000)} s.`);
+  }
+
   /** What an element shows: a box's value, or its text. */
   const elText = (el) =>
     String((el.matches?.('input, textarea, select') ? el.value : el.innerText ?? el.textContent) ?? '')
@@ -276,7 +310,8 @@
     const names = (el) => [nameOf(el), norm(el.innerText ?? '')].map(bare);
     const pick = (list) =>
       list.find((el) => names(el).includes(w)) ??
-      list.find((el) => names(el).some((n) => n && n.startsWith(w))) ??
+      // The start of a name only for 3 letters or more ("T" is not "Testing PSG")
+      (w.length >= 3 ? list.find((el) => names(el).some((n) => n && n.startsWith(w))) : null) ??
       null;
     return (dialog && pick(all.filter((el) => inScope(el, dialog)))) || pick(all);
   }
@@ -513,7 +548,9 @@
         const name = (x) =>
           norm(String(x.getAttribute('aria-label') || x.getAttribute('title') || x.innerText || '').split('\n')[0]);
         for (const list of [fresh, all]) {
-          const hit = list.find((x) => name(x) === want) ?? list.find((x) => name(x).startsWith(want));
+          const hit =
+            list.find((x) => name(x) === want) ??
+            (want.length >= 3 ? list.find((x) => name(x).startsWith(want)) : null);
           if (hit) return hit;
         }
         return null;
@@ -637,7 +674,29 @@
       };
       // Among the suggestions; when none fits (a case number is not suggested), like a person: Enter, then the
       // result on the page of results
-      const pick = await until(suggestion, Math.min(timeout / 2, 8000), '').catch(() => null);
+      // A box that did not answer the typing (Setup's search, now and then): typed again, twice at most
+      let typedAt = Date.now();
+      let again = 0;
+      const pick = await until(
+        () => {
+          const hit = suggestion();
+          if (!hit && again < 2 && Date.now() - typedAt > 2500) {
+            again++;
+            typedAt = Date.now();
+            setValue(input, '', { change: false });
+            setValue(input, step.text ?? '', { change: false });
+            input.dispatchEvent(
+              new KeyboardEvent('keyup', { bubbles: true, composed: true, key: String(step.text ?? '').slice(-1) })
+            );
+          }
+          return hit;
+        },
+        Math.min(timeout / 2, 9000),
+        ''
+      ).catch((e) => {
+        if (e.stopped) throw e;
+        return null;
+      });
       if (pick) press(pick.querySelector?.('a[href]') ?? pick);
       else {
         enter(input);
@@ -990,7 +1049,8 @@
           await search(step, timeout);
           break;
         case 'wait':
-          if (step.text)
+          if (step.until === 'load') await pageLoaded(Number(step.timeout ?? 30000));
+          else if (step.text)
             await until(
               () => (pageText().toLowerCase().includes(String(step.text).toLowerCase()) ? true : null),
               timeout,

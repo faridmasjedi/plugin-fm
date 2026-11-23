@@ -543,3 +543,9 @@ test('an element by its exact path: click, type, check', () => {
   );
   assert.equal(stepText({ action: 'expect', kind: 'element', css: 'h1' }), 'Check the element h1 is shown');
 });
+
+test('wait until the page has loaded', () => {
+  assert.equal(problem({ action: 'wait', until: 'load' }), '');
+  assert.equal(stepText({ action: 'wait', until: 'load' }), 'Wait until the page has loaded');
+  assert.equal(stepText({ action: 'wait', ms: 500 }), 'Wait 500 ms');
+});

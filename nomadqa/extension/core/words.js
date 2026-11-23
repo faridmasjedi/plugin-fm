@@ -24,7 +24,7 @@
       fields: ['text'],
       also: 'box: where to type (empty: Salesforce’s search at the top; or a field, or a box by what it shows: Search this list…); choose: the result to click (empty: press Enter)',
     },
-    wait: { say: 'Wait', fields: [], also: 'text: until it shows · or ms' },
+    wait: { say: 'Wait', fields: [], also: 'text: until it shows · or ms · or until: "load" (the page has loaded)' },
     press: { say: 'Press a key', fields: ['key'] },
     expect: {
       say: 'Check',
@@ -160,8 +160,19 @@
       ],
     ],
     wait: [
-      ['text', 'Until this text shows', 'Saved'],
-      ['ms', 'or milliseconds', '1000'],
+      [
+        'until',
+        'Until',
+        '',
+        {
+          options: [
+            ['', 'a text shows, or some time'],
+            ['load', 'the page has loaded'],
+          ],
+        },
+      ],
+      ['text', 'Until this text shows', 'Saved', { when: (s) => s.until !== 'load' }],
+      ['ms', 'or milliseconds', '1000', { when: (s) => s.until !== 'load' }],
     ],
     press: [['key', 'Key', 'Enter, Escape, Tab…']],
     expect: [
@@ -289,7 +300,11 @@
       case 'check':
         return `${s.value === false || s.value === 'false' ? 'Untick' : 'Tick'} ${fieldName(s)}`;
       case 'wait':
-        return s.text ? `Wait for “${s.text}”` : `Wait ${s.ms ?? 1000} ms`;
+        return s.until === 'load'
+          ? 'Wait until the page has loaded'
+          : s.text
+          ? `Wait for “${s.text}”`
+          : `Wait ${s.ms ?? 1000} ms`;
       case 'press':
         return `Press ${s.key ?? 'Enter'}`;
       case 'expect': {

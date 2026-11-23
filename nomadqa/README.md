@@ -60,7 +60,7 @@ headless Chrome alike.
   and in a tab the page opens (Setup from the gear). A test run follows that tab too. **+ Check** on the
   page's bar, then a message or a value, adds a check. Passwords are never recorded.
 - **Tests**: edit steps, run them in a tab of the org, see each step pass or fail; download the test file.
-  Steps: open, click, fill, pick, lookup, check, wait, press; **search** (type in Salesforce's search at the top, a
+  Steps: open, click, fill, pick, lookup, check, wait (some time, until a text shows, or **until the page has loaded**: the page and Setup's frames loaded, no spinner, nothing changing), press; **search** (type in Salesforce's search at the top, a
   list's search, a lookup or any box, then choose a suggestion — or press Enter; what is not suggested, like a case
   number, is found on the results page); **expect** — text, a message, a field, the title, the
   address, text NOT shown, a button or link shown / NOT shown (permissions) — compared by contains, is, is not,
