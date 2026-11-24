@@ -123,28 +123,17 @@ headless Chrome alike.
   like “bypass” — found, with which validation rules and triggers check it, turned on for you only while creating,
   then put back exactly as it was. NomadQA never changes automation itself.
 
-### Headless (CI)
+### Headless (CI, or your computer)
 
 ```sh
-node nomadqa/runner/run.mjs nomadqa/examples/new-contact.nomadqa.json --org my-sandbox --out reports
-node nomadqa/runner/run.mjs tests/nomadqa --group Smoke --parallel 2 --org my-sandbox
+node nomadqa/runner/run.mjs tests/nomadqa --group Smoke --parallel 2 --out nomadqa-reports
 ```
 
-Node 22 and Chrome; nothing to install. Give test files, group files, or a folder (every `*.nomadqa.json` and
-`*.nomadqa-group.json` in it); `--group` runs one group's tests. `--org` asks the Salesforce CLI for a one-time login
-link; without the CLI (CI), `--auth-url` or `SF_AUTH_URL` takes the org's SFDX auth URL (`sf org display --verbose`,
-kept in a secret), or give a link with `--login-url` / `NOMADQA_LOGIN_URL`. Writes `report.html` (for people: why
-each test failed, with a picture of the page), `summary.md`, a JUnit report per test and per group, and a small
-picture of each failed step; exits 1 when a test fails.
-
-**GitHub Actions**: copy [examples/github-workflow.yml](examples/github-workflow.yml) to
-`.github/workflows/nomadqa.yml` and add the secret `SF_AUTH_URL`. Engineers run every test (or one group, from
-**Run workflow**) on each pull request; the summary and every failure's reason show on the run's page, and the report
-is kept for 7 days. `--headed` shows the browser. It takes test files, group files and NomadQA's JUnit reports. `--parallel 4`
-runs 4 tests at a time, each in a browser context of its own (its own cookies, so tests that log in run side by side
-too). **Log in** steps
-take their usernames and passwords from `--logins logins.json` (or `NOMADQA_LOGINS`, the same JSON):
-`{ "sales-user": { "url": "https://test.salesforce.com", "username": "…", "password": "…" } }`.
+One command runs your tests in Chrome with no one watching: on any CI (GitHub Actions, GitLab, Jenkins, Azure
+DevOps…) or on your computer. Node 22 and Chrome, nothing to install. It writes `report.html` (for people), a JUnit
+report per test (for your CI) and a picture of each failed step, and exits 1 when a test fails.
+**[Run NomadQA tests anywhere](RUN-ANYWHERE.md)** says how to log in, how to run it, where the reports are, and how
+to keep or share them anywhere.
 
 ## Try it
 

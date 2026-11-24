@@ -1775,7 +1775,7 @@ export function testingViews(ctx) {
         { class: 'muted small' },
         'Headless (CI): ',
         h('code', {}, `node nomadqa/runner/run.mjs ${fname} --org <alias>`),
-        ' — or a folder of tests; Chrome and Node 22, nothing to install; an HTML report, JUnit and a picture of a failed step. GitHub Actions: nomadqa/examples/github-workflow.yml.'
+        ' — or a folder of tests; Chrome and Node 22, nothing to install; an HTML report, JUnit and a picture of a failed step. How to use it in CI, and where the reports are: nomadqa/RUN-ANYWHERE.md.'
       )
     );
   }
