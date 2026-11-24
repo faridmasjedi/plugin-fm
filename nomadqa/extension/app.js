@@ -109,6 +109,7 @@ async function run(what, fn) {
     setNotice('bad', e.message);
   } finally {
     S.busy = '';
+    S.stopBusy = null;
     S.progress = null;
     render();
   }
@@ -687,7 +688,17 @@ function top() {
           `Creating ${S.job.done.toLocaleString()} of ${S.job.total.toLocaleString()}`
         )
       : S.busy
-      ? h('span', { class: 'pill accent', role: 'status' }, S.busy)
+      ? [
+          h('span', { class: 'pill accent', role: 'status' }, S.busy),
+          // Tests running: ■ Stop ends the step that runs and runs no more
+          S.stopBusy
+            ? h(
+                'button',
+                { class: 'small danger', onclick: () => void S.stopBusy(), title: 'Stop the tests now' },
+                '■ Stop'
+              )
+            : null,
+        ]
       : null
   );
 }

@@ -74,12 +74,15 @@ headless Chrome alike.
   or **Copy JS path** — the JS path goes through Salesforce's shadow DOM exactly as written. Paste it in **Or its
   exact path**; it wins over what the step says. Or without DevTools: pin the element with the Inspector — **Copy**
   › Selector, XPath or JS path, or **By its exact path** › Click it / Type into it / Check it is shown; and when
-  changing a step in the list on the page, **⌖ Pick on the page** writes the path of the element you click next. (A path can change when Salesforce or the page changes: what it
+  changing a step in the list on the page, or in Tests, **⌖ Pick on the page** writes the path of the element you
+  click next (from Tests, the org's Salesforce tab comes to the front; Esc there cancels). (A path can change when Salesforce or the page changes: what it
   says is steadier.)
   **Groups of steps**: tick steps (the box by their number), **Group them** — one step with a name ("Open the Sales
   app") that runs its steps one after the other, folds open and closed, and fails with the step inside it that
   failed. **⧉** copies a step or a group (also onto the clipboard, as JSON); **Paste** puts it in any test, or in a
-  group. **Ungroup** gives the steps back.
+  group — a group can hold groups too (numbered 2.3.1, moved further in). **Ungroup** gives the steps back.
+  **■ Stop** at the top while a test or a group runs: the step that runs ends now, no more steps or tests run, the
+  test data is still deleted, and the run says "Stopped by you".
   **When a test fails**: the step, why, what was **expected** and what the page had (**got**), Salesforce's messages,
   the page's address and a small picture of it (JPEG, about 100 KB, only for a failed step; Chrome asks once, from
   the failure box, for leave to take it). **Report**: one HTML page for people — every step with its time, and the
@@ -105,7 +108,8 @@ headless Chrome alike.
   and its list go on there, and the old tab says so (**Go to that tab**). **▭** puts the list under the page, as
   wide as it (drag its title to make it taller); **◱** puts it back in a corner. **■ Stop** while steps run stops
   the step now (no waiting for its time to run out) and runs no more: it stays the current step, to change it and
-  run it again.
+  run it again. A group's steps run one by one there (▶ This step runs the next one inside it; click one to go to
+  it); a group inside a group runs as one step.
   **Close its tab after** (on by default, for every test): the tab a test ran in is closed when it ends (the result
   and the picture of a failed step stay in NomadQA).
   **Just click** in the list on the page lets the page work as usual (menus, tabs) without picking.

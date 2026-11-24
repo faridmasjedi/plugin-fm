@@ -202,6 +202,12 @@ async function tabDriver(host, { tabId, window: place } = {}) {
       kept = null;
       await this.open(`https://${host}/lightning/page/home`).catch(() => {});
     },
+    /** ■ Stop: the step running in the tab ends now (as if its time ran out). */
+    async stop() {
+      await chrome.scripting
+        .executeScript({ target: { tabId: cur.id }, func: () => globalThis.__nomadqa?.stop?.() })
+        .catch(() => {});
+    },
     /** Ends the driver: its window goes; with { tab: true } also the tab(s) it opened (never a tab it was given). */
     async close({ tab: closeTab = false } = {}) {
       chrome.tabs.onCreated.removeListener(onCreated);
@@ -238,7 +244,9 @@ async function smaller(dataUrl, width = 1280) {
 }
 
 /** Every step of a test, the steps of its groups too. */
-const allSteps = (t) => t.steps.flatMap((s) => (s.action === 'group' ? s.steps ?? [] : [s]));
+/** Every step of a test, the steps of its groups (and of groups in them) in their place. */
+const flat = (steps) => (steps ?? []).flatMap((s) => (s.action === 'group' ? flat(s.steps) : [s]));
+const allSteps = (t) => flat(t.steps);
 
 /** Puts the engine and the page script in a tab, then sets its mode (inspect, record, off). */
 async function pageMode(tabId, mode, extra = {}) {
@@ -309,6 +317,21 @@ export function testingViews(ctx) {
         .then((t) => chrome.windows.update(t.windowId, { focused: true }))
         .catch(() => {});
     });
+    // ⌖ Pick on the page: the path of the element clicked there goes in the step
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg?.type !== 'nomadqa:picked' || !T.pickingFor) return;
+      T.pickingFor.css = msg.path;
+      T.pickChanged?.();
+      T.pickingFor = null;
+      render();
+      toast('Its path is in the step.');
+      void chrome.tabs.getCurrent().then(
+        (me) =>
+          me &&
+          chrome.tabs.update(me.id, { active: true }).then(() => chrome.windows.update(me.windowId, { focused: true })),
+        () => {}
+      );
+    });
     // A step clicked (↗) in the list on the Salesforce page: its test opens here, at that step
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg?.type !== 'nomadqa:show' || !T.tests.some((t) => t.id === msg.testId)) return;
@@ -342,13 +365,47 @@ export function testingViews(ctx) {
   }
   const saveTests = () => store.set('nomadqa.tests', T.tests);
 
+  /** ⌖ Pick on the page: the org's Salesforce tab comes to the front; the element clicked there gives the step its
+   * path (content/page.js answers nomadqa:picked). */
+  async function pickOnPage(step, changed) {
+    if (!S.host) return toast('Choose an org first.');
+    const tabs = (await chrome.tabs.query({ url: SF_TABS })).filter((t) => {
+      try {
+        return t.url && !/\/secur\//.test(t.url) && apiHostFor(new URL(t.url).host) === S.host;
+      } catch {
+        return false;
+      }
+    });
+    const tab =
+      (T.debug && tabs.find((t) => t.id === T.debug.tabId)) ||
+      tabs.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0] ||
+      (await chrome.tabs.create({ url: `https://${S.host}/lightning/page/home`, active: true }));
+    await waitTab(tab.id).catch(() => {});
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['core/engine.js', 'core/words.js', 'content/page.js'],
+      });
+      await chrome.tabs.sendMessage(tab.id, { type: 'nomadqa:pick', action: step.action });
+    } catch (e) {
+      return toast(`NomadQA cannot pick on that page: ${e.message}`);
+    }
+    T.pickingFor = step;
+    T.pickChanged = changed;
+    render();
+    await chrome.tabs.update(tab.id, { active: true }).catch(() => {});
+    await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
+  }
+
   /** Opens a test at one of its steps ("3", or "3.2": the 2nd step of the group at 3), brought to the front. */
   async function showStep(testId, key) {
     T.selected = testId;
     S.view = 'tests';
     T.results = null;
-    const g = Number(key.split('.')[0]);
-    if (key.includes('.')) T.folded = { ...T.folded, [`${testId}:${g}`]: false };
+    // Every group it is in opens
+    const parts = key.split('.');
+    for (let n = 1; n < parts.length; n++)
+      T.folded = { ...T.folded, [`${testId}:${parts.slice(0, n).join('.')}`]: false };
     T.focusStep = key;
     render();
     const me = await chrome.tabs.getCurrent().catch(() => null);
@@ -1152,9 +1209,19 @@ export function testingViews(ctx) {
     T.folded ??= {};
 
     /** A step's row: of the test (g undefined) or of the group at test.steps[g]; r is its result. */
-    const stepRow = (s, list, i, r, g) => {
-      const inGroup = g !== undefined;
-      const key = inGroup ? `${g}.${i}` : String(i);
+    /** A step's row: of the test (pk undefined) or of the group whose key is pk ("2", or "2.1": a group in a
+     * group); r is its result. Keys count from 0 ("2.1"), numbers shown from 1 ("3.2"). */
+    const stepRow = (s, list, i, r, pk) => {
+      const inGroup = pk !== undefined;
+      const key = inGroup ? `${pk}.${i}` : String(i);
+      const depth = key.split('.').length - 1;
+      const shown = key
+        .split('.')
+        .map((n) => Number(n) + 1)
+        .join('.');
+      const indent = inGroup
+        ? { style: `padding-left: ${18 + 22 * depth}px; background-position: ${22 * depth}px 0` }
+        : {};
       const isGroup = s.action === 'group';
       const bad = problem(s);
       const set = (k, v) => {
@@ -1163,8 +1230,8 @@ export function testingViews(ctx) {
         changed();
       };
       const fields = isGroup ? [] : FIELDS[s.action] ?? [];
-      const open = isGroup && !T.folded[foldKey(i)];
-      const actions = Object.entries(ACTIONS).filter(([k]) => !inGroup || k !== 'group');
+      const open = isGroup && !T.folded[foldKey(key)];
+      const actions = Object.entries(ACTIONS);
       return h(
         'tr',
         {
@@ -1184,7 +1251,7 @@ export function testingViews(ctx) {
           'td',
           { class: 'c-n' },
           inGroup
-            ? h('span', { class: 'sub-n' }, `${g + 1}.${i + 1}`)
+            ? h('span', { class: 'sub-n' }, shown)
             : h(
                 'label',
                 { class: 'pick-n', title: 'Tick to group, copy or remove several steps' },
@@ -1199,7 +1266,7 @@ export function testingViews(ctx) {
         ),
         h(
           'td',
-          { class: 'c-step' },
+          { class: 'c-step', ...indent },
           select(
             s.action,
             actions.map(([k, a]) => [k, a.say]),
@@ -1225,7 +1292,7 @@ export function testingViews(ctx) {
                     class: 'icon caret-btn',
                     'aria-expanded': String(open),
                     title: open ? 'Fold the group' : 'Show its steps',
-                    onclick: () => ((T.folded = { ...T.folded, [foldKey(i)]: open }), render()),
+                    onclick: () => ((T.folded = { ...T.folded, [foldKey(key)]: open }), render()),
                   },
                   open ? '▾' : '▸'
                 ),
@@ -1287,7 +1354,20 @@ export function testingViews(ctx) {
                             placeholder: ph,
                             title: s[k] === undefined ? ph : String(s[k]),
                             onchange: (e) => (set(k, e.target.value), render()),
-                          })
+                          }),
+                      // An element's path: picked on the org's page instead of copied from DevTools
+                      k === 'css'
+                        ? h(
+                            'button',
+                            {
+                              class: `small pick-btn${T.pickingFor === s ? ' on' : ''}`,
+                              type: 'button',
+                              title: 'Then click the element on the Salesforce page: its path is written here',
+                              onclick: (e) => (e.preventDefault(), void pickOnPage(s, changed)),
+                            },
+                            T.pickingFor === s ? '⌖ Click it on the page… (Esc there to cancel)' : '⌖ Pick on the page'
+                          )
+                        : null
                     );
                   })
               ),
@@ -1342,7 +1422,7 @@ export function testingViews(ctx) {
                   class: 'icon',
                   'aria-label': 'Add a step below',
                   title: inGroup ? 'Add a step below this one, in the group' : 'Add a step below this one',
-                  onclick: () => addStepAt(list, i + 1, inGroup ? `${g}.${i + 1}` : String(i + 1)),
+                  onclick: () => addStepAt(list, i + 1, inGroup ? `${pk}.${i + 1}` : String(i + 1)),
                 },
                 '+'
               ),
@@ -1395,21 +1475,21 @@ export function testingViews(ctx) {
         )
       );
     };
-    /** Under a group's steps: add one, paste, or take them out of the group. */
-    const groupFoot = (s, i) =>
+    /** Under a group's steps: add one, paste, or take them out of the group (list[i] is the group, key its key). */
+    const groupFoot = (s, list, i, key) =>
       h(
         'tr',
         { class: 'group-foot' },
         h('td', {}),
         h(
           'td',
-          { colspan: 3 },
+          { colspan: 3, style: `padding-left: ${10 + 22 * key.split('.').length}px` },
           h(
             'div',
             { class: 'row' },
             h(
               'button',
-              { class: 'small', onclick: () => addStepAt(s.steps, s.steps.length, `${i}.${s.steps.length}`) },
+              { class: 'small', onclick: () => addStepAt(s.steps, s.steps.length, `${key}.${s.steps.length}`) },
               '+ Step in the group'
             ),
             T.clip?.length
@@ -1419,8 +1499,8 @@ export function testingViews(ctx) {
                     class: 'small',
                     title: 'Paste what you copied at the end of this group',
                     onclick: () => {
-                      // A group holds steps only: a copied group gives its steps
-                      s.steps.push(...structuredClone(T.clip).flatMap((x) => (x.action === 'group' ? x.steps : [x])));
+                      // A copied group goes in as a group (a group in a group)
+                      s.steps.push(...structuredClone(T.clip));
                       changed();
                       render();
                     },
@@ -1434,7 +1514,7 @@ export function testingViews(ctx) {
               {
                 class: 'small',
                 title: 'Its steps become steps of the test again, in its place',
-                onclick: () => (test.steps.splice(i, 1, ...s.steps), (T.sel = null), changed(), render()),
+                onclick: () => (list.splice(i, 1, ...s.steps), (T.sel = null), changed(), render()),
               },
               'Ungroup'
             )
@@ -1442,14 +1522,17 @@ export function testingViews(ctx) {
         )
       );
     const rows = [];
-    test.steps.forEach((s, i) => {
-      const r = res?.results?.[i];
-      rows.push(stepRow(s, test.steps, i, r));
-      if (s.action === 'group' && !T.folded[foldKey(i)]) {
-        (s.steps ?? []).forEach((c, j) => rows.push(stepRow(c, s.steps, j, r?.children?.[j], i)));
-        rows.push(groupFoot(s, i));
-      }
-    });
+    const addRows = (list, results, pk) =>
+      list.forEach((s, i) => {
+        const key = pk === undefined ? String(i) : `${pk}.${i}`;
+        const r = results?.[i];
+        rows.push(stepRow(s, list, i, r, pk));
+        if (s.action === 'group' && !T.folded[foldKey(key)]) {
+          addRows(s.steps ?? [], r?.children, key);
+          rows.push(groupFoot(s, list, i, key));
+        }
+      });
+    addRows(test.steps, res?.results);
     const file = () => {
       const { id, host, ...rest } = test;
       return JSON.stringify(rest, null, 2);
@@ -1470,9 +1553,9 @@ export function testingViews(ctx) {
       });
     };
     const picked = [...sel].sort((a, b) => a - b).filter((i) => i < test.steps.length);
-    /** The ticked steps as one group, where the first of them was (groups among them give their steps). */
+    /** The ticked steps as one group, where the first of them was (a group among them goes in as a group). */
     const groupPicked = () => {
-      const steps = picked.map((i) => test.steps[i]).flatMap((x) => (x.action === 'group' ? x.steps : [x]));
+      const steps = picked.map((i) => test.steps[i]);
       const first = picked[0];
       for (const i of [...picked].reverse()) test.steps.splice(i, 1);
       test.steps.splice(first, 0, { action: 'group', name: '', steps });
@@ -1567,7 +1650,11 @@ export function testingViews(ctx) {
               h(
                 'b',
                 { class: 'grow' },
-                res.ok ? `Passed in ${(res.ms / 1000).toFixed(1)} s.` : `Failed after ${(res.ms / 1000).toFixed(1)} s.`,
+                res.ok
+                  ? `Passed in ${(res.ms / 1000).toFixed(1)} s.`
+                  : res.stopped
+                  ? `Stopped by you after ${(res.ms / 1000).toFixed(1)} s.`
+                  : `Failed after ${(res.ms / 1000).toFixed(1)} s.`,
                 res.cleaned ? h('span', { class: 'muted' }, ` ${res.cleaned} test record(s) deleted.`) : null
               ),
               h(
@@ -1770,8 +1857,10 @@ export function testingViews(ctx) {
     T.results = { testId: test.id, results: [] };
     await run(`Running “${test.name}”…`, async () => {
       const driver = await tabDriver(S.host);
+      const signal = stopper([driver]);
       const out = await runTest(test, {
         driver,
+        signal,
         sf: S.sf,
         describes: S.describes,
         logins: loginsMap(),
@@ -1787,6 +1876,19 @@ export function testingViews(ctx) {
       // Back to NomadQA to see the result
       await backHere();
     });
+  }
+
+  /** ■ Stop at the top while tests run: { on } tells the runs to stop; the drivers' running steps end now. */
+  function stopper(drivers) {
+    const signal = { on: false };
+    S.stopBusy = async () => {
+      signal.on = true;
+      S.busy = 'Stopping…';
+      render();
+      await Promise.all(drivers.map((d) => d.stop()));
+    };
+    render();
+    return signal;
   }
 
   /** Tests that log in as someone else change who is logged in for the whole browser: they run alone. */
@@ -1828,19 +1930,25 @@ export function testingViews(ctx) {
         S.busy = `Group “${name}”: test ${k + 1} of ${tests.length}, “${test.name}”…`;
         render();
       }
-      const out = await runTest(test, { driver, sf: S.sf, describes: S.describes, logins: loginsMap() }).catch((e) => ({
-        ok: false,
-        ms: 0,
-        results: [{ ok: false, message: e.message, ms: 0 }],
-      }));
+      if (signal.on) return;
+      const out = await runTest(test, { driver, sf: S.sf, describes: S.describes, logins: loginsMap(), signal }).catch(
+        (e) => ({
+          ok: false,
+          ms: 0,
+          results: [{ ok: false, message: e.message, ms: 0 }],
+        })
+      );
       done[k] = { test, run: out };
       finished++;
       await saveRun(test, out, { group: name, suite });
       if (n > 1) status();
     };
+    const drivers = [];
+    const signal = stopper(drivers);
     await run(`Running the group “${name}”…`, async () => {
       if (n === 1) {
         const driver = await tabDriver(S.host);
+        drivers.push(driver);
         for (const k of tests.keys()) await runOne(driver, k);
         if (T.closeTab) await driver.close({ tab: true });
       } else {
@@ -1848,7 +1956,6 @@ export function testingViews(ctx) {
         const together = [...tests.keys()].filter((k) => !logsIn(tests[k]));
         const alone = [...tests.keys()].filter((k) => logsIn(tests[k]));
         const places = windowPlaces(Math.min(n, Math.max(1, together.length)));
-        const drivers = [];
         try {
           let next = 0;
           await Promise.all(
@@ -1912,17 +2019,19 @@ export function testingViews(ctx) {
         tabId: driver.tabId,
         items: test.steps.map((step) => ({ step: structuredClone(step), text: stepText(step), result: null })),
         at: 0,
+        sub: 0, // in a group at `at`: its step that runs next
         running: '',
         msg: upTo ? `Running the ${upTo} step(s) before step ${upTo + 1}…` : '',
         dirty: false,
       });
       await pageMode(driver.tabId, 'debug');
     });
-    if (upTo > 0 && T.debug) await debugRun(upTo);
+    if (upTo > 0 && T.debug) await debugRun(Infinity, upTo);
   }
 
   /** Runs `n` steps from the current one; stops at a step that fails (an optional one goes on). */
-  async function debugRun(n) {
+  /** Runs n steps (a group's steps one by one), or (upTo) every step before step upTo. */
+  async function debugRun(n, upTo) {
     const D = T.debug;
     D.stopAsked = false;
     let d = await writeDebug((x) => {
@@ -1930,26 +2039,58 @@ export function testingViews(ctx) {
       x.bad = false;
     });
     try {
-      for (let k = 0; d && k < n && d.at < d.items.length; k++) {
+      for (let k = 0; d && k < n && d.at < Math.min(upTo ?? Infinity, d.items.length); k++) {
         const i = d.at;
-        const { shot, ...ran } = await D.st.run(d.items[i].step);
+        const step = d.items[i].step;
+        // A group's steps run one by one here (a group in it runs as one step): j is the one that runs now
+        const inGroup = step.action === 'group' && Array.isArray(step.steps) && step.steps.length > 0;
+        const j = inGroup ? Math.max(0, Math.min(d.sub ?? 0, step.steps.length - 1)) : -1;
+        const name = inGroup ? `${i + 1}.${j + 1}` : `${i + 1}`;
+        const { shot, ...ran } = await D.st.run(inGroup ? step.steps[j] : step);
         // ■ Stop: the step did not finish; it stays the current one, to change it and run it again
         if (ran.stopped || D.stopAsked) {
           d = await writeDebug((x) => {
-            if (x.items[i]) x.items[i].result = null;
-            x.msg = `Stopped at step ${i + 1}: change it if you want, then ▶ This step.`;
+            const it = x.items[i];
+            if (it && inGroup && it.result?.children) it.result.children[j] = null;
+            else if (it) it.result = null;
+            x.msg = `Stopped at step ${name}: change it if you want, then ▶ This step.`;
             x.bad = false;
           });
           break;
         }
         const r = ran;
+        const failed = r.ok === false && !r.optional;
         d = await writeDebug((x) => {
-          if (x.items[i]) x.items[i].result = r;
-          if (r.ok || r.optional) x.at = i + 1;
-          x.msg = r.ok
-            ? `Step ${i + 1} passed.`
-            : `Step ${i + 1} failed: change it, add a step before it, or remove it.`;
-          x.bad = !r.ok;
+          const it = x.items[i];
+          if (!it) return;
+          if (!inGroup) {
+            it.result = r;
+            if (!failed) x.at = i + 1;
+          } else {
+            const kids = [...(it.result?.children ?? [])];
+            kids[j] = r;
+            const last = j >= it.step.steps.length - 1;
+            it.result = failed
+              ? {
+                  ok: false,
+                  children: kids,
+                  at: j,
+                  message: `Step ${j + 1} of the group, “${stepText(it.step.steps[j])}”: ${r.message}`,
+                  expected: r.expected,
+                  got: r.got,
+                }
+              : last
+              ? { ok: true, children: kids, message: `${kids.filter((c) => c?.ok).length} step(s) passed` }
+              : { ok: null, children: kids, message: 'running' };
+            if (!failed) {
+              if (last) (x.at = i + 1), (x.sub = 0);
+              else x.sub = j + 1;
+            } else x.sub = j;
+          }
+          x.msg = !failed
+            ? `Step ${name} passed.`
+            : `Step ${name} failed: change it, add a step before it, or remove it.`;
+          x.bad = failed;
         });
         // A step that opened a new tab: the test (and its list) goes on there; the old tab's list says so
         if (D.driver.tabId !== D.tabId) {
@@ -1962,13 +2103,13 @@ export function testingViews(ctx) {
           d = await writeDebug((x) => {
             x.tabId = D.tabId;
             if (x.items[i]?.result) x.items[i].result.newTab = true;
-            x.msg = `Step ${i + 1} opened a new tab${to ? ` (${to})` : ''}: the test goes on here.`;
+            x.msg = `Step ${name} opened a new tab${to ? ` (${to})` : ''}: the test goes on here.`;
           });
           await pageMode(old, 'moved', { to }).catch(() => {});
         }
         // A step that opened another page: the list is put back on it
         await pageMode(D.tabId, 'debug').catch(() => {});
-        if (!r.ok && !r.optional) break;
+        if (failed) break;
       }
     } finally {
       d = await writeDebug((x) => {

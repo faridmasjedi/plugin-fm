@@ -89,6 +89,8 @@
     .tray .why{margin:4px 0 0 20px;font-size:12px;color:#a3272b;word-break:break-word}
     .tray .why .eg{display:block;color:#5b6475}.tray .why .eg b{color:#1d2433;font-weight:600}
     .tray .muted{color:#8a93a6}
+    .picknote{position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#1d2433;color:#fff;padding:9px 16px;border-radius:10px;box-shadow:0 8px 26px rgba(0,0,0,.25);pointer-events:none;font-size:13.5px}
+    .picknote b{color:#b9a8ff;margin-right:8px}.picknote span{color:#aab1c2}
     .tray footer button.stop{background:#c23934;border-color:#c23934;color:#fff}
     .tray .edit .pick{margin-top:4px;justify-self:start;font-size:12px;padding:3px 9px;border:1px solid #d5d9e4;border-radius:7px;background:#fff;color:#432bb0;cursor:pointer}
     .tray .edit .pick.on{background:#5b3fd1;color:#fff;border-color:#5b3fd1}
@@ -331,10 +333,14 @@
     const kid = (c, j, p, i) => {
       const k = `${i}.${j}`;
       const r = p.result?.children?.[j];
+      // Going through the test, the group's steps run one by one: ▶ on the one that runs next
+      const here = d && i === d.at && j === Math.min(d.sub ?? 0, p.step.steps.length - 1);
       return (
-        `<li class="kid"><div class="line">${d ? markOf(r) : ''}<span class="kn">${i + 1}.${
-          j + 1
-        }</span><span class="txt">${esc(W ? W.stepText(c) : sentence(c))}</span><span class="acts">${showBtn(k)}` +
+        `<li class="kid${here ? ' cur' : ''}"><div class="line">${
+          d ? (here ? '<span class="mk cur">▶</span>' : markOf(r)) : ''
+        }<span class="kn">${i + 1}.${j + 1}</span><span class="txt"${
+          d ? ` data-a="goto" data-k="${k}" title="Go to this step"` : ''
+        }>${esc(W ? W.stepText(c) : sentence(c))}</span><span class="acts">${showBtn(k)}` +
         `<button class="ib" data-a="edit" data-k="${k}" title="Change" ${busy ? 'disabled' : ''}>✎</button>` +
         `<button class="ib" data-a="del" data-k="${k}" title="Remove from the group" ${
           busy ? 'disabled' : ''
@@ -347,7 +353,8 @@
     const item = (p, i) => {
       const isGroup = p.step.action === 'group' && Array.isArray(p.step.steps);
       // A group that failed shows its steps (the one that failed among them)
-      const open = isGroup && (t.open[i] ?? (d && p.result?.ok === false));
+      // Open: as chosen, or when it failed, or when it is the current step (its steps run one by one)
+      const open = isGroup && (t.open[i] ?? (d && (p.result?.ok === false || i === d.at)));
       return (
         `<li class="${d && i === d.at ? 'cur' : ''}${isGroup ? ' grp' : ''}"><div class="line">${mark(p, i)}${
           isGroup
@@ -559,11 +566,12 @@
     }`;
   };
   /** Writes the list: the picked steps, or the test being gone through (the current step follows its step). */
-  function writeList(list, at) {
+  function writeList(list, at, sub = 0) {
     if (!debugging()) return writePicked(list);
     return changeDebug((d) => {
       d.items = list;
-      if (at !== undefined) d.at = Math.max(0, Math.min(at, list.length));
+      // The current step moved: at a step of a group (sub), or at its first
+      if (at !== undefined) (d.at = Math.max(0, Math.min(at, list.length))), (d.sub = sub);
       d.dirty = true;
     });
   }
@@ -601,7 +609,7 @@
       tip.style.display = 'none';
       outline(null);
     } else if (a === 'fold') {
-      const open = t.open[i] ?? (debugging() && list[i]?.result?.ok === false);
+      const open = t.open[i] ?? (debugging() && (list[i]?.result?.ok === false || i === t.debug?.at));
       t.open = { ...t.open, [i]: !open };
     } else if (a === 'show') {
       const d = t.debug;
@@ -654,7 +662,7 @@
       t.editing = '';
       t.open = {};
       return writeList(list, i < at ? at - 1 : at);
-    } else if (a === 'goto') return writeList(list, i);
+    } else if (a === 'goto') return writeList(list, i, j >= 0 ? j : 0);
     else if (a === 'clear') return writePicked([]);
     else if (a === 'tests') void chrome.runtime.sendMessage({ type: 'nomadqa:open', view: 'tests' });
     else if (a === 'off') return void setMode('off');
@@ -1198,8 +1206,11 @@
     tip.style.top = `${top}px`;
   }
   const onMove = (e) => {
+    const el0 = e.composedPath?.()[0] ?? e.target;
+    // Picking an element for NomadQA's Tests: only its outline
+    if (state.pickFor) return void (el0?.tagName && !ours(el0) && !e.composedPath?.().includes(host) && outline(el0));
     if (state.pinned || !picking()) return;
-    const el = e.composedPath?.()[0] ?? e.target;
+    const el = el0;
     if (!el?.tagName) return;
     // On NomadQA's own list: the panel of what was under the pointer goes away, so it covers nothing
     if (ours(el) || e.composedPath?.().includes(host)) {
@@ -1312,7 +1323,43 @@
     return t ? { action: 'expect', kind: 'text', value: t } : null;
   }
 
+  /** NomadQA's Tests asked for an element's path (⌖ Pick on the page): this click gives it, nothing is done. */
+  function pickForTests(e) {
+    const el = e.composedPath?.()[0] ?? e.target;
+    if (!el?.tagName || ours(el) || e.composedPath?.().includes(host)) return false;
+    e.preventDefault();
+    e.stopPropagation();
+    const { action } = state.pickFor;
+    const typable = [...Q.ancestors(el)].find((a) => a.matches?.('input, textarea'));
+    const click = [...Q.ancestors(el)].find((a) => a.matches?.(CLICKS));
+    const target = action === 'fill' ? typable ?? el : action === 'click' ? click ?? el : el;
+    const p = Q.pathsOf(target);
+    endPick();
+    if (p) void chrome.runtime.sendMessage({ type: 'nomadqa:picked', path: p.best }).catch(() => {});
+    return true;
+  }
+  const pickNote = document.createElement('div');
+  pickNote.className = 'picknote';
+  function startPick(action) {
+    state.pickFor = { action };
+    mount();
+    pickNote.innerHTML =
+      '<b>NomadQA</b> Click the element for the step: its path goes in the step · <span>Esc to cancel</span>';
+    root.append(pickNote);
+    for (const d of Q.frameDocs()) hook(d);
+  }
+  function endPick() {
+    state.pickFor = null;
+    pickNote.remove();
+    outline(null);
+    if (state.mode === 'off') host.remove();
+  }
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.type === 'nomadqa:pick') startPick(msg.action);
+  });
+
   function onClick(e) {
+    if (state.pickFor && pickForTests(e)) return;
     if (state.passNext) return void (state.passNext = false);
     if (state.mode !== 'record' && state.mode !== 'inspect' && !debugging()) return;
     const el = e.composedPath?.()[0] ?? e.target;
@@ -1569,6 +1616,7 @@
     doc.addEventListener(
       'keydown',
       (e) => {
+        if (e.key === 'Escape' && state.pickFor) return void endPick();
         if (e.key !== 'Escape' || (state.mode !== 'inspect' && !debugging())) return;
         if (state.pinned) {
           state.pinned = null;
@@ -1581,7 +1629,7 @@
   hook(document);
   // A frame's page is new after every load in it: hooked again
   setInterval(() => {
-    if (state.mode === 'off') return;
+    if (state.mode === 'off' && !state.pickFor) return;
     for (const d of Q.frameDocs()) hook(d);
   }, 700);
 

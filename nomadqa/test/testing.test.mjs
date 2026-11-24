@@ -488,7 +488,7 @@ test('a group of steps: runs as one step, the first failure stops it, its reason
   };
   assert.equal(problem(group), '');
   assert.match(problem({ action: 'group', steps: [] }), /no steps/);
-  assert.match(problem({ action: 'group', steps: [group] }), /another group/);
+  assert.equal(problem({ action: 'group', steps: [group] }), '');
   assert.match(problem({ action: 'group', steps: [{ action: 'click' }] }), /step 1 of the group: needs label/);
   assert.equal(stepText(group), 'Open the Sales app (3 steps)');
   const test = { name: 'G', steps: [group, { action: 'click', label: 'After' }] };
@@ -548,4 +548,58 @@ test('wait until the page has loaded', () => {
   assert.equal(problem({ action: 'wait', until: 'load' }), '');
   assert.equal(stepText({ action: 'wait', until: 'load' }), 'Wait until the page has loaded');
   assert.equal(stepText({ action: 'wait', ms: 500 }), 'Wait 500 ms');
+});
+
+test('a group in a group runs, and its failure says where; Stop ends a run and runs no more', async () => {
+  const sf = { host: 'x.my.salesforce.com' };
+  const ran = [];
+  const driver = {
+    open: async () => {},
+    url: async () => '',
+    step: async (s) => {
+      ran.push(s.label);
+      return s.label === 'Bad' ? { ok: false, message: 'Not found' } : { ok: true };
+    },
+  };
+  const inner = {
+    action: 'group',
+    name: 'Inner',
+    steps: [
+      { action: 'click', label: 'A' },
+      { action: 'click', label: 'Bad' },
+    ],
+  };
+  const outer = { action: 'group', name: 'Outer', steps: [{ action: 'click', label: 'Z' }, inner] };
+  assert.equal(problem(outer), '');
+  const run = await runTest({ name: 'N', steps: [outer, { action: 'click', label: 'After' }] }, { driver, sf });
+  assert.equal(run.ok, false);
+  assert.deepEqual(ran, ['Z', 'A', 'Bad']);
+  assert.equal(run.results[0].at, 1);
+  assert.equal(run.results[0].children[1].at, 1);
+  assert.match(run.results[0].message, /Step 2 of the group, “Inner \(2 steps\)”: Step 2 of the group/);
+  assert.equal(run.results[1].ok, null);
+
+  // ■ Stop: the step that runs ends (the page answers "stopped"), no more steps, the run says it was stopped
+  const signal = { on: false };
+  const ran2 = [];
+  const driver2 = {
+    ...driver,
+    step: async (s) => {
+      ran2.push(s.label);
+      if (s.label === 'Slow') {
+        signal.on = true;
+        return { ok: false, stopped: true, message: 'Stopped by you.' };
+      }
+      return { ok: true };
+    },
+  };
+  const steps = ['One', 'Slow', 'Never'].map((label) => ({ action: 'click', label }));
+  const run2 = await runTest({ name: 'S', steps }, { driver: driver2, sf, signal });
+  assert.equal(run2.ok, false);
+  assert.equal(run2.stopped, true);
+  assert.deepEqual(ran2, ['One', 'Slow']);
+  assert.deepEqual(
+    run2.results.map((r) => r.ok),
+    [true, null, null]
+  );
 });

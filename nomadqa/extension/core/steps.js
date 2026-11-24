@@ -26,7 +26,7 @@ export function problem(s) {
   if (s.action === 'group') {
     if (!Array.isArray(s.steps) || !s.steps.length) return 'the group has no steps';
     for (const [j, c] of s.steps.entries()) {
-      const bad = c?.action === 'group' ? 'a group cannot hold another group' : problem(c);
+      const bad = problem(c);
       if (bad) return `step ${j + 1} of the group: ${bad}`;
     }
     return '';
@@ -432,19 +432,26 @@ export function stepper(test, { driver, sf, describes = {}, logins = {} }) {
  * Runs a test. `onStep(i, result)` reports as it goes. Data made by the test is deleted at the end unless
  * test.cleanup === false; a test that logged in as someone else ends logged in as you again.
  */
-export async function runTest(test, { driver, sf, onStep = () => {}, describes = {}, logins = {} }) {
+/** Runs a test; `signal.on` (■ Stop) stops it: the step that runs ends now, no more run, test data is cleaned. */
+export async function runTest(test, { driver, sf, onStep = () => {}, describes = {}, logins = {}, signal } = {}) {
   const st = stepper(test, { driver, sf, describes, logins });
   const results = [];
   const t0 = Date.now();
   let failed = false;
+  let stopped = false;
   for (let i = 0; i < test.steps.length; i++) {
-    const r = failed ? { ok: null, message: 'not run' } : await st.run(test.steps[i]);
+    if (signal?.on) stopped = true;
+    let r = failed || stopped ? { ok: null, message: 'not run' } : await st.run(test.steps[i]);
+    if (r.stopped || (signal?.on && r.ok === false)) {
+      stopped = true;
+      r = { ok: null, stopped: true, message: 'Stopped by you.' };
+    }
     if (r.ok === false && !r.optional) failed = true;
     results.push(r);
     onStep(i, r);
   }
   const cleaned = await st.finish();
-  return { ok: !failed, results, ms: Date.now() - t0, cleaned };
+  return { ok: !failed && !stopped, ...(stopped ? { stopped: true } : {}), results, ms: Date.now() - t0, cleaned };
 }
 
 const xml = (s) =>

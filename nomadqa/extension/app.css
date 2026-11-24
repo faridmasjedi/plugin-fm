@@ -1561,3 +1561,15 @@ table.steps tr.group-foot td:first-child {
 table.steps tr.group-foot .row {
   margin: 0;
 }
+
+/* ⌖ Pick on the page, under an element's path */
+.step-field .pick-btn {
+  justify-self: start;
+  margin-top: 4px;
+  color: var(--accent);
+}
+.step-field .pick-btn.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
